@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "worldId": "KC_TWO_TILE",
+  "revision": 0,
+  "activeTileId": "KCW",
+  "worldMinute": 420,
+  "walletCents": 100000000,
+  "fareCents": 275,
+  "tiles": {
+    "KCW": {
+      "revision": 0,
+      "snapshotRevision": 0,
+      "lastSimulatedMinute": 420,
+      "aggregate": {
+        "waiting": 120,
+        "inTransit": 0,
+        "arrived": 0,
+        "served": 0,
+        "revenueCents": 0,
+        "operatingCostCents": 0
+      }
+    },
+    "KCE": {
+      "revision": 0,
+      "snapshotRevision": 0,
+      "lastSimulatedMinute": 420,
+      "aggregate": {
+        "waiting": 80,
+        "inTransit": 0,
+        "arrived": 0,
+        "served": 0,
+        "revenueCents": 0,
+        "operatingCostCents": 0
+      }
+    }
+  },
+  "gatewayLedger": {
+    "schemaVersion": 1,
+    "revision": 0,
+    "cohorts": [
+      {
+        "cohortId": "KC_OD_WEST_CENTRAL_001",
+        "originTileId": "KCW",
+        "destinationTileId": "KCE",
+        "gatewayId": "KCG_CENTRAL",
+        "workers": 120,
+        "waiting": 120,
+        "inTransit": 0,
+        "arrived": 0
+      },
+      {
+        "cohortId": "KC_OD_EAST_SOUTH_001",
+        "originTileId": "KCE",
+        "destinationTileId": "KCW",
+        "gatewayId": "KCG_SOUTH",
+        "workers": 80,
+        "waiting": 80,
+        "inTransit": 0,
+        "arrived": 0
+      }
+    ],
+    "events": []
+  },
+  "transition": null
+}

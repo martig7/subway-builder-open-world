@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0.0",
+  "prototype": true,
+  "passed": true,
+  "fixtureTiles": 35,
+  "playableTiles": 33,
+  "sliverTiles": 2,
+  "exactCheckpointRestored": {
+    "day": 2,
+    "wallet": 987655,
+    "tileId": "NY_CM03_RP01"
+  },
+  "expiredCheckpointRejected": true,
+  "retainedCheckpoints": 10,
+  "currentBlobCount": 182,
+  "garbageCollectedBlobs": 506,
+  "currentNetworkObjects": 17,
+  "adapterRuntime": {
+    "passed": true,
+    "transitions": 1000,
+    "tileCount": 33,
+    "activeTileId": "NY_CP01_RP00",
+    "globalTrackCount": 1,
+    "globalRouteCount": 1
+  },
+  "soak": {
+    "passed": true,
+    "seed": 1592594996,
+    "requestedTransitions": 1000,
+    "completedTransitions": 1000,
+    "assertions": 1000,
+    "retainedCheckpoints": 10,
+    "blobCount": 182,
+    "networkObjects": 17,
+    "maxTransitionTouchedTiles": 2,
+    "maxDeserializedTiles": 1
+  }
+}

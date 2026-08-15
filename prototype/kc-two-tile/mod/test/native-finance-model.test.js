@@ -1,0 +1,278 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  backgroundFinanceForHour,
+  calculateGlobalExpenseProfile,
+  calculateNativeRevenueProfile,
+  migrateCachedNativeRevenueProfile,
+  nativeComparableFinanceForHour,
+  summarizeNativeFinanceAudit,
+} from '../src/native-finance-model.js';
+
+test('native revenue profile reuses calculated native transit shares and fares', () => {
+  const profile = calculateNativeRevenueProfile([{
+    homeDepartureTime: 8 * 3_600 + 900,
+    workDepartureTime: 18 * 3_600 + 1_800,
+    lastCommute: {
+      modeChoice: { transit: 2 },
+      transitPaths: [{
+        fareCost: 3,
+        segments: [{ routeId: 'A' }, { routeId: 'B' }, { routeId: 'A' }],
+      }],
+    },
+  }]);
+
+  assert.equal(profile.schemaVersion, 3);
+  assert.equal(profile.hourly[8].revenue, 2 * 3 * 365);
+  assert.equal(profile.hourly[18].revenue, 2 * 3 * 365);
+  assert.equal(profile.hourly[8].revenueByRoute.A, 1 * 3 * 365);
+  assert.equal(profile.hourly[8].revenueByRoute.B, 1 * 3 * 365);
+  assert.deepEqual(profile.hourly.map((hour, index) => hour.revenue > 0 ? index : null).filter((hour) => hour != null), [8, 18]);
+  assert.equal(profile.dailyRevenue, 2 * 2 * 3 * 365);
+});
+
+test('native revenue profile uses the bundled all-day commute distribution when departure times are absent', () => {
+  const profile = calculateNativeRevenueProfile([{
+    lastCommute: {
+      modeChoice: { transit: 2 },
+      transitPaths: [{ fareCost: 3, segments: [{ routeId: 'A' }] }],
+    },
+  }]);
+  const total = profile.hourly.reduce((sum, hour) => sum + hour.revenue, 0);
+
+  assert.equal(profile.hourly.filter(({ revenue }) => revenue > 0).length, 24);
+  assert.ok(Math.abs(total - profile.dailyRevenue) < 1e-6);
+  assert.ok(profile.hourly[8].revenue > profile.hourly[6].revenue);
+  assert.ok(profile.hourly[17].revenue > profile.hourly[19].revenue);
+  assert.ok(profile.hourly[8].revenue < profile.dailyRevenue / 2);
+  assert.ok(Math.abs(profile.hourly[8].revenueByRoute.A - profile.hourly[8].revenue) < 1e-6);
+});
+
+test('cached two-spike revenue profiles migrate without loading remote native demand', () => {
+  const oldHourly = Array.from({ length: 24 }, () => ({ revenue: 0, revenueByRoute: {} }));
+  oldHourly[7] = {
+    revenue: 100,
+    revenueByRoute: { A: 100 },
+    financeOwnedRevenue: 40,
+    financeOwnedRevenueByRoute: { A: 40 },
+  };
+  oldHourly[17] = structuredClone(oldHourly[7]);
+
+  const migrated = migrateCachedNativeRevenueProfile({
+    schemaVersion: 2,
+    tileId: 'T0',
+    dailyRevenue: 200,
+    hourly: oldHourly,
+  });
+
+  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.hourly.filter(({ revenue }) => revenue > 0).length, 24);
+  assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + hour.revenue, 0) - 200) < 1e-9);
+  assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + (hour.financeOwnedRevenue ?? 0), 0) - 80) < 1e-9);
+  assert.ok(migrated.hourly[8].revenue > migrated.hourly[6].revenue);
+  assert.ok(migrated.hourly[17].revenue > migrated.hourly[19].revenue);
+});
+
+test('native revenue profile isolates the owned share of mixed local/global journeys', () => {
+  const profile = calculateNativeRevenueProfile([{
+    homeDepartureTime: 7 * 3_600,
+    workDepartureTime: 17 * 3_600,
+    lastCommute: {
+      modeChoice: { transit: 2 },
+      transitPaths: [{ fareCost: 4, segments: [{ routeId: 'local' }, { routeId: 'global' }] }],
+    },
+  }], { financeOwnedRouteIds: ['global'] });
+
+  assert.equal(profile.hourly[7].revenue, 2 * 4 * 365);
+  assert.equal(profile.hourly[7].financeOwnedRevenue, 1 * 4 * 365);
+  assert.deepEqual(profile.hourly[7].financeOwnedRevenueByRoute, { global: 1 * 4 * 365 });
+});
+
+test('global expense profile compiles route schedules and constructed infrastructure', () => {
+  const profile = calculateGlobalExpenseProfile({
+    routes: [{ id: 'R', trainType: 'commuter-rail', trainSchedule: { veryLowDemand: 1, highDemand: 3 } }],
+    trains: [{ id: 'T', routeId: 'R', trainType: 'commuter-rail', cars: 6 }],
+    tracks: [
+      { id: 'station-track', buildType: 'constructed', trackType: 'commuter-rail' },
+      { id: 'line-track', buildType: 'constructed', trackType: 'commuter-rail', length: 100 },
+    ],
+    trackGroups: [
+      { id: 'S', type: 'station', trackType: 'commuter-rail', trackIds: ['station-track'] },
+      { id: 'L', type: 'track', trackType: 'commuter-rail', trackIds: ['line-track'] },
+    ],
+  });
+
+  assert.equal(profile.routeHourly.R[1], (500 + 6 * 35) * 365);
+  assert.equal(profile.routeHourly.R[7], 3 * (500 + 6 * 35) * 365);
+  assert.equal(profile.infrastructureItems.find(({ id }) => id === 'station:S').hourlyCost, 320_000 / 24);
+  assert.equal(profile.infrastructureItems.find(({ id }) => id === 'track:line-track').hourlyCost, 100 * 300 / 24);
+});
+
+test('global expense profile prefers live public train-type prices', () => {
+  const profile = calculateGlobalExpenseProfile({
+    routes: [{ id: 'R', trainType: 'custom', trainSchedule: { highDemand: 2 } }],
+    trains: [{ id: 'T', routeId: 'R', trainType: 'custom', cars: 3 }],
+    tracks: [], trackGroups: [],
+  }, [{
+    id: 'custom', trainOperationalCostPerHour: 10, carOperationalCostPerHour: 2,
+    carsPerCarSet: 4, trackMaintenanceCostPerMeter: 5, stationMaintenanceCostPerYear: 6,
+  }]);
+
+  assert.equal(profile.routeHourly.R[7], 2 * (10 + 3 * 2) * 365);
+});
+
+test('global expense profile accepts explicit owned tracks without removing their groups', () => {
+  const profile = calculateGlobalExpenseProfile({
+    routes: [],
+    trains: [],
+    tracks: [{
+      id: 'shared-platform', buildType: 'constructed', trackType: 'commuter-rail',
+    }],
+    trackGroups: [{
+      id: 'shared-station', type: 'station', trackType: 'commuter-rail', trackIds: ['shared-platform'],
+    }],
+  }, [], { financeOwnedTrackIds: ['shared-platform'] });
+
+  assert.equal(profile.infrastructureItems[0].financeOwned, true);
+});
+
+test('hourly background finance excludes active native work and includes clipped routes', () => {
+  const posting = backgroundFinanceForHour({
+    activeTileId: 'T0',
+    hour: 7,
+    activeProjection: {
+      baselineState: { routes: [{ id: 'local' }, { id: 'clipped' }], tracks: [{ id: 'visible-track' }] },
+      partialRouteIds: ['clipped'],
+    },
+    finance: {
+      tileRevenueProfiles: {
+        T0: { hourly: Array.from({ length: 24 }, () => ({ revenue: 10 })) },
+        T1: { hourly: Array.from({ length: 24 }, () => ({ revenue: 20, revenueByRoute: { remote: 20 } })) },
+      },
+      expenseProfile: {
+        routeHourly: {
+          local: Array(24).fill(30),
+          remote: Array(24).fill(40),
+          clipped: Array(24).fill(50),
+        },
+        infrastructureItems: [
+          { id: 'visible', category: 'trackMaintenance', hourlyCost: 60, trackIds: ['visible-track'] },
+          { id: 'remote', category: 'trackMaintenance', hourlyCost: 70, trackIds: ['remote-track'] },
+        ],
+      },
+    },
+  });
+
+  assert.equal(posting.revenue, 20);
+  assert.deepEqual(posting.revenueByRoute, { remote: 20 });
+  assert.equal(posting.expenseCategories.trainOperational, 90);
+  assert.equal(posting.expenseCategories.trackMaintenance, 70);
+  assert.deepEqual(posting.expensesByRoute, { remote: 40, clipped: 50 });
+  assert.equal(posting.expenses, 160);
+});
+
+test('hourly background finance includes globally owned revenue and cost in the active tile', () => {
+  const hourly = Array.from({ length: 24 }, () => ({
+    revenue: 100,
+    revenueByRoute: { local: 60, global: 40 },
+    financeOwnedRevenue: 40,
+    financeOwnedRevenueByRoute: { global: 40 },
+  }));
+  const posting = backgroundFinanceForHour({
+    activeTileId: 'T0', hour: 7,
+    activeProjection: { baselineState: { routes: [{ id: 'local' }, { id: 'global' }], tracks: [] }, partialRouteIds: [] },
+    finance: {
+      tileRevenueProfiles: { T0: { hourly } },
+      expenseProfile: {
+        financeOwnedRouteIds: ['global'],
+        routeHourly: { local: Array(24).fill(30), global: Array(24).fill(50) },
+        infrastructureItems: [],
+      },
+    },
+  });
+
+  assert.equal(posting.revenue, 40);
+  assert.deepEqual(posting.revenueByRoute, { global: 40 });
+  assert.equal(posting.expenses, 50);
+  assert.deepEqual(posting.expensesByRoute, { global: 50 });
+});
+
+test('native finance audit prediction includes only visible non-clipped owned routes', () => {
+  const hourly = Array.from({ length: 24 }, () => ({
+    financeOwnedRevenueByRoute: { visible: 40, clipped: 20, remote: 10 },
+  }));
+  const comparable = nativeComparableFinanceForHour({
+    activeTileId: 'T0',
+    hour: 7,
+    activeProjection: {
+      baselineState: { routes: [{ id: 'visible' }, { id: 'clipped' }, { id: 'local' }] },
+      partialRouteIds: ['clipped'],
+    },
+    finance: {
+      tileRevenueProfiles: { T0: { hourly } },
+      expenseProfile: {
+        financeOwnedRouteIds: ['visible', 'clipped', 'remote'],
+        routeHourly: {
+          visible: Array(24).fill(50),
+          clipped: Array(24).fill(60),
+          remote: Array(24).fill(70),
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(comparable.routeIds, ['visible']);
+  assert.deepEqual(comparable.revenueByRoute, { visible: 40 });
+  assert.deepEqual(comparable.expensesByRoute, { visible: 50 });
+  assert.equal(comparable.revenue, 40);
+  assert.equal(comparable.expenses, 50);
+});
+
+test('native finance audit waits for 24 consecutive stable hours on one tile', () => {
+  const sample = (hour, auditSignature = 'stable', projectionHash = 'stable', networkRevision = 1) => ({
+    tileId: 'T0', hour, auditSignature, networkRevision, projectionHash, complete: true,
+    revenue: { native: 35, projected: hour % 24 === 7 || hour % 24 === 17 ? 480 : 0 },
+    expenses: { native: 55, projected: 50 },
+  });
+  const partial = summarizeNativeFinanceAudit(Array.from({ length: 23 }, (_, hour) => sample(hour)));
+
+  assert.equal(partial.ready, false);
+  assert.equal(partial.status, 'collecting');
+  assert.equal(partial.sampleCount, 23);
+  assert.equal(partial.revenue.native, null);
+  assert.equal(partial.partial.revenue.native, 23 * 35);
+
+  const complete = summarizeNativeFinanceAudit(Array.from({ length: 24 }, (_, hour) => sample(hour)));
+  assert.equal(complete.ready, true);
+  assert.equal(complete.sampleCount, 24);
+  assert.equal(complete.revenue.native, 24 * 35);
+  assert.equal(complete.revenue.projected, 2 * 480);
+
+  const changed = summarizeNativeFinanceAudit([
+    ...Array.from({ length: 23 }, (_, hour) => sample(hour)),
+    sample(23, 'new-network', 'new-projection', 2),
+  ]);
+  assert.equal(changed.ready, false);
+  assert.equal(changed.sampleCount, 1);
+});
+
+test('native finance audit ignores checkpoint projection and revision churn when the finance model is stable', () => {
+  const samples = Array.from({ length: 24 }, (_, hour) => ({
+    tileId: 'T0',
+    hour,
+    auditSignature: 'same-finance-model',
+    networkRevision: 7 + Math.floor(hour / 3),
+    projectionHash: `checkpoint-${Math.floor(hour / 3)}`,
+    complete: true,
+    networkStable: true,
+    revenue: { native: 10, projected: 12 },
+    expenses: { native: 5, projected: 6 },
+  }));
+
+  const audit = summarizeNativeFinanceAudit(samples);
+
+  assert.equal(audit.ready, true);
+  assert.equal(audit.sampleCount, 24);
+  assert.equal(audit.firstHour, 0);
+  assert.equal(audit.lastHour, 23);
+});

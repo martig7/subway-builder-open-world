@@ -1,0 +1,146 @@
+{
+  "aggregation": {
+    "algorithm": "deterministic sparse Voronoi sites; weighted 4D capacity-constrained Voronoi cohorts",
+    "drivingModel": "straight-line at 13.4 m/s; OSRM enrichment pending",
+    "maximumCohortSize": 200,
+    "minimumCohortSize": 50,
+    "pointMergeDistanceM": 100
+  },
+  "crossTile": {
+    "cohortCount": 6125,
+    "directedTilePairs": 42,
+    "farthestCommute": {
+      "drivingDistanceM": 421362,
+      "drivingSeconds": 37923,
+      "homeLocation": [
+        -75.1225217,
+        43.5267073
+      ],
+      "homePointId": "demand-site-073dfac717d8dcda36018bf5",
+      "homeTileId": "NY_CM01_RP03",
+      "popId": "cross-pop-182909faf90220d47f226ab3",
+      "straightDistanceM": 324125,
+      "workLocation": [
+        -73.9260072,
+        40.7466389
+      ],
+      "workPointId": "demand-site-6c7b317cce06efb09ce38f12",
+      "workTileId": "NY_CP00_RP00",
+      "workers": 67
+    },
+    "pointCount": 8749,
+    "undersizedResiduals": [
+      {
+        "homeTileId": "NY_CM01_RP03",
+        "workTileId": "NY_CM01_RP01",
+        "workers": 36
+      },
+      {
+        "homeTileId": "NY_CP01_RP00",
+        "workTileId": "NY_CM01_RP03",
+        "workers": 41
+      }
+    ],
+    "workers": 712206
+  },
+  "elapsedSeconds": 586.098,
+  "inputRows": 7055595,
+  "inputWorkers": 7789260,
+  "peakRssBytesAtFinish": 284901376,
+  "pilotCrossWorkers": 712206,
+  "pilotTiles": [
+    "NY_CP00_RP00",
+    "NY_CP00_RP01",
+    "NY_CP01_RP00",
+    "NY_CM01_RP01",
+    "NY_CM01_RP02",
+    "NY_CM01_RP03",
+    "NY_CP00_RP02"
+  ],
+  "prototype": true,
+  "schemaVersion": 1,
+  "source": {
+    "jobType": "JT01",
+    "lodesVintage": 2023
+  },
+  "tiles": [
+    {
+      "cohortCount": 35048,
+      "demandBytes": 3712856,
+      "elapsedSeconds": 91.781,
+      "localOdRows": 3651200,
+      "localWorkers": 4081572,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 21235,
+      "tileId": "NY_CP00_RP00"
+    },
+    {
+      "cohortCount": 1370,
+      "demandBytes": 173214,
+      "elapsedSeconds": 3.35,
+      "localOdRows": 140364,
+      "localWorkers": 158447,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1864,
+      "tileId": "NY_CP00_RP01"
+    },
+    {
+      "cohortCount": 3313,
+      "demandBytes": 409973,
+      "elapsedSeconds": 8.905,
+      "localOdRows": 359227,
+      "localWorkers": 389140,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 4087,
+      "tileId": "NY_CP01_RP00"
+    },
+    {
+      "cohortCount": 248,
+      "demandBytes": 26849,
+      "elapsedSeconds": 0.522,
+      "localOdRows": 26382,
+      "localWorkers": 30159,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 338,
+      "tileId": "NY_CM01_RP01"
+    },
+    {
+      "cohortCount": 430,
+      "demandBytes": 50851,
+      "elapsedSeconds": 0.924,
+      "localOdRows": 46876,
+      "localWorkers": 52344,
+      "maximumCohort": 199,
+      "minimumCohort": 50,
+      "siteCount": 609,
+      "tileId": "NY_CM01_RP02"
+    },
+    {
+      "cohortCount": 22,
+      "demandBytes": 2105,
+      "elapsedSeconds": 0.197,
+      "localOdRows": 2357,
+      "localWorkers": 2607,
+      "maximumCohort": 183,
+      "minimumCohort": 53,
+      "siteCount": 34,
+      "tileId": "NY_CM01_RP03"
+    },
+    {
+      "cohortCount": 2797,
+      "demandBytes": 339406,
+      "elapsedSeconds": 5.175,
+      "localOdRows": 279513,
+      "localWorkers": 321968,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 3292,
+      "tileId": "NY_CP00_RP02"
+    }
+  ],
+  "workDatabaseBytes": 1644916736
+}

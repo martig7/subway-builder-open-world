@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "worldId": "KC_TWO_TILE",
+  "projection": "EPSG:26915",
+  "haloMeters": 2000,
+  "tiles": [
+    {
+      "tileId": "KCW",
+      "ownership": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-94.8955, 38.8875],
+          [-94.6070, 38.8875],
+          [-94.6070, 39.1125],
+          [-94.8955, 39.1125],
+          [-94.8955, 38.8875]
+        ]]
+      }
+    },
+    {
+      "tileId": "KCE",
+      "ownership": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-94.6070, 38.8875],
+          [-94.3185, 38.8875],
+          [-94.3185, 39.1125],
+          [-94.6070, 39.1125],
+          [-94.6070, 38.8875]
+        ]]
+      }
+    }
+  ],
+  "gateways": [
+    { "id": "KCG_NORTH", "location": [-94.6070, 39.0750] },
+    { "id": "KCG_CENTRAL", "location": [-94.6070, 39.0000] },
+    { "id": "KCG_SOUTH", "location": [-94.6070, 38.9250] }
+  ]
+}

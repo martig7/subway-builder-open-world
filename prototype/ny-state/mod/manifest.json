@@ -1,0 +1,8 @@
+{
+  "id": "local.ny-state-six-tile-canary",
+  "name": "New York Seven-Tile Corridor Performance Canary",
+  "description": "Real-data performance test for seven NYC-sized New York open-world tiles with cross-tile demand.",
+  "version": "0.1.0",
+  "author": { "name": "Open World Prototype" },
+  "main": "index.js"
+}

@@ -1,0 +1,8 @@
+raw-data/*
+!raw-data/.gitkeep
+generated/work/*
+generated/pilot/depot/*
+generated/pilot/tiles/*
+generated/pilot/reports/pilot-depot.json
+__pycache__/
+*.pyc

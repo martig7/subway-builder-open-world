@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "crs": "EPSG:26915",
+  "data_vintage": "LODES8 2023 JT01",
+  "tiles": [
+    {"id": "KCW", "ownership": [335843, 4305500, 360843, 4330500], "halo_m": 2000},
+    {"id": "KCE", "ownership": [360843, 4305500, 385843, 4330500], "halo_m": 2000}
+  ],
+  "gateways": [
+    {"id": "KCG_NORTH", "x": 360843, "y": 4326333},
+    {"id": "KCG_CENTRAL", "x": 360843, "y": 4318000},
+    {"id": "KCG_SOUTH", "x": 360843, "y": 4309667}
+  ],
+  "cohort": {
+    "maximum_size": 200,
+    "clustering_version": "2",
+    "native_minimum_size": 50,
+    "native_cell_size_m": 500,
+    "point_merge_distance_m": 100
+  }
+}

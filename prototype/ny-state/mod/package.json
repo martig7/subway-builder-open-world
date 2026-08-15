@@ -1,0 +1,17 @@
+{
+  "name": "ny-state-six-tile-canary-mod",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-mod.mjs",
+    "postbuild": "node scripts/install-mod.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

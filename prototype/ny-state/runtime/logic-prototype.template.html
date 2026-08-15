@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>New York 35-tile runtime logic prototype</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0d141b; --panel:#16212b; --panel2:#1b2a36; --line:#304454; --text:#edf5fa; --muted:#9bb0bf; --accent:#62d3ff; --gold:#ffd166; --danger:#ff6b6b; --good:#70df9b; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    button,input,select { font:inherit; }
+    button { border:1px solid var(--line); background:#20313e; color:var(--text); border-radius:7px; padding:8px 11px; cursor:pointer; }
+    button:hover:not(:disabled) { border-color:var(--accent); }
+    button:disabled { opacity:.38; cursor:not-allowed; }
+    main { max-width:1500px; margin:auto; padding:28px; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { margin-bottom:8px; font-size:28px; }
+    h2 { font-size:17px; margin-bottom:13px; }
+    .intro { max-width:1050px; color:var(--muted); margin-bottom:22px; }
+    .prototype { display:inline-block; color:var(--gold); border:1px solid #7c6732; border-radius:999px; padding:3px 9px; margin-bottom:10px; font-size:12px; letter-spacing:.08em; }
+    .cards { display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:10px; margin-bottom:14px; }
+    .card,.panel { background:var(--panel); border:1px solid #233746; border-radius:10px; }
+    .card { padding:12px; }
+    .card span { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+    .card strong { display:block; margin-top:4px; font-size:18px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .change { border-left:3px solid var(--accent); padding:11px 13px; margin-bottom:14px; background:#132531; }
+    .layout { display:grid; grid-template-columns:minmax(560px,1.15fr) minmax(430px,.85fr); gap:14px; }
+    .panel { padding:16px; min-width:0; }
+    .map { display:grid; gap:4px; min-height:420px; align-content:center; }
+    .tile { min-height:52px; padding:4px; font:11px ui-monospace,SFMono-Regular,Consolas,monospace; background:#142632; border-color:#395a6c; }
+    .tile.active { border:3px solid var(--gold); color:var(--gold); background:#293522; }
+    .tile.snapshot:not(.active) { background:#173b44; }
+    .tile.sliver { border-style:dashed; border-color:var(--danger); color:var(--danger); background:transparent; }
+    .controls { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+    .controls input,.controls select { min-width:150px; color:var(--text); background:#101b23; border:1px solid var(--line); border-radius:7px; padding:8px; }
+    .accent { background:#125474; border-color:#2d9ac5; }
+    .danger { border-color:#87454b; }
+    .tabs { display:flex; flex-wrap:wrap; gap:6px; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px; }
+    .tabs button.active { border-color:var(--gold); color:var(--gold); }
+    .walkthrough { min-height:178px; }
+    .walkthrough p { color:var(--muted); }
+    .steps { display:grid; gap:7px; }
+    .step { text-align:left; }
+    .step.done { color:var(--good); border-color:#356b4b; }
+    .tables { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+    .scroll { max-height:330px; overflow:auto; border:1px solid var(--line); border-radius:7px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { padding:7px 8px; text-align:left; border-bottom:1px solid #263945; }
+    th { position:sticky; top:0; background:#1b2a36; color:var(--muted); z-index:1; }
+    tr.active td { color:var(--gold); }
+    .events { margin:0; padding:0; list-style:none; max-height:250px; overflow:auto; }
+    .events li { padding:7px 0; border-bottom:1px solid #263945; color:var(--muted); }
+    .events li.error { color:var(--danger); }
+    .pass { color:var(--good); font-weight:700; }
+    .metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; font:12px ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .metric-grid div { display:flex; justify-content:space-between; border-bottom:1px dotted #36505f; padding:4px 0; }
+    @media (max-width:1050px) { .cards { grid-template-columns:repeat(3,1fr); } .layout,.tables { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="prototype">THROWAWAY LOGIC PROTOTYPE</div>
+  <h1>New York 35-tile runtime</h1>
+  <p class="intro"><strong>Question:</strong> can a 33-playable-tile world switch by touching only the source and destination, keep one global transit network, and restore the checkpoint paired with an exact native autosave while retaining only ten checkpoints? This demo keeps all state in memory and exposes every relevant reference.</p>
+
+  <section class="cards" id="cards"></section>
+  <div class="panel change" id="last-change"></div>
+
+  <div class="layout">
+    <section class="panel">
+      <h2>World atlas</h2>
+      <div class="map" id="map"></div>
+    </section>
+    <section class="panel">
+      <h2>Free play</h2>
+      <div class="controls">
+        <button data-action="next">Switch to next tile</button>
+        <button data-action="track">Build track</button>
+        <button data-action="station">Build station</button>
+        <button data-action="day">Advance one day</button>
+        <button data-action="spend">Spend $10,000</button>
+        <button data-action="earn">Earn $10,000</button>
+      </div>
+      <div class="controls">
+        <input id="save-name" value="Autosave A" aria-label="Save identity">
+        <button data-action="save">Create autosave</button>
+        <select id="checkpoint-select" aria-label="Retained checkpoint"></select>
+        <button data-action="load">Load exact autosave</button>
+      </div>
+      <div class="controls">
+        <button data-action="twelve">Create 12 autosaves</button>
+        <button class="accent" data-action="soak">Run 1,000-switch soak</button>
+        <button class="danger" data-action="reset">Reset world</button>
+      </div>
+
+      <h2 style="margin-top:20px">Guided walkthroughs</h2>
+      <div class="tabs" id="tabs"></div>
+      <div class="walkthrough" id="walkthrough"></div>
+    </section>
+  </div>
+
+  <div class="tables">
+    <section class="panel">
+      <h2>Tile snapshot references</h2>
+      <div class="scroll"><table><thead><tr><th>Tile</th><th>Rev</th><th>Snapshot</th><th>Local</th></tr></thead><tbody id="tile-state"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h2>Retained autosaves</h2>
+      <div class="scroll"><table><thead><tr><th>Identity</th><th>Day</th><th>Tile</th><th>Network</th></tr></thead><tbody id="checkpoint-state"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h2>Bounded-work metrics</h2>
+      <div class="metric-grid" id="metrics"></div>
+      <div id="soak-result" style="margin-top:14px"></div>
+    </section>
+    <section class="panel">
+      <h2>Recent state changes</h2>
+      <ul class="events" id="events"></ul>
+    </section>
+  </div>
+</main>
+
+<script>
+/*__RUNTIME_MODEL__*/
+const TILE_CATALOG = /*__TILE_CATALOG__*/null;
+
+const normalTiles = TILE_CATALOG.tiles.filter((tile) => tile.status === 'normal');
+const byId = new Map(TILE_CATALOG.tiles.map((tile) => [tile.id, tile]));
+let state = createRuntimeModel(TILE_CATALOG);
+let activeScenario = 0;
+let activeStep = 0;
+
+const scenarios = [
+  {
+    name: 'Network continuity',
+    description: 'Build in NYC, cross two tile boundaries, and confirm the same global network remains available without copying it into every tile snapshot.',
+    steps: [
+      ['Build a track in NYC', () => dispatch({ type:'BUILD_NETWORK_OBJECT', objectKind:'track' })],
+      ['Switch to a western tile', () => dispatch({ type:'SWITCH_TILE', tileId:normalTiles[7].id })],
+      ['Switch to an upstate tile', () => dispatch({ type:'SWITCH_TILE', tileId:normalTiles[19].id })],
+    ],
+  },
+  {
+    name: 'Exact autosave',
+    description: 'Create an older and newer save, then load the older identity. The clock, money, active tile, and network must come from that exact checkpoint.',
+    steps: [
+      ['Advance to day 2 and save “Older”', () => { dispatch({type:'ADVANCE_DAY',days:2}, false); dispatch({type:'SAVE_CHECKPOINT',saveName:'Older'}, false); render(); }],
+      ['Change the world and save “Newer”', () => { dispatch({type:'ADVANCE_DAY',days:5}, false); dispatch({type:'CHANGE_WALLET',delta:-50000}, false); dispatch({type:'SWITCH_TILE',tileId:normalTiles[12].id}, false); dispatch({type:'SAVE_CHECKPOINT',saveName:'Newer'}, false); render(); }],
+      ['Load “Older”, ignoring the newer checkpoint', () => dispatch({type:'LOAD_CHECKPOINT',saveName:'Older'})],
+    ],
+  },
+  {
+    name: 'Retention and GC',
+    description: 'Create twelve distinct autosaves. Only saves 3–12 remain; loading save 2 is rejected without changing the world.',
+    steps: [
+      ['Create twelve autosaves', () => createTwelveAutosaves()],
+      ['Try to load expired “Retention 2”', () => dispatch({type:'LOAD_CHECKPOINT',saveName:'Retention 2'})],
+    ],
+  },
+  {
+    name: 'Randomized soak',
+    description: 'Run 1,000 deterministic transitions with builds, saves, older-save loads, and an invariant check after every switch.',
+    steps: [
+      ['Run the 1,000-switch soak', () => dispatch({type:'RUN_SOAK',count:1000,seed:0x5eed1234})],
+    ],
+  },
+];
+
+function dispatch(action, shouldRender = true) {
+  state = reduceRuntimeModel(state, action);
+  if (shouldRender) render();
+}
+
+function reset(scenarioStep = true) {
+  state = createRuntimeModel(TILE_CATALOG);
+  if (scenarioStep) activeStep = 0;
+  render();
+}
+
+function createTwelveAutosaves() {
+  for (let number = 1; number <= 12; number += 1) {
+    state = reduceRuntimeModel(state, {type:'ADVANCE_DAY',days:1});
+    state = reduceRuntimeModel(state, {type:'SAVE_CHECKPOINT',saveName:`Retention ${number}`});
+  }
+  render();
+}
+
+function renderCards() {
+  const values = [
+    ['Active tile', state.activeTileId], ['World day', state.worldDay], ['Wallet', `$${state.wallet.toLocaleString()}`],
+    ['World revision', state.revision], ['Global network', `${state.globalNetwork.objects.length} objects`],
+    ['Checkpoints', `${state.checkpoints.entries.length} / 10`], ['Stored blobs', Object.keys(state.blobs).length],
+  ];
+  document.querySelector('#cards').innerHTML = values.map(([label,value]) => `<div class="card"><span>${label}</span><strong title="${value}">${value}</strong></div>`).join('');
+  document.querySelector('#last-change').textContent = state.lastEvent;
+}
+
+function renderMap() {
+  const columns = TILE_CATALOG.grid.bboxColumns;
+  const rows = TILE_CATALOG.grid.bboxRows;
+  const element = document.querySelector('#map');
+  element.style.gridTemplateColumns = `repeat(${columns[1]-columns[0]+1},1fr)`;
+  element.style.gridTemplateRows = `repeat(${rows[1]-rows[0]+1},1fr)`;
+  element.innerHTML = TILE_CATALOG.tiles.map((tile) => {
+    const active = tile.id === state.activeTileId;
+    const snapshot = Boolean(state.tiles[tile.id]?.snapshotHash);
+    const style = `grid-column:${tile.column-columns[0]+1};grid-row:${rows[1]-tile.row+1}`;
+    return `<button class="tile ${active?'active':''} ${snapshot?'snapshot':''} ${tile.status}" style="${style}" data-tile="${tile.id}" ${tile.status!=='normal'?'disabled':''}>${tile.column},${tile.row}</button>`;
+  }).join('');
+  element.querySelectorAll('[data-tile]').forEach((button) => button.addEventListener('click', () => dispatch({type:'SWITCH_TILE',tileId:button.dataset.tile})));
+}
+
+function renderTables() {
+  document.querySelector('#tile-state').innerHTML = state.tileIds.map((tileId) => {
+    const tile = state.tiles[tileId];
+    return `<tr class="${tileId===state.activeTileId?'active':''}"><td>${tileId}</td><td>${tile.revision}</td><td title="${tile.snapshotHash??''}">${tile.snapshotHash?'yes':'—'}</td><td>${tile.localObjectCount}</td></tr>`;
+  }).join('');
+  document.querySelector('#checkpoint-state').innerHTML = [...state.checkpoints.entries].reverse().map((entry) => `<tr><td>${entry.saveName}</td><td>${entry.world.worldDay}</td><td>${entry.world.activeTileId}</td><td>${entry.globalNetworkHash.slice(0,13)}</td></tr>`).join('');
+  const select = document.querySelector('#checkpoint-select');
+  const selected = select.value;
+  select.innerHTML = [...state.checkpoints.entries].reverse().map((entry) => `<option>${entry.saveName}</option>`).join('');
+  if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+}
+
+function renderMetrics() {
+  const metrics = [
+    ['Transitions', state.metrics.transitions], ['Snapshot writes', state.metrics.snapshotWrites],
+    ['GC blobs', state.metrics.garbageCollectedBlobs], ['Rejected actions', state.metrics.rejectedActions],
+    ['Max tiles touched / switch', state.metrics.maxTransitionTouchedTiles], ['Max tiles deserialized', state.metrics.maxDeserializedTiles],
+    ['Last touched', state.metrics.lastTouchedTileIds.join(', ') || 'none'], ['Last deserialized', state.metrics.lastDeserializedTileIds.join(', ') || 'none'],
+  ];
+  document.querySelector('#metrics').innerHTML = metrics.map(([label,value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
+  document.querySelector('#soak-result').innerHTML = state.soakReport ? `<div class="pass">PASS — ${state.soakReport.completedTransitions.toLocaleString()} transitions and ${state.soakReport.assertions.toLocaleString()} invariant checks</div>` : '<span style="color:var(--muted)">Soak has not run.</span>';
+  document.querySelector('#events').innerHTML = [...state.events].reverse().map((event) => `<li class="${event.kind}">#${event.sequence} ${event.message}</li>`).join('');
+}
+
+function renderWalkthrough() {
+  document.querySelector('#tabs').innerHTML = scenarios.map((scenario,index) => `<button class="${index===activeScenario?'active':''}" data-scenario="${index}">${scenario.name}</button>`).join('');
+  const scenario = scenarios[activeScenario];
+  document.querySelector('#walkthrough').innerHTML = `<p>${scenario.description}</p><div class="steps">${scenario.steps.map(([label],index) => `<button class="step ${index<activeStep?'done':''}" data-step="${index}" ${index!==activeStep?'disabled':''}>${index<activeStep?'✓ ':''}${label}</button>`).join('')}</div>`;
+  document.querySelectorAll('[data-scenario]').forEach((button) => button.addEventListener('click', () => { activeScenario=Number(button.dataset.scenario); activeStep=0; reset(false); }));
+  document.querySelectorAll('[data-step]').forEach((button) => button.addEventListener('click', () => {
+    const step = Number(button.dataset.step);
+    if (step !== activeStep) return;
+    scenario.steps[step][1]();
+    activeStep += 1;
+    render();
+  }));
+}
+
+function render() { renderCards(); renderMap(); renderTables(); renderMetrics(); renderWalkthrough(); }
+
+document.querySelectorAll('[data-action]').forEach((button) => button.addEventListener('click', () => {
+  const action = button.dataset.action;
+  if (action === 'next') {
+    const index = state.tileIds.indexOf(state.activeTileId);
+    dispatch({type:'SWITCH_TILE',tileId:state.tileIds[(index+1)%state.tileIds.length]});
+  } else if (action === 'track') dispatch({type:'BUILD_NETWORK_OBJECT',objectKind:'track'});
+  else if (action === 'station') dispatch({type:'BUILD_NETWORK_OBJECT',objectKind:'station'});
+  else if (action === 'day') dispatch({type:'ADVANCE_DAY',days:1});
+  else if (action === 'spend') dispatch({type:'CHANGE_WALLET',delta:-10000});
+  else if (action === 'earn') dispatch({type:'CHANGE_WALLET',delta:10000});
+  else if (action === 'save') dispatch({type:'SAVE_CHECKPOINT',saveName:document.querySelector('#save-name').value});
+  else if (action === 'load') dispatch({type:'LOAD_CHECKPOINT',saveName:document.querySelector('#checkpoint-select').value});
+  else if (action === 'twelve') createTwelveAutosaves();
+  else if (action === 'soak') dispatch({type:'RUN_SOAK',count:1000,seed:0x5eed1234});
+  else if (action === 'reset') reset();
+}));
+
+render();
+</script>
+</body>
+</html>
+

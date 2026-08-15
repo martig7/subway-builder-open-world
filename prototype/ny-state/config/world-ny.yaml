@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "worldId": "NYS_NYC_SCALE_PROTOTYPE",
+  "prototype": true,
+  "crs": "EPSG:26918",
+  "grid": {
+    "originX": 553400,
+    "originY": 4483300,
+    "tileWidthM": 77700,
+    "tileHeightM": 97300,
+    "ownershipConvention": "half-open",
+    "nycColumn": 0,
+    "nycRow": 0
+  },
+  "selection": {
+    "stateFips": "36",
+    "statePostal": "NY",
+    "normalMinimumIntersectionKm2": 1.0,
+    "keepIntersectingSlivers": true
+  },
+  "haloM": 2000,
+  "cohort": {
+    "pointMergeDistanceM": 100,
+    "nativeMinimumSize": 50,
+    "maximumSize": 200,
+    "undersizedResidualPolicy": "retain-and-warn"
+  },
+  "demand": {
+    "lodesVersion": "LODES8",
+    "vintage": 2023,
+    "jobType": "JT01",
+    "workerColumn": "S000"
+  }
+}
+

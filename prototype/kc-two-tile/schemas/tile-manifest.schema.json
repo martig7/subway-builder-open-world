@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://subway-builder-open-world.local/schemas/tile-manifest.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "tileId", "cityCode", "buildHash", "dataFiles", "runtimeFiles", "assets"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "tileId": { "$ref": "common.schema.json#/$defs/tileId" },
+    "cityCode": { "$ref": "common.schema.json#/$defs/tileId" },
+    "buildHash": { "$ref": "common.schema.json#/$defs/sha256" },
+    "dataFiles": {
+      "type": "object",
+      "required": ["demandData"],
+      "properties": {
+        "demandData": { "type": "string", "minLength": 1 },
+        "buildingsIndex": { "type": "string", "minLength": 1 },
+        "roads": { "type": "string", "minLength": 1 },
+        "runwaysTaxiways": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "runtimeFiles": {
+      "type": "object",
+      "required": ["schemaVersion", "crossCommutes", "crossDemand", "gates"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "crossCommutes": { "$ref": "#/$defs/runtimeArtifact" },
+        "crossDemand": { "$ref": "#/$defs/runtimeArtifact" },
+        "gates": { "$ref": "#/$defs/runtimeArtifact" }
+      },
+      "additionalProperties": false
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "bytes", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "sha256": { "$ref": "common.schema.json#/$defs/sha256" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "runtimeArtifact": {
+      "type": "object",
+      "required": ["path", "bytes", "sha256", "encoding", "role"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "common.schema.json#/$defs/sha256" },
+        "encoding": { "enum": ["canonical-json", "gzip-json"] },
+        "role": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

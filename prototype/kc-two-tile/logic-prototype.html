@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KC two-tile transition logic prototype</title>
+  <style>
+    :root { color-scheme: light; --ink:#17221c; --muted:#607067; --paper:#f4f2ea; --card:#fffdf8; --line:#d7ddd8; --accent:#087f5b; --bad:#b42318; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+    main { width:min(1180px,calc(100% - 32px)); margin:32px auto 64px; }
+    h1 { margin:0 0 8px; font-size:clamp(28px,5vw,46px); letter-spacing:-.035em; }
+    h2 { font-size:19px; margin:0 0 14px; }
+    p { max-width:850px; color:var(--muted); }
+    .notice { border-left:4px solid var(--accent); padding:12px 16px; background:#e9f7f1; margin:20px 0 24px; }
+    .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+    .card,section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+    .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
+    .value { font-size:24px; font-weight:720; margin-top:3px; overflow-wrap:anywhere; }
+    section { margin-top:16px; }
+    .buttons { display:flex; flex-wrap:wrap; gap:8px; }
+    button,select { font:inherit; border:1px solid #aab8af; border-radius:8px; background:white; padding:9px 12px; color:var(--ink); cursor:pointer; }
+    button:hover { border-color:var(--accent); }
+    button.primary { background:var(--accent); color:white; border-color:var(--accent); }
+    button.danger { color:var(--bad); border-color:#e2aaa5; }
+    .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+    .tabs button[aria-selected="true"] { background:var(--ink); color:white; }
+    .walkthrough { display:none; }
+    .walkthrough.active { display:block; }
+    .step { display:grid; grid-template-columns:32px minmax(0,1fr) auto; gap:10px; align-items:center; border-top:1px solid var(--line); padding:10px 0; }
+    .step:first-of-type { border-top:0; }
+    .step .n { display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:#e6ece8; }
+    pre { margin:0; max-height:520px; overflow:auto; background:#111914; color:#d8eee0; padding:16px; border-radius:9px; font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .message { margin-top:12px; padding:10px 12px; border-radius:8px; background:#eef1ef; }
+    .message.error { background:#fff0ee; color:var(--bad); }
+    table { border-collapse:collapse; width:100%; }
+    th,td { text-align:left; padding:8px; border-bottom:1px solid var(--line); }
+    @media (max-width:780px) { .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .step { grid-template-columns:28px 1fr; } .step button { grid-column:2; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Kansas City tile handoff</h1>
+  <p>This throwaway logic prototype asks whether two independently saved Subway Builder tiles can share one authoritative clock, wallet, and commuter ledger while transitions remain atomic, retryable, and mass-conserving.</p>
+  <div class="notice"><strong>Prototype only.</strong> Everything is in memory. No game, files, or database are touched. The transition reducer is isolated from the page so its state decisions can be compared with the real runtime.</div>
+
+  <div class="grid" id="summary"></div>
+
+  <section>
+    <h2>Free play</h2>
+    <div class="buttons">
+      <button data-action="reset">Reset world</button>
+      <button data-action="advance">Advance one hour</button>
+      <button data-action="catchup">Catch up inactive tile</button>
+      <button class="primary" data-action="begin-east">Request East transition</button>
+      <button class="primary" data-action="begin-west">Request West transition</button>
+      <button data-action="step">Run next transition phase</button>
+      <button data-action="complete">Complete transition</button>
+      <button data-action="duplicate">Repeat last transaction ID</button>
+      <button data-action="morning">Queue morning commute</button>
+      <button data-action="evening">Queue evening return</button>
+      <select id="failure">
+        <option value="">No injected failure</option>
+        <option value="SNAPSHOT_SOURCE">Fail while snapshotting</option>
+        <option value="LOAD_DESTINATION">Fail while loading destination</option>
+        <option value="VERIFY_DESTINATION">Fail during verification</option>
+      </select>
+      <button class="danger" data-action="rollback">Recover / roll back</button>
+    </div>
+    <div id="message" class="message"></div>
+  </section>
+
+  <section>
+    <h2>Guided walkthroughs</h2>
+    <div class="tabs" id="tabs"></div>
+    <div id="walkthroughs"></div>
+  </section>
+
+  <section>
+    <h2>Gateway cohorts</h2>
+    <div id="cohorts"></div>
+  </section>
+
+  <section>
+    <h2>Full relevant state</h2>
+    <pre id="state"></pre>
+  </section>
+</main>
+
+<script>
+// Portable pure logic module. It has no DOM dependencies.
+const TileLogic = (() => {
+  const phases = [
+    'ACQUIRE_LEASE','QUIESCE_GAME','SNAPSHOT_SOURCE','RECONCILE_SOURCE',
+    'ADVANCE_DESTINATION','PREPARE_DESTINATION','LOAD_DESTINATION',
+    'RESTORE_GLOBALS','VERIFY_DESTINATION','COMMIT','RESUME_GAME','DONE'
+  ];
+  const copy = value => structuredClone(value);
+  const other = id => id === 'KCW' ? 'KCE' : 'KCW';
+  const blankAggregate = waiting => ({ waiting, inTransit:0, arrived:0, served:0, revenueCents:0, operatingCostCents:0 });
+
+  function initialState() {
+    return {
+      schemaVersion:1, worldId:'KC_TWO_TILE', revision:0, activeTileId:'KCW',
+      worldMinute:420, walletCents:100000000, fareCents:275,
+      tiles:{
+        KCW:{ revision:0, snapshotRevision:0, lastSimulatedMinute:420, aggregate:blankAggregate(120) },
+        KCE:{ revision:0, snapshotRevision:0, lastSimulatedMinute:420, aggregate:blankAggregate(80) }
+      },
+      gatewayLedger:{ revision:0, capacityPerGatewayHour:30, cohorts:[
+        { cohortId:'KC_OD_WEST_CENTRAL_001', homeTileId:'KCW', workTileId:'KCE', gatewayId:'KCG_CENTRAL', workers:120, atHome:120, queuedToWork:0, toWork:0, atWork:0, queuedToHome:0, toHome:0 },
+        { cohortId:'KC_OD_EAST_SOUTH_001', homeTileId:'KCE', workTileId:'KCW', gatewayId:'KCG_SOUTH', workers:80, atHome:80, queuedToWork:0, toWork:0, atWork:0, queuedToHome:0, toHome:0 }
+      ], events:[] },
+      transition:null, completedTransactions:[], journal:[], injectedFailure:'',
+      sequence:1, lastTransactionId:null, lastMessage:'World reset.', lastError:null
+    };
+  }
+
+  function catchUpTile(tile, worldMinute) {
+    const next = copy(tile);
+    const hours = Math.floor((worldMinute - next.lastSimulatedMinute) / 60);
+    if (hours <= 0) return next;
+    next.lastSimulatedMinute += hours * 60;
+    next.aggregate.served += hours * 12;
+    next.aggregate.revenueCents += hours * 12 * 275;
+    next.aggregate.operatingCostCents += hours * 1800;
+    next.revision += 1;
+    return next;
+  }
+
+  function cohortMassIsValid(state) {
+    return state.gatewayLedger.cohorts.every(c => c.atHome + c.queuedToWork + c.toWork + c.atWork + c.queuedToHome + c.toHome === c.workers);
+  }
+
+  function dispatchQueues(state) {
+    for (const direction of ['Work','Home']) {
+      const groups = {};
+      for (const cohort of state.gatewayLedger.cohorts) (groups[cohort.gatewayId] ??= []).push(cohort);
+      for (const cohorts of Object.values(groups)) {
+        let capacity = state.gatewayLedger.capacityPerGatewayHour;
+        for (const cohort of cohorts.sort((a,b)=>a.cohortId.localeCompare(b.cohortId))) {
+          const queue = `queuedTo${direction}`, transit = `to${direction}`;
+          const count = Math.min(cohort[queue], capacity);
+          cohort[queue] -= count; cohort[transit] += count; capacity -= count;
+        }
+      }
+    }
+  }
+
+  function arriveAndDispatch(state) {
+    for (const cohort of state.gatewayLedger.cohorts) {
+      cohort.atWork += cohort.toWork; cohort.toWork = 0;
+      cohort.atHome += cohort.toHome; cohort.toHome = 0;
+    }
+    dispatchQueues(state);
+    state.gatewayLedger.revision += 1;
+  }
+
+  function reduce(input, action) {
+    if (action.type === 'RESET') return initialState();
+    const state = copy(input);
+    state.lastError = null;
+
+    if (action.type === 'SET_FAILURE') {
+      state.injectedFailure = action.phase;
+      state.lastMessage = action.phase ? `Failure armed for ${action.phase}.` : 'Failure injection cleared.';
+      return state;
+    }
+
+    if (action.type === 'ADVANCE_HOUR') {
+      if (state.transition) return reject(state, 'Cannot advance time during a transition.');
+      state.worldMinute += 60;
+      arriveAndDispatch(state);
+      state.tiles[state.activeTileId] = catchUpTile(state.tiles[state.activeTileId], state.worldMinute);
+      state.revision += 1;
+      state.lastMessage = 'World advanced one hour; inactive tile remains stale until catch-up.';
+      return state;
+    }
+
+    if (action.type === 'CATCH_UP_INACTIVE') {
+      const tileId = other(state.activeTileId);
+      state.tiles[tileId] = catchUpTile(state.tiles[tileId], state.worldMinute);
+      state.revision += 1;
+      state.lastMessage = `${tileId} caught up deterministically to minute ${state.worldMinute}.`;
+      return state;
+    }
+
+    if (action.type === 'REQUEST_TRANSITION') {
+      const tx = action.transactionId || `demo-${state.sequence++}`;
+      state.lastTransactionId = tx;
+      if (state.completedTransactions.includes(tx)) {
+        state.lastMessage = `Transaction ${tx} was already committed; duplicate is an idempotent no-op.`;
+        return state;
+      }
+      if (state.transition) {
+        if (state.transition.transactionId === tx) {
+          state.lastMessage = `Transaction ${tx} is already in progress; duplicate ignored.`;
+          return state;
+        }
+        return reject(state, `Transition ${state.transition.transactionId} already owns the lease.`);
+      }
+      if (action.destinationTileId === state.activeTileId) {
+        state.lastMessage = `${action.destinationTileId} is already active.`;
+        return state;
+      }
+      state.transition = {
+        transactionId:tx, sourceTileId:state.activeTileId, destinationTileId:action.destinationTileId,
+        phase:phases[0], status:'RUNNING', baseWorldRevision:state.revision,
+        startedAtWorldMinute:state.worldMinute, error:null,
+        stagedDestination:copy(state.tiles[action.destinationTileId]),
+        stagedSourceSnapshotRevision:state.tiles[state.activeTileId].snapshotRevision
+      };
+      state.lastMessage = `Transition ${tx} started.`;
+      return state;
+    }
+
+    if (action.type === 'STEP_TRANSITION') return step(state);
+    if (action.type === 'COMPLETE_TRANSITION') {
+      let next = state;
+      for (let i=0; i<20 && next.transition; i++) {
+        next = step(next);
+        if (next.transition?.phase === 'ROLLBACK') break;
+      }
+      return next;
+    }
+    if (action.type === 'ROLLBACK') {
+      if (!state.transition) return reject(state, 'There is no transition to recover.');
+      return rollback(state, state.transition.error || 'Manual rollback requested.');
+    }
+    if (action.type === 'MORNING_DEPARTURE') {
+      for (const cohort of state.gatewayLedger.cohorts) {
+        cohort.queuedToWork += cohort.atHome; cohort.atHome = 0;
+      }
+      dispatchQueues(state); state.gatewayLedger.revision += 1;
+      state.lastMessage = 'Morning workers queued and gateway capacity dispatched one aggregate batch.';
+      return finish(state);
+    }
+    if (action.type === 'EVENING_RETURN') {
+      for (const cohort of state.gatewayLedger.cohorts) {
+        cohort.queuedToHome += cohort.atWork; cohort.atWork = 0;
+      }
+      dispatchQueues(state); state.gatewayLedger.revision += 1;
+      state.lastMessage = 'Workers at jobs queued for the return trip; the same population is moving home.';
+      return finish(state);
+    }
+    return reject(state, `Unknown action ${action.type}.`);
+  }
+
+  function step(state) {
+    const tx = state.transition;
+    if (!tx) return reject(state, 'Start a transition first.');
+    if (tx.phase === 'ROLLBACK') return rollback(state, tx.error || 'Injected failure.');
+    if (state.injectedFailure === tx.phase) {
+      tx.status='FAILED'; tx.error=`Injected failure at ${tx.phase}`; tx.phase='ROLLBACK';
+      state.lastError=tx.error; state.lastMessage='No committed world fields changed; run recovery to clear the transaction.';
+      return state;
+    }
+    if (tx.phase === 'ADVANCE_DESTINATION') tx.stagedDestination = catchUpTile(tx.stagedDestination, state.worldMinute);
+    if (tx.phase === 'SNAPSHOT_SOURCE') tx.stagedSourceSnapshotRevision += 1;
+    if (tx.phase === 'COMMIT') {
+      state.tiles[tx.destinationTileId] = tx.stagedDestination;
+      state.tiles[tx.sourceTileId].snapshotRevision = tx.stagedSourceSnapshotRevision;
+      state.activeTileId = tx.destinationTileId;
+      state.tiles[tx.destinationTileId].revision += 1;
+      state.revision += 1;
+      state.completedTransactions.push(tx.transactionId);
+      tx.status='COMMITTED';
+    }
+    const index = phases.indexOf(tx.phase);
+    if (tx.phase === 'DONE') {
+      state.journal.push(copy(tx)); state.transition=null;
+      state.lastMessage=`Transition ${tx.transactionId} finished and lease released.`;
+      return finish(state);
+    }
+    tx.phase = phases[index + 1];
+    state.lastMessage=`Transition ${tx.transactionId} advanced to ${tx.phase}.`;
+    return finish(state);
+  }
+
+  function rollback(state, error) {
+    const tx = state.transition;
+    tx.status='ROLLED_BACK'; tx.phase='ROLLBACK'; tx.error=error;
+    state.journal.push(copy(tx)); state.transition=null; state.injectedFailure='';
+    state.lastError=error; state.lastMessage=`Rolled back ${tx.transactionId}; ${state.activeTileId} remains committed.`;
+    return finish(state);
+  }
+  function reject(state, message) { state.lastError=message; state.lastMessage=message; return state; }
+  function finish(state) {
+    if (!cohortMassIsValid(state)) return reject(state, 'INVARIANT FAILURE: gateway cohort mass changed.');
+    return state;
+  }
+  return { initialState, reduce, phases, cohortMassIsValid };
+})();
+
+let state = TileLogic.initialState();
+let lastCommittedId = null;
+
+const scenarios = [
+  { id:'happy', title:'Happy path', description:'Move from Kansas West to Missouri East one explicit phase at a time. Watch the destination catch up before the atomic commit.', steps:[
+    ['Reset',()=>dispatch({type:'RESET'})],
+    ['Request East',()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:'KCE',transactionId:'walk-happy'})],
+    ...Array.from({length:12},(_,i)=>[`Run phase ${i+1}`,()=>dispatch({type:'STEP_TRANSITION'})])
+  ]},
+  { id:'failure', title:'Failure and recovery', description:'Fail while loading East. The active tile, wallet, and clock must remain committed to West.', steps:[
+    ['Reset',()=>dispatch({type:'RESET'})],
+    ['Arm load failure',()=>dispatch({type:'SET_FAILURE',phase:'LOAD_DESTINATION'})],
+    ['Request East',()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:'KCE',transactionId:'walk-fail'})],
+    ['Run until failure',()=>dispatch({type:'COMPLETE_TRANSITION'})],
+    ['Recover',()=>dispatch({type:'ROLLBACK'})]
+  ]},
+  { id:'duplicate', title:'Duplicate request', description:'Commit one transition, then send the same transaction ID again. The revision must not increment twice.', steps:[
+    ['Reset',()=>dispatch({type:'RESET'})],
+    ['Request East',()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:'KCE',transactionId:'walk-once'})],
+    ['Complete',()=>dispatch({type:'COMPLETE_TRANSITION'})],
+    ['Repeat same ID',()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:'KCW',transactionId:'walk-once'})]
+  ]},
+  { id:'catchup', title:'Lazy catch-up', description:'Leave East stale for six hours, then transition to it. Its aggregate model catches up before activation.', steps:[
+    ['Reset',()=>dispatch({type:'RESET'})],
+    ...Array.from({length:6},(_,i)=>[`Advance hour ${i+1}`,()=>dispatch({type:'ADVANCE_HOUR'})]),
+    ['Request East',()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:'KCE',transactionId:'walk-catchup'})],
+    ['Complete',()=>dispatch({type:'COMPLETE_TRANSITION'})]
+  ]},
+  { id:'commute', title:'Round trip', description:'Run a capacity-constrained morning and evening commute. The six positions always sum to the original worker total.', steps:[
+    ['Reset',()=>dispatch({type:'RESET'})],
+    ['Queue morning',()=>dispatch({type:'MORNING_DEPARTURE'})],
+    ...Array.from({length:4},(_,i)=>[`Advance morning hour ${i+1}`,()=>dispatch({type:'ADVANCE_HOUR'})]),
+    ['Queue return',()=>dispatch({type:'EVENING_RETURN'})],
+    ...Array.from({length:4},(_,i)=>[`Advance evening hour ${i+1}`,()=>dispatch({type:'ADVANCE_HOUR'})])
+  ]}
+];
+
+function dispatch(action) {
+  const before = state.completedTransactions.length;
+  state = TileLogic.reduce(state, action);
+  if (state.completedTransactions.length > before) lastCommittedId = state.completedTransactions.at(-1);
+  render();
+}
+
+function render() {
+  const tx = state.transition;
+  const inactive = state.activeTileId === 'KCW' ? 'KCE' : 'KCW';
+  document.querySelector('#summary').innerHTML = [
+    ['Active tile',state.activeTileId], ['World time',formatMinute(state.worldMinute)],
+    ['World revision',state.revision], ['Transition',tx ? tx.phase : 'IDLE'],
+    ['Wallet',money(state.walletCents)], ['Inactive lag',`${state.worldMinute-state.tiles[inactive].lastSimulatedMinute} min`],
+    ['Committed transactions',state.completedTransactions.length], ['Cohort mass',TileLogic.cohortMassIsValid(state)?'CONSERVED':'BROKEN']
+  ].map(([label,value])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');
+  const message=document.querySelector('#message'); message.textContent=state.lastMessage; message.className=`message${state.lastError?' error':''}`;
+  document.querySelector('#state').textContent=JSON.stringify(state,null,2);
+  document.querySelector('#failure').value=state.injectedFailure;
+  document.querySelector('#cohorts').innerHTML=`<table><thead><tr><th>Cohort</th><th>Direction</th><th>Gateway</th><th>At home</th><th>Queue → work</th><th>→ work</th><th>At work</th><th>Queue → home</th><th>→ home</th><th>Total</th></tr></thead><tbody>${state.gatewayLedger.cohorts.map(c=>`<tr><td>${c.cohortId}</td><td>${c.homeTileId} ⇄ ${c.workTileId}</td><td>${c.gatewayId}</td><td>${c.atHome}</td><td>${c.queuedToWork}</td><td>${c.toWork}</td><td>${c.atWork}</td><td>${c.queuedToHome}</td><td>${c.toHome}</td><td>${c.workers}</td></tr>`).join('')}</tbody></table>`;
+}
+function money(cents){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100)}
+function formatMinute(minute){const day=Math.floor(minute/1440)+1; const m=minute%1440; return `Day ${day}, ${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`}
+
+document.querySelector('[data-action="reset"]').onclick=()=>dispatch({type:'RESET'});
+document.querySelector('[data-action="advance"]').onclick=()=>dispatch({type:'ADVANCE_HOUR'});
+document.querySelector('[data-action="catchup"]').onclick=()=>dispatch({type:'CATCH_UP_INACTIVE'});
+document.querySelector('[data-action="begin-east"]').onclick=()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:'KCE'});
+document.querySelector('[data-action="begin-west"]').onclick=()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:'KCW'});
+document.querySelector('[data-action="step"]').onclick=()=>dispatch({type:'STEP_TRANSITION'});
+document.querySelector('[data-action="complete"]').onclick=()=>dispatch({type:'COMPLETE_TRANSITION'});
+document.querySelector('[data-action="duplicate"]').onclick=()=>dispatch({type:'REQUEST_TRANSITION',destinationTileId:state.activeTileId==='KCW'?'KCE':'KCW',transactionId:lastCommittedId||state.lastTransactionId||'demo-missing'});
+document.querySelector('[data-action="morning"]').onclick=()=>dispatch({type:'MORNING_DEPARTURE'});
+document.querySelector('[data-action="evening"]').onclick=()=>dispatch({type:'EVENING_RETURN'});
+document.querySelector('[data-action="rollback"]').onclick=()=>dispatch({type:'ROLLBACK'});
+document.querySelector('#failure').onchange=e=>dispatch({type:'SET_FAILURE',phase:e.target.value});
+
+const tabs=document.querySelector('#tabs'), walks=document.querySelector('#walkthroughs');
+scenarios.forEach((scenario,index)=>{
+  const tab=document.createElement('button'); tab.textContent=scenario.title; tab.setAttribute('aria-selected',String(index===0));
+  tab.onclick=()=>selectScenario(scenario.id); tab.dataset.scenario=scenario.id; tabs.append(tab);
+  const panel=document.createElement('div'); panel.id=`scenario-${scenario.id}`; panel.className=`walkthrough${index===0?' active':''}`;
+  panel.innerHTML=`<p>${scenario.description}</p>`;
+  scenario.steps.forEach(([label,fn],i)=>{const row=document.createElement('div');row.className='step';row.innerHTML=`<span class="n">${i+1}</span><span>${label}</span>`;const b=document.createElement('button');b.textContent='Run step';b.onclick=fn;row.append(b);panel.append(row)});
+  walks.append(panel);
+});
+function selectScenario(id){document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.scenario===id)));document.querySelectorAll('.walkthrough').forEach(p=>p.classList.toggle('active',p.id===`scenario-${id}`));dispatch({type:'RESET'})}
+render();
+</script>
+</body>
+</html>

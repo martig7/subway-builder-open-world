@@ -1,0 +1,50 @@
+{
+  "assetBytes": {
+    "buildings_index.bin.gz": 9622137,
+    "roads.geojson.gz": 2245785,
+    "runways_taxiways.geojson.gz": 5959,
+    "tiles.pmtiles": 18209778
+  },
+  "bbox": [
+    -75.32343880348444,
+    42.23331833519652,
+    -74.31870612090977,
+    43.14709119711919
+  ],
+  "buildingFeatures": 175684,
+  "depotCode": "NYA4",
+  "elapsedSeconds": 922.017,
+  "installedBytes": 30083659,
+  "peakRssBytes": 1502306304,
+  "roadFeatures": 15301,
+  "schemaVersion": 1,
+  "stages": [
+    {
+      "name": "base",
+      "resumed": false,
+      "seconds": 87.11
+    },
+    {
+      "name": "buildings",
+      "resumed": false,
+      "seconds": 114.06
+    },
+    {
+      "name": "roads",
+      "resumed": false,
+      "seconds": 6.316
+    },
+    {
+      "name": "pmtiles",
+      "resumed": false,
+      "seconds": 555.579
+    },
+    {
+      "name": "labels",
+      "resumed": false,
+      "seconds": 156.767
+    }
+  ],
+  "stateIntersectionKm2": 7560.21,
+  "tileId": "NY_CM01_RP02"
+}

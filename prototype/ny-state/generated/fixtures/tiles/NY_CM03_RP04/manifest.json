@@ -1,0 +1,23 @@
+{
+  "assets": [],
+  "bounds": [
+    -77.27443764,
+    43.98367032,
+    -76.27219661,
+    44.8743185
+  ],
+  "cityCode": "NY_CM03_RP04",
+  "dataFiles": {},
+  "fixture": true,
+  "schemaVersion": 1,
+  "selectable": true,
+  "status": "normal",
+  "tileId": "NY_CM03_RP04",
+  "viewport": {
+    "bearing": 0,
+    "latitude": 44.42996863,
+    "longitude": -76.76968989,
+    "zoom": 9
+  },
+  "worldId": "NYS_NYC_SCALE_PROTOTYPE"
+}

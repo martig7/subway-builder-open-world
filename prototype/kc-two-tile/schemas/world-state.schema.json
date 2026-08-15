@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://subway-builder-open-world.local/schemas/world-state.schema.json",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "worldId",
+    "revision",
+    "activeTileId",
+    "worldMinute",
+    "walletCents",
+    "fareCents",
+    "tiles",
+    "gatewayLedger",
+    "transition"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "worldId": { "const": "KC_TWO_TILE" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "activeTileId": { "$ref": "common.schema.json#/$defs/tileId" },
+    "worldMinute": { "type": "integer", "minimum": 0 },
+    "walletCents": { "type": "integer" },
+    "fareCents": { "type": "integer", "minimum": 0 },
+    "tiles": {
+      "type": "object",
+      "required": ["KCW", "KCE"],
+      "properties": {
+        "KCW": { "$ref": "#/$defs/tileState" },
+        "KCE": { "$ref": "#/$defs/tileState" }
+      },
+      "additionalProperties": false
+    },
+    "gatewayLedger": { "$ref": "gateway-ledger.schema.json" },
+    "transition": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "transition-journal.schema.json" }
+      ]
+    }
+  },
+  "$defs": {
+    "tileState": {
+      "type": "object",
+      "required": ["revision", "snapshotRevision", "lastSimulatedMinute", "aggregate"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 0 },
+        "snapshotRevision": { "type": "integer", "minimum": 0 },
+        "lastSimulatedMinute": { "type": "integer", "minimum": 0 },
+        "aggregate": {
+          "type": "object",
+          "required": ["waiting", "inTransit", "arrived", "served", "revenueCents", "operatingCostCents"],
+          "properties": {
+            "waiting": { "type": "integer", "minimum": 0 },
+            "inTransit": { "type": "integer", "minimum": 0 },
+            "arrived": { "type": "integer", "minimum": 0 },
+            "served": { "type": "integer", "minimum": 0 },
+            "revenueCents": { "type": "integer" },
+            "operatingCostCents": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

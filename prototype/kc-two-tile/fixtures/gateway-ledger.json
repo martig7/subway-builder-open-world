@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "revision": 0,
+  "cohorts": [
+    {
+      "cohortId": "KC_OD_WEST_CENTRAL_001",
+      "originTileId": "KCW",
+      "destinationTileId": "KCE",
+      "gatewayId": "KCG_CENTRAL",
+      "workers": 120,
+      "waiting": 120,
+      "inTransit": 0,
+      "arrived": 0
+    },
+    {
+      "cohortId": "KC_OD_EAST_SOUTH_001",
+      "originTileId": "KCE",
+      "destinationTileId": "KCW",
+      "gatewayId": "KCG_SOUTH",
+      "workers": 80,
+      "waiting": 80,
+      "inTransit": 0,
+      "arrived": 0
+    }
+  ],
+  "events": []
+}

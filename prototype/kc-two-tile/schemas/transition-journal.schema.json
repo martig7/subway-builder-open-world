@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://subway-builder-open-world.local/schemas/transition-journal.schema.json",
+  "type": "object",
+  "required": [
+    "transactionId",
+    "sourceTileId",
+    "destinationTileId",
+    "phase",
+    "status",
+    "baseWorldRevision",
+    "startedAtWorldMinute"
+  ],
+  "properties": {
+    "transactionId": { "type": "string", "minLength": 1 },
+    "sourceTileId": { "$ref": "common.schema.json#/$defs/tileId" },
+    "destinationTileId": { "$ref": "common.schema.json#/$defs/tileId" },
+    "phase": {
+      "enum": [
+        "ACQUIRE_LEASE",
+        "QUIESCE_GAME",
+        "SNAPSHOT_SOURCE",
+        "RECONCILE_SOURCE",
+        "ADVANCE_DESTINATION",
+        "PREPARE_DESTINATION",
+        "LOAD_DESTINATION",
+        "RESTORE_GLOBALS",
+        "VERIFY_DESTINATION",
+        "COMMIT",
+        "RESUME_GAME",
+        "DONE",
+        "ROLLBACK"
+      ]
+    },
+    "status": { "enum": ["PENDING", "RUNNING", "COMMITTED", "ROLLED_BACK", "FAILED"] },
+    "baseWorldRevision": { "type": "integer", "minimum": 0 },
+    "startedAtWorldMinute": { "type": "integer", "minimum": 0 },
+    "error": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

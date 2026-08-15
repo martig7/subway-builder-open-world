@@ -1,0 +1,40 @@
+# Machine-local investigation and extracted game files
+.analysis/
+.debug/
+research/bundle-inspect-*/
+
+# Dependencies and build products
+**/node_modules/
+**/dist/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.coverage
+
+# Downloaded source data and generated binary packages
+**/raw-data/
+prototype/kc-two-tile/artifacts/
+prototype/ny-state/generated/work/
+prototype/ny-state/generated/pilot/basemap/
+prototype/ny-state/generated/pilot/tiles/
+
+# Local routing/database products
+**/*.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/*.osm.pbf
+**/*.osrm*
+**/*.mbtiles
+**/*.pmtiles
+**/*.mvt
+**/*.pkl
+
+# Logs, temporary files, and editor metadata
+*.log
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

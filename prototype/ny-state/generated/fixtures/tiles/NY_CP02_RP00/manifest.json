@@ -1,0 +1,23 @@
+{
+  "assets": [],
+  "bounds": [
+    -72.5368798,
+    40.45100565,
+    -71.5767446,
+    41.34984612
+  ],
+  "cityCode": "NY_CP02_RP00",
+  "dataFiles": {},
+  "fixture": true,
+  "schemaVersion": 1,
+  "selectable": true,
+  "status": "normal",
+  "tileId": "NY_CP02_RP00",
+  "viewport": {
+    "bearing": 0,
+    "latitude": 40.90120716,
+    "longitude": -72.05983437,
+    "zoom": 9
+  },
+  "worldId": "NYS_NYC_SCALE_PROTOTYPE"
+}

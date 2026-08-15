@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://subway-builder-open-world.local/schemas/gateway-ledger.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "revision", "cohorts", "events"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "cohorts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "cohortId",
+          "originTileId",
+          "destinationTileId",
+          "gatewayId",
+          "workers",
+          "waiting",
+          "inTransit",
+          "arrived"
+        ],
+        "properties": {
+          "cohortId": { "type": "string", "pattern": "^KC_OD_[A-Z0-9_]+$" },
+          "originTileId": { "$ref": "common.schema.json#/$defs/tileId" },
+          "destinationTileId": { "$ref": "common.schema.json#/$defs/tileId" },
+          "gatewayId": { "$ref": "common.schema.json#/$defs/gatewayId" },
+          "workers": { "type": "integer", "minimum": 1 },
+          "waiting": { "type": "integer", "minimum": 0 },
+          "inTransit": { "type": "integer", "minimum": 0 },
+          "arrived": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["eventId", "cohortId", "kind", "worldMinute", "workers"],
+        "properties": {
+          "eventId": { "type": "string", "minLength": 1 },
+          "cohortId": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["DEPARTED", "ARRIVED", "RETURNED", "ABANDONED"] },
+          "worldMinute": { "type": "integer", "minimum": 0 },
+          "workers": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

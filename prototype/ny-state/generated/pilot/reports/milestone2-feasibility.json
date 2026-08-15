@@ -1,0 +1,1115 @@
+{
+  "budgets": {
+    "activePackageBytes": 536870912,
+    "installedBytes": 12884901888,
+    "pipelineMemoryBytes": 17179869184,
+    "warmSwitchSeconds": 5.0
+  },
+  "gates": {
+    "activePackage": true,
+    "installedSize": true,
+    "pipelineMemory": true,
+    "warmSwitch": true
+  },
+  "generatedAt": "2026-08-12T03:28:15Z",
+  "largestPackageBytes": 349682864,
+  "oneDay": {
+    "cohorts": 93470,
+    "generalizedCostChecksum": 289872653,
+    "kind": "one-day full-cohort traversal proxy",
+    "seconds": 0.277731,
+    "tiles": [
+      {
+        "cohorts": 80863,
+        "seconds": 0.216326,
+        "tileId": "NY_CP00_RP00",
+        "workers": 4081572
+      },
+      {
+        "cohorts": 3155,
+        "seconds": 0.028393,
+        "tileId": "NY_CP00_RP01",
+        "workers": 158447
+      },
+      {
+        "cohorts": 7759,
+        "seconds": 0.024604,
+        "tileId": "NY_CP01_RP00",
+        "workers": 389140
+      },
+      {
+        "cohorts": 600,
+        "seconds": 0.003836,
+        "tileId": "NY_CM01_RP01",
+        "workers": 30159
+      },
+      {
+        "cohorts": 1042,
+        "seconds": 0.003966,
+        "tileId": "NY_CM01_RP02",
+        "workers": 52344
+      },
+      {
+        "cohorts": 51,
+        "seconds": 0.000561,
+        "tileId": "NY_CM01_RP03",
+        "workers": 2607
+      }
+    ],
+    "workers": 4714269
+  },
+  "packages": [
+    {
+      "assets": {
+        "buildings_index.bin.gz": 123054695,
+        "cross_commutes.json": 6884,
+        "demand_data.json.gz": 7487622,
+        "roads.geojson.gz": 17311899,
+        "runways_taxiways.geojson.gz": 399264,
+        "tiles.pmtiles": 201422500
+      },
+      "buildSeconds": 5016.484,
+      "buildingFeatures": 2612022,
+      "packageBytes": 349682864,
+      "peakRssBytes": 14981054464,
+      "roadFeatures": 233143,
+      "tileId": "NY_CP00_RP00"
+    },
+    {
+      "assets": {
+        "buildings_index.bin.gz": 21728040,
+        "cross_commutes.json": 6539,
+        "demand_data.json.gz": 342000,
+        "roads.geojson.gz": 5241614,
+        "runways_taxiways.geojson.gz": 160675,
+        "tiles.pmtiles": 48353562
+      },
+      "buildSeconds": 1519.563,
+      "buildingFeatures": 386437,
+      "packageBytes": 75832430,
+      "peakRssBytes": 14981054464,
+      "roadFeatures": 38461,
+      "tileId": "NY_CP00_RP01"
+    },
+    {
+      "assets": {
+        "buildings_index.bin.gz": 47652838,
+        "cross_commutes.json": 6526,
+        "demand_data.json.gz": 795985,
+        "roads.geojson.gz": 6584711,
+        "runways_taxiways.geojson.gz": 187528,
+        "tiles.pmtiles": 87686110
+      },
+      "buildSeconds": 2203.711,
+      "buildingFeatures": 855438,
+      "packageBytes": 142913698,
+      "peakRssBytes": 14981054464,
+      "roadFeatures": 77204,
+      "tileId": "NY_CP01_RP00"
+    },
+    {
+      "assets": {
+        "buildings_index.bin.gz": 9113323,
+        "cross_commutes.json": 6516,
+        "demand_data.json.gz": 65750,
+        "roads.geojson.gz": 2692684,
+        "runways_taxiways.geojson.gz": 24477,
+        "tiles.pmtiles": 22264712
+      },
+      "buildSeconds": 988.036,
+      "buildingFeatures": 160374,
+      "packageBytes": 34167462,
+      "peakRssBytes": 14981054464,
+      "roadFeatures": 17343,
+      "tileId": "NY_CM01_RP01"
+    },
+    {
+      "assets": {
+        "buildings_index.bin.gz": 9622137,
+        "cross_commutes.json": 6744,
+        "demand_data.json.gz": 117353,
+        "roads.geojson.gz": 2245785,
+        "runways_taxiways.geojson.gz": 5959,
+        "tiles.pmtiles": 18209778
+      },
+      "buildSeconds": 922.017,
+      "buildingFeatures": 175684,
+      "packageBytes": 30207756,
+      "peakRssBytes": 1502306304,
+      "roadFeatures": 15301,
+      "tileId": "NY_CM01_RP02"
+    },
+    {
+      "assets": {
+        "buildings_index.bin.gz": 2647113,
+        "cross_commutes.json": 6492,
+        "demand_data.json.gz": 4985,
+        "roads.geojson.gz": 675058,
+        "runways_taxiways.geojson.gz": 3852,
+        "tiles.pmtiles": 8991464
+      },
+      "buildSeconds": 879.182,
+      "buildingFeatures": 47234,
+      "packageBytes": 12328964,
+      "peakRssBytes": 1105580032,
+      "roadFeatures": 4841,
+      "tileId": "NY_CM01_RP03"
+    }
+  ],
+  "peakPipelineRssBytes": 14981054464,
+  "projection": {
+    "assignments": [
+      {
+        "activityWorkersPerStateKm2": 2152.434,
+        "projectedBuildSeconds": 5016.484,
+        "projectedBytes": 349682864,
+        "proxyTileId": "NY_CP00_RP00",
+        "tileId": "NY_CP00_RP00"
+      },
+      {
+        "activityWorkersPerStateKm2": 547.459,
+        "projectedBuildSeconds": 2203.711,
+        "projectedBytes": 142913698,
+        "proxyTileId": "NY_CP01_RP00",
+        "tileId": "NY_CP01_RP00"
+      },
+      {
+        "activityWorkersPerStateKm2": 131.67,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CM05_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 111.774,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CP00_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 303.417,
+        "projectedBuildSeconds": 2203.711,
+        "projectedBytes": 142913698,
+        "proxyTileId": "NY_CP01_RP00",
+        "tileId": "NY_CM04_RP03"
+      },
+      {
+        "activityWorkersPerStateKm2": 75.747,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CP00_RP01"
+      },
+      {
+        "activityWorkersPerStateKm2": 61.078,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CM02_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 43.419,
+        "projectedBuildSeconds": 922.017,
+        "projectedBytes": 30207756,
+        "proxyTileId": "NY_CM01_RP02",
+        "tileId": "NY_CM04_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 34.142,
+        "projectedBuildSeconds": 922.017,
+        "projectedBytes": 30207756,
+        "proxyTileId": "NY_CM01_RP02",
+        "tileId": "NY_CM03_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 28.359,
+        "projectedBuildSeconds": 922.017,
+        "projectedBytes": 30207756,
+        "proxyTileId": "NY_CM01_RP02",
+        "tileId": "NY_CM02_RP03"
+      },
+      {
+        "activityWorkersPerStateKm2": 26.413,
+        "projectedBuildSeconds": 922.017,
+        "projectedBytes": 30207756,
+        "proxyTileId": "NY_CM01_RP02",
+        "tileId": "NY_CM01_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 72.217,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CM05_RP03"
+      },
+      {
+        "activityWorkersPerStateKm2": 68.993,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CM02_RP01"
+      },
+      {
+        "activityWorkersPerStateKm2": 21.043,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CM01_RP01"
+      },
+      {
+        "activityWorkersPerStateKm2": 16.208,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CP00_RP03"
+      },
+      {
+        "activityWorkersPerStateKm2": 48.005,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CM03_RP01"
+      },
+      {
+        "activityWorkersPerStateKm2": 43.713,
+        "projectedBuildSeconds": 922.017,
+        "projectedBytes": 30207756,
+        "proxyTileId": "NY_CM01_RP02",
+        "tileId": "NY_CM03_RP03"
+      },
+      {
+        "activityWorkersPerStateKm2": 11.226,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CP00_RP04"
+      },
+      {
+        "activityWorkersPerStateKm2": 76.057,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CP02_RP00"
+      },
+      {
+        "activityWorkersPerStateKm2": 10.506,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CM02_RP04"
+      },
+      {
+        "activityWorkersPerStateKm2": 38.887,
+        "projectedBuildSeconds": 922.017,
+        "projectedBytes": 30207756,
+        "proxyTileId": "NY_CM01_RP02",
+        "tileId": "NY_CM06_RP01"
+      },
+      {
+        "activityWorkersPerStateKm2": 5.475,
+        "projectedBuildSeconds": 879.182,
+        "projectedBytes": 12328964,
+        "proxyTileId": "NY_CM01_RP03",
+        "tileId": "NY_CM01_RP04"
+      },
+      {
+        "activityWorkersPerStateKm2": 22.758,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CM06_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 20.473,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CM05_RP01"
+      },
+      {
+        "activityWorkersPerStateKm2": 3.156,
+        "projectedBuildSeconds": 879.182,
+        "projectedBytes": 12328964,
+        "proxyTileId": "NY_CM01_RP03",
+        "tileId": "NY_CM01_RP03"
+      },
+      {
+        "activityWorkersPerStateKm2": 22.779,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CM01_RP05"
+      },
+      {
+        "activityWorkersPerStateKm2": 54.041,
+        "projectedBuildSeconds": 1519.563,
+        "projectedBytes": 75832430,
+        "proxyTileId": "NY_CP00_RP01",
+        "tileId": "NY_CM01_RP00"
+      },
+      {
+        "activityWorkersPerStateKm2": 8.206,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CM04_RP01"
+      },
+      {
+        "activityWorkersPerStateKm2": 9.855,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CP00_RP05"
+      },
+      {
+        "activityWorkersPerStateKm2": 13.232,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CP01_RP02"
+      },
+      {
+        "activityWorkersPerStateKm2": 11.353,
+        "projectedBuildSeconds": 988.036,
+        "projectedBytes": 34167462,
+        "proxyTileId": "NY_CM01_RP01",
+        "tileId": "NY_CP01_RP03"
+      },
+      {
+        "activityWorkersPerStateKm2": 7.836,
+        "projectedBuildSeconds": 879.182,
+        "projectedBytes": 12328964,
+        "proxyTileId": "NY_CM01_RP03",
+        "tileId": "NY_CM03_RP04"
+      },
+      {
+        "activityWorkersPerStateKm2": 1.106,
+        "projectedBuildSeconds": 879.182,
+        "projectedBytes": 12328964,
+        "proxyTileId": "NY_CM01_RP03",
+        "tileId": "NY_CP01_RP04"
+      }
+    ],
+    "conservativeInstalledBytes": 2597948915,
+    "method": "nearest pilot by log activity-worker density; independent per-tile PMTiles retained (conservative versus a shared archive)",
+    "normalTiles": 33,
+    "projectedInstalledBytes": 1924406604,
+    "projectedSerialBuildSeconds": 43017.199,
+    "sliversExcluded": 2
+  },
+  "prototype": true,
+  "routing": {
+    "elapsedSeconds": 33.140248,
+    "kind": "generated-road graph feasibility benchmark",
+    "note": "This proves generated-road graph construction and fastest-path queries; production demand enrichment will use the pinned external OSRM cache.",
+    "peakRssBytes": 907091968,
+    "prototype": true,
+    "samplesPerTile": 5,
+    "schemaVersion": 1,
+    "speedModelMps": {
+      "highway": 27.0,
+      "major": 20.0,
+      "minor": 13.4
+    },
+    "status": "complete",
+    "tiles": [
+      {
+        "components": 204,
+        "edges": 1801279,
+        "elapsedSeconds": 15.160667,
+        "graphBuildSeconds": 12.393701,
+        "graphRssBytes": 907091968,
+        "largestComponentNodes": 1685755,
+        "nodes": 1689607,
+        "routeMaxSeconds": 1.109662,
+        "routeP50Seconds": 0.370245,
+        "samples": [
+          {
+            "computeSeconds": 0.04487,
+            "destination": [
+              -73.9426653,
+              40.6598835
+            ],
+            "distanceMetres": 6204.311,
+            "durationSeconds": 326.959,
+            "origin": [
+              -73.9892384,
+              40.6909958
+            ]
+          },
+          {
+            "computeSeconds": 1.109662,
+            "destination": [
+              -74.2032384,
+              40.5570825
+            ],
+            "distanceMetres": 37924.648,
+            "durationSeconds": 1695.033,
+            "origin": [
+              -74.2094546,
+              40.8427235
+            ]
+          },
+          {
+            "computeSeconds": 0.326683,
+            "destination": [
+              -73.9647837,
+              40.854694
+            ],
+            "distanceMetres": 25583.286,
+            "durationSeconds": 1084.353,
+            "origin": [
+              -73.8104489,
+              40.9959226
+            ]
+          },
+          {
+            "computeSeconds": 0.74492,
+            "destination": [
+              -73.8105343,
+              40.9958106
+            ],
+            "distanceMetres": 25566.752,
+            "durationSeconds": 1083.119,
+            "origin": [
+              -73.964809,
+              40.8546904
+            ]
+          },
+          {
+            "computeSeconds": 0.370245,
+            "destination": [
+              -74.1982072,
+              40.7735637
+            ],
+            "distanceMetres": 30113.196,
+            "durationSeconds": 1312.767,
+            "origin": [
+              -74.2031248,
+              40.5559936
+            ]
+          }
+        ],
+        "tileId": "NY_CP00_RP00"
+      },
+      {
+        "components": 187,
+        "edges": 617843,
+        "elapsedSeconds": 5.780318,
+        "graphBuildSeconds": 3.75158,
+        "graphRssBytes": 625610752,
+        "largestComponentNodes": 601035,
+        "nodes": 605823,
+        "routeMaxSeconds": 0.703511,
+        "routeP50Seconds": 0.477779,
+        "samples": [
+          {
+            "computeSeconds": 0.028024,
+            "destination": [
+              -73.839921,
+              41.732957
+            ],
+            "distanceMetres": 11188.785,
+            "durationSeconds": 479.848,
+            "origin": [
+              -73.9316423,
+              41.689795
+            ]
+          },
+          {
+            "computeSeconds": 0.488977,
+            "destination": [
+              -73.683691,
+              41.511042
+            ],
+            "distanceMetres": 94108.109,
+            "durationSeconds": 4655.521,
+            "origin": [
+              -74.322065,
+              41.871732
+            ]
+          },
+          {
+            "computeSeconds": 0.256079,
+            "destination": [
+              -73.807707,
+              41.646937
+            ],
+            "distanceMetres": 47804.952,
+            "durationSeconds": 2282.659,
+            "origin": [
+              -74.144301,
+              41.431913
+            ]
+          },
+          {
+            "computeSeconds": 0.477779,
+            "destination": [
+              -74.144227,
+              41.431809
+            ],
+            "distanceMetres": 47773.934,
+            "durationSeconds": 2280.344,
+            "origin": [
+              -73.807531,
+              41.64703
+            ]
+          },
+          {
+            "computeSeconds": 0.703511,
+            "destination": [
+              -74.322121,
+              41.871924
+            ],
+            "distanceMetres": 94099.77,
+            "durationSeconds": 4654.898,
+            "origin": [
+              -73.6835966,
+              41.5109432
+            ]
+          }
+        ],
+        "tileId": "NY_CP00_RP01"
+      },
+      {
+        "components": 117,
+        "edges": 692227,
+        "elapsedSeconds": 6.088586,
+        "graphBuildSeconds": 4.90964,
+        "graphRssBytes": 626659328,
+        "largestComponentNodes": 346659,
+        "nodes": 658028,
+        "routeMaxSeconds": 0.427479,
+        "routeP50Seconds": 0.265861,
+        "samples": [
+          {
+            "computeSeconds": 0.27722,
+            "destination": [
+              -73.3387854,
+              40.7880167
+            ],
+            "distanceMetres": 38399.262,
+            "durationSeconds": 1520.413,
+            "origin": [
+              -72.9929566,
+              40.9439103
+            ]
+          },
+          {
+            "computeSeconds": 0.07032,
+            "destination": [
+              -73.3978937,
+              40.855987
+            ],
+            "distanceMetres": 12672.764,
+            "durationSeconds": 665.334,
+            "origin": [
+              -73.269322,
+              40.8888753
+            ]
+          },
+          {
+            "computeSeconds": 0.427479,
+            "destination": [
+              -73.44439,
+              40.716301
+            ],
+            "distanceMetres": 39005.399,
+            "durationSeconds": 1702.025,
+            "origin": [
+              -73.058251,
+              40.7773
+            ]
+          },
+          {
+            "computeSeconds": 0.265861,
+            "destination": [
+              -73.058251,
+              40.7773
+            ],
+            "distanceMetres": 39005.399,
+            "durationSeconds": 1702.025,
+            "origin": [
+              -73.44439,
+              40.716301
+            ]
+          },
+          {
+            "computeSeconds": 0.068927,
+            "destination": [
+              -73.269322,
+              40.8888753
+            ],
+            "distanceMetres": 12672.764,
+            "durationSeconds": 665.334,
+            "origin": [
+              -73.3978937,
+              40.855987
+            ]
+          }
+        ],
+        "tileId": "NY_CP01_RP00"
+      },
+      {
+        "components": 182,
+        "edges": 331277,
+        "elapsedSeconds": 2.161814,
+        "graphBuildSeconds": 1.981565,
+        "graphRssBytes": 614174720,
+        "largestComponentNodes": 320667,
+        "nodes": 326230,
+        "routeMaxSeconds": 0.056997,
+        "routeP50Seconds": 0.021816,
+        "samples": [
+          {
+            "computeSeconds": 0.056997,
+            "destination": [
+              -74.759403,
+              41.5467803
+            ],
+            "distanceMetres": 35689.799,
+            "durationSeconds": 2478.574,
+            "origin": [
+              -74.903554,
+              41.393766
+            ]
+          },
+          {
+            "computeSeconds": 0.007285,
+            "destination": [
+              -75.2851044,
+              41.9594059
+            ],
+            "distanceMetres": 20067.54,
+            "durationSeconds": 794.424,
+            "origin": [
+              -75.132318,
+              42.012346
+            ]
+          },
+          {
+            "computeSeconds": 0.021816,
+            "destination": [
+              -74.673615,
+              41.827161
+            ],
+            "distanceMetres": 26672.406,
+            "durationSeconds": 1277.311,
+            "origin": [
+              -74.853354,
+              41.894981
+            ]
+          },
+          {
+            "computeSeconds": 0.039093,
+            "destination": [
+              -74.853354,
+              41.894981
+            ],
+            "distanceMetres": 26672.406,
+            "durationSeconds": 1277.311,
+            "origin": [
+              -74.673615,
+              41.827161
+            ]
+          },
+          {
+            "computeSeconds": 0.008657,
+            "destination": [
+              -75.132318,
+              42.012346
+            ],
+            "distanceMetres": 20067.54,
+            "durationSeconds": 794.424,
+            "origin": [
+              -75.2851044,
+              41.9594059
+            ]
+          }
+        ],
+        "tileId": "NY_CM01_RP01"
+      },
+      {
+        "components": 97,
+        "edges": 275140,
+        "elapsedSeconds": 2.259593,
+        "graphBuildSeconds": 1.724506,
+        "graphRssBytes": 458493952,
+        "largestComponentNodes": 267354,
+        "nodes": 269128,
+        "routeMaxSeconds": 0.17722,
+        "routeP50Seconds": 0.097693,
+        "samples": [
+          {
+            "computeSeconds": 0.102026,
+            "destination": [
+              -75.3088759,
+              43.0919519
+            ],
+            "distanceMetres": 57840.15,
+            "durationSeconds": 2298.001,
+            "origin": [
+              -74.6825954,
+              42.9906744
+            ]
+          },
+          {
+            "computeSeconds": 0.097693,
+            "destination": [
+              -74.916097,
+              42.699756
+            ],
+            "distanceMetres": 66865.849,
+            "durationSeconds": 3006.014,
+            "origin": [
+              -75.316819,
+              42.318405
+            ]
+          },
+          {
+            "computeSeconds": 0.063297,
+            "destination": [
+              -74.4425476,
+              42.5448546
+            ],
+            "distanceMetres": 49376.31,
+            "durationSeconds": 2571.178,
+            "origin": [
+              -74.344586,
+              42.83952
+            ]
+          },
+          {
+            "computeSeconds": 0.063064,
+            "destination": [
+              -74.344586,
+              42.83952
+            ],
+            "distanceMetres": 49376.31,
+            "durationSeconds": 2571.178,
+            "origin": [
+              -74.4425476,
+              42.5448546
+            ]
+          },
+          {
+            "computeSeconds": 0.17722,
+            "destination": [
+              -75.316819,
+              42.318405
+            ],
+            "distanceMetres": 66865.849,
+            "durationSeconds": 3006.014,
+            "origin": [
+              -74.916097,
+              42.699756
+            ]
+          }
+        ],
+        "tileId": "NY_CM01_RP02"
+      },
+      {
+        "components": 75,
+        "edges": 79876,
+        "elapsedSeconds": 0.723748,
+        "graphBuildSeconds": 0.47511,
+        "graphRssBytes": 445775872,
+        "largestComponentNodes": 76058,
+        "nodes": 78664,
+        "routeMaxSeconds": 0.054416,
+        "routeP50Seconds": 0.043466,
+        "samples": [
+          {
+            "computeSeconds": 0.051263,
+            "destination": [
+              -75.3281638,
+              43.1767398
+            ],
+            "distanceMetres": 158673.064,
+            "durationSeconds": 7661.961,
+            "origin": [
+              -74.4803694,
+              44.0027973
+            ]
+          },
+          {
+            "computeSeconds": 0.043457,
+            "destination": [
+              -74.968591,
+              43.676131
+            ],
+            "distanceMetres": 70249.041,
+            "durationSeconds": 4410.858,
+            "origin": [
+              -74.898818,
+              43.521835
+            ]
+          },
+          {
+            "computeSeconds": 0.039302,
+            "destination": [
+              -75.142345,
+              43.490926
+            ],
+            "distanceMetres": 52958.539,
+            "durationSeconds": 2559.363,
+            "origin": [
+              -74.9662968,
+              43.1935159
+            ]
+          },
+          {
+            "computeSeconds": 0.043466,
+            "destination": [
+              -74.9662968,
+              43.1935159
+            ],
+            "distanceMetres": 52958.539,
+            "durationSeconds": 2559.363,
+            "origin": [
+              -75.142345,
+              43.490926
+            ]
+          },
+          {
+            "computeSeconds": 0.054416,
+            "destination": [
+              -74.898818,
+              43.521835
+            ],
+            "distanceMetres": 70249.041,
+            "durationSeconds": 4410.858,
+            "origin": [
+              -74.968591,
+              43.676131
+            ]
+          }
+        ],
+        "tileId": "NY_CM01_RP03"
+      }
+    ]
+  },
+  "save": {
+    "bytesReclaimed": 831,
+    "bytesRetained": 8362,
+    "bytesWritten": 9193,
+    "checkpointsRetained": 10,
+    "checkpointsWritten": 11,
+    "seconds": 0.015262
+  },
+  "schemaVersion": 1,
+  "source": {
+    "lodesVintage": 2023,
+    "osmExtractDate": "2026-08-10"
+  },
+  "switching": {
+    "description": "parse demand and roads, stream-inflate building/runway data, and read the PMTiles header from the warm filesystem cache",
+    "kind": "bounded-memory native-load proxy",
+    "maxSeconds": 2.953915,
+    "p50Seconds": 0.457821,
+    "p95Seconds": 2.815886,
+    "repetitions": 3,
+    "samples": [
+      {
+        "binaryInflateSeconds": 0.979943,
+        "cohorts": 80863,
+        "demandSeconds": 0.199383,
+        "inflatedBinaryBytes": 398357907,
+        "points": 23070,
+        "roadFeatures": 233144,
+        "roadsSeconds": 1.774131,
+        "seconds": 2.953915,
+        "tileId": "NY_CP00_RP00"
+      },
+      {
+        "binaryInflateSeconds": 0.1687,
+        "cohorts": 3155,
+        "demandSeconds": 0.010499,
+        "inflatedBinaryBytes": 60691770,
+        "points": 2877,
+        "roadFeatures": 38461,
+        "roadsSeconds": 0.497275,
+        "seconds": 0.676967,
+        "tileId": "NY_CP00_RP01"
+      },
+      {
+        "binaryInflateSeconds": 0.373079,
+        "cohorts": 7759,
+        "demandSeconds": 0.020959,
+        "inflatedBinaryBytes": 144003967,
+        "points": 5370,
+        "roadFeatures": 77204,
+        "roadsSeconds": 0.605397,
+        "seconds": 0.999884,
+        "tileId": "NY_CP01_RP00"
+      },
+      {
+        "binaryInflateSeconds": 0.078689,
+        "cohorts": 600,
+        "demandSeconds": 0.002314,
+        "inflatedBinaryBytes": 24342990,
+        "points": 730,
+        "roadFeatures": 17343,
+        "roadsSeconds": 0.201292,
+        "seconds": 0.282812,
+        "tileId": "NY_CM01_RP01"
+      },
+      {
+        "binaryInflateSeconds": 0.077954,
+        "cohorts": 1042,
+        "demandSeconds": 0.004637,
+        "inflatedBinaryBytes": 26522611,
+        "points": 1234,
+        "roadFeatures": 15301,
+        "roadsSeconds": 0.195868,
+        "seconds": 0.278929,
+        "tileId": "NY_CM01_RP02"
+      },
+      {
+        "binaryInflateSeconds": 0.020741,
+        "cohorts": 51,
+        "demandSeconds": 0.000469,
+        "inflatedBinaryBytes": 7121021,
+        "points": 91,
+        "roadFeatures": 4841,
+        "roadsSeconds": 0.047091,
+        "seconds": 0.06872,
+        "tileId": "NY_CM01_RP03"
+      },
+      {
+        "binaryInflateSeconds": 1.036106,
+        "cohorts": 80863,
+        "demandSeconds": 0.193354,
+        "inflatedBinaryBytes": 398357907,
+        "points": 23070,
+        "roadFeatures": 233144,
+        "roadsSeconds": 1.561692,
+        "seconds": 2.791528,
+        "tileId": "NY_CP00_RP00"
+      },
+      {
+        "binaryInflateSeconds": 0.191499,
+        "cohorts": 3155,
+        "demandSeconds": 0.01088,
+        "inflatedBinaryBytes": 60691770,
+        "points": 2877,
+        "roadFeatures": 38461,
+        "roadsSeconds": 0.421286,
+        "seconds": 0.624186,
+        "tileId": "NY_CP00_RP01"
+      },
+      {
+        "binaryInflateSeconds": 0.385305,
+        "cohorts": 7759,
+        "demandSeconds": 0.027831,
+        "inflatedBinaryBytes": 144003967,
+        "points": 5370,
+        "roadFeatures": 77204,
+        "roadsSeconds": 0.598254,
+        "seconds": 1.011979,
+        "tileId": "NY_CP01_RP00"
+      },
+      {
+        "binaryInflateSeconds": 0.080227,
+        "cohorts": 600,
+        "demandSeconds": 0.002395,
+        "inflatedBinaryBytes": 24342990,
+        "points": 730,
+        "roadFeatures": 17343,
+        "roadsSeconds": 0.20839,
+        "seconds": 0.291457,
+        "tileId": "NY_CM01_RP01"
+      },
+      {
+        "binaryInflateSeconds": 0.074324,
+        "cohorts": 1042,
+        "demandSeconds": 0.005066,
+        "inflatedBinaryBytes": 26522611,
+        "points": 1234,
+        "roadFeatures": 15301,
+        "roadsSeconds": 0.175954,
+        "seconds": 0.255886,
+        "tileId": "NY_CM01_RP02"
+      },
+      {
+        "binaryInflateSeconds": 0.027096,
+        "cohorts": 51,
+        "demandSeconds": 0.000456,
+        "inflatedBinaryBytes": 7121021,
+        "points": 91,
+        "roadFeatures": 4841,
+        "roadsSeconds": 0.046786,
+        "seconds": 0.074727,
+        "tileId": "NY_CM01_RP03"
+      },
+      {
+        "binaryInflateSeconds": 0.976053,
+        "cohorts": 80863,
+        "demandSeconds": 0.228758,
+        "inflatedBinaryBytes": 398357907,
+        "points": 23070,
+        "roadFeatures": 233144,
+        "roadsSeconds": 1.582857,
+        "seconds": 2.788042,
+        "tileId": "NY_CP00_RP00"
+      },
+      {
+        "binaryInflateSeconds": 0.173562,
+        "cohorts": 3155,
+        "demandSeconds": 0.010396,
+        "inflatedBinaryBytes": 60691770,
+        "points": 2877,
+        "roadFeatures": 38461,
+        "roadsSeconds": 0.500715,
+        "seconds": 0.685176,
+        "tileId": "NY_CP00_RP01"
+      },
+      {
+        "binaryInflateSeconds": 0.366393,
+        "cohorts": 7759,
+        "demandSeconds": 0.021738,
+        "inflatedBinaryBytes": 144003967,
+        "points": 5370,
+        "roadFeatures": 77204,
+        "roadsSeconds": 0.584594,
+        "seconds": 0.973189,
+        "tileId": "NY_CP01_RP00"
+      },
+      {
+        "binaryInflateSeconds": 0.070464,
+        "cohorts": 600,
+        "demandSeconds": 0.002281,
+        "inflatedBinaryBytes": 24342990,
+        "points": 730,
+        "roadFeatures": 17343,
+        "roadsSeconds": 0.211866,
+        "seconds": 0.285123,
+        "tileId": "NY_CM01_RP01"
+      },
+      {
+        "binaryInflateSeconds": 0.078123,
+        "cohorts": 1042,
+        "demandSeconds": 0.004669,
+        "inflatedBinaryBytes": 26522611,
+        "points": 1234,
+        "roadFeatures": 15301,
+        "roadsSeconds": 0.199562,
+        "seconds": 0.282818,
+        "tileId": "NY_CM01_RP02"
+      },
+      {
+        "binaryInflateSeconds": 0.02082,
+        "cohorts": 51,
+        "demandSeconds": 0.000485,
+        "inflatedBinaryBytes": 7121021,
+        "points": 91,
+        "roadFeatures": 4841,
+        "roadsSeconds": 0.046047,
+        "seconds": 0.067788,
+        "tileId": "NY_CM01_RP03"
+      }
+    ]
+  },
+  "verdict": "PASS"
+}

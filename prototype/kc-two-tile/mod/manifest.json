@@ -1,0 +1,8 @@
+{
+  "id": "local.kc-two-tile-open-world-prototype",
+  "name": "KC Two-Tile Open World Prototype",
+  "description": "Manual, fail-closed feasibility test for swapping two 25 km Kansas City tiles.",
+  "version": "0.0.1",
+  "author": { "name": "Prototype Team" },
+  "main": "index.js"
+}

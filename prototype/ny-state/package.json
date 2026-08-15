@@ -1,0 +1,16 @@
+{
+  "name": "ny-state-runtime-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:logic": "node scripts/build-logic-prototype.mjs",
+    "soak": "node scripts/run-runtime-soak.mjs",
+    "pilot:demand": "node scripts/run-python.mjs build-pilot-demand",
+    "pilot:routing": "node scripts/run-python.mjs benchmark-pilot-routing",
+    "pilot:benchmark": "node scripts/run-python.mjs benchmark-pilot"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

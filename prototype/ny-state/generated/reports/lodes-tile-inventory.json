@@ -1,0 +1,846 @@
+{
+  "auxHomeStates": {
+    "01": {
+      "odRows": 373,
+      "workers": 373
+    },
+    "02": {
+      "odRows": 32,
+      "workers": 32
+    },
+    "04": {
+      "odRows": 719,
+      "workers": 719
+    },
+    "05": {
+      "odRows": 201,
+      "workers": 201
+    },
+    "06": {
+      "odRows": 6601,
+      "workers": 6615
+    },
+    "08": {
+      "odRows": 836,
+      "workers": 836
+    },
+    "09": {
+      "odRows": 97618,
+      "workers": 98883
+    },
+    "10": {
+      "odRows": 2976,
+      "workers": 2978
+    },
+    "11": {
+      "odRows": 1849,
+      "workers": 1854
+    },
+    "12": {
+      "odRows": 8685,
+      "workers": 8708
+    },
+    "13": {
+      "odRows": 2526,
+      "workers": 2531
+    },
+    "15": {
+      "odRows": 129,
+      "workers": 129
+    },
+    "16": {
+      "odRows": 124,
+      "workers": 124
+    },
+    "17": {
+      "odRows": 2114,
+      "workers": 2116
+    },
+    "18": {
+      "odRows": 713,
+      "workers": 713
+    },
+    "19": {
+      "odRows": 169,
+      "workers": 170
+    },
+    "20": {
+      "odRows": 230,
+      "workers": 230
+    },
+    "21": {
+      "odRows": 430,
+      "workers": 430
+    },
+    "22": {
+      "odRows": 377,
+      "workers": 377
+    },
+    "23": {
+      "odRows": 1496,
+      "workers": 1496
+    },
+    "24": {
+      "odRows": 9487,
+      "workers": 9493
+    },
+    "25": {
+      "odRows": 23071,
+      "workers": 23090
+    },
+    "26": {
+      "odRows": 2637,
+      "workers": 2637
+    },
+    "27": {
+      "odRows": 659,
+      "workers": 659
+    },
+    "28": {
+      "odRows": 170,
+      "workers": 170
+    },
+    "29": {
+      "odRows": 516,
+      "workers": 516
+    },
+    "30": {
+      "odRows": 98,
+      "workers": 98
+    },
+    "31": {
+      "odRows": 136,
+      "workers": 136
+    },
+    "32": {
+      "odRows": 346,
+      "workers": 347
+    },
+    "33": {
+      "odRows": 2645,
+      "workers": 2650
+    },
+    "34": {
+      "odRows": 473996,
+      "workers": 493912
+    },
+    "35": {
+      "odRows": 179,
+      "workers": 179
+    },
+    "37": {
+      "odRows": 5921,
+      "workers": 5924
+    },
+    "38": {
+      "odRows": 44,
+      "workers": 44
+    },
+    "39": {
+      "odRows": 4878,
+      "workers": 4878
+    },
+    "40": {
+      "odRows": 281,
+      "workers": 281
+    },
+    "41": {
+      "odRows": 361,
+      "workers": 361
+    },
+    "42": {
+      "odRows": 68204,
+      "workers": 68752
+    },
+    "44": {
+      "odRows": 3292,
+      "workers": 3293
+    },
+    "45": {
+      "odRows": 1162,
+      "workers": 1166
+    },
+    "46": {
+      "odRows": 38,
+      "workers": 38
+    },
+    "47": {
+      "odRows": 849,
+      "workers": 850
+    },
+    "48": {
+      "odRows": 3456,
+      "workers": 3458
+    },
+    "49": {
+      "odRows": 270,
+      "workers": 270
+    },
+    "50": {
+      "odRows": 5490,
+      "workers": 5511
+    },
+    "51": {
+      "odRows": 7475,
+      "workers": 7485
+    },
+    "53": {
+      "odRows": 1011,
+      "workers": 1011
+    },
+    "54": {
+      "odRows": 536,
+      "workers": 537
+    },
+    "55": {
+      "odRows": 537,
+      "workers": 537
+    },
+    "56": {
+      "odRows": 40,
+      "workers": 40
+    }
+  },
+  "categories": {
+    "crossTile": {
+      "odRows": 1539922,
+      "workers": 1592559
+    },
+    "externalInbound": {
+      "odRows": 745983,
+      "workers": 767838
+    },
+    "local": {
+      "odRows": 5515673,
+      "workers": 6196701
+    }
+  },
+  "createdates": {
+    "20251202": 7801578
+  },
+  "crosswalk": {
+    "blockCount": 288819,
+    "blocksByCell": {
+      "NY_CM01_RP00": 655,
+      "NY_CM01_RP01": 7624,
+      "NY_CM01_RP02": 12345,
+      "NY_CM01_RP03": 3178,
+      "NY_CM01_RP04": 4039,
+      "NY_CM01_RP05": 976,
+      "NY_CM02_RP01": 4761,
+      "NY_CM02_RP02": 14705,
+      "NY_CM02_RP03": 10412,
+      "NY_CM02_RP04": 4862,
+      "NY_CM03_RP01": 4826,
+      "NY_CM03_RP02": 12933,
+      "NY_CM03_RP03": 4579,
+      "NY_CM03_RP04": 153,
+      "NY_CM04_RP01": 1724,
+      "NY_CM04_RP02": 12447,
+      "NY_CM04_RP03": 8975,
+      "NY_CM05_RP01": 2195,
+      "NY_CM05_RP02": 18242,
+      "NY_CM05_RP03": 4669,
+      "NY_CM06_RP01": 2345,
+      "NY_CM06_RP02": 2891,
+      "NY_CP00_RM01": 5,
+      "NY_CP00_RP00": 75261,
+      "NY_CP00_RP01": 14985,
+      "NY_CP00_RP02": 21204,
+      "NY_CP00_RP03": 5988,
+      "NY_CP00_RP04": 4403,
+      "NY_CP00_RP05": 821,
+      "NY_CP01_RP00": 22542,
+      "NY_CP01_RP02": 660,
+      "NY_CP01_RP03": 540,
+      "NY_CP01_RP04": 16,
+      "NY_CP02_RP00": 2858
+    },
+    "missingCoordinateCount": 0,
+    "unplannedBlockCount": 0
+  },
+  "pilotTiles": [
+    {
+      "column": 0,
+      "reason": "dense-cluster: NYC base",
+      "row": 0,
+      "tileId": "NY_CP00_RP00"
+    },
+    {
+      "column": 0,
+      "reason": "dense-cluster: lower Hudson / north of NYC",
+      "row": 1,
+      "tileId": "NY_CP00_RP01"
+    },
+    {
+      "column": 1,
+      "reason": "dense-cluster: Long Island / east of NYC",
+      "row": 0,
+      "tileId": "NY_CP01_RP00"
+    },
+    {
+      "column": -1,
+      "reason": "dense-cluster: west-northwest neighbor",
+      "row": 1,
+      "tileId": "NY_CM01_RP01"
+    },
+    {
+      "activityWorkersPerStateKm2": 26.413,
+      "column": -1,
+      "reason": "measured median upstate demand density",
+      "row": 2,
+      "tileId": "NY_CM01_RP02"
+    },
+    {
+      "activityWorkersPerStateKm2": 3.156,
+      "column": -1,
+      "reason": "measured lowest positive demand density among >500 km\u00b2 tiles",
+      "row": 3,
+      "tileId": "NY_CM01_RP03"
+    }
+  ],
+  "prototype": true,
+  "schemaVersion": "1.0.0",
+  "source": {
+    "jobType": "JT01",
+    "lodesVersion": "LODES8",
+    "vintage": 2023
+  },
+  "tilePairCount": 987,
+  "tiles": [
+    {
+      "activityWorkers": 8867260,
+      "activityWorkersPerStateKm2": 2152.434,
+      "column": 0,
+      "externalInboundOdRows": 638976,
+      "externalInboundWorkers": 660065,
+      "homeOdRows": 3872892,
+      "homeWorkers": 4306050,
+      "row": 0,
+      "stateIntersectionKm2": 4119.642755,
+      "status": "normal",
+      "tileId": "NY_CP00_RP00",
+      "workOdRows": 4121720,
+      "workWorkers": 4561210
+    },
+    {
+      "activityWorkers": 1215878,
+      "activityWorkersPerStateKm2": 547.459,
+      "column": 1,
+      "externalInboundOdRows": 21052,
+      "externalInboundWorkers": 21072,
+      "homeOdRows": 637125,
+      "homeWorkers": 674013,
+      "row": 0,
+      "stateIntersectionKm2": 2220.947036,
+      "status": "normal",
+      "tileId": "NY_CP01_RP00",
+      "workOdRows": 509852,
+      "workWorkers": 541865
+    },
+    {
+      "activityWorkers": 917915,
+      "activityWorkersPerStateKm2": 131.67,
+      "column": -5,
+      "externalInboundOdRows": 6356,
+      "externalInboundWorkers": 6361,
+      "homeOdRows": 412333,
+      "homeWorkers": 446206,
+      "row": 2,
+      "stateIntersectionKm2": 6971.324507,
+      "status": "normal",
+      "tileId": "NY_CM05_RP02",
+      "workOdRows": 436700,
+      "workWorkers": 471709
+    },
+    {
+      "activityWorkers": 842665,
+      "activityWorkersPerStateKm2": 111.774,
+      "column": 0,
+      "externalInboundOdRows": 12454,
+      "externalInboundWorkers": 12470,
+      "homeOdRows": 362654,
+      "homeWorkers": 406383,
+      "row": 2,
+      "stateIntersectionKm2": 7539.03849,
+      "status": "normal",
+      "tileId": "NY_CP00_RP02",
+      "workOdRows": 391495,
+      "workWorkers": 436282
+    },
+    {
+      "activityWorkers": 561137,
+      "activityWorkersPerStateKm2": 303.417,
+      "column": -4,
+      "externalInboundOdRows": 3046,
+      "externalInboundWorkers": 3047,
+      "homeOdRows": 245144,
+      "homeWorkers": 279909,
+      "row": 3,
+      "stateIntersectionKm2": 1849.39033,
+      "status": "normal",
+      "tileId": "NY_CM04_RP03",
+      "workOdRows": 243512,
+      "workWorkers": 281228
+    },
+    {
+      "activityWorkers": 519973,
+      "activityWorkersPerStateKm2": 75.747,
+      "column": 0,
+      "externalInboundOdRows": 14549,
+      "externalInboundWorkers": 14714,
+      "homeOdRows": 272408,
+      "homeWorkers": 293187,
+      "row": 1,
+      "stateIntersectionKm2": 6864.575663,
+      "status": "normal",
+      "tileId": "NY_CP00_RP01",
+      "workOdRows": 207335,
+      "workWorkers": 226786
+    },
+    {
+      "activityWorkers": 461761,
+      "activityWorkersPerStateKm2": 61.078,
+      "column": -2,
+      "externalInboundOdRows": 6176,
+      "externalInboundWorkers": 6186,
+      "homeOdRows": 183744,
+      "homeWorkers": 205124,
+      "row": 2,
+      "stateIntersectionKm2": 7560.21,
+      "status": "normal",
+      "tileId": "NY_CM02_RP02",
+      "workOdRows": 228838,
+      "workWorkers": 256637
+    },
+    {
+      "activityWorkers": 328258,
+      "activityWorkersPerStateKm2": 43.419,
+      "column": -4,
+      "externalInboundOdRows": 3550,
+      "externalInboundWorkers": 3555,
+      "homeOdRows": 145136,
+      "homeWorkers": 162969,
+      "row": 2,
+      "stateIntersectionKm2": 7560.21,
+      "status": "normal",
+      "tileId": "NY_CM04_RP02",
+      "workOdRows": 150061,
+      "workWorkers": 165289
+    },
+    {
+      "activityWorkers": 258118,
+      "activityWorkersPerStateKm2": 34.142,
+      "column": -3,
+      "externalInboundOdRows": 3727,
+      "externalInboundWorkers": 3736,
+      "homeOdRows": 121391,
+      "homeWorkers": 136813,
+      "row": 2,
+      "stateIntersectionKm2": 7560.21,
+      "status": "normal",
+      "tileId": "NY_CM03_RP02",
+      "workOdRows": 106878,
+      "workWorkers": 121305
+    },
+    {
+      "activityWorkers": 206355,
+      "activityWorkersPerStateKm2": 28.359,
+      "column": -2,
+      "externalInboundOdRows": 1271,
+      "externalInboundWorkers": 1271,
+      "homeOdRows": 105998,
+      "homeWorkers": 116856,
+      "row": 3,
+      "stateIntersectionKm2": 7276.533316,
+      "status": "normal",
+      "tileId": "NY_CM02_RP03",
+      "workOdRows": 81920,
+      "workWorkers": 89499
+    },
+    {
+      "activityWorkers": 199689,
+      "activityWorkersPerStateKm2": 26.413,
+      "column": -1,
+      "externalInboundOdRows": 1752,
+      "externalInboundWorkers": 1752,
+      "homeOdRows": 96357,
+      "homeWorkers": 103706,
+      "row": 2,
+      "stateIntersectionKm2": 7560.21,
+      "status": "normal",
+      "tileId": "NY_CM01_RP02",
+      "workOdRows": 88775,
+      "workWorkers": 95983
+    },
+    {
+      "activityWorkers": 156109,
+      "activityWorkersPerStateKm2": 72.217,
+      "column": -5,
+      "externalInboundOdRows": 1217,
+      "externalInboundWorkers": 1217,
+      "homeOdRows": 84862,
+      "homeWorkers": 91694,
+      "row": 3,
+      "stateIntersectionKm2": 2161.677044,
+      "status": "normal",
+      "tileId": "NY_CM05_RP03",
+      "workOdRows": 59098,
+      "workWorkers": 64415
+    },
+    {
+      "activityWorkers": 150987,
+      "activityWorkersPerStateKm2": 68.993,
+      "column": -2,
+      "externalInboundOdRows": 5359,
+      "externalInboundWorkers": 5439,
+      "homeOdRows": 67642,
+      "homeWorkers": 75551,
+      "row": 1,
+      "stateIntersectionKm2": 2188.436559,
+      "status": "normal",
+      "tileId": "NY_CM02_RP01",
+      "workOdRows": 67659,
+      "workWorkers": 75436
+    },
+    {
+      "activityWorkers": 131433,
+      "activityWorkersPerStateKm2": 21.043,
+      "column": -1,
+      "externalInboundOdRows": 5417,
+      "externalInboundWorkers": 5476,
+      "homeOdRows": 66793,
+      "homeWorkers": 71713,
+      "row": 1,
+      "stateIntersectionKm2": 6245.813033,
+      "status": "normal",
+      "tileId": "NY_CM01_RP01",
+      "workOdRows": 54942,
+      "workWorkers": 59720
+    },
+    {
+      "activityWorkers": 121017,
+      "activityWorkersPerStateKm2": 16.208,
+      "column": 0,
+      "externalInboundOdRows": 2019,
+      "externalInboundWorkers": 2021,
+      "homeOdRows": 62479,
+      "homeWorkers": 68566,
+      "row": 3,
+      "stateIntersectionKm2": 7466.296848,
+      "status": "normal",
+      "tileId": "NY_CP00_RP03",
+      "workOdRows": 47245,
+      "workWorkers": 52451
+    },
+    {
+      "activityWorkers": 99450,
+      "activityWorkersPerStateKm2": 48.005,
+      "column": -3,
+      "externalInboundOdRows": 5176,
+      "externalInboundWorkers": 5325,
+      "homeOdRows": 44560,
+      "homeWorkers": 49265,
+      "row": 1,
+      "stateIntersectionKm2": 2071.67881,
+      "status": "normal",
+      "tileId": "NY_CM03_RP01",
+      "workOdRows": 45392,
+      "workWorkers": 50185
+    },
+    {
+      "activityWorkers": 98488,
+      "activityWorkersPerStateKm2": 43.713,
+      "column": -3,
+      "externalInboundOdRows": 520,
+      "externalInboundWorkers": 520,
+      "homeOdRows": 55331,
+      "homeWorkers": 60925,
+      "row": 3,
+      "stateIntersectionKm2": 2253.039948,
+      "status": "normal",
+      "tileId": "NY_CM03_RP03",
+      "workOdRows": 33319,
+      "workWorkers": 37563
+    },
+    {
+      "activityWorkers": 83139,
+      "activityWorkersPerStateKm2": 11.226,
+      "column": 0,
+      "externalInboundOdRows": 1670,
+      "externalInboundWorkers": 1675,
+      "homeOdRows": 35251,
+      "homeWorkers": 41443,
+      "row": 4,
+      "stateIntersectionKm2": 7405.932865,
+      "status": "normal",
+      "tileId": "NY_CP00_RP04",
+      "workOdRows": 35233,
+      "workWorkers": 41696
+    },
+    {
+      "activityWorkers": 57411,
+      "activityWorkersPerStateKm2": 76.057,
+      "column": 2,
+      "externalInboundOdRows": 2190,
+      "externalInboundWorkers": 2202,
+      "homeOdRows": 27510,
+      "homeWorkers": 29184,
+      "row": 0,
+      "stateIntersectionKm2": 754.842118,
+      "status": "normal",
+      "tileId": "NY_CP02_RP00",
+      "workOdRows": 26343,
+      "workWorkers": 28227
+    },
+    {
+      "activityWorkers": 43981,
+      "activityWorkersPerStateKm2": 10.506,
+      "column": -2,
+      "externalInboundOdRows": 281,
+      "externalInboundWorkers": 281,
+      "homeOdRows": 24062,
+      "homeWorkers": 25829,
+      "row": 4,
+      "stateIntersectionKm2": 4186.377734,
+      "status": "normal",
+      "tileId": "NY_CM02_RP04",
+      "workOdRows": 16878,
+      "workWorkers": 18152
+    },
+    {
+      "activityWorkers": 43124,
+      "activityWorkersPerStateKm2": 38.887,
+      "column": -6,
+      "externalInboundOdRows": 2709,
+      "externalInboundWorkers": 2789,
+      "homeOdRows": 21188,
+      "homeWorkers": 22672,
+      "row": 1,
+      "stateIntersectionKm2": 1108.953797,
+      "status": "normal",
+      "tileId": "NY_CM06_RP01",
+      "workOdRows": 19050,
+      "workWorkers": 20452
+    },
+    {
+      "activityWorkers": 41280,
+      "activityWorkersPerStateKm2": 5.475,
+      "column": -1,
+      "externalInboundOdRows": 471,
+      "externalInboundWorkers": 472,
+      "homeOdRows": 20372,
+      "homeWorkers": 22655,
+      "row": 4,
+      "stateIntersectionKm2": 7539.767714,
+      "status": "normal",
+      "tileId": "NY_CM01_RP04",
+      "workOdRows": 16390,
+      "workWorkers": 18625
+    },
+    {
+      "activityWorkers": 39025,
+      "activityWorkersPerStateKm2": 22.758,
+      "column": -6,
+      "externalInboundOdRows": 1113,
+      "externalInboundWorkers": 1114,
+      "homeOdRows": 19991,
+      "homeWorkers": 21572,
+      "row": 2,
+      "stateIntersectionKm2": 1714.80067,
+      "status": "normal",
+      "tileId": "NY_CM06_RP02",
+      "workOdRows": 15969,
+      "workWorkers": 17453
+    },
+    {
+      "activityWorkers": 34990,
+      "activityWorkersPerStateKm2": 20.473,
+      "column": -5,
+      "externalInboundOdRows": 2026,
+      "externalInboundWorkers": 2111,
+      "homeOdRows": 15865,
+      "homeWorkers": 17874,
+      "row": 1,
+      "stateIntersectionKm2": 1709.077082,
+      "status": "normal",
+      "tileId": "NY_CM05_RP01",
+      "workOdRows": 14942,
+      "workWorkers": 17116
+    },
+    {
+      "activityWorkers": 23858,
+      "activityWorkersPerStateKm2": 3.156,
+      "column": -1,
+      "externalInboundOdRows": 154,
+      "externalInboundWorkers": 154,
+      "homeOdRows": 13540,
+      "homeWorkers": 14278,
+      "row": 3,
+      "stateIntersectionKm2": 7560.21,
+      "status": "normal",
+      "tileId": "NY_CM01_RP03",
+      "workOdRows": 9131,
+      "workWorkers": 9580
+    },
+    {
+      "activityWorkers": 17219,
+      "activityWorkersPerStateKm2": 22.779,
+      "column": -1,
+      "externalInboundOdRows": 120,
+      "externalInboundWorkers": 120,
+      "homeOdRows": 7054,
+      "homeWorkers": 8609,
+      "row": 5,
+      "stateIntersectionKm2": 755.932071,
+      "status": "normal",
+      "tileId": "NY_CM01_RP05",
+      "workOdRows": 7115,
+      "workWorkers": 8610
+    },
+    {
+      "activityWorkers": 15922,
+      "activityWorkersPerStateKm2": 54.041,
+      "column": -1,
+      "externalInboundOdRows": 1318,
+      "externalInboundWorkers": 1363,
+      "homeOdRows": 8936,
+      "homeWorkers": 9410,
+      "row": 0,
+      "stateIntersectionKm2": 294.628004,
+      "status": "normal",
+      "tileId": "NY_CM01_RP00",
+      "workOdRows": 5817,
+      "workWorkers": 6512
+    },
+    {
+      "activityWorkers": 15806,
+      "activityWorkersPerStateKm2": 8.206,
+      "column": -4,
+      "externalInboundOdRows": 458,
+      "externalInboundWorkers": 466,
+      "homeOdRows": 9163,
+      "homeWorkers": 9841,
+      "row": 1,
+      "stateIntersectionKm2": 1926.151006,
+      "status": "normal",
+      "tileId": "NY_CM04_RP01",
+      "workOdRows": 5474,
+      "workWorkers": 5965
+    },
+    {
+      "activityWorkers": 10528,
+      "activityWorkersPerStateKm2": 9.855,
+      "column": 0,
+      "externalInboundOdRows": 222,
+      "externalInboundWorkers": 223,
+      "homeOdRows": 6197,
+      "homeWorkers": 6764,
+      "row": 5,
+      "stateIntersectionKm2": 1068.320112,
+      "status": "normal",
+      "tileId": "NY_CP00_RP05",
+      "workOdRows": 3425,
+      "workWorkers": 3764
+    },
+    {
+      "activityWorkers": 8365,
+      "activityWorkersPerStateKm2": 13.232,
+      "column": 1,
+      "externalInboundOdRows": 374,
+      "externalInboundWorkers": 377,
+      "homeOdRows": 5018,
+      "homeWorkers": 5346,
+      "row": 2,
+      "stateIntersectionKm2": 632.160809,
+      "status": "normal",
+      "tileId": "NY_CP01_RP02",
+      "workOdRows": 2721,
+      "workWorkers": 3019
+    },
+    {
+      "activityWorkers": 6461,
+      "activityWorkersPerStateKm2": 11.353,
+      "column": 1,
+      "externalInboundOdRows": 244,
+      "externalInboundWorkers": 248,
+      "homeOdRows": 4149,
+      "homeWorkers": 4381,
+      "row": 3,
+      "stateIntersectionKm2": 569.100357,
+      "status": "normal",
+      "tileId": "NY_CP01_RP03",
+      "workOdRows": 1931,
+      "workWorkers": 2080
+    },
+    {
+      "activityWorkers": 798,
+      "activityWorkersPerStateKm2": 7.836,
+      "column": -3,
+      "externalInboundOdRows": 7,
+      "externalInboundWorkers": 7,
+      "homeOdRows": 397,
+      "homeWorkers": 411,
+      "row": 4,
+      "stateIntersectionKm2": 101.841245,
+      "status": "normal",
+      "tileId": "NY_CM03_RP04",
+      "workOdRows": 379,
+      "workWorkers": 387
+    },
+    {
+      "activityWorkers": 120,
+      "activityWorkersPerStateKm2": 1.106,
+      "column": 1,
+      "externalInboundOdRows": 9,
+      "externalInboundWorkers": 9,
+      "homeOdRows": 53,
+      "homeWorkers": 61,
+      "row": 4,
+      "stateIntersectionKm2": 108.500403,
+      "status": "normal",
+      "tileId": "NY_CP01_RP04",
+      "workOdRows": 56,
+      "workWorkers": 59
+    },
+    {
+      "activityWorkers": 0,
+      "activityWorkersPerStateKm2": 0.0,
+      "column": 0,
+      "externalInboundOdRows": 0,
+      "externalInboundWorkers": 0,
+      "homeOdRows": 0,
+      "homeWorkers": 0,
+      "row": -1,
+      "stateIntersectionKm2": 0.098357,
+      "status": "sliver",
+      "tileId": "NY_CP00_RM01",
+      "workOdRows": 0,
+      "workWorkers": 0
+    },
+    {
+      "activityWorkers": 0,
+      "activityWorkersPerStateKm2": 0.0,
+      "column": 1,
+      "externalInboundOdRows": 0,
+      "externalInboundWorkers": 0,
+      "homeOdRows": 0,
+      "homeWorkers": 0,
+      "row": 5,
+      "stateIntersectionKm2": 0.015105,
+      "status": "sliver",
+      "tileId": "NY_CP01_RP05",
+      "workOdRows": 0,
+      "workWorkers": 0
+    }
+  ],
+  "totals": {
+    "classificationRowDelta": 0,
+    "classificationWorkerDelta": 0,
+    "classifiedOdRows": 7801578,
+    "classifiedWorkers": 8557098,
+    "odRows": 7801578,
+    "workers": 8557098
+  },
+  "worldId": "NYS_NYC_SCALE_PROTOTYPE"
+}

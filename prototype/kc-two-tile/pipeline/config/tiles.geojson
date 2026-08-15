@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","name":"KC two-tile ownership (EPSG:26915)","features":[
+{"type":"Feature","properties":{"id":"KCW","halo_m":2000,"crs":"EPSG:26915"},"geometry":{"type":"Polygon","coordinates":[[[335843,4305500],[360843,4305500],[360843,4330500],[335843,4330500],[335843,4305500]]]}},
+{"type":"Feature","properties":{"id":"KCE","halo_m":2000,"crs":"EPSG:26915"},"geometry":{"type":"Polygon","coordinates":[[[360843,4305500],[385843,4305500],[385843,4330500],[360843,4330500],[360843,4305500]]]}}
+]}

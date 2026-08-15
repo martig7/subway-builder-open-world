@@ -1,0 +1,60 @@
+{
+  "lock_version": 1,
+  "sources": [
+    {
+      "id": "ks_xwalk.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ks/ks_xwalk.csv.gz",
+      "sha256": "e1f09f25861b55bd5a19a2d3d18a5af59da20218780a0312f5d8fab77e260af7",
+      "hash_mode": "gzip-content",
+      "bytes": 2983040,
+      "vintage": "LODES8 2023 release set, retrieved index 2026-08-10",
+      "license": "U.S. Census Bureau public data"
+    },
+    {
+      "id": "ks_od_main_JT01_2023.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ks/od/ks_od_main_JT01_2023.csv.gz",
+      "sha256": "f850b50b69d17d7d6ca186e1e27684b2a1948fc2c652d06384aae0b76aea9724",
+      "hash_mode": "gzip-content",
+      "bytes": 6086255,
+      "vintage": "LODES8 2023 JT01",
+      "license": "U.S. Census Bureau public data"
+    },
+    {
+      "id": "ks_od_aux_JT01_2023.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ks/od/ks_od_aux_JT01_2023.csv.gz",
+      "sha256": "9871a5eac94180137ef8ca264b92e40f0176e6ddb31d509e3ffcca102d2321eb",
+      "hash_mode": "gzip-content",
+      "bytes": 1005414,
+      "vintage": "LODES8 2023 JT01",
+      "license": "U.S. Census Bureau public data"
+    },
+    {
+      "id": "mo_xwalk.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/mo/mo_xwalk.csv.gz",
+      "sha256": "3678b51dade5443a252d23d222a4f67c66cab69a76f385651bfb0977e6021603",
+      "hash_mode": "gzip-content",
+      "bytes": 4476240,
+      "vintage": "LODES8 2023 release set, retrieved index 2026-08-10",
+      "license": "U.S. Census Bureau public data"
+    },
+    {
+      "id": "mo_od_main_JT01_2023.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/mo/od/mo_od_main_JT01_2023.csv.gz",
+      "sha256": "1e56a84fa8581e6acc69b7e99a2598f825c330cf987e8c76341b1435cb7ca163",
+      "hash_mode": "gzip-content",
+      "bytes": 13363365,
+      "vintage": "LODES8 2023 JT01",
+      "license": "U.S. Census Bureau public data"
+    },
+    {
+      "id": "mo_od_aux_JT01_2023.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/mo/od/mo_od_aux_JT01_2023.csv.gz",
+      "sha256": "ea80f24ecb45e51cad6c11a266314e99b2c8117e0909f58d33206387d8a784aa",
+      "hash_mode": "gzip-content",
+      "bytes": 1557093,
+      "vintage": "LODES8 2023 JT01",
+      "license": "U.S. Census Bureau public data"
+    }
+  ],
+  "checksum_note": "Census lodes_*.sha256sum values hash decompressed CSV content; compressed byte lengths are pinned separately from HTTP headers."
+}

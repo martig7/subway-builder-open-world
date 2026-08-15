@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","name":"KC border gateways (EPSG:26915)","features":[
+{"type":"Feature","properties":{"id":"KCG_NORTH"},"geometry":{"type":"Point","coordinates":[360843,4326333]}},
+{"type":"Feature","properties":{"id":"KCG_CENTRAL"},"geometry":{"type":"Point","coordinates":[360843,4318000]}},
+{"type":"Feature","properties":{"id":"KCG_SOUTH"},"geometry":{"type":"Point","coordinates":[360843,4309667]}}
+]}

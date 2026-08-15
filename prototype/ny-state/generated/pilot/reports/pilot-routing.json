@@ -1,0 +1,491 @@
+{
+  "elapsedSeconds": 33.140248,
+  "kind": "generated-road graph feasibility benchmark",
+  "note": "This proves generated-road graph construction and fastest-path queries; production demand enrichment will use the pinned external OSRM cache.",
+  "peakRssBytes": 907091968,
+  "prototype": true,
+  "samplesPerTile": 5,
+  "schemaVersion": 1,
+  "speedModelMps": {
+    "highway": 27.0,
+    "major": 20.0,
+    "minor": 13.4
+  },
+  "status": "complete",
+  "tiles": [
+    {
+      "components": 204,
+      "edges": 1801279,
+      "elapsedSeconds": 15.160667,
+      "graphBuildSeconds": 12.393701,
+      "graphRssBytes": 907091968,
+      "largestComponentNodes": 1685755,
+      "nodes": 1689607,
+      "routeMaxSeconds": 1.109662,
+      "routeP50Seconds": 0.370245,
+      "samples": [
+        {
+          "computeSeconds": 0.04487,
+          "destination": [
+            -73.9426653,
+            40.6598835
+          ],
+          "distanceMetres": 6204.311,
+          "durationSeconds": 326.959,
+          "origin": [
+            -73.9892384,
+            40.6909958
+          ]
+        },
+        {
+          "computeSeconds": 1.109662,
+          "destination": [
+            -74.2032384,
+            40.5570825
+          ],
+          "distanceMetres": 37924.648,
+          "durationSeconds": 1695.033,
+          "origin": [
+            -74.2094546,
+            40.8427235
+          ]
+        },
+        {
+          "computeSeconds": 0.326683,
+          "destination": [
+            -73.9647837,
+            40.854694
+          ],
+          "distanceMetres": 25583.286,
+          "durationSeconds": 1084.353,
+          "origin": [
+            -73.8104489,
+            40.9959226
+          ]
+        },
+        {
+          "computeSeconds": 0.74492,
+          "destination": [
+            -73.8105343,
+            40.9958106
+          ],
+          "distanceMetres": 25566.752,
+          "durationSeconds": 1083.119,
+          "origin": [
+            -73.964809,
+            40.8546904
+          ]
+        },
+        {
+          "computeSeconds": 0.370245,
+          "destination": [
+            -74.1982072,
+            40.7735637
+          ],
+          "distanceMetres": 30113.196,
+          "durationSeconds": 1312.767,
+          "origin": [
+            -74.2031248,
+            40.5559936
+          ]
+        }
+      ],
+      "tileId": "NY_CP00_RP00"
+    },
+    {
+      "components": 187,
+      "edges": 617843,
+      "elapsedSeconds": 5.780318,
+      "graphBuildSeconds": 3.75158,
+      "graphRssBytes": 625610752,
+      "largestComponentNodes": 601035,
+      "nodes": 605823,
+      "routeMaxSeconds": 0.703511,
+      "routeP50Seconds": 0.477779,
+      "samples": [
+        {
+          "computeSeconds": 0.028024,
+          "destination": [
+            -73.839921,
+            41.732957
+          ],
+          "distanceMetres": 11188.785,
+          "durationSeconds": 479.848,
+          "origin": [
+            -73.9316423,
+            41.689795
+          ]
+        },
+        {
+          "computeSeconds": 0.488977,
+          "destination": [
+            -73.683691,
+            41.511042
+          ],
+          "distanceMetres": 94108.109,
+          "durationSeconds": 4655.521,
+          "origin": [
+            -74.322065,
+            41.871732
+          ]
+        },
+        {
+          "computeSeconds": 0.256079,
+          "destination": [
+            -73.807707,
+            41.646937
+          ],
+          "distanceMetres": 47804.952,
+          "durationSeconds": 2282.659,
+          "origin": [
+            -74.144301,
+            41.431913
+          ]
+        },
+        {
+          "computeSeconds": 0.477779,
+          "destination": [
+            -74.144227,
+            41.431809
+          ],
+          "distanceMetres": 47773.934,
+          "durationSeconds": 2280.344,
+          "origin": [
+            -73.807531,
+            41.64703
+          ]
+        },
+        {
+          "computeSeconds": 0.703511,
+          "destination": [
+            -74.322121,
+            41.871924
+          ],
+          "distanceMetres": 94099.77,
+          "durationSeconds": 4654.898,
+          "origin": [
+            -73.6835966,
+            41.5109432
+          ]
+        }
+      ],
+      "tileId": "NY_CP00_RP01"
+    },
+    {
+      "components": 117,
+      "edges": 692227,
+      "elapsedSeconds": 6.088586,
+      "graphBuildSeconds": 4.90964,
+      "graphRssBytes": 626659328,
+      "largestComponentNodes": 346659,
+      "nodes": 658028,
+      "routeMaxSeconds": 0.427479,
+      "routeP50Seconds": 0.265861,
+      "samples": [
+        {
+          "computeSeconds": 0.27722,
+          "destination": [
+            -73.3387854,
+            40.7880167
+          ],
+          "distanceMetres": 38399.262,
+          "durationSeconds": 1520.413,
+          "origin": [
+            -72.9929566,
+            40.9439103
+          ]
+        },
+        {
+          "computeSeconds": 0.07032,
+          "destination": [
+            -73.3978937,
+            40.855987
+          ],
+          "distanceMetres": 12672.764,
+          "durationSeconds": 665.334,
+          "origin": [
+            -73.269322,
+            40.8888753
+          ]
+        },
+        {
+          "computeSeconds": 0.427479,
+          "destination": [
+            -73.44439,
+            40.716301
+          ],
+          "distanceMetres": 39005.399,
+          "durationSeconds": 1702.025,
+          "origin": [
+            -73.058251,
+            40.7773
+          ]
+        },
+        {
+          "computeSeconds": 0.265861,
+          "destination": [
+            -73.058251,
+            40.7773
+          ],
+          "distanceMetres": 39005.399,
+          "durationSeconds": 1702.025,
+          "origin": [
+            -73.44439,
+            40.716301
+          ]
+        },
+        {
+          "computeSeconds": 0.068927,
+          "destination": [
+            -73.269322,
+            40.8888753
+          ],
+          "distanceMetres": 12672.764,
+          "durationSeconds": 665.334,
+          "origin": [
+            -73.3978937,
+            40.855987
+          ]
+        }
+      ],
+      "tileId": "NY_CP01_RP00"
+    },
+    {
+      "components": 182,
+      "edges": 331277,
+      "elapsedSeconds": 2.161814,
+      "graphBuildSeconds": 1.981565,
+      "graphRssBytes": 614174720,
+      "largestComponentNodes": 320667,
+      "nodes": 326230,
+      "routeMaxSeconds": 0.056997,
+      "routeP50Seconds": 0.021816,
+      "samples": [
+        {
+          "computeSeconds": 0.056997,
+          "destination": [
+            -74.759403,
+            41.5467803
+          ],
+          "distanceMetres": 35689.799,
+          "durationSeconds": 2478.574,
+          "origin": [
+            -74.903554,
+            41.393766
+          ]
+        },
+        {
+          "computeSeconds": 0.007285,
+          "destination": [
+            -75.2851044,
+            41.9594059
+          ],
+          "distanceMetres": 20067.54,
+          "durationSeconds": 794.424,
+          "origin": [
+            -75.132318,
+            42.012346
+          ]
+        },
+        {
+          "computeSeconds": 0.021816,
+          "destination": [
+            -74.673615,
+            41.827161
+          ],
+          "distanceMetres": 26672.406,
+          "durationSeconds": 1277.311,
+          "origin": [
+            -74.853354,
+            41.894981
+          ]
+        },
+        {
+          "computeSeconds": 0.039093,
+          "destination": [
+            -74.853354,
+            41.894981
+          ],
+          "distanceMetres": 26672.406,
+          "durationSeconds": 1277.311,
+          "origin": [
+            -74.673615,
+            41.827161
+          ]
+        },
+        {
+          "computeSeconds": 0.008657,
+          "destination": [
+            -75.132318,
+            42.012346
+          ],
+          "distanceMetres": 20067.54,
+          "durationSeconds": 794.424,
+          "origin": [
+            -75.2851044,
+            41.9594059
+          ]
+        }
+      ],
+      "tileId": "NY_CM01_RP01"
+    },
+    {
+      "components": 97,
+      "edges": 275140,
+      "elapsedSeconds": 2.259593,
+      "graphBuildSeconds": 1.724506,
+      "graphRssBytes": 458493952,
+      "largestComponentNodes": 267354,
+      "nodes": 269128,
+      "routeMaxSeconds": 0.17722,
+      "routeP50Seconds": 0.097693,
+      "samples": [
+        {
+          "computeSeconds": 0.102026,
+          "destination": [
+            -75.3088759,
+            43.0919519
+          ],
+          "distanceMetres": 57840.15,
+          "durationSeconds": 2298.001,
+          "origin": [
+            -74.6825954,
+            42.9906744
+          ]
+        },
+        {
+          "computeSeconds": 0.097693,
+          "destination": [
+            -74.916097,
+            42.699756
+          ],
+          "distanceMetres": 66865.849,
+          "durationSeconds": 3006.014,
+          "origin": [
+            -75.316819,
+            42.318405
+          ]
+        },
+        {
+          "computeSeconds": 0.063297,
+          "destination": [
+            -74.4425476,
+            42.5448546
+          ],
+          "distanceMetres": 49376.31,
+          "durationSeconds": 2571.178,
+          "origin": [
+            -74.344586,
+            42.83952
+          ]
+        },
+        {
+          "computeSeconds": 0.063064,
+          "destination": [
+            -74.344586,
+            42.83952
+          ],
+          "distanceMetres": 49376.31,
+          "durationSeconds": 2571.178,
+          "origin": [
+            -74.4425476,
+            42.5448546
+          ]
+        },
+        {
+          "computeSeconds": 0.17722,
+          "destination": [
+            -75.316819,
+            42.318405
+          ],
+          "distanceMetres": 66865.849,
+          "durationSeconds": 3006.014,
+          "origin": [
+            -74.916097,
+            42.699756
+          ]
+        }
+      ],
+      "tileId": "NY_CM01_RP02"
+    },
+    {
+      "components": 75,
+      "edges": 79876,
+      "elapsedSeconds": 0.723748,
+      "graphBuildSeconds": 0.47511,
+      "graphRssBytes": 445775872,
+      "largestComponentNodes": 76058,
+      "nodes": 78664,
+      "routeMaxSeconds": 0.054416,
+      "routeP50Seconds": 0.043466,
+      "samples": [
+        {
+          "computeSeconds": 0.051263,
+          "destination": [
+            -75.3281638,
+            43.1767398
+          ],
+          "distanceMetres": 158673.064,
+          "durationSeconds": 7661.961,
+          "origin": [
+            -74.4803694,
+            44.0027973
+          ]
+        },
+        {
+          "computeSeconds": 0.043457,
+          "destination": [
+            -74.968591,
+            43.676131
+          ],
+          "distanceMetres": 70249.041,
+          "durationSeconds": 4410.858,
+          "origin": [
+            -74.898818,
+            43.521835
+          ]
+        },
+        {
+          "computeSeconds": 0.039302,
+          "destination": [
+            -75.142345,
+            43.490926
+          ],
+          "distanceMetres": 52958.539,
+          "durationSeconds": 2559.363,
+          "origin": [
+            -74.9662968,
+            43.1935159
+          ]
+        },
+        {
+          "computeSeconds": 0.043466,
+          "destination": [
+            -74.9662968,
+            43.1935159
+          ],
+          "distanceMetres": 52958.539,
+          "durationSeconds": 2559.363,
+          "origin": [
+            -75.142345,
+            43.490926
+          ]
+        },
+        {
+          "computeSeconds": 0.054416,
+          "destination": [
+            -74.898818,
+            43.521835
+          ],
+          "distanceMetres": 70249.041,
+          "durationSeconds": 4410.858,
+          "origin": [
+            -74.968591,
+            43.676131
+          ]
+        }
+      ],
+      "tileId": "NY_CM01_RP03"
+    }
+  ]
+}
