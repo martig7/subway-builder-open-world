@@ -27,6 +27,43 @@ test('an unrelated native save remains isolated without an explicit alias', asyn
   });
 });
 
+test('an unmarked grid autosave inherits the durable canonical world', async () => {
+  const storage = new Map();
+  const resolver = new WorldIdentityResolver({ storage });
+
+  await resolver.resolve('known-grid-save', null, {
+    authoritativeWorldId: 'canonical-open-world',
+  });
+  const reopened = await resolver.resolve('new-unmarked-autosave');
+
+  assert.deepEqual(reopened, {
+    nativeSessionId: 'new-unmarked-autosave',
+    worldId: 'canonical-open-world',
+    aliased: true,
+    source: 'canonical-world',
+    sourceSessionId: null,
+  });
+  assert.equal(
+    storage.get(`${WORLD_IDENTITY_ALIAS_PREFIX}new-unmarked-autosave`),
+    'canonical-open-world',
+  );
+});
+
+test('a configured canonical seed recovers when aliases and native markers were lost', async () => {
+  const storage = new Map();
+  const resolver = new WorldIdentityResolver({
+    storage,
+    canonicalWorldId: 'canonical-open-world',
+  });
+
+  const recovered = await resolver.resolve('new-unmarked-autosave');
+
+  assert.equal(recovered.worldId, 'canonical-open-world');
+  assert.equal(recovered.aliased, true);
+  assert.equal(recovered.source, 'canonical-world');
+  assert.equal(storage.get('identity:canonical-world'), 'canonical-open-world');
+});
+
 test('a one-time recovery alias is persisted through authoritative mod storage', async () => {
   const storage = new Map();
   const resolver = new WorldIdentityResolver({
@@ -132,4 +169,19 @@ test('an aliased autosave without a public save name still requests authoritativ
     nativeSessionId: 'new-autosave-id',
     nativeTileId: 'NY_CP00_RP02',
   });
+});
+
+test('an established canonical identity binding is served from memory on later autosaves', async () => {
+  const values = new Map();
+  let reads = 0;
+  const storage = {
+    async get(key, fallback = null) { reads++; return values.has(key) ? values.get(key) : fallback; },
+    async set(key, value) { values.set(key, value); },
+  };
+  const resolver = new WorldIdentityResolver({ storage });
+
+  assert.equal(await resolver.bind('native-save', 'canonical-world'), true);
+  const readsAfterFirstBind = reads;
+  assert.equal(await resolver.bind('native-save', 'canonical-world'), true);
+  assert.equal(reads, readsAfterFirstBind);
 });

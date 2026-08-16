@@ -1,3 +1,4 @@
+import { createRendererVirtualization } from './renderer-virtualization.js';
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const SOURCE_ID = 'open-world-network-projection-source';
 const TRACK_LAYER_ID = 'open-world-network-projection-tracks';
@@ -37,9 +38,10 @@ function ensureArtifacts(map) {
  * both projection changes and MapLibre style replacement.
  */
 export class NetworkProjectionOverlayController {
-  constructor({ api, runtime }) {
+  constructor({ api, runtime, tileCatalog = runtime?.tileCatalog ?? null }) {
     this.api = api;
     this.runtime = runtime;
+    this.tileCatalog = tileCatalog;
     this.map = null;
     this.handleStyle = () => requestAnimationFrame(() => this.refresh());
     this.unsubscribeRuntime = runtime.subscribe?.((event) => {
@@ -60,7 +62,20 @@ export class NetworkProjectionOverlayController {
   refresh() {
     if (!this.map?.isStyleLoaded?.()) return;
     ensureArtifacts(this.map);
-    this.map.getSource(SOURCE_ID)?.setData(this.runtime.projectionOverlay?.() ?? EMPTY);
+    // In canonical full-native mode the native map already receives the
+    // complete topology.  Painting the historical projected continuation on
+    // top would duplicate tracks/routes, so retain this source as a harmless
+    // lifecycle-compatible no-op.  Older runtimes without the capability flag
+    // continue to use the projection overlay.
+    const overlay = this.runtime.fullNativeNetworkEnabled === true
+      ? EMPTY
+      : (this.runtime.projectionOverlay?.() ?? EMPTY);
+    const virtualization = createRendererVirtualization({
+      activeTileId: this.runtime?.view?.()?.activeTileId ?? null,
+      tileCatalog: this.tileCatalog,
+    });
+    const features = virtualization.renderInputs({ features: overlay.features ?? [] }).features;
+    this.map.getSource(SOURCE_ID)?.setData({ ...overlay, features });
   }
 
   dispose() {

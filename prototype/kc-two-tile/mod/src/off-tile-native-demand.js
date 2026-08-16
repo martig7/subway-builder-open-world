@@ -2,6 +2,7 @@ import { calculateCrossTileModeShares } from './cross-tile-mode-choice.js';
 import { fareSegmentsFromStationRoutes, quoteJourneyFare } from './journey-fare.js';
 import {
   calculateNativeRevenueProfile,
+  createNativeTopologyFinancePolicy,
   deterministicNativeDepartureTimes,
 } from './native-finance-model.js';
 
@@ -39,6 +40,20 @@ function demandFingerprint(demand) {
   return hashText(value);
 }
 
+function scopedFarePolicy(farePolicy, network) {
+  const routeIds = new Set((network?.routes ?? []).map((route) => String(route?.id)));
+  const groups = (farePolicy?.fareGroups ?? []).filter((group) => {
+    const groupRoutes = group?.routeIds ?? Object.keys(group?.routeFares ?? {});
+    // A global/default group applies to every local route.  Otherwise a fare
+    // edit only invalidates tiles carrying one of the group's routes.
+    return !groupRoutes.length || groupRoutes.some((id) => routeIds.has(String(id)));
+  });
+  return {
+    fare: farePolicy?.fare ?? 0,
+    fareGroups: groups,
+  };
+}
+
 function deterministicNetworkProfile(profile) {
   return {
     ...profile,
@@ -60,12 +75,14 @@ export function offTileNativeDemandContextKey({
     schemaVersion: 1, tileId, stations: [], routes: [], activeRouteIds: [], pathfindingRules: {},
     structuralSignature: `${tileId}:empty`,
   });
+  const localRouteIds = new Set((network.routes ?? []).map((route) => String(route?.id)));
   return hashText(JSON.stringify(stableValue({
     evaluatorSchemaVersion: EVALUATOR_SCHEMA_VERSION,
     tileId,
     network: network.structuralSignature ?? network.signature ?? null,
-    farePolicy,
-    financeOwnedRouteIds: [...financeOwnedRouteIds].map(String).sort(),
+    farePolicy: scopedFarePolicy(farePolicy, network),
+    financeOwnedRouteIds: [...financeOwnedRouteIds]
+      .map(String).filter((routeId) => localRouteIds.has(routeId)).sort(),
   })));
 }
 
@@ -229,6 +246,7 @@ export function evaluateOffTileNativeDemand({
     modeChoicePopulation: modeTotals(calculated.popModeChoices),
     ridershipByRoute: ridershipByRoute(calculated),
     routingStats: calculated.routingStats,
+    accountingOwnership: createNativeTopologyFinancePolicy(),
   };
   return { status: 'evaluated', profile };
 }

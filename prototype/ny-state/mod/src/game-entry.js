@@ -1,11 +1,12 @@
 import { WorldTileRuntime } from '../../../kc-two-tile/mod/src/world-tile-runtime.js';
 import { SubwayBuilderGameAdapter } from '../../../kc-two-tile/mod/src/adapters/subway-builder-game-adapter.js';
 import { ModStorageWorldStateAdapter } from '../../../kc-two-tile/mod/src/adapters/mod-storage-world-state-adapter.js';
+import { SerializedStorageAdapter } from '../../../kc-two-tile/mod/src/adapters/serialized-storage-adapter.js';
 import { HashCityNavigationAdapter } from '../../../kc-two-tile/mod/src/adapters/hash-city-navigation-adapter.js';
 import { registerPrototypePanel } from '../../../kc-two-tile/mod/src/ui/prototype-panel.js';
 import { registerCrossDemandViewer } from '../../../kc-two-tile/mod/src/ui/cross-demand-viewer.js';
 import { registerNetworkProjectionOverlay } from '../../../kc-two-tile/mod/src/ui/network-projection-overlay.js';
-import { createNetworkProjectionReconciler, createRouteScheduleReconciler, registerNetworkProjectionHooks } from '../../../kc-two-tile/mod/src/network-projection-hooks.js';
+import { registerNetworkProjectionHooks } from '../../../kc-two-tile/mod/src/network-projection-hooks.js';
 import {
   refreshPilotCityBindings,
   registerPilotCities,
@@ -44,13 +45,19 @@ const RECOVERY_SESSION_ALIASES = Object.freeze({
   '27134722-1b63-4732-9c7a-3a958f546123': RECOVERED_WORLD_ID,
   // A mod-reload race briefly forked this canonical lineage into a self-world.
   // Bind both the source autosave and its Albany destination save back to the
-  // last complete nine-route world (including 101/102/103 and R).
+  // complete canonical world (including 101/102/103 and R).
   'dd490e80-79e0-4a86-852d-ef0c9c63187f': CURRENT_CANONICAL_WORLD_ID,
   '5f366b06-3165-46f1-b7e2-93318d6a80de': CURRENT_CANONICAL_WORLD_ID,
   // The authoritative-load trace captured this newly named autosave carrying
   // 5f366b06 as its embedded parent session. Keep the explicit migration so
   // the already-created stale fork recovers even before its first marker-stamped save.
   '2373ed13-57de-41ff-87d8-bbcf501592f1': CURRENT_CANONICAL_WORLD_ID,
+  // The 2026-08-15 file-storage race forked this NYC save into a self-world,
+  // then stamped the resulting empty Albany projection into its destination
+  // autosave. Both native sessions must resolve to the last complete lineage
+  // before either marker can be trusted again.
+  '62842bd8-de7c-4c94-a020-722a33e49956': CURRENT_CANONICAL_WORLD_ID,
+  'f437945c-fa4b-41a1-9c6e-38fbc8d8417b': CURRENT_CANONICAL_WORLD_ID,
 });
 const recoveryNetworkPromise = decodeGzipBase64Json(embeddedNetworkRecoveryGzipBase64);
 
@@ -75,11 +82,17 @@ function writePendingPerformance(value) {
   const generation = (Number(globalThis[generationKey]) || 0) + 1;
   globalThis[generationKey] = generation;
   const isCurrent = () => globalThis[generationKey] === generation;
-  const storage = api.storage?.scoped?.();
+  const rawStorage = api.storage?.scoped?.();
+  const storageCoordinatorKey = '__nyStateScopedStorageCoordinator__';
+  const storageCoordinator = globalThis[storageCoordinatorKey] ??= { tail: Promise.resolve() };
+  const storage = rawStorage
+    ? new SerializedStorageAdapter({ storage: rawStorage, coordinator: storageCoordinator })
+    : rawStorage;
   const identities = new WorldIdentityResolver({
     storage,
     fallbackWorldId: 'ny-state-six-tile',
     recoveryAliases: RECOVERY_SESSION_ALIASES,
+    canonicalWorldId: CURRENT_CANONICAL_WORLD_ID,
   });
   const tileBase = globalThis.NY_STATE_PILOT_TILE_BASE ?? 'http://127.0.0.1:8798';
   const registration = registerPilotCities(api, { tileBase });
@@ -102,6 +115,9 @@ function writePendingPerformance(value) {
     generation,
     registeredAt: Date.now(),
     transitions: [],
+    autosaves: [],
+    latestAutosave: null,
+    latestAutosaveRuntime: null,
     authoritativeLoads: [],
     latestAuthoritativeLoad: null,
     latest: null,
@@ -128,17 +144,8 @@ function writePendingPerformance(value) {
     api.ui?.showNotification?.('New York pilot disabled: incompatible game seam', 'error');
     return;
   }
+  diagnostics.nativeNetworkMode = game.activateCanonicalNativeNetworkMode();
   diagnostics.trackGroupLoadGuard = game.installTrackGroupLoadGuard();
-  const tickGuardInstallation = game.installClippedRouteTickGuard();
-  diagnostics.tickGuard = tickGuardInstallation;
-  if (tickGuardInstallation?.reason === 'stale-version-restart-required') {
-    api.ui?.showNotification?.(
-      'Open World updated its simulation guard. Restart Subway Builder once before continuing this audit.',
-      'warning',
-      'Open World',
-    );
-  }
-  game.installClippedRouteTrackEditGuard();
 
   const worldState = new ModStorageWorldStateAdapter({
     storage,
@@ -178,6 +185,10 @@ function writePendingPerformance(value) {
         diagnostics.nativeFinanceHandoff = event;
       }
       if (event?.phase === 'startup-performance') diagnostics.startupRuntime = event;
+      if (event?.phase === 'autosave-performance') {
+        diagnostics.latestAutosaveRuntime = event;
+        return;
+      }
       console.debug('[NY pilot]', event);
     },
   });
@@ -219,6 +230,7 @@ function writePendingPerformance(value) {
   let started = false;
   let ready = false;
   let settlementReady = false;
+  let startupModeSharePromise = null;
   let startPromise = null;
   let loadedSaveName = null;
   let requestedSessionReload = null;
@@ -240,6 +252,27 @@ function writePendingPerformance(value) {
     }
   }
 
+  function deferStartupModeShare(reason, day) {
+    let resolveScheduled;
+    const scheduled = new Promise((resolve) => { resolveScheduled = resolve; });
+    const run = () => {
+      void recalculateCrossModeShare(reason, day).then((result) => {
+        if (isCurrent()) settlementReady = result != null;
+        resolveScheduled(result);
+      }).catch((error) => {
+        console.warn('[NY pilot] deferred startup mode-share failed', error);
+        resolveScheduled(null);
+      });
+    };
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      globalThis.requestIdleCallback(run, { timeout: 1_000 });
+    } else {
+      if (typeof globalThis.setTimeout === 'function') globalThis.setTimeout(run, 0);
+      else run();
+    }
+    return scheduled;
+  }
+
   async function settleCrossTileCommutes(reason = 'hourly') {
     if (!ready || !settlementReady || !isCurrent()) return null;
     const loadedCity = api.utils.getCityCode?.();
@@ -254,36 +287,10 @@ function writePendingPerformance(value) {
   const routeChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('route-change'); };
   const scheduleChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('schedule-change'); };
   const fareChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('fare-change'); };
-  const projectionReconciler = createNetworkProjectionReconciler({
-    runtime,
-    isReady: () => ready && isCurrent(),
-    isActive: isCurrent,
-    onRejected: (warning) => api.ui?.showNotification?.(
-      warning?.message ?? 'That network edit is outside the editable tile window and was restored.',
-      'warning',
-      'Open World',
-    ),
-  });
-  const scheduleReconciler = createRouteScheduleReconciler({
-    runtime,
-    isReady: () => ready && isCurrent(),
-    isActive: isCurrent,
-    onRejected: (warning) => api.ui?.showNotification?.(
-      warning?.message ?? 'That route schedule could not be saved.',
-      'warning',
-      'Open World',
-    ),
-  });
-  const projectionChanged = (reason) => {
-    if (ready && isCurrent()) projectionReconciler.queue(reason);
-  };
-  game.installClippedRoutePreviewEditGuard({
-    onConfirmed: () => {
-      if (!ready || !isCurrent()) return;
-      modeShareInvalidation.markDirty('route-change');
-      projectionReconciler.queue('route-edited');
-    },
-  });
+  // Native topology edits are authoritative in canonical-native mode. These
+  // hooks only invalidate cross-tile mode share; they never roll a route back
+  // to a geographic projection or rewrite native schedules.
+  const projectionChanged = (reason) => routeChanged(reason);
 
   async function persistPerformance(sample) {
     diagnostics.latest = sample;
@@ -503,7 +510,8 @@ function writePendingPerformance(value) {
         hydratePersistedDiagnostics();
         if (!isCurrent()) return;
         ready = true;
-        settlementReady = (await recalculateCrossModeShare('startup', api.gameState.getCurrentDay?.() ?? null)) != null;
+        settlementReady = false;
+        startupModeSharePromise = deferStartupModeShare('startup', api.gameState.getCurrentDay?.() ?? null);
         finishStage('crossModeShare');
         if (!isCurrent()) return;
         if (pending) navigation.complete(pending);
@@ -555,18 +563,56 @@ function writePendingPerformance(value) {
   }
 
   async function handleGameSaved(saveName) {
-    if (!ready || !settlementReady || !isCurrent() || typeof saveName !== 'string' || !saveName) return;
+    if (!ready || !isCurrent() || typeof saveName !== 'string' || !saveName) return;
+    if (startupModeSharePromise && !settlementReady) await startupModeSharePromise;
+    if (!ready || !settlementReady || !isCurrent()) return;
+    const startedAt = performance.now();
+    let identityMilliseconds = 0;
+    let checkpointResult = null;
+    let status = 'failed';
+    let failure = null;
     try {
+      const identityStartedAt = performance.now();
       const nativeSessionId = api.gameState.getGameSessionId();
       const nativeTileId = api.utils.getCityCode?.() ?? runtime.view().activeTileId;
       const identityBound = await identities.bind(nativeSessionId, runtime.view().worldId);
+      identityMilliseconds = performance.now() - identityStartedAt;
       if (!identityBound) {
         throw new Error('Native save identity moved to another authoritative open-world lineage');
       }
-      await runtime.checkpoint('game-save', { saveName, nativeSessionId, nativeTileId });
+      checkpointResult = await runtime.checkpoint('game-save', { saveName, nativeSessionId, nativeTileId });
       loadedSaveName = saveName;
+      status = checkpointResult?.status === 'projection-quarantined' ? 'skipped' : 'saved';
     } catch (error) {
+      failure = String(error?.message ?? error);
       console.warn(`[NY pilot] could not checkpoint native save ${saveName}`, error);
+    } finally {
+      const runtimePerformance = checkpointResult?.performance
+        ?? (diagnostics.latestAutosaveRuntime?.saveName === saveName
+          ? diagnostics.latestAutosaveRuntime
+          : null);
+      const elapsed = performance.now() - startedAt;
+      const runtimeStages = runtimePerformance?.stages ?? {};
+      const accounted = identityMilliseconds
+        + Object.values(runtimeStages).reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const sample = {
+        capturedAt: Date.now(),
+        saveName,
+        status,
+        error: failure,
+        tileId: runtime.view().activeTileId,
+        revision: checkpointResult?.revision ?? runtime.view().revision,
+        milliseconds: elapsed,
+        stages: {
+          identityBinding: identityMilliseconds,
+          ...runtimeStages,
+          unattributed: Math.max(0, elapsed - accounted),
+        },
+      };
+      diagnostics.latestAutosave = sample;
+      diagnostics.autosaves.push(sample);
+      if (diagnostics.autosaves.length > 50) diagnostics.autosaves.splice(0, diagnostics.autosaves.length - 50);
+      console.info('[NY pilot] autosave performance', sample);
     }
   }
 
@@ -736,14 +782,12 @@ function writePendingPerformance(value) {
   registerNetworkProjectionHooks(
     api.hooks,
     projectionChanged,
-    (routeId, schedule, previousSchedule) => scheduleReconciler.queue(routeId, schedule, previousSchedule),
+    scheduleChanged,
     { readTrackInventory: () => game.getTrackInventory() },
   );
   api.hooks.onGameEnd?.(() => {
     if (!isCurrent()) return;
     modeShareInvalidation.cancel();
-    projectionReconciler.cancel();
-    scheduleReconciler.cancel();
     projectionOverlayController?.dispose?.();
     geographicContextController?.dispose?.();
     ready = false;

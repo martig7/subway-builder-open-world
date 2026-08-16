@@ -1,8 +1,23 @@
-import { SHARED_TRANSIT_STATE_KEYS } from './shared-transit-network.js';
+import {
+  CANONICAL_NATIVE_NETWORK_MODE,
+  SHARED_TRANSIT_STATE_KEYS,
+  hasCompleteNativeTopology,
+} from './shared-transit-network.js';
 import { projectRouteTimings } from './route-timing-integrity.js';
 
 const SCHEMA_VERSION = 1;
 const ENTITY_KEYS = Object.freeze(['tracks', 'trains', 'routes', 'trackGroups', 'signals', 'stNodes', 'stations', 'stationGroups']);
+const STRUCTURAL_STATE_KEYS = Object.freeze([
+  'tracks',
+  'routes',
+  'trackGroups',
+  'stNodes',
+  'stations',
+  'stationGroups',
+  'fareGroups',
+  'ownedTrainCount',
+  'ownedCarsByType',
+]);
 const EPSILON = 1e-9;
 
 const clone = (value) => value === undefined ? undefined : structuredClone(value);
@@ -245,19 +260,169 @@ function descriptorsFor(state) {
   return Object.fromEntries(array(state.routes).filter((route) => idOf(route)).map((route) => [String(route.id), routeDescriptor(route, stationByNode)]));
 }
 
+const ROUTE_SERVICE_KEYS = Object.freeze([
+  'name',
+  'fullName',
+  'bullet',
+  'color',
+  'textColor',
+  'fareGroupId',
+  'fareSystem',
+  'trainType',
+  'carsPerTrain',
+  'trainSchedule',
+  'timetableSchedule',
+  'idealTrainCount',
+]);
+
+function canonicalRouteFromProjection(route) {
+  if (!route || typeof route !== 'object') return clone(route);
+  let canonical = route;
+  const seen = new Set();
+  // Projection facades can be promoted by recovery from an old native save.
+  // Repeated hot reloads historically nested those facades, so unwrap until
+  // the last complete route rather than assuming a single wrapper level.
+  while (canonical && typeof canonical === 'object' && !seen.has(canonical)) {
+    seen.add(canonical);
+    const next = canonical.openWorldGlobalRoute ?? canonical.openWorldNativeCommuteRoute;
+    if (!next || typeof next !== 'object') break;
+    canonical = next;
+  }
+  const result = clone(canonical);
+  for (const key of Object.keys(result ?? {})) if (key.startsWith('openWorld')) delete result[key];
+
+  // The facade is the user's current service editor. Topology comes from the
+  // complete embedded route, but schedule/fare/presentation edits made since
+  // that embedding must survive recovery.
+  for (const key of ROUTE_SERVICE_KEYS) {
+    let value = route[key];
+    if (value == null && key === 'trainSchedule' && route.openWorldGlobalTrainSchedule != null) {
+      value = route.openWorldGlobalTrainSchedule;
+    }
+    if (value === undefined) continue;
+    result[key] = clone(value);
+  }
+  return result;
+}
+
+function deferredTrainsFromProjectionRoute(route, output, visited = new Set()) {
+  if (!route || typeof route !== 'object' || visited.has(route)) return;
+  visited.add(route);
+  for (const train of array(route.openWorldNativeCommuteTrains)) {
+    const id = idOf(train);
+    if (id && !output.has(id)) output.set(id, clone(train));
+  }
+  deferredTrainsFromProjectionRoute(route.openWorldGlobalRoute, output, visited);
+  deferredTrainsFromProjectionRoute(route.openWorldNativeCommuteRoute, output, visited);
+}
+
 function networkStateFrom(source) {
   const state = snapshotState(source);
-  return Object.fromEntries(SHARED_TRANSIT_STATE_KEYS.map((key) => [key, clone(state[key] ?? (ENTITY_KEYS.includes(key) ? [] : null))]));
+  return Object.fromEntries(SHARED_TRANSIT_STATE_KEYS.map((key) => [
+    key,
+    clone(state[key] ?? (ENTITY_KEYS.includes(key) ? [] : null)),
+  ]));
+}
+
+function authoritativeNetworkStateFrom(source) {
+  const state = snapshotState(source);
+  const result = networkStateFrom(state);
+  const trainsById = new Map(array(result.trains)
+    .filter((train) => idOf(train))
+    .map((train) => [String(train.id), train]));
+  for (const route of array(state.routes)) deferredTrainsFromProjectionRoute(route, trainsById);
+  result.routes = array(state.routes).map(canonicalRouteFromProjection);
+  result.trains = [...trainsById.values()];
+  return result;
+}
+
+function structuralHashFrom(source) {
+  const state = snapshotState(source);
+  return stableHash(Object.fromEntries(STRUCTURAL_STATE_KEYS.map((key) => [
+    key,
+    clone(state[key] ?? (ENTITY_KEYS.includes(key) ? [] : null)),
+  ])));
 }
 
 export function createGlobalNetwork(source, revision = 0) {
-  const nativeState = networkStateFrom(source);
+  const nativeState = authoritativeNetworkStateFrom(source);
   return {
     schemaVersion: SCHEMA_VERSION,
     revision,
     nativeState,
     routeDescriptors: descriptorsFor(nativeState),
     hash: stableHash(nativeState),
+  };
+}
+
+/**
+ * Compose the complete native save payload from a tile-local base snapshot
+ * and the canonical world network.  This is the native lifecycle seam: the
+ * result is suitable for loadSave/restoreSnapshot and is never clipped to
+ * the active geographic window.
+ */
+export function createNativeNetworkSnapshot(baseSnapshot, network) {
+  const source = network?.nativeState ?? network ?? {};
+  const state = {
+    ...clone(snapshotState(baseSnapshot)),
+    ...authoritativeNetworkStateFrom(source),
+  };
+  return withSnapshotState(baseSnapshot, state);
+}
+
+/**
+ * A legacy projection snapshot is a recovery/migration input only.  Native
+ * snapshots in canonical mode must not be classified from their entity count
+ * (a user may legitimately delete an entity); use the explicit projection
+ * envelope or a persisted projection baseline instead.
+ */
+export function isLegacyProjectedSnapshot(snapshot, { baseline = null, fallbackState = null } = {}) {
+  const state = snapshotState(snapshot);
+  const hasProjectionEnvelope = array(state.routes).some((route) => (
+    route?.openWorldProjectionDormant === true
+    || route?.openWorldGlobalRoute != null
+    || route?.openWorldNativeCommuteRoute != null
+    || route?.openWorldNativeCommuteTrains != null
+    || route?.openWorldNativeCommuteStations != null
+  ));
+  if (hasProjectionEnvelope) return true;
+  const hasFallbackTopology = ENTITY_KEYS.some((key) => (
+    Array.isArray(fallbackState?.[key]) ? fallbackState[key].length > 0
+      : false
+  ));
+  // Older native saves frequently omitted the transit keys entirely after a
+  // city reload.  If the sidecar has topology, that payload is a migration
+  // input rather than an authoritative deletion of the player's network.
+  if (!hasCompleteNativeTopology(state) && hasFallbackTopology) return true;
+  const hasBaselineTopology = ENTITY_KEYS.some((key) => (
+    Array.isArray(baseline?.baselineState?.[key])
+      ? baseline.baselineState[key].length > 0
+      : false
+  ));
+  const hasBaselineEntityGap = ENTITY_KEYS.some((key) => {
+    const baselineIds = new Set(array(baseline?.baselineState?.[key]).map((value) => idOf(value)).filter(Boolean));
+    if (!baselineIds.size) return false;
+    const currentIds = new Set(array(state[key]).map((value) => idOf(value)).filter(Boolean));
+    return [...baselineIds].some((id) => !currentIds.has(id));
+  });
+  if (hasBaselineEntityGap) return true;
+  return Boolean(
+    hasBaselineTopology
+    && baseline?.structuralHash
+    && structuralHashFrom(state) === baseline.structuralHash,
+  );
+}
+
+/**
+ * Public contract used by runtime/entry seams.  It intentionally reports
+ * completeness independently from the presentation manifest.
+ */
+export function inspectNativeNetworkSnapshot(snapshot) {
+  const state = snapshotState(snapshot);
+  return {
+    mode: CANONICAL_NATIVE_NETWORK_MODE,
+    complete: hasCompleteNativeTopology(state),
+    state: authoritativeNetworkStateFrom(state),
   };
 }
 
@@ -802,6 +967,12 @@ export class NetworkProjection {
     this.guardBandMeters = guardBandMeters;
   }
 
+  /** Explicit canonical-native lifecycle entry point for callers that need a
+   * full restore payload while still using this class for presentation. */
+  createNativeSnapshot(baseSnapshot, network) {
+    return createNativeNetworkSnapshot(baseSnapshot, network);
+  }
+
   applyRouteScheduleChanges(network, changes) {
     if (network?.schemaVersion !== SCHEMA_VERSION) throw new Error('Unsupported global network schema');
     const nextState = clone(network.nativeState);
@@ -842,6 +1013,17 @@ export class NetworkProjection {
       network: changed ? createGlobalNetwork(nextState, (Number(network.revision) || 0) + 1) : network,
       warning: null,
     };
+  }
+
+  isSnapshotStructurallyCurrent({ network, baseline, nativeSnapshot }) {
+    return Boolean(
+      network?.schemaVersion === SCHEMA_VERSION
+      && baseline?.schemaVersion === SCHEMA_VERSION
+      && baseline.networkRevision === network.revision
+      && baseline.networkHash === network.hash
+      && typeof baseline.structuralHash === 'string'
+      && baseline.structuralHash === structuralHashFrom(nativeSnapshot),
+    );
   }
 
   build({ network, activeTileId, catalog, baseSnapshot = null }) {
@@ -1071,6 +1253,7 @@ export class NetworkProjection {
       sourceIds: Object.fromEntries([...trackProjection].map(([id, projection]) => [id, projection.unchanged ? [id] : projection.fragments.map((_, index) => `${id}:projection:${index}`)])),
       baselineState,
       projectionHash: stableHash(baselineState),
+      structuralHash: structuralHashFrom(baselineState),
     };
     return {
       snapshot: withSnapshotState(baseSnapshot, projected),

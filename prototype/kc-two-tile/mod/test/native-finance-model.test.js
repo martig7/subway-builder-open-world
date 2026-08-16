@@ -4,8 +4,12 @@ import {
   backgroundFinanceForHour,
   calculateGlobalExpenseProfile,
   calculateNativeRevenueProfile,
+  createNativeTopologyFinancePolicy,
+  invalidateAffectedRevenueProfiles,
   migrateCachedNativeRevenueProfile,
+  migrateNativeFinanceSidecar,
   nativeComparableFinanceForHour,
+  projectNativeBackgroundFinance,
   summarizeNativeFinanceAudit,
 } from '../src/native-finance-model.js';
 
@@ -171,7 +175,7 @@ test('hourly background finance excludes active native work and includes clipped
   assert.equal(posting.expenses, 160);
 });
 
-test('hourly background finance includes globally owned revenue and cost in the active tile', () => {
+test('hourly background finance excludes all active native revenue and cost', () => {
   const hourly = Array.from({ length: 24 }, () => ({
     revenue: 100,
     revenueByRoute: { local: 60, global: 40 },
@@ -191,8 +195,8 @@ test('hourly background finance includes globally owned revenue and cost in the 
     },
   });
 
-  assert.equal(posting.revenue, 40);
-  assert.deepEqual(posting.revenueByRoute, { global: 40 });
+  assert.equal(posting.revenue, 0);
+  assert.deepEqual(posting.revenueByRoute, {});
   assert.equal(posting.expenses, 50);
   assert.deepEqual(posting.expensesByRoute, { global: 50 });
 });
@@ -275,4 +279,63 @@ test('native finance audit ignores checkpoint projection and revision churn when
   assert.equal(audit.sampleCount, 24);
   assert.equal(audit.firstHour, 0);
   assert.equal(audit.lastHour, 23);
+});
+
+test('native topology ownership makes background settlement revenue-only', () => {
+  const policy = createNativeTopologyFinancePolicy();
+  const posting = backgroundFinanceForHour({
+    activeTileId: 'T0', hour: 7, ownershipPolicy: policy,
+    activeProjection: { baselineState: { routes: [{ id: 'R' }], tracks: [] }, partialRouteIds: [] },
+    finance: {
+      accountingOwnership: policy,
+      tileRevenueProfiles: { T1: { hourly: Array.from({ length: 24 }, () => ({ revenue: 12, revenueByRoute: { R: 12 } })) } },
+      expenseProfile: { routeHourly: { R: Array(24).fill(100) }, infrastructureItems: [{ hourlyCost: 50, trackIds: [] }] },
+    },
+  });
+  assert.equal(posting.revenue, 12);
+  assert.equal(posting.expenses, 0);
+  assert.deepEqual(posting.expensesByRoute, {});
+  assert.equal(posting.nativeExpensesOmitted, true);
+});
+
+test('background projection is conserved and idempotent across reload, tile switch, and rollback', () => {
+  const finance = {
+    lastSettledHour: 0,
+    tileRevenueProfiles: {
+      T0: { hourly: Array.from({ length: 24 }, () => ({ revenue: 2 })) },
+      T1: { hourly: Array.from({ length: 24 }, () => ({ revenue: 3 })) },
+    },
+  };
+  const args = {
+    finance, activeTileId: 'T0',
+    activeProjection: { baselineState: { routes: [], tracks: [] }, partialRouteIds: [] },
+    ownershipPolicy: createNativeTopologyFinancePolicy(),
+  };
+  const first = projectNativeBackgroundFinance({ ...args, targetHour: 2 });
+  assert.equal(first.hours, 2);
+  assert.equal(first.revenue, 3 * 2);
+  const repeat = projectNativeBackgroundFinance({ ...args, targetHour: 2, lastSettledHour: first.lastSettledHour });
+  assert.equal(repeat.status, 'already-settled');
+  assert.equal(repeat.revenue, 0);
+  const switched = projectNativeBackgroundFinance({ ...args, activeTileId: 'T1', targetHour: 1, lastSettledHour: 2 });
+  assert.equal(switched.status, 'clock-rollback');
+  assert.equal(switched.revenue, 0);
+});
+
+test('revenue cache invalidation is tile/route scoped and migration preserves topology fields', () => {
+  const sidecar = {
+    ownershipProjection: { routeIds: ['legacy-route'], trackIds: ['legacy-track'] },
+    tileRevenueProfiles: {
+      T0: { ridershipByRoute: { local: 10 }, hourly: [] },
+      T1: { ridershipByRoute: { remote: 10 }, hourly: [] },
+    },
+    expenseProfile: { routeHourly: {}, infrastructureItems: [] },
+  };
+  const migrated = migrateNativeFinanceSidecar(sidecar);
+  assert.deepEqual(migrated.ownershipProjection, sidecar.ownershipProjection);
+  assert.equal(migrated.accountingOwnership.topologyAuthority, 'native-save');
+  const invalidated = invalidateAffectedRevenueProfiles(migrated, { affectedRouteIds: ['remote'] });
+  assert.deepEqual(invalidated.invalidatedTileIds, ['T1']);
+  assert.ok(invalidated.finance.tileRevenueProfiles.T0);
+  assert.equal(invalidated.finance.tileRevenueProfiles.T1, undefined);
 });

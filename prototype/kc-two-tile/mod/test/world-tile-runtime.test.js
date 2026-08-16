@@ -77,6 +77,85 @@ test('boot reports a complete startup performance breakdown', async () => {
   for (const duration of Object.values(performanceEvent.stages)) assert.ok(duration >= 0);
 });
 
+test('reopening an unchanged canonical world uses the compact settlement journal during boot', async () => {
+  const first = setup();
+  await first.runtime.boot('unchanged-reopen-world', 'KCW');
+
+  const game = new FakeGameAdapter();
+  const runtime = new WorldTileRuntime({
+    game,
+    worldState: first.storage,
+    tilePackages: new MemoryTilePackageAdapter(packages),
+    initialWorld: { activeTileId: 'KCW', wallet: 100, cohorts },
+  });
+  let fullSaves = 0;
+  let settlementSaves = 0;
+  const save = first.storage.save.bind(first.storage);
+  const saveSettlement = first.storage.saveSettlement.bind(first.storage);
+  first.storage.save = async (...args) => { fullSaves++; return save(...args); };
+  first.storage.saveSettlement = async (...args) => { settlementSaves++; return saveSettlement(...args); };
+
+  await runtime.boot('unchanged-reopen-world', 'KCW');
+
+  assert.equal(fullSaves, 0);
+  assert.equal(settlementSaves, 1);
+});
+
+test('boot repairs a projected route facade promoted into the authoritative network', async () => {
+  const { runtime, storage } = setupProjectedRuntime();
+  await runtime.boot('projection-facade-recovery', 'T0');
+  const canonicalRoute = {
+    id: 'empire',
+    stNodes: [{ id: 'nyc' }, { id: 'albany' }],
+    stCombos: [{
+      startStNodeId: 'nyc',
+      endStNodeId: 'albany',
+      path: [{ trackId: 'remote-track', length: 10_000 }],
+    }],
+    trainSchedule: { highDemand: 3 },
+  };
+  const deferredTrain = {
+    id: 'empire-train',
+    routeId: 'empire',
+    windows: { train: { tracks: [{ trackId: 'remote-track' }] } },
+  };
+  const canonical = createGlobalNetwork({
+    tracks: [{ id: 'remote-track', coords: [[3.2, 0.5], [3.8, 0.5]] }],
+    stations: [], routes: [canonicalRoute], trains: [deferredTrain],
+    trackGroups: [], signals: [], stNodes: [], stationGroups: [], fareGroups: [], routeFinancials: {},
+    ownedTrainCount: 1, ownedCarsByType: { 'commuter-rail': 1 },
+  });
+  runtime.world.globalNetwork = {
+    ...canonical,
+    hash: 'polluted-projection-hash',
+    nativeState: {
+      ...canonical.nativeState,
+      routes: [{
+        ...canonicalRoute,
+        stNodes: [{ id: 'nyc' }],
+        stCombos: [],
+        openWorldProjectionDormant: true,
+        openWorldGlobalRoute: {
+          ...canonicalRoute,
+          openWorldNativeCommuteRoute: canonicalRoute,
+        },
+        openWorldNativeCommuteTrains: [deferredTrain],
+      }],
+      trains: [],
+    },
+  };
+  runtime.world.activeProjection = null;
+  await storage.save(runtime.world);
+  runtime.world = null;
+
+  await runtime.boot('projection-facade-recovery', 'T0');
+
+  assert.deepEqual(runtime.world.globalNetwork.nativeState.routes, [canonicalRoute]);
+  assert.deepEqual(runtime.world.globalNetwork.nativeState.trains, [deferredTrain]);
+  assert.equal(JSON.stringify(runtime.world.globalNetwork.nativeState.routes).includes('openWorld'), false);
+  assert.notEqual(runtime.world.globalNetwork.hash, 'polluted-projection-hash');
+});
+
 test('autosave checkpoint is non-mutating and preserves the player pause state', async () => {
   const { runtime, game } = setupProjectedRuntime();
   await runtime.boot('non-mutating-autosave', 'T0');
@@ -88,6 +167,80 @@ test('autosave checkpoint is non-mutating and preserves the player pause state',
   assert.equal(game.log.includes('restoreSnapshot'), false, 'autosave must never invoke native loadSave');
   assert.equal(game.paused, true, 'autosave must leave a paused game paused');
   assert.equal(game.log.includes('resume'), false, 'autosave must not force the simulation to resume');
+});
+
+test('autosave checkpoint reports one reconciled per-stage performance profile', async () => {
+  const game = new FakeGameAdapter();
+  const telemetry = [];
+  let clock = 0;
+  const runtime = new WorldTileRuntime({
+    game,
+    worldState: new ModStorageWorldStateAdapter(),
+    tilePackages: new MemoryTilePackageAdapter(packages),
+    initialWorld: { activeTileId: 'KCW', wallet: 100, cohorts: [] },
+    now: () => (clock += 5),
+    telemetry: (event) => telemetry.push(event),
+  });
+  await runtime.boot('autosave-performance-world', 'KCW');
+  telemetry.length = 0;
+
+  const result = await runtime.checkpoint('game-save', {
+    saveName: 'Autosave',
+    nativeSessionId: 'native-session',
+    nativeTileId: 'KCW',
+  });
+
+  const events = telemetry.filter(({ phase }) => phase === 'autosave-performance');
+  assert.equal(events.length, 1);
+  const profile = events[0];
+  assert.equal(profile.status, 'saved');
+  assert.equal(profile.saveName, 'Autosave');
+  assert.equal(profile.tileId, 'KCW');
+  assert.ok(profile.milliseconds > 0);
+  assert.deepEqual(Object.keys(profile.stages), [
+    'queueWait',
+    'pause',
+    'authoritativeGlobals',
+    'simulationAdvance',
+    'crossTileFinance',
+    'backgroundNativeFinance',
+    'snapshotCapture',
+    'snapshotValidation',
+    'projectionAdoption',
+    'liveWorldSave',
+    'checkpointIndexRead',
+    'revisionAssetsWrite',
+    'revisionPayloadWrite',
+    'checkpointIndexWrite',
+    'livePointerWrite',
+    'checkpointCleanup',
+    'pauseRestore',
+  ]);
+  for (const duration of Object.values(profile.stages)) assert.ok(duration >= 0);
+  assert.deepEqual(result.performance, {
+    milliseconds: profile.milliseconds,
+    stages: profile.stages,
+  });
+});
+
+test('autosave commits through one checkpoint persistence operation and refreshes presentation metadata', async () => {
+  const { runtime, storage } = setupProjectedRuntime();
+  const telemetry = [];
+  runtime.telemetry = (event) => telemetry.push(event);
+  await runtime.boot('single-autosave-commit', 'T0');
+  let liveSaves = 0;
+  let checkpointSaves = 0;
+  const save = storage.save.bind(storage);
+  const saveCheckpoint = storage.saveCheckpoint.bind(storage);
+  storage.save = async (...args) => { liveSaves++; return save(...args); };
+  storage.saveCheckpoint = async (...args) => { checkpointSaves++; return saveCheckpoint(...args); };
+
+  await runtime.checkpoint('game-save', { saveName: 'Autosave' });
+
+  assert.equal(liveSaves, 0);
+  assert.equal(checkpointSaves, 1);
+  const profile = telemetry.find(({ phase }) => phase === 'autosave-performance');
+  assert.equal(profile.projectionStatus, 'reconciled');
 });
 
 test('accepted in-window construction does not reload the save or change pause state', async () => {
@@ -519,7 +672,7 @@ test('a late city-load callback is idempotent after destination boot committed t
   assert.equal(destination.view().activeTileId, 'KCE');
 });
 
-test('fresh destination boot restores in-window native rail and clipped cross-window rail', async () => {
+test('fresh destination boot restores the complete native rail and clips only presentation layers', async () => {
   const tileIds = ['T0', 'T1', 'T2', 'T3'];
   const catalog = {
     tiles: tileIds.map((id, column) => ({ id, column, row: 0, bounds: [column, 0, column + 1, 1] })),
@@ -547,6 +700,7 @@ test('fresh destination boot restores in-window native rail and clipped cross-wi
       trainSchedule: { highDemand: 4 },
     }],
     trains: [], trackGroups: [], signals: [], stNodes: [], stationGroups: [], fareGroups: [], routeFinancials: {},
+    ownedTrainCount: 0, ownedCarsByType: {},
   });
   const source = new WorldTileRuntime({
     game: sourceGame,
@@ -568,7 +722,11 @@ test('fresh destination boot restores in-window native rail and clipped cross-wi
   });
   await destination.boot('projected-handoff', 'T3');
 
-  assert.deepEqual(destinationGame.native.tracks.map((track) => track.id), ['east-track']);
+  assert.deepEqual(destinationGame.native.tracks.map((track) => track.id), [
+    'west-track',
+    'crossing-track',
+    'east-track',
+  ]);
   assert.ok(destination.projectionOverlay().features.some(
     (feature) => feature.properties.sourceTrackId === 'crossing-track',
   ));
@@ -576,7 +734,7 @@ test('fresh destination boot restores in-window native rail and clipped cross-wi
   assert.deepEqual(destination.world.globalNetwork.routeDescriptors.statewide.trainSchedule, { highDemand: 4 });
 });
 
-test('schedule hook commits a clipped-route frequency without adopting native topology normalization', async () => {
+test('canonical native schedule adoption keeps native topology normalization', async () => {
   const tileIds = ['T0', 'T1', 'T2', 'T3'];
   const catalog = {
     tiles: tileIds.map((id, column) => ({ id, column, row: 0, bounds: [column, 0, column + 1, 1] })),
@@ -598,6 +756,7 @@ test('schedule hook commits a clipped-route frequency without adopting native to
       trainSchedule: { highDemand: 4, mediumDemand: 3, lowDemand: 2, veryLowDemand: 1 },
     }],
     trains: [], trackGroups: [], signals: [], stNodes: [], stationGroups: [], fareGroups: [], routeFinancials: {},
+    ownedTrainCount: 0, ownedCarsByType: {},
   });
   const runtime = new WorldTileRuntime({
     game,
@@ -608,16 +767,16 @@ test('schedule hook commits a clipped-route frequency without adopting native to
   });
   await runtime.boot('schedule-direct-world', 'T0');
 
-  // The real route editor can normalize other route fields while changing the
-  // schedule. Generic reconciliation rejects that snapshot and restores the
-  // old value, which is the user-visible undo.
+  // In canonical-native mode the complete native snapshot is authoritative;
+  // geographic projection boundaries do not reject unrelated native edits.
   game.log.length = 0;
   game.native.routes[0].trainSchedule.highDemand = 5;
   game.native.routes[0].stCombos = [{ editorNormalized: true }];
   const generic = await runtime.reconcileActiveProjection('schedule-change');
-  assert.equal(generic.status, 'rejected');
-  assert.equal(game.native.routes[0].trainSchedule.highDemand, 4);
-  assert.ok(game.log.includes('restoreSnapshot'), 'a rejected topology edit must restore the projection baseline');
+  assert.equal(generic.status, 'accepted');
+  assert.equal(game.native.routes[0].trainSchedule.highDemand, 5);
+  assert.deepEqual(game.native.routes[0].stCombos, [{ editorNormalized: true }]);
+  assert.equal(game.log.includes('restoreSnapshot'), false, 'canonical edits must not be rolled back to a projection baseline');
 
   game.log.length = 0;
   // onScheduleChange fires after the native scheduler has already committed
@@ -632,7 +791,7 @@ test('schedule hook commits a clipped-route frequency without adopting native to
     },
   }]);
 
-  assert.equal(direct.status, 'accepted');
+  assert.equal(direct.status, 'unchanged');
   assert.equal(runtime.world.globalNetwork.nativeState.routes[0].trainSchedule.highDemand, 5);
   assert.equal(game.native.routes[0].trainSchedule.highDemand, 5);
   assert.equal(
@@ -1204,7 +1363,7 @@ test('a failed finance handoff keeps the prior ownership and hourly ledger activ
   game.native.clock = 3_600;
   const settled = await runtime.settleCrossTileCommutes('hourly');
 
-  assert.equal(settled.backgroundRevenue, 20, 'the committed ledger must remain eligible while replacement compilation is pending');
+  assert.equal(settled.backgroundRevenue, 0, 'active native revenue must not be counted again by the sidecar');
   assert.equal(runtime.world.backgroundNativeFinance.networkHash, oldNetworkHash);
   assert.equal(runtime.world.backgroundNativeFinance.ownershipProjection.networkHash, oldNetworkHash);
   assert.equal(runtime.world.backgroundNativeFinance.pendingHandoff.networkHash, newNetworkHash);

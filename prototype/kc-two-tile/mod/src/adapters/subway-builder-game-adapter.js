@@ -1,5 +1,8 @@
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
-import { mergeSharedTransitNetworkState } from '../shared-transit-network.js';
+import {
+  CANONICAL_NATIVE_NETWORK_MODE,
+  mergeSharedTransitNetworkState,
+} from '../shared-transit-network.js';
 import { stabilizeMapLayerMoves } from '../map-layer-stability.js';
 import {
   backfillHourlyFinancialHistory,
@@ -45,6 +48,7 @@ const CLIPPED_ROUTE_COMMUTE_GUARD = Symbol.for('open-world.clipped-route-commute
 const CLIPPED_ROUTE_COMMUTE_GUARD_VERSION = Symbol.for('open-world.clipped-route-commute-guard-version');
 const CURRENT_CLIPPED_ROUTE_COMMUTE_GUARD_VERSION = 3;
 const CLIPPED_ROUTE_TRACK_EDIT_GUARD = Symbol.for('open-world.clipped-route-track-edit-guard');
+const CLIPPED_ROUTE_TRACK_EDIT_ORIGINAL = Symbol.for('open-world.clipped-route-track-edit-original');
 const CLIPPED_ROUTE_PREVIEW_EDIT_GUARD = Symbol.for('open-world.clipped-route-preview-edit-guard');
 const CLIPPED_ROUTE_PREVIEW_EDIT_GUARD_VERSION = Symbol.for('open-world.clipped-route-preview-edit-guard-version');
 const CLIPPED_ROUTE_PREVIEW_EDIT_LISTENERS = Symbol.for('open-world.clipped-route-preview-edit-listeners');
@@ -52,6 +56,7 @@ const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_BATCH = Symbol.for('open-world.clipped
 const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_CONFIRM = Symbol.for('open-world.clipped-route-preview-edit-original-confirm');
 const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_SET_PREVIEW = Symbol.for('open-world.clipped-route-preview-edit-original-set-preview');
 const CURRENT_CLIPPED_ROUTE_PREVIEW_EDIT_GUARD_VERSION = 18;
+const CANONICAL_NATIVE_MODE_BINDING = Symbol.for('open-world.canonical-native-network-mode');
 const NATIVE_PASS_THROUGH_PLATFORM_PENALTY = 10.1;
 const NATIVE_TURNBACK_WRONG_WAY_PENALTY = 25;
 
@@ -1102,39 +1107,128 @@ export class SubwayBuilderGameAdapter {
     this.loadedCityCode = null;
     this.nativeMinTransitChoice = null;
     this.lodesTransitFloorActive = false;
+    this.nativeNetworkMode = null;
     this.financeOwnedRouteIds = new Set();
     this.financeOwnedTrackIds = new Set();
     this.financeOwnedInfrastructureHourlyByCategory = new Map();
+    this.nativeFinanceAccountingRouteIds = new Set();
     this.nativeFinanceAuditRouteIds = new Set();
     this.nativeFinanceAuditByHour = new Map();
   }
 
+  /**
+   * Make the native game the sole owner of the complete transit topology.
+   *
+   * This is deliberately an activation seam instead of a constructor default:
+   * the KC prototype still exercises the legacy clipped adapter, while the NY
+   * entrypoint is the shipped canonical-native integration. The binding lives
+   * on the shared callback object so a hot reload can make an existing wrapper
+   * inert or rebind it without stacking another wrapper around native actions.
+   */
+  activateCanonicalNativeNetworkMode() {
+    this.nativeNetworkMode = CANONICAL_NATIVE_NETWORK_MODE;
+    const callbacks = this.callbacks;
+    if (callbacks && (typeof callbacks === 'object' || typeof callbacks === 'function')) {
+      callbacks[CANONICAL_NATIVE_MODE_BINDING] = CANONICAL_NATIVE_NETWORK_MODE;
+    }
+
+    // A previous generation may have left the tick wrapper in Zustand. Rebind
+    // its mutable binding to this adapter; the wrapper itself checks the mode
+    // and immediately delegates to the native action in canonical mode.
+    const state = this.#state();
+    const tick = state.handleIncrementGameState;
+    const tickBinding = tick?.[CLIPPED_ROUTE_TICK_GUARD_BINDING];
+    let reboundTickGuard = false;
+    if (tick?.[CLIPPED_ROUTE_TICK_GUARD] && tickBinding) {
+      tickBinding.adapter = this;
+      tickBinding.callbacks = callbacks;
+      reboundTickGuard = true;
+    }
+
+    // Preview wrappers retain their native implementations. Restore those
+    // implementations if a prior hot reload installed the projection editor;
+    // this removes the edit facade entirely instead of relying on a route
+    // marker to make it harmless.
+    let unwrappedPreviewGuards = false;
+    const batch = state.batchPreviewRouteUpdates;
+    const confirm = state.confirmRouteChange;
+    const setPreview = state.setPreviewRoute;
+    const nativeBatch = batch?.[CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_BATCH];
+    const nativeConfirm = confirm?.[CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_CONFIRM];
+    const nativeSetPreview = setPreview?.[CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_SET_PREVIEW];
+    if (typeof nativeBatch === 'function') {
+      state.batchPreviewRouteUpdates = nativeBatch;
+      unwrappedPreviewGuards = true;
+    }
+    if (typeof nativeConfirm === 'function') {
+      state.confirmRouteChange = nativeConfirm;
+      unwrappedPreviewGuards = true;
+    }
+    if (typeof nativeSetPreview === 'function') {
+      state.setPreviewRoute = nativeSetPreview;
+      unwrappedPreviewGuards = true;
+    }
+
+    // The track-edit guard now retains its native implementation too. Older
+    // unversioned wrappers have no recoverable original, but their new mode
+    // binding and the canonical route payload make them inert on subsequent
+    // calls.
+    const tracks = state.setTracks;
+    const nativeTracks = tracks?.[CLIPPED_ROUTE_TRACK_EDIT_ORIGINAL];
+    let unwrappedTrackGuard = false;
+    if (typeof nativeTracks === 'function') {
+      state.setTracks = nativeTracks;
+      unwrappedTrackGuard = true;
+    }
+
+    state.setTimeConfig?.({});
+    this.financeOwnedRouteIds.clear();
+    this.financeOwnedTrackIds.clear();
+    this.financeOwnedInfrastructureHourlyByCategory.clear();
+    this.nativeFinanceAuditByHour.clear();
+    return {
+      mode: this.nativeNetworkMode,
+      reboundTickGuard,
+      unwrappedPreviewGuards,
+      unwrappedTrackGuard,
+      financeOwnership: 'native-observed',
+    };
+  }
+
   configureGlobalFinanceOwnership(manifest = {}) {
-    this.financeOwnedRouteIds = new Set((manifest.financeOwnedRouteIds ?? []).map(String));
-    this.financeOwnedTrackIds = new Set((manifest.financeOwnedTrackIds ?? []).map(String));
+    const configuredRouteIds = new Set((manifest.financeOwnedRouteIds ?? []).map(String));
+    const configuredTrackIds = new Set((manifest.financeOwnedTrackIds ?? []).map(String));
+    const canonicalNative = this.nativeNetworkMode === CANONICAL_NATIVE_NETWORK_MODE;
+    this.nativeFinanceAccountingRouteIds = configuredRouteIds;
+    // In canonical mode these fields are diagnostics/accounting inputs only;
+    // the native simulation must never be filtered by them.
+    this.financeOwnedRouteIds = canonicalNative ? new Set() : configuredRouteIds;
+    this.financeOwnedTrackIds = canonicalNative ? new Set() : configuredTrackIds;
     let trainTypes = [];
     try { trainTypes = this.api?.trains?.getTrainTypes?.() ?? []; } catch {}
     const projectedExpenseProfile = calculateGlobalExpenseProfile(
       manifest.baselineState ?? {},
       trainTypes,
       {
-        financeOwnedRouteIds: [...this.financeOwnedRouteIds],
-        financeOwnedTrackIds: [...this.financeOwnedTrackIds],
+        financeOwnedRouteIds: [...configuredRouteIds],
+        financeOwnedTrackIds: [...configuredTrackIds],
       },
     );
     this.financeOwnedInfrastructureHourlyByCategory = projectedExpenseProfile.infrastructureItems
       .filter((item) => item.financeOwned)
+      .filter(() => !canonicalNative)
       .reduce((totals, item) => {
         totals.set(item.category, (totals.get(item.category) ?? 0) + Math.max(0, Number(item.hourlyCost) || 0));
         return totals;
       }, new Map());
     const partialRouteIds = new Set((manifest.partialRouteIds ?? []).map(String));
     this.nativeFinanceAuditRouteIds = new Set(
-      [...this.financeOwnedRouteIds].filter((routeId) => !partialRouteIds.has(routeId)),
+      [...configuredRouteIds].filter((routeId) => !partialRouteIds.has(routeId)),
     );
     return {
       routes: this.financeOwnedRouteIds.size,
       tracks: this.financeOwnedTrackIds.size,
+      accountingRoutes: this.nativeFinanceAccountingRouteIds.size,
       comparableRoutes: this.nativeFinanceAuditRouteIds.size,
     };
   }
@@ -1358,6 +1452,9 @@ export class SubwayBuilderGameAdapter {
             === CURRENT_CLIPPED_ROUTE_COMMUTE_GUARD_VERSION)) return;
       const callbacks = this.callbacks;
       const guardedAction = function guardedNativePathfinding(...args) {
+        if (callbacks[CANONICAL_NATIVE_MODE_BINDING] === CANONICAL_NATIVE_NETWORK_MODE) {
+          return currentAction.apply(this, args);
+        }
         const live = callbacks.getState();
         const originalTrains = live?.trains;
         const originalStations = live?.stations;
@@ -1459,6 +1556,9 @@ export class SubwayBuilderGameAdapter {
     const binding = { callbacks: this.callbacks, adapter: this };
     const guarded = function guardedHandleIncrementGameState(...args) {
       const { callbacks, adapter } = binding;
+      if (callbacks[CANONICAL_NATIVE_MODE_BINDING] === CANONICAL_NATIVE_NETWORK_MODE) {
+        return current.apply(this, args);
+      }
       const live = callbacks.getState();
       const restores = [];
       for (const route of live?.routes ?? []) {
@@ -1647,6 +1747,9 @@ export class SubwayBuilderGameAdapter {
 
     const callbacks = this.callbacks;
     const guarded = function guardedSetTracks(...args) {
+      if (callbacks[CANONICAL_NATIVE_MODE_BINDING] === CANONICAL_NATIVE_NETWORK_MODE) {
+        return current.apply(this, args);
+      }
       const before = callbacks.getState();
       const originalRoutes = [...(before?.routes ?? [])];
       const dormantById = new Map(originalRoutes
@@ -1673,6 +1776,7 @@ export class SubwayBuilderGameAdapter {
       }
     };
     Object.defineProperty(guarded, CLIPPED_ROUTE_TRACK_EDIT_GUARD, { value: true });
+    Object.defineProperty(guarded, CLIPPED_ROUTE_TRACK_EDIT_ORIGINAL, { value: current });
     state.setTracks = guarded;
     state.setTimeConfig?.({});
     return { installed: true, reused: false };
@@ -1717,6 +1821,9 @@ export class SubwayBuilderGameAdapter {
 
     const callbacks = this.callbacks;
     const guardedSetPreview = function guardedSetPreviewRoute(candidate, ...args) {
+      if (callbacks[CANONICAL_NATIVE_MODE_BINDING] === CANONICAL_NATIVE_NETWORK_MODE) {
+        return setPreviewImplementation.call(this, candidate, ...args);
+      }
       const current = callbacks.getState();
       const prior = current?.previewRoute;
       const dormantRoute = (current?.routes ?? []).find((route) => (
@@ -1780,6 +1887,9 @@ export class SubwayBuilderGameAdapter {
     };
 
     const guardedBatch = async function guardedBatchPreviewRouteUpdates(...args) {
+      if (callbacks[CANONICAL_NATIVE_MODE_BINDING] === CANONICAL_NATIVE_NETWORK_MODE) {
+        return batchImplementation.apply(this, args);
+      }
       const before = callbacks.getState();
       const nativePreview = before?.previewRoute;
       const canonicalDormantRoute = (before?.routes ?? []).find((route) => (
@@ -2101,6 +2211,9 @@ export class SubwayBuilderGameAdapter {
     };
 
     const guardedConfirm = function guardedConfirmRouteChange(...args) {
+      if (callbacks[CANONICAL_NATIVE_MODE_BINDING] === CANONICAL_NATIVE_NETWORK_MODE) {
+        return confirmImplementation.apply(this, args);
+      }
       const before = callbacks.getState();
       const preview = before?.previewRoute;
       if (!preview?.openWorldProjectionLocalEdit) return confirmImplementation.apply(this, args);

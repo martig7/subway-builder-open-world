@@ -45,6 +45,55 @@ function fixtureState() {
   };
 }
 
+test('global-network creation unwraps a clipped facade and recovers its deferred trains', () => {
+  const canonicalRoute = {
+    id: 'empire',
+    stNodes: [{ id: 'nyc' }, { id: 'albany' }],
+    stCombos: [{
+      startStNodeId: 'nyc',
+      endStNodeId: 'albany',
+      path: [{ trackId: 'remote-track', length: 10_000 }],
+    }],
+    trainSchedule: { highDemand: 3 },
+  };
+  const deferredTrain = {
+    id: 'empire-train',
+    routeId: 'empire',
+    windows: { train: { tracks: [{ trackId: 'remote-track' }] } },
+  };
+  const projectedFacade = {
+    ...structuredClone(canonicalRoute),
+    stNodes: [{ id: 'nyc' }],
+    stCombos: [],
+    openWorldProjectionDormant: true,
+    openWorldGlobalRoute: {
+      ...structuredClone(canonicalRoute),
+      // Reproduces the nested projection metadata found in the persisted
+      // Empire Line after a projected save was promoted to authoritative.
+      openWorldNativeCommuteRoute: structuredClone(canonicalRoute),
+    },
+    openWorldNativeCommuteRoute: structuredClone(canonicalRoute),
+    openWorldNativeCommuteTrains: [structuredClone(deferredTrain)],
+  };
+
+  const network = createGlobalNetwork({
+    tracks: [{ id: 'remote-track', coords: [[3.2, 0.5], [3.8, 0.5]] }],
+    stations: [],
+    routes: [projectedFacade],
+    trains: [],
+    trackGroups: [], signals: [], stNodes: [], stationGroups: [], fareGroups: [], routeFinancials: {},
+    ownedTrainCount: 1, ownedCarsByType: { 'commuter-rail': 1 },
+  });
+
+  assert.deepEqual(network.nativeState.routes, [canonicalRoute]);
+  assert.deepEqual(network.nativeState.trains, [deferredTrain]);
+  assert.equal(
+    JSON.stringify(network.nativeState).includes('openWorld'),
+    false,
+    'projection-only metadata must never persist in the authoritative network',
+  );
+});
+
 function nativeRouteSplitIndices(route, stations) {
   const stationByNode = new Map(stations.flatMap((station) => (
     (station.stNodeIds ?? []).map((nodeId) => [String(nodeId), station])
@@ -106,6 +155,33 @@ test('build bounds native stations and topology while retaining clipped partial-
   assert.deepEqual(network.routeDescriptors['long-route'].orderedStationIds, ['inside-b', 'outside']);
   assert.equal(network.routeDescriptors['long-route'].timetableSchedule.periods[0].headwaySeconds, 600);
   assert.equal(network.routeDescriptors['long-route'].fullCycleTimeSeconds, 7_200);
+});
+
+test('structural projection fingerprint ignores train motion but detects topology and schedule edits', () => {
+  const projection = new NetworkProjection({ guardBandMeters: 0 });
+  const network = createGlobalNetwork(fixtureState());
+  const built = projection.build({
+    network,
+    activeTileId: 'T1',
+    catalog,
+    baseSnapshot: { cityCode: 'T1', data: {} },
+  });
+  const input = (nativeSnapshot) => ({ network, baseline: built.manifest, nativeSnapshot });
+
+  assert.equal(projection.isSnapshotStructurallyCurrent(input(built.snapshot)), true);
+
+  const movingTrain = structuredClone(built.snapshot);
+  movingTrain.data.trains[0].progress = 0.75;
+  movingTrain.data.trains[0].position = [1.5, 0.5];
+  assert.equal(projection.isSnapshotStructurallyCurrent(input(movingTrain)), true);
+
+  const changedTrack = structuredClone(built.snapshot);
+  changedTrack.data.tracks[0].coords[1] = [1.7, 0.6];
+  assert.equal(projection.isSnapshotStructurallyCurrent(input(changedTrack)), false);
+
+  const changedSchedule = structuredClone(built.snapshot);
+  changedSchedule.data.routes[0].timetableSchedule.periods[0].headwaySeconds = 420;
+  assert.equal(projection.isSnapshotStructurallyCurrent(input(changedSchedule)), false);
 });
 
 test('a clipped route always closes the native route-panel split on a delivered station', () => {

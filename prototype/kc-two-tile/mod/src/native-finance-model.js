@@ -4,6 +4,41 @@ const HOURS_PER_DAY = 24;
 const NATIVE_ANNUALIZATION = 365;
 const NATIVE_REVENUE_PROFILE_SCHEMA_VERSION = 3;
 
+/**
+ * Finance ownership is deliberately independent from the topology sidecar.
+ * Native saves are the authority for the complete network, including every
+ * route/train/track expense.  The mod may only post custom cross-tile fare
+ * revenue and cached revenue for tiles which are not active.
+ */
+export const NATIVE_FINANCE_ACCOUNTING_SCHEMA_VERSION = 1;
+export const NATIVE_TOPOLOGY_FINANCE_OWNERSHIP = Object.freeze({
+  schemaVersion: NATIVE_FINANCE_ACCOUNTING_SCHEMA_VERSION,
+  topologyAuthority: 'native-save',
+  nativeRevenue: 'active-tile',
+  nativeExpenses: 'full-network',
+  modRevenue: Object.freeze(['custom-cross-tile-fares', 'cached-inactive-native-revenue']),
+  modExpenses: Object.freeze([]),
+  sidecarTopologyRole: 'migration-fallback',
+  chargesNativeExpenses: false,
+});
+
+/** Return a detached policy so adapters can persist/extend it safely. */
+export function createNativeTopologyFinancePolicy(overrides = {}) {
+  overrides ??= {};
+  return {
+    ...NATIVE_TOPOLOGY_FINANCE_OWNERSHIP,
+    ...overrides,
+    modRevenue: [...(overrides.modRevenue ?? NATIVE_TOPOLOGY_FINANCE_OWNERSHIP.modRevenue)],
+    modExpenses: [...(overrides.modExpenses ?? NATIVE_TOPOLOGY_FINANCE_OWNERSHIP.modExpenses)],
+  };
+}
+
+function hasNativeTopologyFinancePolicy(policy) {
+  return policy?.topologyAuthority === 'native-save'
+    && policy?.nativeExpenses === 'full-network'
+    && policy?.chargesNativeExpenses === false;
+}
+
 // Subway Builder 1.6 assigns each ordinary pop one departure in each
 // direction from these hourly weights. Keep the fallback aligned with the
 // bundle so an older cached pop without timing fields does not become a pair
@@ -128,17 +163,52 @@ function redistributeLegacyHour(hourly, source, probabilities) {
 
 /** Upgrade the old 07:00/17:00 compression without reloading remote demand. */
 export function migrateCachedNativeRevenueProfile(profile) {
-  if (!profile || profile.schemaVersion !== 2 || !Array.isArray(profile.hourly)) return profile;
+  if (!profile || !Array.isArray(profile.hourly)) return profile;
+  // Revenue caches have never been topology authority.  Preserve all legacy
+  // fields (including route/track references used by recovery) while adding a
+  // finance-only ownership marker.
+  const withOwnership = (candidate) => ({
+    ...candidate,
+    revenueOwnership: candidate.revenueOwnership ?? 'native-active-or-mod-inactive',
+  });
+  if (profile.schemaVersion !== 2) {
+    return withOwnership(profile);
+  }
   const hasDistributedRevenue = profile.hourly.some((hour, index) => ![7, 17].includes(index) && financeHourHasValue(hour));
-  if (hasDistributedRevenue) return { ...profile, schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION };
+  if (hasDistributedRevenue) {
+    return withOwnership({ ...profile, schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION });
+  }
   const hourly = Array.from({ length: HOURS_PER_DAY }, emptyHour);
   redistributeLegacyHour(hourly, profile.hourly[7], NATIVE_HOME_DEPARTURE_PROBABILITIES);
   redistributeLegacyHour(hourly, profile.hourly[17], NATIVE_WORK_DEPARTURE_PROBABILITIES);
-  return {
+  return withOwnership({
     ...structuredClone(profile),
     schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION,
     hourly,
-  };
+  });
+}
+
+/**
+ * Migrate a saved finance sidecar without promoting its topology projection.
+ * The old ownership/topology fields are retained verbatim for recovery, but
+ * revenue profiles and expense estimates receive independent finance markers.
+ */
+export function migrateNativeFinanceSidecar(finance = {}) {
+  const result = structuredClone(finance ?? {});
+  result.accountingOwnership = createNativeTopologyFinancePolicy(result.accountingOwnership ?? {});
+  result.tileRevenueProfiles = Object.fromEntries(
+    Object.entries(result.tileRevenueProfiles ?? {})
+      .map(([tileId, profile]) => [tileId, migrateCachedNativeRevenueProfile(profile)]),
+  );
+  if (result.expenseProfile && typeof result.expenseProfile === 'object') {
+    result.expenseProfile.accountingOwnership = createNativeTopologyFinancePolicy(
+      result.expenseProfile.accountingOwnership ?? result.accountingOwnership,
+    );
+    result.expenseProfile.nativeTopologyComplete = true;
+  }
+  // Do not rewrite or derive `ownershipProjection`, topology IDs, or route
+  // descriptors. They are legacy migration data, not finance authority.
+  return result;
 }
 
 function trainTypeTable(trainTypes) {
@@ -267,7 +337,22 @@ export function calculateNativeRevenueProfile(pops = [], {
       owned,
     );
   }
-  return { schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION, hourly, transitPopulation, dailyRevenue };
+  const customCrossTileRevenue = hourly.reduce(
+    (sum, value) => sum + Math.max(0, finite(value.financeOwnedRevenue, 0)),
+    0,
+  );
+  return {
+    schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION,
+    hourly,
+    transitPopulation,
+    dailyRevenue,
+    // These fields make the ownership seam explicit without changing the
+    // compact hourly cache used by older sidecars.
+    revenueOwnership: 'native-active-or-mod-inactive',
+    customCrossTileRevenue,
+    nativeRevenue: Math.max(0, dailyRevenue - customCrossTileRevenue),
+    accountingOwnership: createNativeTopologyFinancePolicy(),
+  };
 }
 
 /** Build global operating and infrastructure costs once per network update. */
@@ -336,10 +421,22 @@ export function calculateGlobalExpenseProfile(
       });
     }
   }
-  return { routeHourly, infrastructureItems, financeOwnedRouteIds: [...financeOwned].sort() };
+  return {
+    routeHourly,
+    infrastructureItems,
+    financeOwnedRouteIds: [...financeOwned].sort(),
+    // Kept as a recovery/audit estimate.  It is never a chargeable sidecar
+    // expense when this profile is consumed with the native ownership policy.
+    accountingOwnership: createNativeTopologyFinancePolicy(),
+    nativeTopologyComplete: true,
+  };
 }
 
-export function backgroundFinanceForHour({ finance, activeTileId, activeProjection, hour }) {
+export function backgroundFinanceForHour({
+  finance, activeTileId, activeProjection, hour,
+  ownershipPolicy = finance?.accountingOwnership ?? null,
+  nativeTopologyComplete = false,
+} = {}) {
   const revenueByRoute = {};
   let revenue = 0;
   const revenueByTile = {};
@@ -347,12 +444,34 @@ export function backgroundFinanceForHour({ finance, activeTileId, activeProjecti
     const value = profile?.hourly?.[hour % HOURS_PER_DAY];
     if (!value) continue;
     const active = tileId === activeTileId;
-    revenueByTile[tileId] = Math.max(0, finite(active ? value.financeOwnedRevenue : value.revenue, 0));
+    // The active native save already settles all native pop revenue, including
+    // journeys using cross-tile routes.  Custom cross-tile commuter fares are
+    // posted through creditCrossTileFareRevenue, not this cached profile.
+    // Therefore the sidecar contributes revenue only for inactive tiles.
+    revenueByTile[tileId] = active ? 0 : Math.max(0, finite(value.revenue, 0));
     revenue += revenueByTile[tileId];
-    const routeRevenue = active ? value.financeOwnedRevenueByRoute : value.revenueByRoute;
+    const routeRevenue = active ? {} : value.revenueByRoute;
     for (const [routeId, amount] of Object.entries(routeRevenue ?? {})) {
       revenueByRoute[routeId] = (revenueByRoute[routeId] ?? 0) + Math.max(0, finite(amount, 0));
     }
+  }
+
+  // Once the native save contains the complete topology, the native tick has
+  // already charged every operational/infrastructure item.  Keep compiling
+  // the old expense estimate for audit and migration, but do not post it.
+  const nativeOwnsExpenses = nativeTopologyComplete || hasNativeTopologyFinancePolicy(ownershipPolicy)
+    || finance?.expenseProfile?.nativeTopologyComplete === true;
+  if (nativeOwnsExpenses) {
+    return {
+      revenue,
+      expenses: 0,
+      revenueByTile,
+      revenueByRoute,
+      expensesByRoute: {},
+      expenseCategories: {},
+      accountingOwnership: createNativeTopologyFinancePolicy(ownershipPolicy ?? {}),
+      nativeExpensesOmitted: true,
+    };
   }
 
   const visibleRouteIds = new Set((activeProjection?.baselineState?.routes ?? []).map((route) => String(route.id)));
@@ -379,7 +498,111 @@ export function backgroundFinanceForHour({ finance, activeTileId, activeProjecti
     if (amount > 0) expenseCategories[item.category] = (expenseCategories[item.category] ?? 0) + amount;
   }
   const expenses = Object.values(expenseCategories).reduce((sum, amount) => sum + amount, 0);
-  return { revenue, expenses, revenueByTile, revenueByRoute, expensesByRoute, expenseCategories };
+  return {
+    revenue, expenses, revenueByTile, revenueByRoute, expensesByRoute, expenseCategories,
+    accountingOwnership: ownershipPolicy ?? null,
+    nativeExpensesOmitted: false,
+  };
+}
+
+function profileRouteIds(profile) {
+  const ids = new Set(Object.keys(profile?.ridershipByRoute ?? {}));
+  for (const hour of profile?.hourly ?? []) {
+    for (const id of Object.keys(hour?.revenueByRoute ?? {})) ids.add(String(id));
+    for (const id of Object.keys(hour?.financeOwnedRevenueByRoute ?? {})) ids.add(String(id));
+  }
+  return ids;
+}
+
+/**
+ * Invalidate only revenue caches touched by a network/fare edit.  The
+ * topology sidecar is intentionally copied untouched: it remains readable
+ * for migration/recovery, but it is not the authority for finance caches.
+ */
+export function invalidateAffectedRevenueProfiles(financeOrProfiles, {
+  affectedTileIds = [],
+  affectedRouteIds = [],
+  affectedFareGroupIds = [],
+  fareGroupRouteIds = {},
+} = {}) {
+  const input = financeOrProfiles && typeof financeOrProfiles === 'object' ? financeOrProfiles : {};
+  const isFinance = input && typeof input === 'object' && input.tileRevenueProfiles;
+  const result = structuredClone(input);
+  const profiles = isFinance ? (result.tileRevenueProfiles ?? {}) : result;
+  const tileSet = new Set(affectedTileIds.map(String));
+  const routeSet = new Set(affectedRouteIds.map(String));
+  for (const groupId of affectedFareGroupIds) {
+    for (const routeId of fareGroupRouteIds[groupId] ?? []) routeSet.add(String(routeId));
+  }
+  const invalidatedTileIds = [];
+  for (const [tileId, profile] of Object.entries(profiles)) {
+    const affected = tileSet.has(String(tileId))
+      || [...routeSet].some((routeId) => profileRouteIds(profile).has(routeId));
+    if (!affected) continue;
+    delete profiles[tileId];
+    invalidatedTileIds.push(String(tileId));
+  }
+  if (isFinance) result.tileRevenueProfiles = profiles;
+  return { finance: result, invalidatedTileIds: invalidatedTileIds.sort() };
+}
+
+/**
+ * Produce revenue-only background postings for a monotonic hour range.
+ * Calling this repeatedly after reload/tile switch or with a rolled-back
+ * clock is a no-op for already-settled hours; callers persist `lastSettledHour`
+ * from the returned cursor only after the native post succeeds.
+ */
+export function projectNativeBackgroundFinance({
+  finance = {},
+  activeTileId,
+  activeProjection,
+  targetHour,
+  lastSettledHour = finance.lastSettledHour,
+  ownershipPolicy = createNativeTopologyFinancePolicy(),
+} = {}) {
+  const target = Math.floor(finite(targetHour, -1));
+  const cursor = Math.floor(finite(lastSettledHour, target));
+  if (!Number.isSafeInteger(target) || target < 0 || target <= cursor) {
+    return {
+      status: target < cursor ? 'clock-rollback' : 'already-settled',
+      fromHour: cursor + 1,
+      throughHour: cursor,
+      hours: 0,
+      revenue: 0,
+      expenses: 0,
+      hourlyPostings: [],
+      lastSettledHour: cursor,
+      accountingOwnership: createNativeTopologyFinancePolicy(ownershipPolicy),
+    };
+  }
+  const hourlyPostings = [];
+  const aggregate = {
+    revenue: 0, expenses: 0, revenueByTile: {}, revenueByRoute: {},
+    expensesByRoute: {}, expenseCategories: {},
+  };
+  for (let hour = cursor + 1; hour <= target; hour++) {
+    const posting = backgroundFinanceForHour({
+      finance, activeTileId, activeProjection, hour,
+      ownershipPolicy, nativeTopologyComplete: true,
+    });
+    hourlyPostings.push({ hour, ...posting });
+    aggregate.revenue += posting.revenue;
+    for (const field of ['revenueByTile', 'revenueByRoute']) {
+      for (const [id, amount] of Object.entries(posting[field] ?? {})) {
+        aggregate[field][id] = (aggregate[field][id] ?? 0) + amount;
+      }
+    }
+  }
+  return {
+    status: 'projected',
+    fromHour: cursor + 1,
+    throughHour: target,
+    hours: target - cursor,
+    ...aggregate,
+    hourlyPostings,
+    lastSettledHour: target,
+    accountingOwnership: createNativeTopologyFinancePolicy(ownershipPolicy),
+  };
 }
 
 const FINANCE_HOUR_SECONDS = 3_600;
@@ -403,6 +626,7 @@ function normalizedFinancePosting(posting) {
     expenseCategories,
     revenueByRoute: mergePositiveAmounts({}, posting?.revenueByRoute),
     expensesByRoute: mergePositiveAmounts({}, posting?.expensesByRoute),
+    postingId: posting?.postingId == null ? null : String(posting.postingId),
   };
 }
 
@@ -421,11 +645,18 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
   const targetTimestamp = Math.floor(Math.max(0, finite(targetElapsedSeconds, 0)) / FINANCE_HOUR_SECONDS)
     * FINANCE_HOUR_SECONDS;
   const history = structuredClone(financialHistory ?? {});
+  const knownPostingIds = new Set((history.appliedPostingIds ?? []).map(String));
+  const knownReceipts = new Set((history.openWorldBackgroundFinanceReceipts ?? []).map(String));
+  if (receiptId && (knownPostingIds.has(String(receiptId)) || knownReceipts.has(String(receiptId)))) return history;
   let entries = Array.isArray(history.entries) ? history.entries : [];
   let lastHourTimestamp = Math.max(0, finite(history.lastHourTimestamp, targetTimestamp));
   let currentHourRevenue = Math.max(0, finite(history.currentHourRevenue, 0));
   let currentHourExpenses = Math.max(0, finite(history.currentHourExpenses, 0));
   let currentHourExpenseCategories = mergePositiveAmounts({}, history.currentHourExpenseCategories);
+
+  // Native time is monotonic for settlement.  A load with an older clock
+  // must not replay old rows or manufacture a catch-up spike.
+  if (targetTimestamp < lastHourTimestamp) return history;
 
   if (targetTimestamp > lastHourTimestamp && targetElapsedSeconds > 0) {
     if (entries.at(-1)?.timestamp !== lastHourTimestamp) {
@@ -445,6 +676,7 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
 
   const rows = (hourlyPostings ?? []).map(normalizedFinancePosting)
     .filter((row) => Number.isSafeInteger(row.hour) && row.hour >= 0 && row.hour * FINANCE_HOUR_SECONDS <= targetTimestamp)
+    .filter((row) => !row.postingId || !knownPostingIds.has(row.postingId))
     .sort((left, right) => left.hour - right.hour);
   const entryByTimestamp = new Map(entries.map((entry) => [finite(entry?.timestamp, -1), entry]));
   const netByTimestamp = new Map();
@@ -490,6 +722,9 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
   const receipts = Array.isArray(history.openWorldBackgroundFinanceReceipts)
     ? history.openWorldBackgroundFinanceReceipts
     : [];
+  const appliedPostingIds = [...knownPostingIds];
+  for (const row of rows) if (row.postingId) appliedPostingIds.push(row.postingId);
+  if (receiptId) appliedPostingIds.push(String(receiptId));
   return {
     ...history,
     entries,
@@ -497,6 +732,7 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
     currentHourRevenue,
     currentHourExpenses,
     currentHourExpenseCategories,
+    appliedPostingIds: [...new Set(appliedPostingIds)].slice(-240),
     ...(receiptId ? { openWorldBackgroundFinanceReceipts: [...receipts, receiptId].slice(-240) } : {}),
   };
 }
@@ -509,6 +745,7 @@ export function backfillHourlyRouteFinancials(routeFinancials, hourlyPostings, t
   const byRoute = result.byRoute && typeof result.byRoute === 'object' ? result.byRoute : {};
   let lastHourTimestamp = Math.max(0, finite(result.lastHourTimestamp, targetTimestamp));
   let currentHour = result.currentHour && typeof result.currentHour === 'object' ? result.currentHour : {};
+  if (targetTimestamp < lastHourTimestamp) return result;
   if (targetTimestamp > lastHourTimestamp && targetElapsedSeconds > 0) {
     for (const [routeId, amounts] of Object.entries(currentHour)) {
       const revenue = Math.max(0, finite(amounts?.revenue, 0));
