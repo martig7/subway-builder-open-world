@@ -60,6 +60,30 @@ function hasNativeSaveIdentity(identity) {
   return Boolean(identity.nativeSessionId || identity.nativeTileId);
 }
 
+function lineageMetadata(world, savedAt = null) {
+  const network = world?.globalNetwork?.nativeState?.data ?? world?.globalNetwork?.nativeState ?? {};
+  const elapsedSeconds = Number.isFinite(Number(world?.elapsedSeconds))
+    ? Number(world.elapsedSeconds)
+    : 0;
+  const wallet = Number.isFinite(Number(world?.wallet))
+    ? Number(world.wallet)
+    : Number.isFinite(Number(network?.money))
+      ? Number(network.money)
+      : null;
+  return {
+    day: Math.floor(Math.max(0, elapsedSeconds) / 86_400) + 1,
+    worldTime: Number.isFinite(Number(world?.worldTime)) ? Number(world.worldTime) : Math.floor(elapsedSeconds / 3_600),
+    routeCount: Array.isArray(network.routes) ? network.routes.length : null,
+    stationCount: Array.isArray(network.stations) ? network.stations.length : null,
+    trainCount: Array.isArray(network.trains) ? network.trains.length : null,
+    elapsedSeconds,
+    wallet,
+    money: wallet,
+    fare: Number.isFinite(Number(world?.farePolicy?.fare)) ? Number(world.farePolicy.fare) : null,
+    savedAt: Number.isFinite(Number(savedAt)) ? Number(savedAt) : null,
+  };
+}
+
 function sameNativeSave(entry, saveName, identity) {
   if (entry?.saveName !== String(saveName)) return false;
   if (!hasNativeSaveIdentity(identity)) return true;
@@ -234,7 +258,7 @@ export class ModStorageWorldStateAdapter {
       worldRevision: world.revision,
       elapsedSeconds: world.elapsedSeconds,
       activeTileId: world.activeTileId,
-      savedAt: this.now(),
+      ...lineageMetadata(world, this.now()),
       assetRefs: refs,
     };
     return {
@@ -486,6 +510,39 @@ export class ModStorageWorldStateAdapter {
       settlementFound: Boolean(settlement),
     });
     return selected;
+  }
+  /** Read the compact lineage metadata without hydrating its native assets. */
+  async readLineageMetadata(worldId) {
+    if (typeof worldId !== 'string' || !worldId) return null;
+    const value = this.#copyFromStorage(await this.#get(this.#worldKey(worldId), null));
+    if (!value) return null;
+    if (isRevisionPointer(value)) {
+      const metadata = {
+        worldId,
+        day: Number.isFinite(Number(value.day)) ? Number(value.day) : null,
+        worldTime: Number.isFinite(Number(value.worldTime)) ? Number(value.worldTime) : null,
+        routeCount: Number.isFinite(Number(value.routeCount)) ? Number(value.routeCount) : null,
+        stationCount: Number.isFinite(Number(value.stationCount)) ? Number(value.stationCount) : null,
+        trainCount: Number.isFinite(Number(value.trainCount)) ? Number(value.trainCount) : null,
+        elapsedSeconds: Number.isFinite(Number(value.elapsedSeconds)) ? Number(value.elapsedSeconds) : null,
+        wallet: Number.isFinite(Number(value.wallet)) ? Number(value.wallet) : null,
+        money: Number.isFinite(Number(value.money)) ? Number(value.money) : null,
+        fare: Number.isFinite(Number(value.fare)) ? Number(value.fare) : null,
+        savedAt: Number.isFinite(Number(value.savedAt)) ? Number(value.savedAt) : null,
+      };
+      if (metadata.routeCount != null && metadata.stationCount != null && metadata.trainCount != null) return metadata;
+      const revision = await this.#get(this.#revisionKey(worldId, value.revisionId), null);
+      const networkRef = value.assetRefs?.globalNetwork ?? revision?.assetRefs?.globalNetwork;
+      const networkAsset = networkRef?.key ? await this.#get(networkRef.key, null) : null;
+      const network = networkAsset?.data ?? networkAsset;
+      return {
+        ...metadata,
+        routeCount: metadata.routeCount ?? (Array.isArray(network?.routes) ? network.routes.length : null),
+        stationCount: metadata.stationCount ?? (Array.isArray(network?.stations) ? network.stations.length : null),
+        trainCount: metadata.trainCount ?? (Array.isArray(network?.trains) ? network.trains.length : null),
+      };
+    }
+    return { worldId, ...lineageMetadata(value, value.savedAt) };
   }
   async save(world) {
     const prepared = this.#prepareRevision(world);

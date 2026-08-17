@@ -1,0 +1,38 @@
+{
+  "assets": [
+    {
+      "bytes": 121864,
+      "path": "demand_data.json.gz",
+      "sha256": "f6f4ef619b86aab3153a590d5bbf2ba144c3cc3c3f13e7555e79cee822ae522c"
+    },
+    {
+      "bytes": 408407,
+      "path": "cross_commutes.json",
+      "sha256": "7abe14dd94d33c59d0b70d1b1dcae9252edff7aab5399d7b78dacf097815aa38"
+    },
+    {
+      "bytes": 4404565,
+      "path": "cross_demand.json.gz",
+      "sha256": "944b084f65dc3aaf82113db52339c745e21721d2a9e3985b5113dbbcb0a579e1"
+    }
+  ],
+  "cityCode": "NEC_CM04_RM03",
+  "dataFiles": {
+    "demandData": "demand_data.json.gz"
+  },
+  "runtimeFiles": {
+    "crossCommutes": {
+      "encoding": "canonical-json",
+      "path": "cross_commutes.json",
+      "role": "cross-tile-commute-summary"
+    },
+    "crossDemand": {
+      "encoding": "gzip-json",
+      "path": "cross_demand.json.gz",
+      "role": "cross-tile-demand-viewer"
+    },
+    "schemaVersion": 1
+  },
+  "schemaVersion": 1,
+  "tileId": "NEC_CM04_RM03"
+}

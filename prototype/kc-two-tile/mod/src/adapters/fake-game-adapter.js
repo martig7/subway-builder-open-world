@@ -1,5 +1,5 @@
 import { deepCopy } from '../world-model.js';
-import { mergeSharedTransitNetworkState } from '../shared-transit-network.js';
+import { mergeSharedTransitNetworkState, SHARED_TRANSIT_STATE_KEYS } from '../shared-transit-network.js';
 import { backfillHourlyFinancialHistory, backfillHourlyRouteFinancials } from '../native-finance-model.js';
 
 /** In-memory game seam. Its failures make transaction recovery testable. */
@@ -21,6 +21,14 @@ export class FakeGameAdapter {
   async resume() { await this.#at('resume'); this.paused = false; }
   async isPaused() { return this.paused; }
   async captureSnapshot() { await this.#at('captureSnapshot'); return deepCopy(this.native); }
+  async captureNativeNetworkState() {
+    await this.#at('captureNativeNetworkState');
+    const entityKeys = new Set(['tracks', 'trains', 'routes', 'trackGroups', 'signals', 'stNodes', 'stations', 'stationGroups']);
+    return Object.fromEntries(SHARED_TRANSIT_STATE_KEYS.map((key) => [
+      key,
+      deepCopy(this.native[key] ?? (entityKeys.has(key) ? [] : null)),
+    ]));
+  }
   inspectNativeNetworkForDiagnostics() {
     return {
       tracks: this.native.tracks?.length ?? 0,

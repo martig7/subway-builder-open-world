@@ -76,6 +76,37 @@ test('one autosave writes one immutable world revision shared by live and checkp
   })).wallet, 4321);
 });
 
+test('lineage metadata is available from the compact pointer without hydrating assets', async () => {
+  const storage = new RecordingStorage();
+  const adapter = new ModStorageWorldStateAdapter({ storage, now: () => 0 });
+  const world = createWorld({ worldId: 'metadata-world', tileIds: ['KCW', 'KCE'] });
+  world.elapsedSeconds = 3 * 86_400 + 3_600;
+  world.globalNetwork = {
+    nativeState: {
+      routes: [{ id: 'r1' }, { id: 'r2' }],
+      stations: [{ id: 's1' }],
+      trains: [{ id: 't1' }],
+    },
+  };
+
+  await adapter.save(world);
+
+  assert.deepEqual(await adapter.readLineageMetadata('metadata-world'), {
+    worldId: 'metadata-world',
+    day: 4,
+    worldTime: 0,
+    routeCount: 2,
+    stationCount: 1,
+    trainCount: 1,
+    elapsedSeconds: 3 * 86_400 + 3_600,
+    wallet: 0,
+    money: 0,
+    fare: 2.5,
+    savedAt: 0,
+  });
+  assert.deepEqual(storage.reads.at(-1), 'world:metadata-world');
+});
+
 test('revision persistence splits and reuses immutable network, projection, and tile snapshot assets', async () => {
   const storage = new RecordingStorage();
   let sequence = 0;

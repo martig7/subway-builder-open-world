@@ -2,6 +2,7 @@ import { createNetworkProfile } from '../cross-tile-mode-choice.js';
 import {
   CANONICAL_NATIVE_NETWORK_MODE,
   mergeSharedTransitNetworkState,
+  SHARED_TRANSIT_STATE_KEYS,
 } from '../shared-transit-network.js';
 import { stabilizeMapLayerMoves } from '../map-layer-stability.js';
 import {
@@ -57,8 +58,123 @@ const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_CONFIRM = Symbol.for('open-world.clipp
 const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_SET_PREVIEW = Symbol.for('open-world.clipped-route-preview-edit-original-set-preview');
 const CURRENT_CLIPPED_ROUTE_PREVIEW_EDIT_GUARD_VERSION = 18;
 const CANONICAL_NATIVE_MODE_BINDING = Symbol.for('open-world.canonical-native-network-mode');
+const CANONICAL_NATIVE_INTERLINING_CACHE = Symbol.for('open-world.canonical-native-interlining-cache');
+const CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = Symbol.for('open-world.canonical-native-interlining-cache-version');
+const CANONICAL_NATIVE_INTERLINING_CACHE_BINDING = Symbol.for('open-world.canonical-native-interlining-cache-binding');
+const CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL = Symbol.for('open-world.canonical-native-interlining-cache-original');
+const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 1;
 const NATIVE_PASS_THROUGH_PLATFORM_PENALTY = 10.1;
 const NATIVE_TURNBACK_WRONG_WAY_PENALTY = 25;
+
+function nativeInterliningFingerprint(state, routes) {
+  try {
+    const tracks = (state?.tracks ?? []).map((track) => ({
+      id: track?.id ?? null,
+      trackType: track?.trackType ?? null,
+      buildType: track?.buildType ?? null,
+      coords: track?.coords ?? null,
+    }));
+    const routeGeometry = (routes ?? []).map((route) => ({
+      id: route?.id ?? null,
+      color: route?.color ?? null,
+      shape: route?.shape ?? null,
+      bordered: route?.bordered ?? null,
+      textColor: route?.textColor ?? null,
+      font: route?.font ?? null,
+      bullet: route?.bullet ?? null,
+      fullName: route?.fullName ?? null,
+      trainType: route?.trainType ?? null,
+      stCombos: route?.stCombos ?? null,
+    }));
+    return JSON.stringify({
+      cityCode: state?.cityCode ?? null,
+      tracks,
+      routes: routeGeometry,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function hasInterliningResult(state) {
+  return Array.isArray(state?.interlinedFeatureCollection?.features);
+}
+
+function installCanonicalNativeInterliningCache(adapter, state) {
+  const current = state?.recalculateAllRouteGeojsons;
+  if (typeof current !== 'function') return { installed: false, reason: 'unavailable' };
+
+  const existingBinding = current[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING];
+  if (current[CANONICAL_NATIVE_INTERLINING_CACHE]
+    && current[CANONICAL_NATIVE_INTERLINING_CACHE_VERSION]
+      === CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION
+    && existingBinding) {
+    existingBinding.adapter = adapter;
+    existingBinding.mode = CANONICAL_NATIVE_NETWORK_MODE;
+    return { installed: true, reused: true };
+  }
+
+  const original = current[CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL] ?? current;
+  const binding = {
+    adapter,
+    mode: CANONICAL_NATIVE_NETWORK_MODE,
+    cache: {
+      signature: null,
+      pending: null,
+      pendingSignature: null,
+    },
+  };
+  const guarded = function canonicalNativeRecalculateAllRouteGeojsons(...args) {
+    if (binding.mode !== CANONICAL_NATIVE_NETWORK_MODE) return original.apply(this, args);
+
+    const live = binding.adapter?.callbacks?.getState?.();
+    const routes = args[0];
+    const signature = nativeInterliningFingerprint(live, routes);
+    if (!signature) return original.apply(this, args);
+
+    if (binding.cache.signature === signature && hasInterliningResult(live)) {
+      return Promise.resolve({ status: 'cached', signature });
+    }
+    if (binding.cache.pending && binding.cache.pendingSignature === signature) {
+      return binding.cache.pending;
+    }
+
+    const result = original.apply(this, args);
+    if (!result || typeof result.then !== 'function') {
+      binding.cache.signature = signature;
+      return result;
+    }
+
+    const pending = Promise.resolve(result).then(
+      (value) => {
+        if (binding.cache.pendingSignature === signature) {
+          binding.cache.signature = signature;
+          binding.cache.pending = null;
+          binding.cache.pendingSignature = null;
+        }
+        return value;
+      },
+      (error) => {
+        if (binding.cache.pendingSignature === signature) {
+          binding.cache.pending = null;
+          binding.cache.pendingSignature = null;
+        }
+        throw error;
+      },
+    );
+    binding.cache.pending = pending;
+    binding.cache.pendingSignature = signature;
+    return pending;
+  };
+  Object.defineProperty(guarded, CANONICAL_NATIVE_INTERLINING_CACHE, { value: true });
+  Object.defineProperty(guarded, CANONICAL_NATIVE_INTERLINING_CACHE_VERSION, {
+    value: CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION,
+  });
+  Object.defineProperty(guarded, CANONICAL_NATIVE_INTERLINING_CACHE_BINDING, { value: binding });
+  Object.defineProperty(guarded, CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL, { value: original });
+  state.recalculateAllRouteGeojsons = guarded;
+  return { installed: true, reused: false };
+}
 
 function unwrapNativeFinanceMethod(method) {
   let current = method;
@@ -74,6 +190,128 @@ function unwrapNativeFinanceMethod(method) {
 function markNativeFinanceWrapper(wrapper, original) {
   Object.defineProperty(wrapper, NATIVE_FINANCE_METHOD_ORIGINAL, { value: original });
   return wrapper;
+}
+
+const NATIVE_FINANCE_REBASE_SESSION_KEY = 'openWorldNativeFinanceSessionId';
+const NATIVE_FINANCE_REBASE_TOPOLOGY_KEY = 'openWorldNativeFinanceTopologyKey';
+
+function nativeFinanceTopologyKey(state) {
+  const routeIds = (state?.routes ?? [])
+    .map((route) => route?.id)
+    .filter((id) => id != null)
+    .map(String)
+    .sort();
+  const trainIds = (state?.trains ?? [])
+    .map((train) => train?.id)
+    .filter((id) => id != null)
+    .map(String)
+    .sort();
+  return JSON.stringify({ routeIds, trainIds });
+}
+
+function finiteNumber(value, fallback = 0) {
+  return Number.isFinite(Number(value)) ? Number(value) : fallback;
+}
+
+function sumCurrentRouteExpenses(currentHour) {
+  return Object.values(currentHour ?? {}).reduce(
+    (sum, entry) => sum + Math.max(0, finiteNumber(entry?.expenses, 0)),
+    0,
+  );
+}
+
+/**
+ * Keep native route accounting aligned with the live canonical session.
+ *
+ * Native 1.6 keeps routeFinancials separate from the route array. A stale
+ * save can therefore retain a deleted route, or retain a current-hour bucket
+ * from an earlier session/network. The latter is especially dangerous: the
+ * next native settlement treats it as newly accumulated trainOperational
+ * expense. Historical rows remain useful for the dashboard; only the
+ * inconsistent current bucket is discarded.
+ */
+function rebaseNativeFinanceState(state) {
+  const financialHistory = structuredClone(state?.financialHistory ?? {});
+  const routeFinancials = structuredClone(state?.routeFinancials ?? {});
+  const routeIds = new Set((state?.routes ?? [])
+    .map((route) => route?.id)
+    .filter((id) => id != null)
+    .map(String));
+  const topologyKey = nativeFinanceTopologyKey(state);
+  const sessionId = typeof state?.gameSessionId === 'string' && state.gameSessionId
+    ? state.gameSessionId
+    : null;
+  const priorSessionId = financialHistory[NATIVE_FINANCE_REBASE_SESSION_KEY] ?? null;
+  const priorTopologyKey = financialHistory[NATIVE_FINANCE_REBASE_TOPOLOGY_KEY] ?? null;
+  const historyTimestamp = Math.max(
+    0,
+    finiteNumber(
+      financialHistory.lastHourTimestamp,
+      Math.floor(Math.max(0, finiteNumber(state?.timeConfig?.elapsedSeconds, 0)) / 3_600) * 3_600,
+    ),
+  );
+  const routeTimestamp = finiteNumber(routeFinancials.lastHourTimestamp, historyTimestamp);
+  const historyExpenses = Math.max(0, finiteNumber(financialHistory.currentHourExpenses, 0));
+  const routeCurrentExpenses = sumCurrentRouteExpenses(routeFinancials.currentHour);
+  const sessionChanged = Boolean(sessionId && priorSessionId && sessionId !== priorSessionId);
+  const firstCanonicalObservation = Boolean(sessionId && priorSessionId == null);
+  const topologyChanged = Boolean(priorTopologyKey && priorTopologyKey !== topologyKey);
+  const routeClockMismatch = routeTimestamp !== historyTimestamp;
+  const routeExpenseMismatch = routeCurrentExpenses > historyExpenses + Math.max(1_000, historyExpenses * 2);
+  const resetCurrentHour = Boolean(
+    sessionChanged
+    || firstCanonicalObservation
+    || topologyChanged
+    || routeClockMismatch
+    || routeExpenseMismatch,
+  );
+
+  const rawByRoute = routeFinancials.byRoute && typeof routeFinancials.byRoute === 'object'
+    ? routeFinancials.byRoute
+    : {};
+  const byRoute = Object.fromEntries(Object.entries(rawByRoute)
+    .filter(([routeId]) => routeIds.has(String(routeId)))
+    .map(([routeId, entries]) => [
+      routeId,
+      Array.isArray(entries)
+        ? entries.filter((entry) => finiteNumber(entry?.timestamp, 0) <= historyTimestamp)
+        : structuredClone(entries),
+    ]));
+  const rawCurrentHour = routeFinancials.currentHour && typeof routeFinancials.currentHour === 'object'
+    ? routeFinancials.currentHour
+    : {};
+  const currentHour = resetCurrentHour
+    ? {}
+    : Object.fromEntries(Object.entries(rawCurrentHour)
+      .filter(([routeId]) => routeIds.has(String(routeId)))
+      .map(([routeId, entry]) => [routeId, structuredClone(entry)]));
+  const nextRouteFinancials = {
+    ...routeFinancials,
+    byRoute,
+    currentHour,
+    lastHourTimestamp: resetCurrentHour ? historyTimestamp : routeFinancials.lastHourTimestamp,
+  };
+  const nextFinancialHistory = {
+    ...financialHistory,
+    [NATIVE_FINANCE_REBASE_SESSION_KEY]: sessionId ?? priorSessionId,
+    [NATIVE_FINANCE_REBASE_TOPOLOGY_KEY]: topologyKey,
+  };
+  const routeFinancialsChanged = JSON.stringify(nextRouteFinancials) !== JSON.stringify(state?.routeFinancials ?? {});
+  const financialHistoryChanged = JSON.stringify(nextFinancialHistory) !== JSON.stringify(state?.financialHistory ?? {});
+  return {
+    changed: routeFinancialsChanged || financialHistoryChanged,
+    routeFinancialsChanged,
+    financialHistoryChanged,
+    resetCurrentHour,
+    sessionId,
+    topologyKey,
+    historyTimestamp,
+    routeTimestamp,
+    routeCurrentExpenses,
+    historyExpenses,
+    routeFinancials: nextRouteFinancials,
+    financialHistory: nextFinancialHistory,
+  };
 }
 const DEMAND_SCHEDULE_KEY_BY_HOUR = Object.freeze([
   'veryLowDemand', 'veryLowDemand', 'veryLowDemand', 'lowDemand', 'lowDemand', 'lowDemand',
@@ -1181,6 +1419,7 @@ export class SubwayBuilderGameAdapter {
       unwrappedTrackGuard = true;
     }
 
+    const interliningCache = installCanonicalNativeInterliningCache(this, state);
     state.setTimeConfig?.({});
     this.financeOwnedRouteIds.clear();
     this.financeOwnedTrackIds.clear();
@@ -1191,8 +1430,29 @@ export class SubwayBuilderGameAdapter {
       reboundTickGuard,
       unwrappedPreviewGuards,
       unwrappedTrackGuard,
+      interliningCache,
       financeOwnership: 'native-observed',
     };
+  }
+
+  /**
+   * Rebase native route accounting at the canonical save boundary. This is
+   * idempotent for a stable session/topology and intentionally leaves the
+   * historical financial chart untouched.
+   */
+  rebaseNativeFinanceForCanonicalMode() {
+    if (this.nativeNetworkMode !== CANONICAL_NATIVE_NETWORK_MODE) {
+      return { changed: false, reason: 'non-canonical-mode' };
+    }
+    const state = this.#state();
+    const result = rebaseNativeFinanceState(state);
+    if (result.routeFinancialsChanged && typeof state.setRouteFinancials === 'function') {
+      state.setRouteFinancials(result.routeFinancials);
+    }
+    if (result.financialHistoryChanged && typeof state.setFinancialHistory === 'function') {
+      state.setFinancialHistory(result.financialHistory);
+    }
+    return result;
   }
 
   configureGlobalFinanceOwnership(manifest = {}) {
@@ -1334,6 +1594,12 @@ export class SubwayBuilderGameAdapter {
         + `expectedApi=${capability.expectedApiVersion}; missing=${capability.missing.join(',') || capability.getStateError}`,
       );
     }
+  }
+
+  async initializeNewWorld(cityCode) {
+    await this.assertSupported();
+    if (typeof cityCode !== 'string' || !cityCode) throw new Error('A city code is required to initialize a new world');
+    await this.#state().loadInitialData(cityCode);
   }
 
   getConstructedTrackIds() {
@@ -2327,6 +2593,17 @@ export class SubwayBuilderGameAdapter {
       viewport: state.mapViewport ?? template.viewport,
       data,
     })), this.loadedCityCode);
+  }
+
+  /** Read live network slices without entering the native generateSave path. */
+  async captureNativeNetworkState() {
+    await this.assertSupported();
+    const state = this.#state();
+    const entityKeys = new Set(['tracks', 'trains', 'routes', 'trackGroups', 'signals', 'stNodes', 'stations', 'stationGroups']);
+    return Object.fromEntries(SHARED_TRANSIT_STATE_KEYS.map((key) => [
+      key,
+      structuredClone(state[key] ?? (entityKeys.has(key) ? [] : null)),
+    ]));
   }
 
   inspectNativeNetworkForDiagnostics() {

@@ -1,0 +1,33 @@
+{
+  "assets": [
+    {
+      "bytes": 7581395,
+      "path": "buildings_index.bin.gz",
+      "sha256": "4f9a76be2f261655fb5f155f6643106c131f158048cb504c1566bc4931953f31"
+    },
+    {
+      "bytes": 3622543,
+      "path": "roads.geojson.gz",
+      "sha256": "57272cbad17acb2e87a536a9fb1f4800737ff1c2dbea9c595f6f4fe2f10d4d74"
+    },
+    {
+      "bytes": 47335,
+      "path": "runways_taxiways.geojson.gz",
+      "sha256": "0c6b8afde37071d3d74d6bf86a853bff5280c6d48e7dc14046175520b382ad70"
+    },
+    {
+      "bytes": 17708263,
+      "path": "tiles.pmtiles",
+      "sha256": "50c01962bfc656f3a8f2a4a887143c4f93c5aab2b0bcf6a80bbc084f50f04969"
+    }
+  ],
+  "cityCode": "NE01",
+  "haloBounds": [
+    -77.09080460904416,
+    37.833946767983925,
+    -76.13660413795311,
+    38.759342897878135
+  ],
+  "schemaVersion": 1,
+  "tileId": "NEC_CM03_RM03"
+}

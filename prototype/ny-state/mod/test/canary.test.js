@@ -26,9 +26,12 @@ test('postbuild starts the required PMTiles service and verifies a real vector t
       calls.push(['fetch', url]);
       probe += 1;
       if (probe === 1) throw new TypeError('fetch failed');
-      return new Response(new Uint8Array([1, 2, 3]), {
+      return new Response(new Uint8Array([0x1a, 2, 3]), {
         status: 200,
-        headers: { 'content-type': 'application/vnd.mapbox-vector-tile' },
+        headers: {
+          'content-type': 'application/vnd.mapbox-vector-tile',
+          'x-pmtiles-server-version': 'native-pmtiles-directory-v2',
+        },
       });
     },
     spawnSyncImpl: (command, args) => {
@@ -43,6 +46,38 @@ test('postbuild starts the required PMTiles service and verifies a real vector t
   assert.match(calls[1][1], /powershell/i);
   assert.ok(calls[1][2].includes(path.resolve('tools/start-canary-server.ps1')));
   assert.deepEqual(calls[2], ['fetch', tileServerHealthUrl()]);
+});
+
+test('readiness rejects a legacy PMTiles server even when it returns bytes', async () => {
+  let probe = 0;
+  let starts = 0;
+  const result = await ensureTileServerReady({
+    platform: 'win32',
+    starterPath: path.resolve('tools/start-canary-server.ps1'),
+    fetchImpl: async () => {
+      probe += 1;
+      return probe === 1
+        ? new Response(new Uint8Array([0x1a, 2, 3]), {
+          status: 200,
+          headers: { 'content-type': 'application/vnd.mapbox-vector-tile' },
+        })
+        : new Response(new Uint8Array([0x1a, 2, 3]), {
+          status: 200,
+          headers: {
+            'content-type': 'application/vnd.mapbox-vector-tile',
+            'x-pmtiles-server-version': 'native-pmtiles-directory-v2',
+          },
+        });
+    },
+    spawnSyncImpl: () => {
+      starts += 1;
+      return { status: 0 };
+    },
+  });
+
+  assert.equal(result.status, 'started');
+  assert.equal(starts, 1);
+  assert.equal(probe, 2);
 });
 
 test('canary exposes exactly the seven corridor packages', () => {

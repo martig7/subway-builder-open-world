@@ -1,0 +1,38 @@
+{
+  "assets": [
+    {
+      "bytes": 766524,
+      "path": "demand_data.json.gz",
+      "sha256": "1c518d21a45be48641469441ae2e016b88b64b82dc15406c536300eb3c6fa752"
+    },
+    {
+      "bytes": 408407,
+      "path": "cross_commutes.json",
+      "sha256": "380dd8213474947345f9e59d2563e2bafde94bf7b9abf4392df24be130441c2b"
+    },
+    {
+      "bytes": 4404565,
+      "path": "cross_demand.json.gz",
+      "sha256": "bbcf02392c35880a46ed6ba2f033b46b01dd9d0ba020d093bc27b97ba46a5756"
+    }
+  ],
+  "cityCode": "NEC_CP03_RP01",
+  "dataFiles": {
+    "demandData": "demand_data.json.gz"
+  },
+  "runtimeFiles": {
+    "crossCommutes": {
+      "encoding": "canonical-json",
+      "path": "cross_commutes.json",
+      "role": "cross-tile-commute-summary"
+    },
+    "crossDemand": {
+      "encoding": "gzip-json",
+      "path": "cross_demand.json.gz",
+      "role": "cross-tile-demand-viewer"
+    },
+    "schemaVersion": 1
+  },
+  "schemaVersion": 1,
+  "tileId": "NEC_CP03_RP01"
+}

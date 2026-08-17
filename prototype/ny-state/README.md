@@ -76,7 +76,9 @@ cd ..
 .\tools\start-canary-server.ps1
 ```
 
-The build reuses the KC prototype's pinned local esbuild installation when this canary has no local `node_modules`, so it can be rebuilt offline. Its installer owns only `%APPDATA%\metro-maker4\mods\ny-state-six-tile-canary` and the six `NY_*` directories under `%APPDATA%\metro-maker4\cities\data`. Keep the PMTiles Docker server running on port 8798 while testing. Stop it with `tools\stop-canary-server.ps1`.
+The build reuses the KC prototype's pinned local esbuild installation when this canary has no local `node_modules`, so it can be rebuilt offline. Its installer owns only `%APPDATA%\metro-maker4\mods\ny-state-six-tile-canary` and the six `NY_*` directories under `%APPDATA%\metro-maker4\cities\data`. Keep the native PMTiles server running on port 8798 while testing. Stop it with `tools\stop-canary-server.ps1`.
+
+The tile server is native Windows PowerShell/.NET and does not require Docker Desktop, WSL, a Linux VM, Python, or Node at runtime. From Git Bash, run `bash mod/start-tile-server.sh` (or `bash mod/start-tile-server.sh 8798` for another port). From PowerShell, run `mod\start-tile-server.ps1`; it runs the listener in that same foreground process, so the window remains open and closing it or pressing Ctrl+C stops the server. The background service used by the build can be stopped separately with `tools\stop-canary-server.ps1`.
 
 Each served `tiles.pmtiles` is a single continuous native vector source: shared
 Natural Earth 10m land, lakes, and country boundaries at

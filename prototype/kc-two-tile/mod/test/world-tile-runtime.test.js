@@ -169,6 +169,69 @@ test('autosave checkpoint is non-mutating and preserves the player pause state',
   assert.equal(game.log.includes('resume'), false, 'autosave must not force the simulation to resume');
 });
 
+test('native game-save checkpoint does not recapture the native snapshot', async () => {
+  const { runtime, game } = setupProjectedRuntime();
+  await runtime.boot('native-save-no-recapture', 'T0');
+  game.log.length = 0;
+
+  await runtime.checkpoint('game-save', {
+    saveName: 'Autosave',
+    captureNativeSnapshot: false,
+  });
+
+  assert.equal(game.log.includes('captureSnapshot'), false,
+    'native save hook must not invoke a second native save generation');
+  assert.equal(game.log.includes('captureNativeNetworkState'), true,
+    'native save checkpoint should refresh topology without generating a save');
+});
+
+test('saving a new canonical lineage copies the current runtime without switching it', async () => {
+  const { runtime, storage } = setupProjectedRuntime();
+  await runtime.boot('source-lineage', 'T0');
+  const before = runtime.view();
+
+  const saved = await runtime.saveAsCanonicalLineage({ worldId: 'saved-lineage' });
+  const copied = await storage.load('saved-lineage');
+
+  assert.equal(saved.worldId, 'saved-lineage');
+  assert.equal(saved.routeCount, 0);
+  assert.equal(runtime.view().worldId, before.worldId);
+  assert.equal(copied.worldId, 'saved-lineage');
+  assert.equal(copied.activeTileId, before.activeTileId);
+});
+
+test('loading a selected canonical lineage restores its native-save wallet and exact clock', async () => {
+  const { runtime, game, storage } = setupProjectedRuntime();
+  await runtime.boot('source-lineage-for-restore', 'T0');
+
+  game.native.wallet = 777;
+  game.native.clock = 2 * 86_400 + 123;
+  game.native.transitCost = 4.25;
+  const saved = await runtime.saveAsCanonicalLineage({ worldId: 'saved-lineage-for-restore' });
+  assert.equal(saved.wallet, 777);
+  assert.equal(saved.elapsedSeconds, 2 * 86_400 + 123);
+  assert.equal(saved.worldTime, 48);
+  assert.equal((await storage.readLineageMetadata('saved-lineage-for-restore')).wallet, 777);
+
+  // Simulate the native game still holding a different save when the user
+  // selects the canonical lineage from the toolbox.
+  game.native.wallet = 11;
+  game.native.clock = 99;
+  game.native.transitCost = 1;
+  await runtime.reloadFromSave('saved-lineage-for-restore', 'T0', 'Other native save', {
+    restoreCanonicalLineage: true,
+    nativeSessionId: 'other-native-session',
+    nativeTileId: 'T0',
+  });
+
+  assert.equal(runtime.view().wallet, 777);
+  assert.equal(runtime.view().elapsedSeconds, 2 * 86_400 + 123);
+  assert.equal(runtime.view().worldTime, 48);
+  assert.equal(game.native.wallet, 777);
+  assert.equal(game.native.clock, 2 * 86_400 + 123);
+  assert.equal(game.native.transitCost, 4.25);
+});
+
 test('autosave checkpoint reports one reconciled per-stage performance profile', async () => {
   const game = new FakeGameAdapter();
   const telemetry = [];
@@ -206,6 +269,7 @@ test('autosave checkpoint reports one reconciled per-stage performance profile',
     'backgroundNativeFinance',
     'snapshotCapture',
     'snapshotValidation',
+    'networkCapture',
     'projectionAdoption',
     'liveWorldSave',
     'checkpointIndexRead',
@@ -241,6 +305,7 @@ test('autosave commits through one checkpoint persistence operation and refreshe
   assert.equal(checkpointSaves, 1);
   const profile = telemetry.find(({ phase }) => phase === 'autosave-performance');
   assert.equal(profile.projectionStatus, 'reconciled');
+  assert.equal(profile.stages.snapshotCapture, 0);
 });
 
 test('accepted in-window construction does not reload the save or change pause state', async () => {

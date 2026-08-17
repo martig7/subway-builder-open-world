@@ -132,6 +132,21 @@ function summarizeWorldForLoad(world) {
   } : null;
 }
 
+function summarizeLineage(world) {
+  const network = summarizeNetworkForLoad(world?.globalNetwork?.nativeState);
+  const elapsedSeconds = Number.isFinite(world?.elapsedSeconds) ? world.elapsedSeconds : 0;
+  return {
+    day: Math.floor(Math.max(0, elapsedSeconds) / 86_400) + 1,
+    worldTime: Number.isFinite(world?.worldTime) ? world.worldTime : Math.floor(elapsedSeconds / 3_600),
+    routeCount: network.routes,
+    stationCount: network.stations,
+    trainCount: network.trains,
+    wallet: Number.isFinite(world?.wallet) ? world.wallet : null,
+    fare: Number.isFinite(world?.farePolicy?.fare) ? world.farePolicy.fare : null,
+    elapsedSeconds,
+  };
+}
+
 function createCanonicalNetwork(source, revision = 0) {
   const groupRepair = repairStationTrackGroupIntegrity(source?.data ?? source);
   const routeRepair = repairNativeStateRouteTimings(groupRepair.state);
@@ -151,6 +166,7 @@ export class WorldTileRuntime {
   async boot(worldId, loadedTileId = null, {
     saveName = null,
     allowLiveFallback = false,
+    restoreCanonicalLineage = false,
     nativeSessionId = null,
     nativeTileId = null,
     loadTraceId = null,
@@ -169,6 +185,7 @@ export class WorldTileRuntime {
       nativeSessionId,
       nativeTileId,
       allowLiveFallback,
+      restoreCanonicalLineage,
       elapsedMilliseconds: Math.max(0, this.now() - startupStartedAt),
       ...details,
     });
@@ -184,9 +201,12 @@ export class WorldTileRuntime {
     trace('capability-supported');
     finishStartupStage('capability');
     trace('storage-load-start');
+    // A canonical lineage is selected independently of the native save that
+    // triggered this lifecycle callback. Checkpoint pairing belongs only to
+    // ordinary native-save loads.
     const persistedWorld = await this.worldState.load(
       worldId,
-      saveName == null ? { loadTraceId: traceId } : {
+      restoreCanonicalLineage || saveName == null ? { loadTraceId: traceId } : {
         saveName,
         allowLiveFallback,
         nativeSessionId,
@@ -194,7 +214,13 @@ export class WorldTileRuntime {
         loadTraceId: traceId,
       },
     );
-    let startupRequiresFullWorldSave = !persistedWorld || saveName != null || allowLiveFallback;
+    if (restoreCanonicalLineage && !persistedWorld) {
+      throw new Error(`Canonical lineage is unavailable: ${worldId}`);
+    }
+    let startupRequiresFullWorldSave = !persistedWorld
+      || (!restoreCanonicalLineage && saveName != null)
+      || allowLiveFallback
+      || restoreCanonicalLineage;
     trace('storage-load-complete', {
       source: persistedWorld ? 'persisted' : 'new-world',
       persistedWorld: summarizeWorldForLoad(persistedWorld),
@@ -341,15 +367,20 @@ export class WorldTileRuntime {
       // A pending handoff is the one case where the destination's freshly reset
       // store must be replaced by the already committed world state.
       const projectionQuarantined = this.world.projectionWriteQuarantine?.active === true;
-      const adoptLoadedRuntime = !this.world.pendingTransition && !projectionQuarantined;
+      const restorePersistedWorld = restoreCanonicalLineage === true;
+      const adoptLoadedRuntime = !restorePersistedWorld
+        && !this.world.pendingTransition
+        && !projectionQuarantined;
       trace('state-adoption-path-selected', {
         adoptLoadedRuntime,
+        restorePersistedWorld,
         projectionQuarantined,
         pendingTransition: this.world.pendingTransition ?? null,
         authoritativeAliasRestore: allowLiveFallback,
       });
       if (adoptLoadedRuntime) {
-        await this.#captureAuthoritativeGlobals(this.world);
+        const capturedGlobalsChanged = await this.#captureAuthoritativeGlobals(this.world);
+        startupRequiresFullWorldSave ||= capturedGlobalsChanged;
         trace('authoritative-globals-captured', {
           worldTime: this.world.worldTime,
           elapsedSeconds: this.world.elapsedSeconds,
@@ -420,7 +451,7 @@ export class WorldTileRuntime {
       } else {
         if (!projectionQuarantined) {
           this.#armProjectionWriteQuarantine(this.world, {
-            reason: 'tile-transition',
+            reason: restorePersistedWorld ? 'canonical-lineage-restore' : 'tile-transition',
             tileId: this.world.activeTileId,
             transitionId: this.world.pendingTransition?.transitionId ?? null,
             fromTileId: this.world.pendingTransition?.from ?? null,
@@ -519,6 +550,7 @@ export class WorldTileRuntime {
   }
   async reloadFromSave(worldId, loadedTileId, saveName, {
     allowLiveFallback = false,
+    restoreCanonicalLineage = false,
     nativeSessionId = null,
     nativeTileId = null,
     loadTraceId = null,
@@ -543,6 +575,7 @@ export class WorldTileRuntime {
         const view = await this.boot(worldId, loadedTileId, {
           saveName,
           allowLiveFallback,
+          restoreCanonicalLineage,
           nativeSessionId,
           nativeTileId,
           loadTraceId,
@@ -572,7 +605,8 @@ export class WorldTileRuntime {
     const partialRouteServices = partialRouteIds
       .map((routeId) => world.globalNetwork?.routeDescriptors?.[routeId])
       .filter(Boolean);
-    return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, revision: world.revision, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, projectionWriteQuarantine: world.projectionWriteQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: world.gatewayLedger, crossPopModeChoices: world.crossPopModeChoices ?? {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
+    const lineage = summarizeLineage(world);
+    return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, day: lineage.day, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, fare: lineage.fare, revision: world.revision, routeCount: lineage.routeCount, stationCount: lineage.stationCount, trainCount: lineage.trainCount, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, projectionWriteQuarantine: world.projectionWriteQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: world.gatewayLedger, crossPopModeChoices: world.crossPopModeChoices ?? {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
   }
   projectionOverlay() { return deepCopy((this.world ?? this.viewWorldFallback)?.projectionOverlay ?? { type: 'FeatureCollection', features: [] }); }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -876,6 +910,7 @@ export class WorldTileRuntime {
     saveName = null,
     nativeSessionId = null,
     nativeTileId = null,
+    captureNativeSnapshot = true,
   } = {}) {
     this.#requireBooted();
     if (this.world.projectionWriteQuarantine?.active) {
@@ -900,6 +935,7 @@ export class WorldTileRuntime {
         backgroundNativeFinance: 0,
         snapshotCapture: 0,
         snapshotValidation: 0,
+        networkCapture: 0,
         projectionAdoption: 0,
         liveWorldSave: 0,
         checkpointIndexRead: 0,
@@ -927,19 +963,44 @@ export class WorldTileRuntime {
         await timeStage('crossTileFinance', () => this.#syncCrossTileFinance(this.world));
         await timeStage('backgroundNativeFinance', () => this.#syncBackgroundNativeFinance(this.world, Math.floor(this.world.elapsedSeconds / 3600)));
         const current = this.world.tiles[this.world.activeTileId];
-        const snapshot = await timeStage('snapshotCapture', () => this.game.captureSnapshot(current.snapshot));
-        await timeStage('snapshotValidation', () => this.game.validateSnapshot(snapshot));
-        await timeStage('projectionAdoption', async () => {
-          if (this.networkProjection) {
-            const adoption = await this.#adoptProjectionSnapshot(
-              this.world,
-              this.world.activeTileId,
-              snapshot,
-              { restore: false, fastPath: true },
-            );
-            projectionStatus = adoption.fastPath ? 'structurally-current' : 'reconciled';
-          } else this.world.tiles[this.world.activeTileId].snapshot = snapshot;
-        });
+        if (captureNativeSnapshot) {
+          const snapshot = await timeStage('snapshotCapture', () => this.game.captureSnapshot(current.snapshot));
+          await timeStage('snapshotValidation', () => this.game.validateSnapshot(snapshot));
+          await timeStage('projectionAdoption', async () => {
+            if (this.networkProjection) {
+              const adoption = await this.#adoptProjectionSnapshot(
+                this.world,
+                this.world.activeTileId,
+                snapshot,
+                { restore: false, fastPath: true },
+              );
+              projectionStatus = adoption.fastPath ? 'structurally-current' : 'reconciled';
+            } else this.world.tiles[this.world.activeTileId].snapshot = snapshot;
+          });
+        } else {
+          const nativeNetwork = await timeStage(
+            'networkCapture',
+            () => this.game.captureNativeNetworkState?.(),
+          );
+          if (nativeNetwork) {
+            const networkSnapshot = createNativeNetworkSnapshot(current.snapshot, {
+              nativeState: nativeNetwork,
+            });
+            const adoption = await timeStage('projectionAdoption', () => (
+              this.#adoptProjectionSnapshot(
+                this.world,
+                this.world.activeTileId,
+                networkSnapshot,
+                { restore: false, fastPath: true },
+              )
+            ));
+            projectionStatus = adoption.fastPath
+              ? 'native-network-captured'
+              : 'native-network-reconciled';
+          } else {
+            projectionStatus = 'deferred-native-save';
+          }
+        }
         this.world.tiles[this.world.activeTileId].revision++; this.world.revision++;
         if (saveName != null && typeof this.worldState.saveCheckpoint === 'function') {
           const checkpointStartedAt = this.now();
@@ -995,6 +1056,50 @@ export class WorldTileRuntime {
           projectionStatus,
           ...performance,
         });
+      }
+    });
+  }
+  async saveAsCanonicalLineage({ worldId } = {}) {
+    this.#requireBooted();
+    if (typeof worldId !== 'string' || !worldId.trim()) throw new Error('A canonical lineage requires a world id');
+    if (worldId === this.world.worldId) throw new Error('The new canonical lineage must have a different world id');
+    if (this.world.projectionWriteQuarantine?.active) {
+      throw new Error('Cannot save a new canonical lineage while topology recovery is pending');
+    }
+    return this.#enqueue(async () => {
+      const wasPaused = await this.#pausePreservingUserState();
+      try {
+        const draft = deepCopy(this.world);
+        await this.#captureAuthoritativeGlobals(draft);
+        // Capture first: the live native clock may have advanced beyond the
+        // last sidecar write. The lineage must be stamped with that exact
+        // metro-save time before hourly catch-up is calculated.
+        const authoritativeHour = Math.floor(draft.elapsedSeconds / 3_600);
+        this.#advanceDraft(draft, authoritativeHour);
+        await this.#syncCrossTileFinance(draft);
+        await this.#syncBackgroundNativeFinance(draft, authoritativeHour);
+        const tile = draft.tiles[draft.activeTileId];
+        const snapshot = await this.game.captureSnapshot(tile.snapshot);
+        await this.game.validateSnapshot(snapshot);
+        if (this.networkProjection) {
+          await this.#adoptProjectionSnapshot(draft, draft.activeTileId, snapshot, {
+            restore: false,
+            fastPath: true,
+          });
+        } else tile.snapshot = snapshot;
+        draft.worldId = worldId.trim();
+        draft.revision++;
+        tile.revision++;
+        assertWorld(draft, this.tileIds);
+        await this.worldState.save(draft);
+        const lineage = summarizeLineage(draft);
+        return {
+          worldId: draft.worldId,
+          ...lineage,
+          revision: draft.revision,
+        };
+      } finally {
+        await this.#restoreUserPauseState(wasPaused);
       }
     });
   }
@@ -1843,7 +1948,23 @@ export class WorldTileRuntime {
       this.#mergeCapturedFareGroups(world, globals.farePolicy.fareGroups);
     }
     if (globals?.financialHistory) world.financialHistory = deepCopy(globals.financialHistory);
-    return this.#ingestNativeFinanceAudit(world);
+    const financeRebase = this.game.rebaseNativeFinanceForCanonicalMode?.();
+    if (financeRebase?.financialHistory) world.financialHistory = deepCopy(financeRebase.financialHistory);
+    if (financeRebase?.changed) {
+      this.telemetry({
+        phase: 'native-finance-rebased',
+        resetCurrentHour: financeRebase.resetCurrentHour === true,
+        routeFinancialsChanged: financeRebase.routeFinancialsChanged === true,
+        financialHistoryChanged: financeRebase.financialHistoryChanged === true,
+        sessionId: financeRebase.sessionId ?? null,
+        topologyKey: financeRebase.topologyKey ?? null,
+        historyTimestamp: financeRebase.historyTimestamp ?? null,
+        routeTimestamp: financeRebase.routeTimestamp ?? null,
+        routeCurrentExpenses: financeRebase.routeCurrentExpenses ?? 0,
+        historyExpenses: financeRebase.historyExpenses ?? 0,
+      });
+    }
+    return Boolean(this.#ingestNativeFinanceAudit(world) || financeRebase?.changed);
   }
   #mergeCapturedFareGroups(world, capturedGroups) {
     if (!Array.isArray(capturedGroups) || !world.globalNetwork?.nativeState) return;

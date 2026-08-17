@@ -1,0 +1,2491 @@
+{
+  "aggregation": {
+    "algorithm": "deterministic sparse Voronoi sites; weighted 4D capacity-constrained Voronoi cohorts",
+    "drivingModel": "straight-line at 13.4 m/s; OSRM enrichment pending",
+    "maximumCohortSize": 200,
+    "minimumCohortSize": 50,
+    "pointMergeDistanceM": 100
+  },
+  "crossTileCohorts": 57531,
+  "crossTileWorkers": 6627084,
+  "crosswalkRowsByStateFips": {
+    "09": 49926,
+    "10": 20198,
+    "11": 6012,
+    "23": 47138,
+    "24": 83827,
+    "25": 107278,
+    "33": 31948,
+    "34": 137972,
+    "36": 288819,
+    "42": 336985,
+    "44": 25649,
+    "50": 24611,
+    "51": 163491,
+    "54": 72558
+  },
+  "directedTilePairs": 1087,
+  "elapsedSeconds": 2186.01,
+  "excludedRows": 7120348,
+  "excludedWorkers": 7858159,
+  "inputRows": 22379010,
+  "inputWorkers": 24432954,
+  "localWorkers": 17805870,
+  "peakRssBytesAtFinish": 988446720,
+  "prototype": true,
+  "scannedRows": 29499358,
+  "scannedWorkers": 32291113,
+  "schemaVersion": 1,
+  "source": {
+    "jobType": "JT01",
+    "lodesVersion": "LODES8",
+    "vintage": 2023,
+    "workerColumn": "S000"
+  },
+  "tiles": [
+    {
+      "cohortCount": 1011,
+      "demandBytes": 121864,
+      "elapsedSeconds": 2.976,
+      "localWorkers": 118942,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1288,
+      "tileId": "NEC_CM04_RM03"
+    },
+    {
+      "cohortCount": 562,
+      "demandBytes": 65905,
+      "elapsedSeconds": 1.782,
+      "localWorkers": 64224,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 724,
+      "tileId": "NEC_CM03_RM03"
+    },
+    {
+      "cohortCount": 525,
+      "demandBytes": 64028,
+      "elapsedSeconds": 1.819,
+      "localWorkers": 63495,
+      "maximumCohort": 199,
+      "minimumCohort": 50,
+      "siteCount": 743,
+      "tileId": "NEC_CM02_RM03"
+    },
+    {
+      "cohortCount": 187,
+      "demandBytes": 20109,
+      "elapsedSeconds": 1.234,
+      "localWorkers": 22825,
+      "maximumCohort": 199,
+      "minimumCohort": 52,
+      "siteCount": 274,
+      "tileId": "NEC_CM01_RM03"
+    },
+    {
+      "cohortCount": 8380,
+      "demandBytes": 977166,
+      "elapsedSeconds": 16.612,
+      "localWorkers": 972084,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 8047,
+      "tileId": "NEC_CM04_RM02"
+    },
+    {
+      "cohortCount": 13752,
+      "demandBytes": 1620744,
+      "elapsedSeconds": 28.977,
+      "localWorkers": 1598234,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 13315,
+      "tileId": "NEC_CM03_RM02"
+    },
+    {
+      "cohortCount": 812,
+      "demandBytes": 101889,
+      "elapsedSeconds": 2.008,
+      "localWorkers": 93373,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1135,
+      "tileId": "NEC_CM02_RM02"
+    },
+    {
+      "cohortCount": 1250,
+      "demandBytes": 153508,
+      "elapsedSeconds": 2.592,
+      "localWorkers": 142102,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1595,
+      "tileId": "NEC_CM01_RM02"
+    },
+    {
+      "cohortCount": 909,
+      "demandBytes": 112772,
+      "elapsedSeconds": 2.232,
+      "localWorkers": 109698,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1243,
+      "tileId": "NEC_CM04_RM01"
+    },
+    {
+      "cohortCount": 4301,
+      "demandBytes": 541376,
+      "elapsedSeconds": 9.18,
+      "localWorkers": 496542,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 5446,
+      "tileId": "NEC_CM03_RM01"
+    },
+    {
+      "cohortCount": 6638,
+      "demandBytes": 835307,
+      "elapsedSeconds": 14.566,
+      "localWorkers": 770814,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 8274,
+      "tileId": "NEC_CM02_RM01"
+    },
+    {
+      "cohortCount": 12420,
+      "demandBytes": 1516915,
+      "elapsedSeconds": 27.413,
+      "localWorkers": 1453035,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 13893,
+      "tileId": "NEC_CM01_RM01"
+    },
+    {
+      "cohortCount": 2521,
+      "demandBytes": 320339,
+      "elapsedSeconds": 5.686,
+      "localWorkers": 289872,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 3344,
+      "tileId": "NEC_CP00_RM01"
+    },
+    {
+      "cohortCount": 924,
+      "demandBytes": 119382,
+      "elapsedSeconds": 2.561,
+      "localWorkers": 106936,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1370,
+      "tileId": "NEC_CM03_RP00"
+    },
+    {
+      "cohortCount": 2721,
+      "demandBytes": 341349,
+      "elapsedSeconds": 6.231,
+      "localWorkers": 322814,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 3478,
+      "tileId": "NEC_CM02_RP00"
+    },
+    {
+      "cohortCount": 3082,
+      "demandBytes": 392601,
+      "elapsedSeconds": 7.317,
+      "localWorkers": 357331,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 4091,
+      "tileId": "NEC_CM01_RP00"
+    },
+    {
+      "cohortCount": 48317,
+      "demandBytes": 5272192,
+      "elapsedSeconds": 120.745,
+      "localWorkers": 5635799,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 33296,
+      "tileId": "NEC_CP00_RP00"
+    },
+    {
+      "cohortCount": 5336,
+      "demandBytes": 662323,
+      "elapsedSeconds": 11.576,
+      "localWorkers": 625011,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 6450,
+      "tileId": "NEC_CP01_RP00"
+    },
+    {
+      "cohortCount": 176,
+      "demandBytes": 19090,
+      "elapsedSeconds": 1.256,
+      "localWorkers": 19901,
+      "maximumCohort": 195,
+      "minimumCohort": 50,
+      "siteCount": 268,
+      "tileId": "NEC_CP02_RP00"
+    },
+    {
+      "cohortCount": 19,
+      "demandBytes": 1814,
+      "elapsedSeconds": 1.141,
+      "localWorkers": 2197,
+      "maximumCohort": 195,
+      "minimumCohort": 53,
+      "siteCount": 28,
+      "tileId": "NEC_CP04_RP00"
+    },
+    {
+      "cohortCount": 1011,
+      "demandBytes": 127037,
+      "elapsedSeconds": 2.862,
+      "localWorkers": 116617,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1404,
+      "tileId": "NEC_CM02_RP01"
+    },
+    {
+      "cohortCount": 325,
+      "demandBytes": 39484,
+      "elapsedSeconds": 1.437,
+      "localWorkers": 36598,
+      "maximumCohort": 199,
+      "minimumCohort": 50,
+      "siteCount": 497,
+      "tileId": "NEC_CM01_RP01"
+    },
+    {
+      "cohortCount": 1509,
+      "demandBytes": 191813,
+      "elapsedSeconds": 3.6,
+      "localWorkers": 173008,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 2057,
+      "tileId": "NEC_CP00_RP01"
+    },
+    {
+      "cohortCount": 5965,
+      "demandBytes": 736462,
+      "elapsedSeconds": 12.633,
+      "localWorkers": 691974,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 6989,
+      "tileId": "NEC_CP01_RP01"
+    },
+    {
+      "cohortCount": 1463,
+      "demandBytes": 184929,
+      "elapsedSeconds": 3.394,
+      "localWorkers": 169387,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1996,
+      "tileId": "NEC_CP02_RP01"
+    },
+    {
+      "cohortCount": 6095,
+      "demandBytes": 766524,
+      "elapsedSeconds": 13.405,
+      "localWorkers": 713422,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 7553,
+      "tileId": "NEC_CP03_RP01"
+    },
+    {
+      "cohortCount": 534,
+      "demandBytes": 64662,
+      "elapsedSeconds": 2.126,
+      "localWorkers": 61466,
+      "maximumCohort": 199,
+      "minimumCohort": 50,
+      "siteCount": 744,
+      "tileId": "NEC_CP04_RP01"
+    },
+    {
+      "cohortCount": 2802,
+      "demandBytes": 341953,
+      "elapsedSeconds": 5.897,
+      "localWorkers": 321976,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 3330,
+      "tileId": "NEC_CP00_RP02"
+    },
+    {
+      "cohortCount": 774,
+      "demandBytes": 96955,
+      "elapsedSeconds": 2.221,
+      "localWorkers": 90639,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1085,
+      "tileId": "NEC_CP01_RP02"
+    },
+    {
+      "cohortCount": 1916,
+      "demandBytes": 245585,
+      "elapsedSeconds": 4.332,
+      "localWorkers": 219149,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 2638,
+      "tileId": "NEC_CP02_RP02"
+    },
+    {
+      "cohortCount": 14368,
+      "demandBytes": 1679423,
+      "elapsedSeconds": 28.627,
+      "localWorkers": 1659385,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 13716,
+      "tileId": "NEC_CP03_RP02"
+    },
+    {
+      "cohortCount": 714,
+      "demandBytes": 86499,
+      "elapsedSeconds": 2.174,
+      "localWorkers": 82522,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 946,
+      "tileId": "NEC_CP02_RP03"
+    },
+    {
+      "cohortCount": 843,
+      "demandBytes": 104826,
+      "elapsedSeconds": 2.424,
+      "localWorkers": 96614,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1154,
+      "tileId": "NEC_CP03_RP03"
+    },
+    {
+      "cohortCount": 963,
+      "demandBytes": 111339,
+      "elapsedSeconds": 2.593,
+      "localWorkers": 107884,
+      "maximumCohort": 200,
+      "minimumCohort": 50,
+      "siteCount": 1104,
+      "tileId": "NEC_CP04_RP03"
+    }
+  ],
+  "undersizedCrossTileResiduals": [
+    {
+      "homeTileId": "NEC_CM01_RM01",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 42
+    },
+    {
+      "homeTileId": "NEC_CM01_RM01",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 41
+    },
+    {
+      "homeTileId": "NEC_CM01_RM01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM01_RM01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 42
+    },
+    {
+      "homeTileId": "NEC_CM01_RM01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 38
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 42
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 32
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 21
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RM02",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 35
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP01_RP00",
+      "workers": 37
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP03_RP02",
+      "workers": 20
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 43
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 26
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 23
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 30
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 48
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 26
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 35
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 16
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM01_RP01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 47
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 47
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 26
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 30
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 32
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 38
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP01_RP00",
+      "workers": 46
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 25
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 34
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 39
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 37
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 42
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 36
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 39
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 35
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 30
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CM03_RM02",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 22
+    },
+    {
+      "homeTileId": "NEC_CM03_RM02",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 49
+    },
+    {
+      "homeTileId": "NEC_CM03_RM02",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CM03_RM02",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM03_RM02",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 49
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 46
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 48
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 20
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP01_RP00",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 26
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 23
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CM03_RM03",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 21
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 40
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 32
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 25
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 25
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CM04_RM01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 16
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 29
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 34
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 43
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 20
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 43
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 23
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 26
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 38
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 30
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 45
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 39
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP00_RP00",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 36
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 30
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 40
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 40
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 46
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 38
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 26
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 16
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 16
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 16
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 35
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 41
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 37
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 40
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 23
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 36
+    },
+    {
+      "homeTileId": "NEC_CP01_RP02",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 20
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM01_RP00",
+      "workers": 48
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 25
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 41
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM03_RM02",
+      "workers": 25
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 26
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 35
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 21
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 29
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 39
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 48
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 29
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 39
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM01_RM01",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM01_RP00",
+      "workers": 23
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 36
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 41
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 13
+    },
+    {
+      "homeTileId": "NEC_CP02_RP03",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 30
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 25
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 49
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 38
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 27
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 25
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 22
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM01_RP00",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 41
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CM04_RM03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 39
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CM01_RM01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CM01_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CM03_RM02",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CM03_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP00_RP00",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP01_RP00",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 43
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP01_RP02",
+      "workers": 22
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 21
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP02_RP03",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP03_RP03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP04_RP00",
+      "workTileId": "NEC_CP04_RP03",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM01_RM01",
+      "workers": 32
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM01_RP00",
+      "workers": 14
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 41
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 15
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM01_RM01",
+      "workers": 37
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM01_RM02",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM01_RP00",
+      "workers": 16
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM02_RM03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 29
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CP00_RM01",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 17
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CP01_RP00",
+      "workers": 33
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 6
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CP04_RP00",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP04_RP03",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 45
+    }
+  ],
+  "workDatabaseBytes": 7572238336,
+  "worldId": "NEC_CORRIDOR_LODES_PROTOTYPE"
+}

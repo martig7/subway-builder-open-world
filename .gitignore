@@ -3,6 +3,14 @@
 .debug/
 research/bundle-inspect-*/
 
+# Personal recovery captures and decompiled game bundles
+recovery/20??-??-??-*/
+recovery/**/game-bundle-*.js
+
+# Generated geometry over GitHub's file-size limit
+prototype/japan/generated/japan-prefecture-boundaries.geojson
+prototype/nec-corridor/generated/maps/depot/NE02/ne02-nobuildings.geojson
+
 # Dependencies and build products
 **/node_modules/
 **/dist/
@@ -37,4 +45,3 @@ prototype/ny-state/generated/pilot/tiles/
 Thumbs.db
 .idea/
 .vscode/
-

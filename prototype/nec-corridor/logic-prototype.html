@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Northeast Corridor tile map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --water: #b9d1d8;
+      --ink: #18343a;
+      --muted: #61757a;
+      --selected: #b96c3d;
+      --selected-dark: #8e4d2d;
+      --white: rgba(250, 248, 240, .92);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body { overflow: hidden; color: var(--ink); background: var(--water); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+    .map-shell { position: relative; width: 100%; height: 100dvh; min-height: 560px; overflow: hidden; background: var(--water); }
+    #map { position: absolute; inset: 0; background: var(--water); }
+    .leaflet-container { font: inherit; }
+    .leaflet-control-attribution { color: var(--ink); background: rgba(250, 248, 240, .84); }
+    .leaflet-control-attribution a { color: var(--ink); }
+
+    .topbar {
+      position: absolute;
+      z-index: 1000;
+      top: 20px;
+      left: 22px;
+      right: 22px;
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 20px;
+      pointer-events: none;
+    }
+    .title, .status, .legend { border: 1px solid rgba(24, 52, 58, .24); background: var(--white); box-shadow: 0 5px 18px rgba(24, 52, 58, .1); backdrop-filter: blur(5px); }
+    .title { max-width: 360px; padding: 12px 15px 13px; }
+    .eyebrow { margin: 0 0 4px; color: var(--muted); font: 700 11px/1 "Cascadia Code", Consolas, monospace; letter-spacing: .13em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--ink); font-size: 21px; line-height: 1.08; letter-spacing: -.03em; }
+    .status { display: flex; align-items: center; gap: 13px; padding: 9px 10px 9px 13px; pointer-events: auto; }
+    .status-count { display: flex; align-items: baseline; gap: 6px; }
+    .status-count strong { font: 800 24px/.9 "Cascadia Code", Consolas, monospace; }
+    .status-count span { color: var(--muted); font-size: 12px; }
+    .clear, .export { padding: 5px 8px; border: 1px solid rgba(24, 52, 58, .3); color: var(--ink); background: transparent; cursor: pointer; }
+    .clear:hover, .export:hover { color: var(--white); border-color: var(--ink); background: var(--ink); }
+
+    .tile-label {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      color: var(--ink);
+      background: transparent;
+      box-shadow: none;
+      font: 700 clamp(10px, 1.1vw, 13px)/1.1 "Cascadia Code", Consolas, monospace;
+      text-shadow: 0 1px 2px rgba(250, 248, 240, .95), 0 -1px 2px rgba(250, 248, 240, .95), 1px 0 2px rgba(250, 248, 240, .95), -1px 0 2px rgba(250, 248, 240, .95);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .tile-label::before { display: none; }
+
+    .legend { position: absolute; z-index: 1000; bottom: 20px; left: 22px; padding: 9px 12px; color: var(--muted); font-size: 12px; }
+    .legend strong { color: var(--ink); font-weight: 700; }
+    .legend .swatch { display: inline-block; width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--selected-dark); background: var(--selected); }
+
+    @media (max-width: 720px) {
+      .map-shell { min-height: 520px; }
+      .topbar { top: 12px; left: 12px; right: 12px; gap: 10px; }
+      .title { max-width: 255px; padding: 9px 11px; }
+      h1 { font-size: 16px; }
+      .eyebrow { font-size: 9px; }
+      .status { gap: 8px; padding: 7px 8px 7px 9px; }
+      .status-count { gap: 3px; }
+      .status-count strong { font-size: 18px; }
+      .status-count span { font-size: 10px; }
+      .clear, .export { padding: 4px 6px; font-size: 11px; }
+      .legend { bottom: 12px; left: 12px; font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="map-shell">
+    <div id="map" role="application" aria-label="OpenStreetMap Northeast Corridor tile selector"></div>
+
+    <header class="topbar">
+      <div class="title">
+        <p class="eyebrow">Northeast Corridor</p>
+        <h1>Choose tiles for the mod</h1>
+      </div>
+      <div class="status">
+        <div class="status-count"><strong id="selected-count">0</strong><span>selected</span></div>
+        <button class="clear" id="clear" type="button">Clear</button>
+        <button class="export" id="export" type="button">Export</button>
+      </div>
+    </header>
+
+    <div class="legend"><span class="swatch" aria-hidden="true"></span><strong>Selected</strong>&nbsp; · &nbsp;click any cell to toggle</div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const GRID = Object.freeze({
+      columns: [-4, 4],
+      rows: [-3, 3],
+      originX: 553400,
+      originY: 4483300,
+      tileWidthM: 77700,
+      tileHeightM: 97300,
+      haloM: 2000,
+    });
+    const STORAGE_KEY = 'nec-corridor-tile-selection-minimal-v1';
+    const tiles = [];
+    const selected = new Set();
+    const tileLayers = new Map();
+
+    function part(prefix, value) {
+      return `${prefix}${value >= 0 ? 'P' : 'M'}${String(Math.abs(value)).padStart(2, '0')}`;
+    }
+
+    function tileId(column, row) {
+      return `NEC_${part('C', column)}_${part('R', row)}`;
+    }
+
+    function coordinate(value) {
+      return value >= 0 ? `+${value}` : `−${Math.abs(value)}`;
+    }
+
+    // EPSG:26918 -> WGS84. Leaflet then projects these coordinates to the
+    // same Web Mercator space used by the OpenStreetMap tile layer.
+    function projectedToLonLat(easting, northing) {
+      const semiMajorAxis = 6378137;
+      const eccentricitySquared = 0.00669438;
+      const scaleFactor = 0.9996;
+      const eccentricityPrimeSquared = eccentricitySquared / (1 - eccentricitySquared);
+      const x = easting - 500000;
+      const y = northing;
+      const meridionalArc = y / scaleFactor;
+      const e1 = (1 - Math.sqrt(1 - eccentricitySquared)) / (1 + Math.sqrt(1 - eccentricitySquared));
+      const mu = meridionalArc / (semiMajorAxis * (1 - eccentricitySquared / 4 - 3 * eccentricitySquared ** 2 / 64 - 5 * eccentricitySquared ** 3 / 256));
+      const phi1 = mu
+        + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu)
+        + (21 * e1 ** 2 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu)
+        + (151 * e1 ** 3 / 96) * Math.sin(6 * mu)
+        + (1097 * e1 ** 4 / 512) * Math.sin(8 * mu);
+      const sinPhi1 = Math.sin(phi1);
+      const cosPhi1 = Math.cos(phi1);
+      const tangentPhi1 = Math.tan(phi1);
+      const n1 = semiMajorAxis / Math.sqrt(1 - eccentricitySquared * sinPhi1 ** 2);
+      const t1 = tangentPhi1 ** 2;
+      const c1 = eccentricityPrimeSquared * cosPhi1 ** 2;
+      const r1 = semiMajorAxis * (1 - eccentricitySquared) / (1 - eccentricitySquared * sinPhi1 ** 2) ** 1.5;
+      const d = x / (n1 * scaleFactor);
+      const latitude = phi1 - (n1 * tangentPhi1 / r1) * (d ** 2 / 2 - (5 + 3 * t1 + 10 * c1 - 4 * c1 ** 2 - 9 * eccentricityPrimeSquared) * d ** 4 / 24 + (61 + 90 * t1 + 298 * c1 + 45 * t1 ** 2 - 252 * eccentricityPrimeSquared - 3 * c1 ** 2) * d ** 6 / 720);
+      const longitude = (-75 * Math.PI / 180) + (d - (1 + 2 * t1 + c1) * d ** 3 / 6 + (5 - 2 * c1 + 28 * t1 - 3 * c1 ** 2 + 8 * eccentricityPrimeSquared + 24 * t1 ** 2) * d ** 5 / 120) / cosPhi1;
+      return [longitude * 180 / Math.PI, latitude * 180 / Math.PI];
+    }
+
+    function tileCorners(tile) {
+      const [minX, minY, maxX, maxY] = tile.ownershipProjected;
+      return [
+        projectedToLonLat(minX, maxY),
+        projectedToLonLat(maxX, maxY),
+        projectedToLonLat(maxX, minY),
+        projectedToLonLat(minX, minY),
+      ];
+    }
+
+    for (let row = GRID.rows[1]; row >= GRID.rows[0]; row -= 1) {
+      for (let column = GRID.columns[0]; column <= GRID.columns[1]; column += 1) {
+        const tile = {
+          id: tileId(column, row),
+          column,
+          row,
+          ownershipProjected: [
+            GRID.originX + column * GRID.tileWidthM,
+            GRID.originY + row * GRID.tileHeightM,
+            GRID.originX + (column + 1) * GRID.tileWidthM,
+            GRID.originY + (row + 1) * GRID.tileHeightM,
+          ],
+        };
+        tile.lonLatCorners = tileCorners(tile);
+        tile.latLngCorners = tile.lonLatCorners.map(([longitude, latitude]) => [latitude, longitude]);
+        tiles.push(tile);
+      }
+    }
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+      if (Array.isArray(saved)) saved.filter((id) => tiles.some((tile) => tile.id === id)).forEach((id) => selected.add(id));
+    } catch (_) { /* Selection still works when storage is unavailable. */ }
+
+    const map = L.map('map', {
+      zoomControl: false,
+      minZoom: 5,
+      maxZoom: 19,
+    });
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    const inactiveStyle = Object.freeze({
+      color: '#18343a',
+      fillColor: '#faf8f0',
+      fillOpacity: 0.12,
+      opacity: 0.62,
+      weight: 1,
+    });
+    const selectedStyle = Object.freeze({
+      color: '#8e4d2d',
+      fillColor: '#b96c3d',
+      fillOpacity: 0.84,
+      opacity: 0.96,
+      weight: 2,
+    });
+
+    function save() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected])); } catch (_) { /* Best effort. */ }
+    }
+
+    function tileLabel(tile) {
+      return `${coordinate(tile.column)},${coordinate(tile.row)}`;
+    }
+
+    function setTileAccessibility(tile, layer) {
+      const path = layer.getElement();
+      if (!path) return;
+      path.setAttribute('role', 'button');
+      path.setAttribute('tabindex', '0');
+      path.setAttribute('aria-label', `${tile.id}, ${tileLabel(tile)}`);
+      path.setAttribute('aria-pressed', String(selected.has(tile.id)));
+      path.onkeydown = (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleTile(tile);
+      };
+    }
+
+    function renderTile(tile) {
+      const layer = tileLayers.get(tile.id);
+      const isSelected = selected.has(tile.id);
+      layer.setStyle(isSelected ? selectedStyle : inactiveStyle);
+      setTileAccessibility(tile, layer);
+    }
+
+    function toggleTile(tile) {
+      if (selected.has(tile.id)) selected.delete(tile.id);
+      else selected.add(tile.id);
+      save();
+      render();
+    }
+
+    for (const tile of tiles) {
+      const layer = L.polygon(tile.latLngCorners, { ...inactiveStyle, className: 'tile-polygon' }).addTo(map);
+      layer.bindTooltip(tileLabel(tile), {
+        permanent: true,
+        direction: 'center',
+        className: 'tile-label',
+        interactive: false,
+        opacity: 1,
+      });
+      layer.on('click', () => toggleTile(tile));
+      tileLayers.set(tile.id, layer);
+    }
+
+    const allPoints = tiles.flatMap((tile) => tile.latLngCorners);
+    map.fitBounds(L.latLngBounds(allPoints), {
+      paddingTopLeft: [30, 92],
+      paddingBottomRight: [30, 64],
+      maxZoom: 8,
+    });
+
+    function render() {
+      for (const tile of tiles) renderTile(tile);
+      document.querySelector('#selected-count').textContent = selected.size;
+    }
+
+    document.querySelector('#clear').addEventListener('click', () => {
+      selected.clear();
+      save();
+      render();
+    });
+
+    document.querySelector('#export').addEventListener('click', () => {
+      const selectedTiles = tiles.filter((tile) => selected.has(tile.id));
+      const payload = {
+        schemaVersion: '0.1.0',
+        worldId: 'NEC_CORRIDOR_TILE_PLANNER',
+        crs: 'EPSG:26918',
+        grid: {
+          originX: GRID.originX,
+          originY: GRID.originY,
+          tileWidthM: GRID.tileWidthM,
+          tileHeightM: GRID.tileHeightM,
+          haloM: GRID.haloM,
+          ownershipConvention: '[min_x,max_x) × [min_y,max_y)',
+          bboxColumns: GRID.columns,
+          bboxRows: GRID.rows,
+        },
+        selectedTileIds: selectedTiles.map((tile) => tile.id),
+        selectedTiles: selectedTiles.map((tile) => ({
+          id: tile.id,
+          column: tile.column,
+          row: tile.row,
+          ownershipProjected: tile.ownershipProjected,
+        })),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2) + '\n'], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'nec-corridor-selection.json';
+      document.body.append(link);
+      link.click();
+      const downloadUrl = link.href;
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+    });
+
+    render();
+    window.addEventListener('resize', () => map.invalidateSize());
+  </script>
+</body>
+</html>

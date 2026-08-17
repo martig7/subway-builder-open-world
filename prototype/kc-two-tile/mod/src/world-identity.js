@@ -1,6 +1,12 @@
 const ALIAS_PREFIX = 'identity:session:';
 const CANONICAL_WORLD_KEY = 'identity:canonical-world';
 
+function createIsolatedWorldId(prefix) {
+  const suffix = globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}:unbound:${suffix}`;
+}
+
 export class WorldIdentityResolver {
   constructor({
     storage,
@@ -10,6 +16,10 @@ export class WorldIdentityResolver {
   } = {}) {
     this.storage = storage;
     this.fallbackWorldId = fallbackWorldId;
+    // The fallback is a prefix only. Reusing one fixed fallback world lets a
+    // new game inherit the previous game's sidecar before the native save has
+    // exposed its per-game session id.
+    this.isolatedWorldId = null;
     this.recoveryAliases = { ...recoveryAliases };
     this.configuredCanonicalWorldId = typeof canonicalWorldId === 'string' && canonicalWorldId
       ? canonicalWorldId
@@ -57,19 +67,38 @@ export class WorldIdentityResolver {
     else this.canonicalAliases.delete(sessionId);
   }
 
+  #getIsolatedWorldId() {
+    this.isolatedWorldId ??= createIsolatedWorldId(this.fallbackWorldId);
+    return this.isolatedWorldId;
+  }
+
   async resolve(nativeSessionId, pendingWorldId = null, {
     authoritativeWorldId = null,
     ancestorSessionIds = [],
+    allowCanonicalFallback = false,
+    selectedWorldId = null,
   } = {}) {
-    const sessionId = typeof nativeSessionId === 'string' && nativeSessionId
-      ? nativeSessionId
-      : this.fallbackWorldId;
+    const hasNativeSessionId = typeof nativeSessionId === 'string' && Boolean(nativeSessionId);
+    const sessionId = hasNativeSessionId ? nativeSessionId : this.#getIsolatedWorldId();
     if (typeof pendingWorldId === 'string' && pendingWorldId) {
       await this.bind(sessionId, pendingWorldId, { force: true });
       const settled = await this.#readAlias(sessionId, pendingWorldId);
       const worldId = typeof settled === 'string' && settled ? settled : pendingWorldId;
       await this.#promoteCanonicalWorld(worldId);
       return { nativeSessionId: sessionId, worldId, aliased: sessionId !== worldId };
+    }
+    if (typeof selectedWorldId === 'string' && selectedWorldId) {
+      const selected = await this.bind(sessionId, selectedWorldId, { force: true });
+      if (!selected) throw new Error('The selected canonical save path could not be persisted');
+      const settled = await this.#readAlias(sessionId, selectedWorldId, { refresh: true });
+      const worldId = typeof settled === 'string' && settled ? settled : selectedWorldId;
+      return {
+        nativeSessionId: sessionId,
+        worldId,
+        aliased: worldId !== sessionId,
+        source: 'user-selection',
+        sourceSessionId: null,
+      };
     }
     const alias = await this.#readAlias(sessionId, null);
     const recoveryAlias = this.recoveryAliases[sessionId];
@@ -95,7 +124,7 @@ export class WorldIdentityResolver {
       };
     }
 
-    if (typeof authoritativeWorldId === 'string' && authoritativeWorldId
+    if (hasNativeSessionId && typeof authoritativeWorldId === 'string' && authoritativeWorldId
       && authoritativeWorldId !== sessionId) {
       await this.bind(sessionId, authoritativeWorldId);
       const settled = await this.#readAlias(sessionId, authoritativeWorldId);
@@ -112,7 +141,7 @@ export class WorldIdentityResolver {
       };
     }
 
-    const ancestors = [...new Set(ancestorSessionIds)]
+    const ancestors = (hasNativeSessionId ? [...new Set(ancestorSessionIds)] : [])
       .filter((candidate) => typeof candidate === 'string' && candidate && candidate !== sessionId);
     for (const ancestorSessionId of ancestors) {
       const ancestorAlias = await this.#readAlias(ancestorSessionId, null);
@@ -139,8 +168,11 @@ export class WorldIdentityResolver {
       };
     }
 
-    const canonicalWorldId = await this.#readCanonicalWorldId();
-    if (typeof canonicalWorldId === 'string' && canonicalWorldId
+    const canonicalWorldId = allowCanonicalFallback && hasNativeSessionId
+      ? await this.#readCanonicalWorldId()
+      : null;
+    if (allowCanonicalFallback && hasNativeSessionId
+      && typeof canonicalWorldId === 'string' && canonicalWorldId
       && canonicalWorldId !== sessionId) {
       await this.bind(sessionId, canonicalWorldId);
       const settled = await this.#readAlias(sessionId, canonicalWorldId);
@@ -201,11 +233,15 @@ export function worldIdentityLoadOptions(identity, {
   pending = false,
   saveName = null,
   nativeTileId = null,
+  restoreCanonicalLineage = false,
 } = {}) {
   if (pending) return {};
   return {
-    ...(typeof saveName === 'string' && saveName ? { saveName } : {}),
+    // A selected canonical lineage is its own save source. Do not pair it
+    // with the currently-open native save/checkpoint during boot.
+    ...(!restoreCanonicalLineage && typeof saveName === 'string' && saveName ? { saveName } : {}),
     allowLiveFallback: identity?.aliased === true,
+    ...(restoreCanonicalLineage ? { restoreCanonicalLineage: true } : {}),
     nativeSessionId: identity?.nativeSessionId ?? null,
     nativeTileId,
   };

@@ -1,0 +1,2076 @@
+{
+  "crs": "EPSG:26918",
+  "grid": {
+    "bboxColumns": [
+      -4,
+      4
+    ],
+    "bboxRows": [
+      -3,
+      3
+    ],
+    "haloM": 2000,
+    "originX": 553400,
+    "originY": 4483300,
+    "ownershipConvention": "[min_x,max_x) \u00d7 [min_y,max_y)",
+    "tileHeightM": 97300,
+    "tileWidthM": 77700
+  },
+  "initialView": {
+    "center": [
+      -74.05697022,
+      40.88652063
+    ],
+    "zoom": 7
+  },
+  "prototype": true,
+  "schemaVersion": "0.1.0",
+  "selection": {
+    "jurisdictions": [
+      "CT",
+      "DC",
+      "DE",
+      "MA",
+      "MD",
+      "ME",
+      "NH",
+      "NJ",
+      "NY",
+      "PA",
+      "RI",
+      "VA",
+      "VT",
+      "WV"
+    ],
+    "selectedCount": 34,
+    "sourceSchemaVersion": "0.1.0",
+    "sourceWorldId": "NEC_CORRIDOR_TILE_PLANNER"
+  },
+  "tiles": [
+    {
+      "bounds": [
+        -77.96021189,
+        37.83373852,
+        -77.04256296,
+        38.72870408
+      ],
+      "column": -4,
+      "gameCityCode": "NEC_CM04_RM03",
+      "haloProjected": [
+        240600.0,
+        4189400.0,
+        322300.0,
+        4290700.0
+      ],
+      "id": "NEC_CM04_RM03",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 38.28195093,
+        "longitude": -77.49872512,
+        "zoom": 9
+      },
+      "name": "Grid -4, -3",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM04_RM02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM03_RM03"
+        }
+      ],
+      "ownershipProjected": [
+        242600,
+        4191400,
+        320300,
+        4288700
+      ],
+      "row": -3,
+      "stateTouches": [
+        {
+          "fips": "24",
+          "intersectionKm2": 446.559534,
+          "postal": "MD"
+        },
+        {
+          "fips": "51",
+          "intersectionKm2": 6883.753141,
+          "postal": "VA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -77.06728529,
+        37.85235775,
+        -76.1596143,
+        38.74109429
+      ],
+      "column": -3,
+      "gameCityCode": "NEC_CM03_RM03",
+      "haloProjected": [
+        318300.0,
+        4189400.0,
+        400000.0,
+        4290700.0
+      ],
+      "id": "NEC_CM03_RM03",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 38.29750952,
+        "longitude": -76.61077976,
+        "zoom": 9
+      },
+      "name": "Grid -3, -3",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM03_RM02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM02_RM03"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM04_RM03"
+        }
+      ],
+      "ownershipProjected": [
+        320300,
+        4191400,
+        398000,
+        4288700
+      ],
+      "row": -3,
+      "stateTouches": [
+        {
+          "fips": "24",
+          "intersectionKm2": 3172.533366,
+          "postal": "MD"
+        },
+        {
+          "fips": "51",
+          "intersectionKm2": 1858.187367,
+          "postal": "VA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -76.173658,
+        37.86436669,
+        -75.2762856,
+        38.74665192
+      ],
+      "column": -2,
+      "gameCityCode": "NEC_CM02_RM03",
+      "haloProjected": [
+        396000.0,
+        4189400.0,
+        477700.0,
+        4290700.0
+      ],
+      "id": "NEC_CM02_RM03",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 38.30634618,
+        "longitude": -75.72229743,
+        "zoom": 9
+      },
+      "name": "Grid -2, -3",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM02_RM02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM01_RM03"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM03_RM03"
+        }
+      ],
+      "ownershipProjected": [
+        398000,
+        4191400,
+        475700,
+        4288700
+      ],
+      "row": -3,
+      "stateTouches": [
+        {
+          "fips": "10",
+          "intersectionKm2": 1198.129117,
+          "postal": "DE"
+        },
+        {
+          "fips": "24",
+          "intersectionKm2": 4472.906681,
+          "postal": "MD"
+        },
+        {
+          "fips": "51",
+          "intersectionKm2": 481.320592,
+          "postal": "VA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -75.27963248,
+        37.86851205,
+        -74.38551203,
+        38.74665192
+      ],
+      "column": -1,
+      "gameCityCode": "NEC_CM01_RM03",
+      "haloProjected": [
+        473700.0,
+        4189400.0,
+        555400.0,
+        4290700.0
+      ],
+      "id": "NEC_CM01_RM03",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 38.30845197,
+        "longitude": -74.83357414,
+        "zoom": 9
+      },
+      "name": "Grid -1, -3",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM01_RM02"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM02_RM03"
+        }
+      ],
+      "ownershipProjected": [
+        475700,
+        4191400,
+        553400,
+        4288700
+      ],
+      "row": -3,
+      "stateTouches": [
+        {
+          "fips": "10",
+          "intersectionKm2": 622.041554,
+          "postal": "DE"
+        },
+        {
+          "fips": "24",
+          "intersectionKm2": 595.854224,
+          "postal": "MD"
+        },
+        {
+          "fips": "51",
+          "intersectionKm2": 6.628534,
+          "postal": "VA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -77.99715232,
+        38.70949395,
+        -77.06728529,
+        39.60490479
+      ],
+      "column": -4,
+      "gameCityCode": "NEC_CM04_RM02",
+      "haloProjected": [
+        240600.0,
+        4286700.0,
+        322300.0,
+        4388000.0
+      ],
+      "id": "NEC_CM04_RM02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 39.15795306,
+        "longitude": -77.52944042,
+        "zoom": 9
+      },
+      "name": "Grid -4, -2",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM04_RM01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM03_RM02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM04_RM03"
+        }
+      ],
+      "ownershipProjected": [
+        242600,
+        4288700,
+        320300,
+        4386000
+      ],
+      "row": -2,
+      "stateTouches": [
+        {
+          "fips": "11",
+          "intersectionKm2": 18.304268,
+          "postal": "DC"
+        },
+        {
+          "fips": "24",
+          "intersectionKm2": 3118.136936,
+          "postal": "MD"
+        },
+        {
+          "fips": "51",
+          "intersectionKm2": 3630.190913,
+          "postal": "VA"
+        },
+        {
+          "fips": "54",
+          "intersectionKm2": 793.577883,
+          "postal": "WV"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -77.09310689,
+        38.72870408,
+        -76.173658,
+        39.61768557
+      ],
+      "column": -3,
+      "gameCityCode": "NEC_CM03_RM02",
+      "haloProjected": [
+        318300.0,
+        4286700.0,
+        400000.0,
+        4388000.0
+      ],
+      "id": "NEC_CM03_RM02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 39.17400376,
+        "longitude": -76.63059505,
+        "zoom": 9
+      },
+      "name": "Grid -3, -2",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM03_RM01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM02_RM02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM03_RM03"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM04_RM02"
+        }
+      ],
+      "ownershipProjected": [
+        320300,
+        4288700,
+        398000,
+        4386000
+      ],
+      "row": -2,
+      "stateTouches": [
+        {
+          "fips": "11",
+          "intersectionKm2": 158.617216,
+          "postal": "DC"
+        },
+        {
+          "fips": "24",
+          "intersectionKm2": 6063.007532,
+          "postal": "MD"
+        },
+        {
+          "fips": "51",
+          "intersectionKm2": 44.557501,
+          "postal": "VA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -76.18832646,
+        38.74109429,
+        -75.27963248,
+        39.62341844
+      ],
+      "column": -2,
+      "gameCityCode": "NEC_CM02_RM02",
+      "haloProjected": [
+        396000.0,
+        4286700.0,
+        477700.0,
+        4388000.0
+      ],
+      "id": "NEC_CM02_RM02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 39.18312002,
+        "longitude": -75.73118672,
+        "zoom": 9
+      },
+      "name": "Grid -2, -2",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM02_RM01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM01_RM02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM02_RM03"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM03_RM02"
+        }
+      ],
+      "ownershipProjected": [
+        398000,
+        4288700,
+        475700,
+        4386000
+      ],
+      "row": -2,
+      "stateTouches": [
+        {
+          "fips": "10",
+          "intersectionKm2": 2757.976642,
+          "postal": "DE"
+        },
+        {
+          "fips": "24",
+          "intersectionKm2": 3354.994846,
+          "postal": "MD"
+        },
+        {
+          "fips": "34",
+          "intersectionKm2": 575.867707,
+          "postal": "NJ"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -75.28312828,
+        38.74537129,
+        -74.37783052,
+        39.62341844
+      ],
+      "column": -1,
+      "gameCityCode": "NEC_CM01_RM02",
+      "haloProjected": [
+        473700.0,
+        4286700.0,
+        555400.0,
+        4388000.0
+      ],
+      "id": "NEC_CM01_RM02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 39.18529245,
+        "longitude": -74.83152573,
+        "zoom": 9
+      },
+      "name": "Grid -1, -2",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM01_RM01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM01_RM03"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM02_RM02"
+        }
+      ],
+      "ownershipProjected": [
+        475700,
+        4288700,
+        553400,
+        4386000
+      ],
+      "row": -2,
+      "stateTouches": [
+        {
+          "fips": "10",
+          "intersectionKm2": 133.691435,
+          "postal": "DE"
+        },
+        {
+          "fips": "34",
+          "intersectionKm2": 3736.630091,
+          "postal": "NJ"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -78.03574104,
+        39.58508938,
+        -77.09310689,
+        40.48095828
+      ],
+      "column": -4,
+      "gameCityCode": "NEC_CM04_RM01",
+      "haloProjected": [
+        240600.0,
+        4384000.0,
+        322300.0,
+        4485300.0
+      ],
+      "id": "NEC_CM04_RM01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.03380204,
+        "longitude": -77.56152392,
+        "zoom": 9
+      },
+      "name": "Grid -4, -1",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CM03_RM01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM04_RM02"
+        }
+      ],
+      "ownershipProjected": [
+        242600,
+        4386000,
+        320300,
+        4483300
+      ],
+      "row": -1,
+      "stateTouches": [
+        {
+          "fips": "24",
+          "intersectionKm2": 1053.472609,
+          "postal": "MD"
+        },
+        {
+          "fips": "42",
+          "intersectionKm2": 6479.998505,
+          "postal": "PA"
+        },
+        {
+          "fips": "54",
+          "intersectionKm2": 26.738886,
+          "postal": "WV"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -77.1200816,
+        39.60490479,
+        -76.18832646,
+        40.49413948
+      ],
+      "column": -3,
+      "gameCityCode": "NEC_CM03_RM01",
+      "haloProjected": [
+        318300.0,
+        4384000.0,
+        400000.0,
+        4485300.0
+      ],
+      "id": "NEC_CM03_RM01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.05035705,
+        "longitude": -76.65129359,
+        "zoom": 9
+      },
+      "name": "Grid -3, -1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM03_RP00"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM02_RM01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM03_RM02"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM04_RM01"
+        }
+      ],
+      "ownershipProjected": [
+        320300,
+        4386000,
+        398000,
+        4483300
+      ],
+      "row": -1,
+      "stateTouches": [
+        {
+          "fips": "24",
+          "intersectionKm2": 940.584152,
+          "postal": "MD"
+        },
+        {
+          "fips": "42",
+          "intersectionKm2": 6619.625848,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -76.20365032,
+        39.61768557,
+        -75.28312828,
+        40.50005201
+      ],
+      "column": -2,
+      "gameCityCode": "NEC_CM02_RM01",
+      "haloProjected": [
+        396000.0,
+        4384000.0,
+        477700.0,
+        4485300.0
+      ],
+      "id": "NEC_CM02_RM01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.05975985,
+        "longitude": -75.74047238,
+        "zoom": 9
+      },
+      "name": "Grid -2, -1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM02_RP00"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM01_RM01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM02_RM02"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM03_RM01"
+        }
+      ],
+      "ownershipProjected": [
+        398000,
+        4386000,
+        475700,
+        4483300
+      ],
+      "row": -1,
+      "stateTouches": [
+        {
+          "fips": "10",
+          "intersectionKm2": 491.383703,
+          "postal": "DE"
+        },
+        {
+          "fips": "24",
+          "intersectionKm2": 390.278895,
+          "postal": "MD"
+        },
+        {
+          "fips": "34",
+          "intersectionKm2": 391.885262,
+          "postal": "NJ"
+        },
+        {
+          "fips": "42",
+          "intersectionKm2": 6230.100045,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -75.28678032,
+        39.62209743,
+        -74.36980574,
+        40.50005201
+      ],
+      "column": -1,
+      "gameCityCode": "NEC_CM01_RM01",
+      "haloProjected": [
+        473700.0,
+        4384000.0,
+        555400.0,
+        4485300.0
+      ],
+      "id": "NEC_CM01_RM01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.06200057,
+        "longitude": -74.82938598,
+        "zoom": 9
+      },
+      "name": "Grid -1, -1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM01_RP00"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP00_RM01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM01_RM02"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM02_RM01"
+        }
+      ],
+      "ownershipProjected": [
+        475700,
+        4386000,
+        553400,
+        4483300
+      ],
+      "row": -1,
+      "stateTouches": [
+        {
+          "fips": "34",
+          "intersectionKm2": 5566.019744,
+          "postal": "NJ"
+        },
+        {
+          "fips": "42",
+          "intersectionKm2": 1994.190256,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -74.37783052,
+        39.61372389,
+        -73.45306095,
+        40.49868959
+      ],
+      "column": 0,
+      "gameCityCode": "NEC_CP00_RM01",
+      "haloProjected": [
+        551400.0,
+        4384000.0,
+        633100.0,
+        4485300.0
+      ],
+      "id": "NEC_CP00_RM01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.05707685,
+        "longitude": -73.91836069,
+        "zoom": 9
+      },
+      "name": "Grid 0, -1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP00_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM01_RM01"
+        }
+      ],
+      "ownershipProjected": [
+        553400,
+        4386000,
+        631100,
+        4483300
+      ],
+      "row": -1,
+      "stateTouches": [
+        {
+          "fips": "34",
+          "intersectionKm2": 2562.867329,
+          "postal": "NJ"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 0.098357,
+          "postal": "NY"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -77.14826728,
+        40.48095828,
+        -76.20365032,
+        41.37045505
+      ],
+      "column": -3,
+      "gameCityCode": "NEC_CM03_RP00",
+      "haloProjected": [
+        318300.0,
+        4481300.0,
+        400000.0,
+        4582600.0
+      ],
+      "id": "NEC_CM03_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.92656815,
+        "longitude": -76.6729192,
+        "zoom": 9
+      },
+      "name": "Grid -3, 0",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CM02_RP00"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM03_RM01"
+        }
+      ],
+      "ownershipProjected": [
+        320300,
+        4483300,
+        398000,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "42",
+          "intersectionKm2": 7560.21,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -76.2196625,
+        40.49413948,
+        -75.28678032,
+        41.37655191
+      ],
+      "column": -2,
+      "gameCityCode": "NEC_CM02_RP00",
+      "haloProjected": [
+        396000.0,
+        4481300.0,
+        477700.0,
+        4582600.0
+      ],
+      "id": "NEC_CM02_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.93626483,
+        "longitude": -75.7501741,
+        "zoom": 9
+      },
+      "name": "Grid -2, 0",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM02_RP01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CM01_RP00"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM02_RM01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM03_RP00"
+        }
+      ],
+      "ownershipProjected": [
+        398000,
+        4483300,
+        475700,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "42",
+          "intersectionKm2": 7560.21,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -75.29059644,
+        40.49868959,
+        -74.36142043,
+        41.37655191
+      ],
+      "column": -1,
+      "gameCityCode": "NEC_CM01_RP00",
+      "haloProjected": [
+        473700.0,
+        4481300.0,
+        555400.0,
+        4582600.0
+      ],
+      "id": "NEC_CM01_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.9385756,
+        "longitude": -74.82715034,
+        "zoom": 9
+      },
+      "name": "Grid -1, 0",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CM01_RP01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP00_RP00"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM01_RM01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM02_RP00"
+        }
+      ],
+      "ownershipProjected": [
+        475700,
+        4483300,
+        553400,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "34",
+          "intersectionKm2": 5153.895692,
+          "postal": "NJ"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 294.628004,
+          "postal": "NY"
+        },
+        {
+          "fips": "42",
+          "intersectionKm2": 2111.686304,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -74.36980574,
+        40.49005367,
+        -73.43248603,
+        41.37514701
+      ],
+      "column": 0,
+      "gameCityCode": "NEC_CP00_RP00",
+      "haloProjected": [
+        551400.0,
+        4481300.0,
+        633100.0,
+        4582600.0
+      ],
+      "id": "NEC_CP00_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.93349796,
+        "longitude": -73.9041908,
+        "zoom": 9
+      },
+      "name": "Grid 0, 0",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP00_RP01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP01_RP00"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP00_RM01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM01_RP00"
+        }
+      ],
+      "ownershipProjected": [
+        553400,
+        4483300,
+        631100,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "09",
+          "intersectionKm2": 497.867718,
+          "postal": "CT"
+        },
+        {
+          "fips": "34",
+          "intersectionKm2": 1907.738054,
+          "postal": "NJ"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 4119.642755,
+          "postal": "NY"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -73.45306095,
+        40.47415341,
+        -72.50414422,
+        41.36624187
+      ],
+      "column": 1,
+      "gameCityCode": "NEC_CP01_RP00",
+      "haloProjected": [
+        629100.0,
+        4481300.0,
+        710800.0,
+        4582600.0
+      ],
+      "id": "NEC_CP01_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.92103737,
+        "longitude": -72.98163822,
+        "zoom": 9
+      },
+      "name": "Grid 1, 0",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP01_RP01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP02_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP00_RP00"
+        }
+      ],
+      "ownershipProjected": [
+        631100,
+        4483300,
+        708800,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "09",
+          "intersectionKm2": 1339.331609,
+          "postal": "CT"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 2220.947036,
+          "postal": "NY"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -72.5368798,
+        40.45100565,
+        -71.5767446,
+        41.34984612
+      ],
+      "column": 2,
+      "gameCityCode": "NEC_CP02_RP00",
+      "haloProjected": [
+        706800.0,
+        4481300.0,
+        788500.0,
+        4582600.0
+      ],
+      "id": "NEC_CP02_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.90120716,
+        "longitude": -72.05983437,
+        "zoom": 9
+      },
+      "name": "Grid 2, 0",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP02_RP01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP01_RP00"
+        }
+      ],
+      "ownershipProjected": [
+        708800,
+        4483300,
+        786500,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "09",
+          "intersectionKm2": 252.942002,
+          "postal": "CT"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 754.842118,
+          "postal": "NY"
+        },
+        {
+          "fips": "44",
+          "intersectionKm2": 20.805549,
+          "postal": "RI"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -70.70753659,
+        40.3830731,
+        -69.72615824,
+        41.29466159
+      ],
+      "column": 4,
+      "gameCityCode": "NEC_CP04_RP00",
+      "haloProjected": [
+        862200.0,
+        4481300.0,
+        943900.0,
+        4582600.0
+      ],
+      "id": "NEC_CP04_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.83953046,
+        "longitude": -70.21983051,
+        "zoom": 9
+      },
+      "name": "Grid 4, 0",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP04_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        864200,
+        4483300,
+        941900,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 55.62389,
+          "postal": "MA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -76.23639837,
+        41.37045505,
+        -75.29059644,
+        42.25291758
+      ],
+      "column": -2,
+      "gameCityCode": "NEC_CM02_RP01",
+      "haloProjected": [
+        396000.0,
+        4578600.0,
+        477700.0,
+        4679900.0
+      ],
+      "id": "NEC_CM02_RP01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 41.81263423,
+        "longitude": -75.76031304,
+        "zoom": 9
+      },
+      "name": "Grid -2, 1",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CM01_RP01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM02_RP00"
+        }
+      ],
+      "ownershipProjected": [
+        398000,
+        4580600,
+        475700,
+        4677900
+      ],
+      "row": 1,
+      "stateTouches": [
+        {
+          "fips": "36",
+          "intersectionKm2": 2188.436559,
+          "postal": "NY"
+        },
+        {
+          "fips": "42",
+          "intersectionKm2": 5371.773441,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -75.29458509,
+        41.37514701,
+        -74.35265605,
+        42.25291758
+      ],
+      "column": -1,
+      "gameCityCode": "NEC_CM01_RP01",
+      "haloProjected": [
+        473700.0,
+        4578600.0,
+        555400.0,
+        4679900.0
+      ],
+      "id": "NEC_CM01_RP01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 41.81501689,
+        "longitude": -74.82481394,
+        "zoom": 9
+      },
+      "name": "Grid -1, 1",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CP00_RP01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CM01_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM02_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        475700,
+        4580600,
+        553400,
+        4677900
+      ],
+      "row": 1,
+      "stateTouches": [
+        {
+          "fips": "36",
+          "intersectionKm2": 6245.813033,
+          "postal": "NY"
+        },
+        {
+          "fips": "42",
+          "intersectionKm2": 1314.396967,
+          "postal": "PA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -74.36142043,
+        41.36624187,
+        -73.41098135,
+        42.25146906
+      ],
+      "column": 0,
+      "gameCityCode": "NEC_CP00_RP01",
+      "haloProjected": [
+        551400.0,
+        4578600.0,
+        633100.0,
+        4679900.0
+      ],
+      "id": "NEC_CP00_RP01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 41.80978127,
+        "longitude": -73.88938241,
+        "zoom": 9
+      },
+      "name": "Grid 0, 1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP00_RP02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP01_RP01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP00_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM01_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        553400,
+        4580600,
+        631100,
+        4677900
+      ],
+      "row": 1,
+      "stateTouches": [
+        {
+          "fips": "09",
+          "intersectionKm2": 571.252989,
+          "postal": "CT"
+        },
+        {
+          "fips": "25",
+          "intersectionKm2": 124.381348,
+          "postal": "MA"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 6864.575663,
+          "postal": "NY"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -73.43248603,
+        41.34984612,
+        -72.46993042,
+        42.24228747
+      ],
+      "column": 1,
+      "gameCityCode": "NEC_CP01_RP01",
+      "haloProjected": [
+        629100.0,
+        4578600.0,
+        710800.0,
+        4679900.0
+      ],
+      "id": "NEC_CP01_RP01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 41.79693309,
+        "longitude": -72.95437902,
+        "zoom": 9
+      },
+      "name": "Grid 1, 1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP01_RP02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP02_RP01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP01_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP00_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        631100,
+        4580600,
+        708800,
+        4677900
+      ],
+      "row": 1,
+      "stateTouches": [
+        {
+          "fips": "09",
+          "intersectionKm2": 5856.183329,
+          "postal": "CT"
+        },
+        {
+          "fips": "25",
+          "intersectionKm2": 1704.026671,
+          "postal": "MA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -72.50414422,
+        41.32597745,
+        -71.52987119,
+        42.22538292
+      ],
+      "column": 2,
+      "gameCityCode": "NEC_CP02_RP01",
+      "haloProjected": [
+        706800.0,
+        4578600.0,
+        788500.0,
+        4679900.0
+      ],
+      "id": "NEC_CP02_RP01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 41.77648637,
+        "longitude": -72.02016328,
+        "zoom": 9
+      },
+      "name": "Grid 2, 1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP02_RP02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP03_RP01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP02_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP01_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        708800,
+        4580600,
+        786500,
+        4677900
+      ],
+      "row": 1,
+      "stateTouches": [
+        {
+          "fips": "09",
+          "intersectionKm2": 4407.822995,
+          "postal": "CT"
+        },
+        {
+          "fips": "25",
+          "intersectionKm2": 1635.692738,
+          "postal": "MA"
+        },
+        {
+          "fips": "44",
+          "intersectionKm2": 1482.78905,
+          "postal": "RI"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -71.5767446,
+        41.29466159,
+        -70.59116909,
+        42.20077403
+      ],
+      "column": 3,
+      "gameCityCode": "NEC_CP03_RP01",
+      "haloProjected": [
+        784500.0,
+        4578600.0,
+        866200.0,
+        4679900.0
+      ],
+      "id": "NEC_CP03_RP01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 41.74846339,
+        "longitude": -71.08709282,
+        "zoom": 9
+      },
+      "name": "Grid 3, 1",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP03_RP02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP04_RP01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP02_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        786500,
+        4580600,
+        864200,
+        4677900
+      ],
+      "row": 1,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 4075.813256,
+          "postal": "MA"
+        },
+        {
+          "fips": "44",
+          "intersectionKm2": 1325.286842,
+          "postal": "RI"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -70.65063451,
+        41.2559322,
+        -69.65418626,
+        42.16848785
+      ],
+      "column": 4,
+      "gameCityCode": "NEC_CP04_RP01",
+      "haloProjected": [
+        862200.0,
+        4578600.0,
+        943900.0,
+        4679900.0
+      ],
+      "id": "NEC_CP04_RP01",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 41.71289461,
+        "longitude": -70.15552248,
+        "zoom": 9
+      },
+      "name": "Grid 4, 1",
+      "neighbors": [
+        {
+          "direction": "south",
+          "tileId": "NEC_CP04_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP03_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        864200,
+        4580600,
+        941900,
+        4677900
+      ],
+      "row": 1,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 1458.076431,
+          "postal": "MA"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -74.35265605,
+        42.24228747,
+        -73.38849798,
+        43.12765523
+      ],
+      "column": 0,
+      "gameCityCode": "NEC_CP00_RP02",
+      "haloProjected": [
+        551400.0,
+        4675900.0,
+        633100.0,
+        4777200.0
+      ],
+      "id": "NEC_CP00_RP02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 42.68592605,
+        "longitude": -73.8739023,
+        "zoom": 9
+      },
+      "name": "Grid 0, 2",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CP01_RP02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP00_RP01"
+        }
+      ],
+      "ownershipProjected": [
+        553400,
+        4677900,
+        631100,
+        4775200
+      ],
+      "row": 2,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 21.17151,
+          "postal": "MA"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 7539.03849,
+          "postal": "NY"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -73.41098135,
+        42.22538292,
+        -72.4341607,
+        43.1181895
+      ],
+      "column": 1,
+      "gameCityCode": "NEC_CP01_RP02",
+      "haloProjected": [
+        629100.0,
+        4675900.0,
+        710800.0,
+        4777200.0
+      ],
+      "id": "NEC_CP01_RP02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 42.67267969,
+        "longitude": -72.925884,
+        "zoom": 9
+      },
+      "name": "Grid 1, 2",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CP02_RP02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP01_RP01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP00_RP02"
+        }
+      ],
+      "ownershipProjected": [
+        631100,
+        4677900,
+        708800,
+        4775200
+      ],
+      "row": 2,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 4115.301068,
+          "postal": "MA"
+        },
+        {
+          "fips": "33",
+          "intersectionKm2": 197.423031,
+          "postal": "NH"
+        },
+        {
+          "fips": "36",
+          "intersectionKm2": 632.160809,
+          "postal": "NY"
+        },
+        {
+          "fips": "50",
+          "intersectionKm2": 2615.325092,
+          "postal": "VT"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -72.46993042,
+        42.20077403,
+        -71.48086846,
+        43.10076206
+      ],
+      "column": 2,
+      "gameCityCode": "NEC_CP02_RP02",
+      "haloProjected": [
+        706800.0,
+        4675900.0,
+        788500.0,
+        4777200.0
+      ],
+      "id": "NEC_CP02_RP02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 42.65159964,
+        "longitude": -71.97869529,
+        "zoom": 9
+      },
+      "name": "Grid 2, 2",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP02_RP03"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP03_RP02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP02_RP01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP01_RP02"
+        }
+      ],
+      "ownershipProjected": [
+        708800,
+        4677900,
+        786500,
+        4775200
+      ],
+      "row": 2,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 4318.913792,
+          "postal": "MA"
+        },
+        {
+          "fips": "33",
+          "intersectionKm2": 3241.296208,
+          "postal": "NH"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -71.52987119,
+        42.16848785,
+        -70.52900622,
+        43.07539248
+      ],
+      "column": 3,
+      "gameCityCode": "NEC_CP03_RP02",
+      "haloProjected": [
+        784500.0,
+        4675900.0,
+        866200.0,
+        4777200.0
+      ],
+      "id": "NEC_CP03_RP02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 42.62270935,
+        "longitude": -71.0327127,
+        "zoom": 9
+      },
+      "name": "Grid 3, 2",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP03_RP03"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP03_RP01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP02_RP02"
+        }
+      ],
+      "ownershipProjected": [
+        786500,
+        4677900,
+        864200,
+        4775200
+      ],
+      "row": 2,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 3719.561195,
+          "postal": "MA"
+        },
+        {
+          "fips": "23",
+          "intersectionKm2": 1.144476,
+          "postal": "ME"
+        },
+        {
+          "fips": "33",
+          "intersectionKm2": 1776.99094,
+          "postal": "NH"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -72.4341607,
+        43.07539248,
+        -71.42962207,
+        43.97598181
+      ],
+      "column": 2,
+      "gameCityCode": "NEC_CP02_RP03",
+      "haloProjected": [
+        706800.0,
+        4773200.0,
+        788500.0,
+        4874500.0
+      ],
+      "id": "NEC_CP02_RP03",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 43.52654468,
+        "longitude": -71.93533489,
+        "zoom": 9
+      },
+      "name": "Grid 2, 3",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CP03_RP03"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP02_RP02"
+        }
+      ],
+      "ownershipProjected": [
+        708800,
+        4775200,
+        786500,
+        4872500
+      ],
+      "row": 3,
+      "stateTouches": [
+        {
+          "fips": "33",
+          "intersectionKm2": 6866.921501,
+          "postal": "NH"
+        },
+        {
+          "fips": "50",
+          "intersectionKm2": 693.288499,
+          "postal": "VT"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -71.48086846,
+        43.04210923,
+        -70.46400141,
+        43.94982983
+      ],
+      "column": 3,
+      "gameCityCode": "NEC_CP03_RP03",
+      "haloProjected": [
+        784500.0,
+        4773200.0,
+        866200.0,
+        4874500.0
+      ],
+      "id": "NEC_CP03_RP03",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 43.49676274,
+        "longitude": -70.97585414,
+        "zoom": 9
+      },
+      "name": "Grid 3, 3",
+      "neighbors": [
+        {
+          "direction": "east",
+          "tileId": "NEC_CP04_RP03"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP03_RP02"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP02_RP03"
+        }
+      ],
+      "ownershipProjected": [
+        786500,
+        4775200,
+        864200,
+        4872500
+      ],
+      "row": 3,
+      "stateTouches": [
+        {
+          "fips": "23",
+          "intersectionKm2": 3175.049575,
+          "postal": "ME"
+        },
+        {
+          "fips": "33",
+          "intersectionKm2": 4141.751965,
+          "postal": "NH"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "bounds": [
+        -70.52900622,
+        43.00094954,
+        -69.50029134,
+        43.91552114
+      ],
+      "column": 4,
+      "gameCityCode": "NEC_CP04_RP03",
+      "haloProjected": [
+        862200.0,
+        4773200.0,
+        943900.0,
+        4874500.0
+      ],
+      "id": "NEC_CP04_RP03",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 43.45896377,
+        "longitude": -70.01803876,
+        "zoom": 9
+      },
+      "name": "Grid 4, 3",
+      "neighbors": [
+        {
+          "direction": "west",
+          "tileId": "NEC_CP03_RP03"
+        }
+      ],
+      "ownershipProjected": [
+        864200,
+        4775200,
+        941900,
+        4872500
+      ],
+      "row": 3,
+      "stateTouches": [
+        {
+          "fips": "23",
+          "intersectionKm2": 1711.699503,
+          "postal": "ME"
+        }
+      ],
+      "status": "selected"
+    }
+  ],
+  "worldId": "NEC_CORRIDOR_LODES_PROTOTYPE"
+}

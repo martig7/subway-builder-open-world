@@ -27,7 +27,7 @@ test('an unrelated native save remains isolated without an explicit alias', asyn
   });
 });
 
-test('an unmarked grid autosave inherits the durable canonical world', async () => {
+test('an unmarked native session does not inherit the durable canonical world by default', async () => {
   const storage = new Map();
   const resolver = new WorldIdentityResolver({ storage });
 
@@ -36,17 +36,10 @@ test('an unmarked grid autosave inherits the durable canonical world', async () 
   });
   const reopened = await resolver.resolve('new-unmarked-autosave');
 
-  assert.deepEqual(reopened, {
-    nativeSessionId: 'new-unmarked-autosave',
-    worldId: 'canonical-open-world',
-    aliased: true,
-    source: 'canonical-world',
-    sourceSessionId: null,
-  });
-  assert.equal(
-    storage.get(`${WORLD_IDENTITY_ALIAS_PREFIX}new-unmarked-autosave`),
-    'canonical-open-world',
-  );
+  assert.equal(reopened.nativeSessionId, 'new-unmarked-autosave');
+  assert.equal(reopened.worldId, 'new-unmarked-autosave');
+  assert.equal(reopened.aliased, false);
+  assert.equal(storage.get(`${WORLD_IDENTITY_ALIAS_PREFIX}new-unmarked-autosave`), undefined);
 });
 
 test('a configured canonical seed recovers when aliases and native markers were lost', async () => {
@@ -56,12 +49,28 @@ test('a configured canonical seed recovers when aliases and native markers were 
     canonicalWorldId: 'canonical-open-world',
   });
 
-  const recovered = await resolver.resolve('new-unmarked-autosave');
+  const recovered = await resolver.resolve('new-unmarked-autosave', null, {
+    allowCanonicalFallback: true,
+  });
 
   assert.equal(recovered.worldId, 'canonical-open-world');
   assert.equal(recovered.aliased, true);
   assert.equal(recovered.source, 'canonical-world');
   assert.equal(storage.get('identity:canonical-world'), 'canonical-open-world');
+});
+
+test('an unavailable native session receives a stable isolated world id', async () => {
+  const storage = new Map([['identity:canonical-world', 'old-open-world']]);
+  const resolver = new WorldIdentityResolver({ storage, fallbackWorldId: 'ny-state-six-tile' });
+
+  const first = await resolver.resolve(null, null, { allowCanonicalFallback: true });
+  const reopened = await resolver.resolve(undefined);
+
+  assert.equal(first.worldId, reopened.worldId);
+  assert.match(first.worldId, /^ny-state-six-tile:unbound:/);
+  assert.equal(first.aliased, false);
+  assert.notEqual(first.worldId, 'old-open-world');
+  assert.equal(storage.get(`${WORLD_IDENTITY_ALIAS_PREFIX}${first.worldId}`), undefined);
 });
 
 test('a one-time recovery alias is persisted through authoritative mod storage', async () => {
@@ -154,6 +163,26 @@ test('a persisted authoritative world marker survives a native autosave id chang
     source: 'authoritative-marker',
     sourceSessionId: null,
   });
+});
+
+test('an explicit user-selected canonical path overrides a stale alias', async () => {
+  const storage = new Map([
+    [`${WORLD_IDENTITY_ALIAS_PREFIX}native-save`, 'old-world'],
+  ]);
+  const resolver = new WorldIdentityResolver({ storage });
+
+  const resolved = await resolver.resolve('native-save', null, {
+    selectedWorldId: 'chosen-world',
+  });
+
+  assert.deepEqual(resolved, {
+    nativeSessionId: 'native-save',
+    worldId: 'chosen-world',
+    aliased: true,
+    source: 'user-selection',
+    sourceSessionId: null,
+  });
+  assert.equal(storage.get(`${WORLD_IDENTITY_ALIAS_PREFIX}native-save`), 'chosen-world');
 });
 
 test('an aliased autosave without a public save name still requests authoritative restoration', () => {

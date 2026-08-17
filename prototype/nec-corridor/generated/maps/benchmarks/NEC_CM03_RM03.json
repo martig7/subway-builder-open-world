@@ -1,0 +1,49 @@
+{
+  "assetBytes": {
+    "buildings_index.bin.gz": 7581395,
+    "roads.geojson.gz": 3622543,
+    "runways_taxiways.geojson.gz": 47335,
+    "tiles.pmtiles": 17708263
+  },
+  "bbox": [
+    -77.09080460904416,
+    37.833946767983925,
+    -76.13660413795311,
+    38.759342897878135
+  ],
+  "buildingFeatures": 131150,
+  "depotCode": "NE01",
+  "elapsedSeconds": 800.58,
+  "installedBytes": 28959536,
+  "peakRssBytes": 960471040,
+  "roadFeatures": 28994,
+  "schemaVersion": 1,
+  "stages": [
+    {
+      "name": "base",
+      "resumed": false,
+      "seconds": 52.192
+    },
+    {
+      "name": "buildings",
+      "resumed": false,
+      "seconds": 57.401
+    },
+    {
+      "name": "roads",
+      "resumed": false,
+      "seconds": 12.456
+    },
+    {
+      "name": "pmtiles",
+      "resumed": false,
+      "seconds": 500.282
+    },
+    {
+      "name": "labels",
+      "resumed": false,
+      "seconds": 159.707
+    }
+  ],
+  "tileId": "NEC_CM03_RM03"
+}

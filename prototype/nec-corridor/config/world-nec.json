@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0.0",
+  "worldId": "NEC_CORRIDOR_LODES_PROTOTYPE",
+  "prototype": true,
+  "crs": "EPSG:26918",
+  "grid": {
+    "originX": 553400,
+    "originY": 4483300,
+    "tileWidthM": 77700,
+    "tileHeightM": 97300,
+    "ownershipConvention": "[min_x,max_x) × [min_y,max_y)",
+    "haloM": 2000
+  },
+  "selection": {
+    "path": "input/nec-corridor-selection.json",
+    "expectedTileCount": 34
+  },
+  "states": {
+    "workplaceJurisdictions": ["CT", "DC", "DE", "MA", "MD", "ME", "NH", "NJ", "NY", "PA", "RI", "VA", "VT", "WV"],
+    "selectedResidenceJurisdictions": ["CT", "DC", "DE", "MA", "MD", "ME", "NH", "NJ", "NY", "PA", "RI", "VA", "VT", "WV"]
+  },
+  "demand": {
+    "lodesVersion": "LODES8",
+    "formatVersion": "8.4",
+    "vintage": 2023,
+    "jobType": "JT01",
+    "workerColumn": "S000",
+    "completeResidentAux": false
+  },
+  "cohort": {
+    "pointMergeDistanceM": 100,
+    "nativeMinimumSize": 50,
+    "maximumSize": 200,
+    "undersizedResidualPolicy": "retain-and-warn"
+  }
+}

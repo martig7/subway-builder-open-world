@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceSet": "nec-lodes8-jt01-2023",
+  "notes": "M1 source manifest. Fill byte counts and SHA-256 values from the Census directory before a production acquisition run.",
+  "sources": [
+    {
+      "id": "census-state-boundary-2024-500k",
+      "filename": "cb_2024_us_state_500k.zip",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_500k.zip",
+      "role": "grid-state-intersection",
+      "bytes": null,
+      "sha256": null
+    },
+    {
+      "id": "lodes-state-files",
+      "states": ["ct", "dc", "de", "ma", "md", "me", "nh", "nj", "ny", "pa", "ri", "va", "vt", "wv"],
+      "files": [
+        {
+          "filename": "{state}_od_main_JT01_2023.csv.gz",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/{state}/od/{state}_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main"
+        },
+        {
+          "filename": "{state}_od_aux_JT01_2023.csv.gz",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/{state}/od/{state}_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux"
+        },
+        {
+          "filename": "{state}_xwalk.csv.gz",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/{state}/{state}_xwalk.csv.gz",
+          "role": "lodes-crosswalk"
+        }
+      ],
+      "checksums": "retrieve from each state directory before locking"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import { stabilizeMapLayerMoves } from './map-layer-stability.js';
 import { relaxMapZoomLimits } from './map-zoom-limits.js';
 import { registerGeographicContextOverlay } from './ui/geographic-context-overlay.js';
 import { WorldIdentityResolver } from './world-identity.js';
+import { createAutosaveHookGuard } from './autosave-hook-guard.js';
 
 // This file is bundled to one import-free IIFE. It is intentionally a manual,
 // fail-closed feasibility mod, not a production auto-streaming implementation.
@@ -84,6 +85,7 @@ import { WorldIdentityResolver } from './world-identity.js';
   let ready = false;
   let startPromise = null;
   let loadedSaveName = null;
+  const autosaveHookGuard = createAutosaveHookGuard();
 
   async function recalculateCrossModeShare(reason, day = null, force = false) {
     if (!ready || !isCurrent()) return null;
@@ -208,6 +210,7 @@ import { WorldIdentityResolver } from './world-identity.js';
 
   async function handleGameLoaded(saveName) {
     if (!isCurrent()) return;
+    if (autosaveHookGuard.isNestedLoad(saveName)) return;
     loadedSaveName = typeof saveName === 'string' && saveName ? saveName : null;
     const loadedCityCode = api.utils.getCityCode?.();
     if (!registration.cities.includes(loadedCityCode)) return;
@@ -236,6 +239,7 @@ import { WorldIdentityResolver } from './world-identity.js';
 
   async function handleGameSaved(saveName) {
     if (!ready || !isCurrent() || typeof saveName !== 'string' || !saveName) return;
+    if (!autosaveHookGuard.begin(saveName)) return;
     try {
       const nativeSessionId = api.gameState.getGameSessionId();
       const nativeTileId = api.utils.getCityCode?.() ?? runtime.view().activeTileId;
@@ -243,10 +247,17 @@ import { WorldIdentityResolver } from './world-identity.js';
       if (!identityBound) {
         throw new Error('Native save identity moved to another authoritative open-world lineage');
       }
-      await runtime.checkpoint('game-save', { saveName, nativeSessionId, nativeTileId });
+      await runtime.checkpoint('game-save', {
+        saveName,
+        nativeSessionId,
+        nativeTileId,
+        captureNativeSnapshot: true,
+      });
       loadedSaveName = saveName;
     } catch (error) {
       console.warn(`[KC two-tile] could not checkpoint native save ${saveName}`, error);
+    } finally {
+      autosaveHookGuard.end();
     }
   }
 

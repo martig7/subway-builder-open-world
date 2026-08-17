@@ -30,3 +30,20 @@ test('discovers the router near the top of the mounted React fiber tree', () => 
 
   assert.equal(findMountedRouter(document), router);
 });
+
+test('supports a fresh native-world handoff without inventing a save identity', () => {
+  const values = new Map();
+  const sessionStorage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const router = { state: { location: { pathname: '/' } }, navigate() {} };
+  const navigation = new HashCityNavigationAdapter({ router, sessionStorage, tileIds: ['NY_CP00_RP00'] });
+
+  navigation.navigateTo({ tileId: 'NY_CP00_RP00', freshWorld: true });
+
+  assert.deepEqual(navigation.pending(), { freshWorld: true, tileId: 'NY_CP00_RP00' });
+  navigation.complete({ worldId: 'native-session-created-after-reset', tileId: 'NY_CP00_RP00' });
+  assert.equal(values.has(PENDING_KEY), false);
+});

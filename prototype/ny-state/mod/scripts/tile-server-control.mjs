@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 export const DEFAULT_TILE_SERVER_BASE = 'http://127.0.0.1:8798';
+export const NATIVE_PMTILES_SERVER_VERSION = 'native-pmtiles-directory-v2';
 const HEALTH_TILE = 'NY_CP00_RP00/2/2/2.mvt?v=world-z0-z9-v2';
 
 export function tileServerHealthUrl(baseUrl = DEFAULT_TILE_SERVER_BASE) {
@@ -11,8 +12,9 @@ async function probeTileServer(fetchImpl, baseUrl) {
   try {
     const response = await fetchImpl(tileServerHealthUrl(baseUrl), { cache: 'no-store' });
     if (!response?.ok) return false;
+    if (response.headers?.get?.('x-pmtiles-server-version') !== NATIVE_PMTILES_SERVER_VERSION) return false;
     const bytes = await response.arrayBuffer();
-    return bytes.byteLength > 0;
+    return bytes.byteLength > 0 && new Uint8Array(bytes)[0] === 0x1a;
   } catch {
     return false;
   }

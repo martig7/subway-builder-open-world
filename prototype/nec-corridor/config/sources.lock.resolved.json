@@ -1,0 +1,372 @@
+{
+  "notes": "Expanded acquisition manifest with observed file sizes and SHA-256 hashes.",
+  "schemaVersion": "1.0.0",
+  "sourceSet": "nec-lodes8-jt01-2023",
+  "sources": [
+    {
+      "bytes": null,
+      "filename": "cb_2024_us_state_500k.zip",
+      "id": "census-state-boundary-2024-500k",
+      "role": "grid-state-intersection",
+      "sha256": null,
+      "url": "https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_500k.zip"
+    },
+    {
+      "files": [
+        {
+          "bytes": 7103255,
+          "filename": "ct_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "8e3dcbd0900067f1274de8de3f9c2847058229dd2797edb5bb7b0e995b6d3886",
+          "state": "ct",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ct/od/ct_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 897727,
+          "filename": "ct_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "17261424428b9e5f62566391eca8f881e4af5c8e21736f5f6afccaa8516fa85c",
+          "state": "ct",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ct/od/ct_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 907829,
+          "filename": "ct_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "1043137641ceba4e0fc53a29461b08a159cf0e5145d9b9090059ee7b9fea60e7",
+          "state": "ct",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ct/ct_xwalk.csv.gz"
+        },
+        {
+          "bytes": 857131,
+          "filename": "dc_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "201d9b08395febfaa6f941d82bdc32332ca988a49f336dcc5957f007739d3422",
+          "state": "dc",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/dc/od/dc_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 2214425,
+          "filename": "dc_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "8396952df15d6898ff9ce7de632d6a9bd238f3acb9db7f9b83adf8a2a292b64f",
+          "state": "dc",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/dc/od/dc_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 106754,
+          "filename": "dc_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "cf0c8205ccf6c7e3161300cd3b457428092aeb1d6bf8bf6540b9af9fdd63a19e",
+          "state": "dc",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/dc/dc_xwalk.csv.gz"
+        },
+        {
+          "bytes": 1609079,
+          "filename": "de_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "c0e343a15f59ec701965f32ef5b0d2a6119ab5858e7bdde3a9aaa57ebe85e36b",
+          "state": "de",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/de/od/de_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 537097,
+          "filename": "de_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "68eabbde61b55e107e4a8b6a2f829d63bbd596b76b47c05d00cb67e87e9fa962",
+          "state": "de",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/de/od/de_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 358305,
+          "filename": "de_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "e2f7b74dfd579d345463b25c21f7bd0a257518a048ea0b03f60847d7b1b55656",
+          "state": "de",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/de/de_xwalk.csv.gz"
+        },
+        {
+          "bytes": 15950159,
+          "filename": "ma_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "d6d79475660446b69a1d27461f8f10af49272a6d1e29ee135c4228806d932e07",
+          "state": "ma",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ma/od/ma_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 1984719,
+          "filename": "ma_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "297281d70b906c7db6b708aa41b07767c70c338e3279a4f8aec6443d63628cf5",
+          "state": "ma",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ma/od/ma_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 1875594,
+          "filename": "ma_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "99fad44d8782c73b0b44f45e740a869329d3524d46fd67a3205782fa4aa73f96",
+          "state": "ma",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ma/ma_xwalk.csv.gz"
+        },
+        {
+          "bytes": 11023719,
+          "filename": "md_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "7773502140230e78ddef8f187253053150575d026ea30eb3a3b8408895658081",
+          "state": "md",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/md/od/md_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 1967656,
+          "filename": "md_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "7d9069a2cc2e530bbcc6c36e1151204521c0c68cd2e18cd8142a01fb7ccc447d",
+          "state": "md",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/md/od/md_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 1531247,
+          "filename": "md_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "bc8157d5c1f20ff6b82d1572c3664bff6c26ebeaea629b4484db6ed31a094bff",
+          "state": "md",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/md/md_xwalk.csv.gz"
+        },
+        {
+          "bytes": 2859885,
+          "filename": "me_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "187893fe0c786fe5718b903511f6cdfaaba37ac904e35cd982e44dc03036f958",
+          "state": "me",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/me/od/me_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 156034,
+          "filename": "me_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "871170cb390a3f57b9b1735c827fee880af7cc07ebfa90b0c5ee98857a6c3642",
+          "state": "me",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/me/od/me_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 838450,
+          "filename": "me_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "eb1c620bd4e5666563cccf440113fb9fba5ab7bb5e5663e6fa6cfc99ba9d4d4a",
+          "state": "me",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/me/me_xwalk.csv.gz"
+        },
+        {
+          "bytes": 2746393,
+          "filename": "nh_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "ca4d06bbc9293c1b9a0554602bf6c7a5e8ca6b22f5c11dff9d6411a37aaa8349",
+          "state": "nh",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/nh/od/nh_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 574767,
+          "filename": "nh_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "b9d10dc9623c1bc75cebe486162698ba13a0240aceedca02f919da447654e1f7",
+          "state": "nh",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/nh/od/nh_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 569755,
+          "filename": "nh_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "0208be0ccc04157a0aa0d6ce0a96eaa70aca852cc34220f868d87059813f8b70",
+          "state": "nh",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/nh/nh_xwalk.csv.gz"
+        },
+        {
+          "bytes": 18986004,
+          "filename": "nj_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "9260817a5b037e72a5cf015bce438ffe10104e3c2f4d18f551667e1f424718f0",
+          "state": "nj",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/nj/od/nj_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 2738202,
+          "filename": "nj_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "870d935f95301fc9420e1e16f95a73375c0baa40e4d05d67cfdba5be4483d923",
+          "state": "nj",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/nj/od/nj_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 2423142,
+          "filename": "nj_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "54c9dca7785a684c1bc92bc1cb1d8f0dad8a993b4171893c4927f2042847d8fb",
+          "state": "nj",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/nj/nj_xwalk.csv.gz"
+        },
+        {
+          "bytes": 41054012,
+          "filename": "ny_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "3adc9ecd65712f314ee30bd642c99a95027f4107efdf85a3f31d5a78c9a23e58",
+          "state": "ny",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ny/od/ny_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 5107362,
+          "filename": "ny_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "e8493d17da035f7cd70b73fb4b86b4a0e38b9ce80f1df2ab03fae134cbe05fee",
+          "state": "ny",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ny/od/ny_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 5209704,
+          "filename": "ny_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "b8041bc3e4b536c861e9b1e4f77e125adc129d772febf932ab16e1fedcfa6259",
+          "state": "ny",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ny/ny_xwalk.csv.gz"
+        },
+        {
+          "bytes": 28554947,
+          "filename": "pa_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "ce5c9f72f75f81ddfc74bed6a6357f9942e4cfe329748732a868cb3ed3883949",
+          "state": "pa",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/pa/od/pa_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 2413560,
+          "filename": "pa_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "e8b8c29f073d32aaf09ab8d4d3f4b6acda52b21c2decac6d147738f173b7f592",
+          "state": "pa",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/pa/od/pa_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 5841902,
+          "filename": "pa_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "b0a2af64b06b1b51cdf43b256df5ded8d51ecf4ce32464661fa6b9a92d784489",
+          "state": "pa",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/pa/pa_xwalk.csv.gz"
+        },
+        {
+          "bytes": 2006518,
+          "filename": "ri_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "8884c3f7849928955a38ff0f81164fa1cf673b9bc43566b4706e4268ebc9ed6b",
+          "state": "ri",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ri/od/ri_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 433208,
+          "filename": "ri_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "b7df23b1430f5b789f4107e23e7c5ad8e59f4ceea89479f4dda0a5be9eafafbb",
+          "state": "ri",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ri/od/ri_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 435015,
+          "filename": "ri_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "ee3354c591a04f1a510278c8ea129833d5af98cd7d319c9e7ae094b601d4092b",
+          "state": "ri",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ri/ri_xwalk.csv.gz"
+        },
+        {
+          "bytes": 16957878,
+          "filename": "va_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "e1e8b9333471fc61a835003373b0c41aab7633e68e9926108101d031baa2ac50",
+          "state": "va",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/va/od/va_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 2199636,
+          "filename": "va_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "ca8596e1480b304934b6471a77ba5517001c088d2da5cbcade0d0040338169a3",
+          "state": "va",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/va/od/va_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 2927130,
+          "filename": "va_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "2184335b2843d95fc04167618568c4d1deb161daa19ae3ed6df7776d80b6e79c",
+          "state": "va",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/va/va_xwalk.csv.gz"
+        },
+        {
+          "bytes": 1204808,
+          "filename": "vt_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "8a8f4c3dfe65305c1901ce2311409f17b9b928bccbbb080da78452b2fdd1c50f",
+          "state": "vt",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/vt/od/vt_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 218696,
+          "filename": "vt_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "8afce2925e71163569d363d1fb79ba74beb65c1e4baf2247b201af511e058d79",
+          "state": "vt",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/vt/od/vt_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 454612,
+          "filename": "vt_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "74933eb5a637a958a9b9b2c24e6ec2af66ef1207891ab4b84c14e5a987349a87",
+          "state": "vt",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/vt/vt_xwalk.csv.gz"
+        },
+        {
+          "bytes": 2913762,
+          "filename": "wv_od_main_JT01_2023.csv.gz",
+          "role": "lodes-main",
+          "sha256": "782593510e55d138ef22f8cba1eb2855dca2b0407686a35c7083f7fe140846d0",
+          "state": "wv",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/wv/od/wv_od_main_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 580317,
+          "filename": "wv_od_aux_JT01_2023.csv.gz",
+          "role": "lodes-aux",
+          "sha256": "f3e753d619da76492522a1e2b28d44a5837913e152bfdb463951a209e8d1b9c2",
+          "state": "wv",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/wv/od/wv_od_aux_JT01_2023.csv.gz"
+        },
+        {
+          "bytes": 1296897,
+          "filename": "wv_xwalk.csv.gz",
+          "role": "lodes-crosswalk",
+          "sha256": "d4e547ea3856c27585cb41eacd68ebcbad9d633392bc443f2944fbb7c7c75659",
+          "state": "wv",
+          "url": "https://lehd.ces.census.gov/data/lodes/LODES8/wv/wv_xwalk.csv.gz"
+        }
+      ],
+      "id": "lodes-state-files",
+      "states": [
+        "ct",
+        "dc",
+        "de",
+        "ma",
+        "md",
+        "me",
+        "nh",
+        "nj",
+        "ny",
+        "pa",
+        "ri",
+        "va",
+        "vt",
+        "wv"
+      ]
+    }
+  ]
+}

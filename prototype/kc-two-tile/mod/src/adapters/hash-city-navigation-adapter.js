@@ -44,7 +44,9 @@ export class HashCityNavigationAdapter {
   pending() {
     try {
       const pending = JSON.parse(this.sessionStorage?.getItem(this.pendingKey) ?? 'null');
-      return this.tileIds.includes(pending?.tileId) && typeof pending?.worldId === 'string' ? pending : null;
+      const hasWorld = typeof pending?.worldId === 'string' && pending.worldId;
+      const isFreshWorld = pending?.freshWorld === true;
+      return this.tileIds.includes(pending?.tileId) && (hasWorld || isFreshWorld) ? pending : null;
     } catch {
       return null;
     }
@@ -52,14 +54,19 @@ export class HashCityNavigationAdapter {
 
   complete(transition) {
     const pending = this.pendingFor(transition.tileId);
-    if (pending?.worldId === transition.worldId) this.sessionStorage?.removeItem(this.pendingKey);
+    if (pending?.freshWorld === true || pending?.worldId === transition.worldId) {
+      this.sessionStorage?.removeItem(this.pendingKey);
+    }
   }
 
-  navigateTo({ worldId, tileId }) {
-    if (typeof worldId !== 'string' || !this.tileIds.includes(tileId)) throw new Error('Invalid pending tile navigation');
+  navigateTo({ worldId, tileId, freshWorld = false }) {
+    if (!this.tileIds.includes(tileId)) throw new Error('Invalid pending tile navigation');
+    if (freshWorld !== true && typeof worldId !== 'string') throw new Error('Invalid pending tile navigation');
     const router = this.router ?? findMountedRouter(this.document);
     if (!router) throw new Error('The mounted Subway Builder router is unavailable');
-    this.sessionStorage?.setItem(this.pendingKey, JSON.stringify({ worldId, tileId }));
+    this.sessionStorage?.setItem(this.pendingKey, JSON.stringify(
+      freshWorld === true ? { freshWorld: true, tileId } : { worldId, tileId },
+    ));
     return router.navigate(`/game?city=${tileId}`);
   }
 }

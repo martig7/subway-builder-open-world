@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSet": "nec-osm-depot-latest-2026-08",
+  "notes": "All 14 NEC state extracts use the same Geofabrik latest snapshot family so shared border objects merge cleanly in Depot.",
+  "sources": [
+    {"state": "CT", "filename": "connecticut-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/connecticut-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "DC", "filename": "district-of-columbia-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/district-of-columbia-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "DE", "filename": "delaware-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/delaware-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "MA", "filename": "massachusetts-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/massachusetts-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "MD", "filename": "maryland-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/maryland-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "ME", "filename": "maine-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/maine-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "NH", "filename": "new-hampshire-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/new-hampshire-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "NJ", "filename": "new-jersey-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/new-jersey-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "NY", "filename": "new-york-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "PA", "filename": "pennsylvania-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/pennsylvania-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "RI", "filename": "rhode-island-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/rhode-island-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "VA", "filename": "virginia-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/virginia-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "VT", "filename": "vermont-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/vermont-latest.osm.pbf", "status": "download-if-missing"},
+    {"state": "WV", "filename": "west-virginia-latest.osm.pbf", "url": "https://download.geofabrik.de/north-america/us/west-virginia-latest.osm.pbf", "status": "download-if-missing"}
+  ]
+}

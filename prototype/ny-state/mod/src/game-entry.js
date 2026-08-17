@@ -4,6 +4,11 @@ import { ModStorageWorldStateAdapter } from '../../../kc-two-tile/mod/src/adapte
 import { SerializedStorageAdapter } from '../../../kc-two-tile/mod/src/adapters/serialized-storage-adapter.js';
 import { HashCityNavigationAdapter } from '../../../kc-two-tile/mod/src/adapters/hash-city-navigation-adapter.js';
 import { registerPrototypePanel } from '../../../kc-two-tile/mod/src/ui/prototype-panel.js';
+import {
+  registerCanonicalPathPanel,
+  registerSavedWorldHomeComponent,
+  scheduleSavedWorldHomeRegistration,
+} from '../../../kc-two-tile/mod/src/ui/canonical-path-panel.js';
 import { registerCrossDemandViewer } from '../../../kc-two-tile/mod/src/ui/cross-demand-viewer.js';
 import { registerNetworkProjectionOverlay } from '../../../kc-two-tile/mod/src/ui/network-projection-overlay.js';
 import { registerNetworkProjectionHooks } from '../../../kc-two-tile/mod/src/network-projection-hooks.js';
@@ -24,6 +29,8 @@ import {
   WorldIdentityResolver,
   worldIdentityLoadOptions,
 } from '../../../kc-two-tile/mod/src/world-identity.js';
+import { CanonicalPathSelection } from '../../../kc-two-tile/mod/src/canonical-path-selection.js';
+import { createAutosaveHookGuard } from '../../../kc-two-tile/mod/src/autosave-hook-guard.js';
 import { applyNetworkRecovery, decodeGzipBase64Json } from '../../../kc-two-tile/mod/src/network-recovery.js';
 import { embeddedNetworkRecoveryGzipBase64 } from './embedded-network-recovery.js';
 import {
@@ -37,28 +44,26 @@ const PENDING_PERFORMANCE_KEY = 'ny-state-pilot:pending-performance';
 const DIAGNOSTICS_KEY = 'diagnostics:tile-transitions';
 const RECOVERED_WORLD_ID = '220a5a58-5c33-41e0-8680-d80862153908';
 const CURRENT_CANONICAL_WORLD_ID = '969e5d4d-62d2-463f-99b2-235ca101f372';
-const RECOVERY_SESSION_ALIASES = Object.freeze({
-  // This native tile save was created after the old projection code seeded a
-  // fresh empty world. Bind it once through the authoritative storage API to
-  // the validated repaired lineage. The resolver persists the alias on load.
-  '8f24c509-e07d-40dc-a5bb-5db7dffd2c19': RECOVERED_WORLD_ID,
-  '27134722-1b63-4732-9c7a-3a958f546123': RECOVERED_WORLD_ID,
-  // A mod-reload race briefly forked this canonical lineage into a self-world.
-  // Bind both the source autosave and its Albany destination save back to the
-  // complete canonical world (including 101/102/103 and R).
-  'dd490e80-79e0-4a86-852d-ef0c9c63187f': CURRENT_CANONICAL_WORLD_ID,
-  '5f366b06-3165-46f1-b7e2-93318d6a80de': CURRENT_CANONICAL_WORLD_ID,
-  // The authoritative-load trace captured this newly named autosave carrying
-  // 5f366b06 as its embedded parent session. Keep the explicit migration so
-  // the already-created stale fork recovers even before its first marker-stamped save.
-  '2373ed13-57de-41ff-87d8-bbcf501592f1': CURRENT_CANONICAL_WORLD_ID,
-  // The 2026-08-15 file-storage race forked this NYC save into a self-world,
-  // then stamped the resulting empty Albany projection into its destination
-  // autosave. Both native sessions must resolve to the last complete lineage
-  // before either marker can be trusted again.
-  '62842bd8-de7c-4c94-a020-722a33e49956': CURRENT_CANONICAL_WORLD_ID,
-  'f437945c-fa4b-41a1-9c6e-38fbc8d8417b': CURRENT_CANONICAL_WORLD_ID,
-});
+const CANONICAL_PATHS = Object.freeze([
+  {
+    id: 'current-canonical-network',
+    label: 'Current New York world',
+    worldId: CURRENT_CANONICAL_WORLD_ID,
+    description: 'Use the current complete native transit network and its financial history.',
+  },
+  {
+    id: 'recovered-canonical-network',
+    label: 'Recovered New York world',
+    worldId: RECOVERED_WORLD_ID,
+    description: 'Use the repaired world retained from the earlier recovery checkpoint.',
+  },
+  {
+    id: 'native-save-only',
+    label: 'Keep this save separate',
+    nativeSession: true,
+    description: 'Do not attach this save to either existing canonical world.',
+  },
+]);
 const recoveryNetworkPromise = decodeGzipBase64Json(embeddedNetworkRecoveryGzipBase64);
 
 function heapBytes() {
@@ -91,9 +96,9 @@ function writePendingPerformance(value) {
   const identities = new WorldIdentityResolver({
     storage,
     fallbackWorldId: 'ny-state-six-tile',
-    recoveryAliases: RECOVERY_SESSION_ALIASES,
-    canonicalWorldId: CURRENT_CANONICAL_WORLD_ID,
   });
+  const canonicalPathSelection = new CanonicalPathSelection({ storage, paths: CANONICAL_PATHS });
+  void canonicalPathSelection.initialize();
   const tileBase = globalThis.NY_STATE_PILOT_TILE_BASE ?? 'http://127.0.0.1:8798';
   const registration = registerPilotCities(api, { tileBase });
   const game = new SubwayBuilderGameAdapter({ api });
@@ -232,9 +237,115 @@ function writePendingPerformance(value) {
   let settlementReady = false;
   let startupModeSharePromise = null;
   let startPromise = null;
+  let gameLoadObserved = false;
   let loadedSaveName = null;
   let requestedSessionReload = null;
   let sessionReloadPromise = null;
+  const autosaveHookGuard = createAutosaveHookGuard();
+
+  const canonicalPathPanel = registerCanonicalPathPanel({
+    api,
+    selector: canonicalPathSelection,
+    getContext: () => ({
+      nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
+      saveName: api.gameState.getSaveName?.() ?? loadedSaveName ?? null,
+      canSave: ready && isCurrent(),
+    }),
+    onSelection: async (selection) => {
+      diagnostics.canonicalPathSelection = {
+        selectedAt: Date.now(),
+        pathId: selection.pathId,
+        worldId: selection.worldId,
+        nativeSessionId: selection.nativeSessionId,
+        saveName: selection.saveName,
+      };
+      if (!started || !ready || !isCurrent()) return;
+      const loadedCityCode = api.utils.getCityCode?.();
+      if (!registration.cities.includes(loadedCityCode)) return;
+      if (selection.worldId === runtime.view().worldId) return;
+      void reloadLoadedSession(
+        loadedCityCode,
+        'canonical-path-selection',
+        api.gameState.getSaveName?.() ?? loadedSaveName,
+        true,
+      );
+    },
+    onSaveNew: async (label) => {
+      if (!ready || !isCurrent()) throw new Error('The New York world is not ready to save');
+      const suffix = globalThis.crypto?.randomUUID?.()
+        ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      const worldId = `ny-lineage:${suffix}`;
+      const saved = await runtime.saveAsCanonicalLineage({ worldId });
+      const path = await canonicalPathSelection.registerPath({
+        id: worldId,
+        label,
+        worldId,
+        userSaved: true,
+        description: 'User-saved world.',
+        day: saved.day,
+        worldTime: saved.worldTime,
+        routeCount: saved.routeCount,
+        stationCount: saved.stationCount,
+        trainCount: saved.trainCount,
+        elapsedSeconds: saved.elapsedSeconds,
+        wallet: saved.wallet,
+        money: saved.wallet,
+        fare: saved.fare,
+        savedAt: Date.now(),
+      });
+      const selection = await canonicalPathSelection.choose({
+        nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
+        saveName: api.gameState.getSaveName?.() ?? loadedSaveName ?? null,
+        pathId: path.id,
+      });
+      api.ui?.showNotification?.(`Saved world: ${label}`, 'success', 'New York saved worlds');
+      return { path, selection, saved };
+    },
+    panelId: 'ny-state-canonical-save-path',
+  });
+
+  const loadSavedWorldFromHome = async (path) => {
+    if (!path?.worldId) throw new Error('This saved world has no persisted world data.');
+    const electron = globalThis.window?.electron ?? globalThis.electron;
+    // Match the native new-game preparation used by the game's own home
+    // screen. The pending navigation then tells the NY lifecycle which
+    // sidecar world must replace that fresh native state.
+    if (typeof electron?.loadInitialData === 'function') await electron.loadInitialData();
+    navigation.navigateTo({ worldId: path.worldId, tileId: registration.tileIds[0] });
+  };
+  const startNewWorldFromHome = async () => {
+    // Native loadInitialData is the game's own new-world initializer. It
+    // applies STARTING_MONEY (currently $3,000,000,000), resets the clock,
+    // and clears the prior native topology; do not seed money in the mod.
+    await game.initializeNewWorld(registration.tileIds[0]);
+    navigation.navigateTo({ tileId: registration.tileIds[0], freshWorld: true });
+  };
+  const registerSavedWorldHome = () => {
+    const home = registerSavedWorldHomeComponent({
+      api,
+      selector: canonicalPathSelection,
+      onLoadWorld: loadSavedWorldFromHome,
+      onNewWorld: startNewWorldFromHome,
+      componentId: 'ny-state-saved-world-home-load',
+    });
+    diagnostics.savedWorldHome = Boolean(home);
+    return home;
+  };
+  const savedWorldHome = registerSavedWorldHome();
+  diagnostics.savedWorldHome = Boolean(savedWorldHome);
+
+  async function refreshCanonicalLineageMetadata() {
+    await canonicalPathSelection.initialize();
+    await Promise.all(canonicalPathSelection.listPaths()
+      .filter((path) => path.worldId && !path.nativeSession)
+      .map(async (path) => {
+        const metadata = await worldState.readLineageMetadata?.(path.worldId);
+        if (metadata) await canonicalPathSelection.updateMetadata(path.id, metadata);
+      }));
+  }
+  void refreshCanonicalLineageMetadata().catch((error) => {
+    console.warn('[NY pilot] could not refresh canonical lineage metadata', error);
+  });
 
   async function recalculateCrossModeShare(reason, day = null, force = false) {
     if (!ready || !isCurrent()) return null;
@@ -317,7 +428,7 @@ function writePendingPerformance(value) {
     try { return runtime.view().activeTileId; } catch { return null; }
   }
 
-  async function resolveWorldIdentity(nativeSessionId, pendingWorldId, loadTraceId) {
+  async function resolveWorldIdentity(nativeSessionId, pendingWorldId, loadTraceId, selectedPath = null) {
     const identityHints = game.readWorldIdentityHints();
     recordAuthoritativeLoad({
       phase: 'authoritative-load',
@@ -325,9 +436,16 @@ function writePendingPerformance(value) {
       segment: 'identity-hints-read',
       requestedNativeSessionId: nativeSessionId,
       pendingWorldId: pendingWorldId ?? null,
+      selectedPath,
       identityHints,
     });
-    return identities.resolve(nativeSessionId, pendingWorldId, identityHints);
+    return identities.resolve(nativeSessionId, pendingWorldId, {
+      ...identityHints,
+      selectedWorldId: selectedPath?.worldId ?? null,
+      // The durable canonical world is a recovery target, never the default
+      // for an ordinary new-game/session lookup.
+      allowCanonicalFallback: false,
+    });
   }
 
   async function stampWorldIdentity(worldId, loadTraceId) {
@@ -340,6 +458,71 @@ function writePendingPerformance(value) {
       changed,
       identityHints: game.readWorldIdentityHints(),
     });
+  }
+
+  async function selectCanonicalPath(nativeSessionId, saveName, pending = null) {
+    if (pending?.freshWorld === true) {
+      const nativePath = canonicalPathSelection.path('native-save-only');
+      if (!nativePath) return null;
+      return {
+        schemaVersion: 1,
+        pathId: nativePath.id,
+        nativeSessionId,
+        saveName: saveName ?? null,
+        selectedAt: Date.now(),
+        path: nativePath,
+        worldId: nativeSessionId,
+      };
+    }
+    if (pending?.worldId) {
+      const pendingPath = canonicalPathSelection.listPaths()
+        .find((path) => path.worldId === pending.worldId && path.nativeSession !== true);
+      if (pendingPath) {
+        return {
+          schemaVersion: 1,
+          pathId: pendingPath.id,
+          nativeSessionId,
+          saveName: saveName ?? null,
+          selectedAt: Date.now(),
+          path: pendingPath,
+          worldId: pendingPath.worldId,
+        };
+      }
+      return null;
+    }
+    const context = { nativeSessionId, saveName: saveName ?? null };
+    const existing = await canonicalPathSelection.selectionFor(context);
+    if (existing) return existing;
+    api.ui?.showNotification?.(
+      'Select a saved world before the New York world can start.',
+      'warning',
+      'New York saved worlds',
+    );
+    return canonicalPathSelection.waitForSelection(context);
+  }
+
+  async function recordLoadedLineageMetadata(selection) {
+    const pathId = selection?.path?.id;
+    if (!pathId) return;
+    const view = runtime.view();
+    await canonicalPathSelection.updateMetadata(pathId, {
+      day: view.day,
+      worldTime: view.worldTime,
+      routeCount: view.routeCount,
+      stationCount: view.stationCount,
+      trainCount: view.trainCount,
+      elapsedSeconds: view.elapsedSeconds,
+      wallet: view.wallet,
+      money: view.wallet,
+      fare: view.fare,
+    });
+  }
+
+  function isCanonicalLineageSelection(path, identity) {
+    return path?.nativeSession !== true
+      && typeof path?.worldId === 'string'
+      && path.worldId
+      && path.worldId === identity?.worldId;
   }
 
   function reloadLoadedSession(tileId, reason, saveName = loadedSaveName, force = false) {
@@ -375,7 +558,9 @@ function writePendingPerformance(value) {
           request,
         });
         try {
-          const identity = await resolveWorldIdentity(nativeSessionId, null, loadTraceId);
+          const selectedPath = await selectCanonicalPath(nativeSessionId, currentSaveName);
+          const identity = await resolveWorldIdentity(nativeSessionId, null, loadTraceId, selectedPath);
+          const restoreCanonicalLineage = isCanonicalLineageSelection(selectedPath, identity);
           recordAuthoritativeLoad({
             phase: 'authoritative-load',
             loadTraceId,
@@ -383,14 +568,22 @@ function writePendingPerformance(value) {
             loadedTileId,
             saveName: currentSaveName,
             requestedNativeSessionId: nativeSessionId,
+            selectedPath,
             identity,
           });
-          await runtime.reloadFromSave(identity.worldId, loadedTileId, currentSaveName, {
+          await runtime.reloadFromSave(
+            identity.worldId,
+            loadedTileId,
+            restoreCanonicalLineage ? null : currentSaveName,
+            {
             allowLiveFallback: identity.aliased,
+            restoreCanonicalLineage,
             nativeSessionId: identity.nativeSessionId,
             nativeTileId: loadedTileId,
             loadTraceId,
-          });
+            },
+          );
+          await recordLoadedLineageMetadata(selectedPath);
           await stampWorldIdentity(identity.worldId, loadTraceId);
           if (!isCurrent()) return;
           recordAuthoritativeLoad({
@@ -449,13 +642,21 @@ function writePendingPerformance(value) {
           nativeSessionId,
           pending: pending ?? null,
         });
-        let identity = await resolveWorldIdentity(nativeSessionId, pending?.worldId, loadTraceId);
+        const selectedPath = await selectCanonicalPath(nativeSessionId, saveName, pending);
+        let identity = await resolveWorldIdentity(
+          nativeSessionId,
+          pending?.worldId,
+          loadTraceId,
+          selectedPath,
+        );
+        const restoreCanonicalLineage = isCanonicalLineageSelection(selectedPath, identity);
         recordAuthoritativeLoad({
           phase: 'authoritative-load',
           loadTraceId,
           segment: 'identity-resolved',
           requestedNativeSessionId: nativeSessionId,
           pendingWorldId: pending?.worldId ?? null,
+          selectedPath,
           identity,
         });
         finishStage('identityResolution');
@@ -468,13 +669,16 @@ function writePendingPerformance(value) {
               pending: Boolean(pending),
               saveName,
               nativeTileId: loadedCityCode,
+              restoreCanonicalLineage,
             }),
           },
         );
+        await recordLoadedLineageMetadata(selectedPath);
         const confirmedIdentity = await resolveWorldIdentity(
           nativeSessionId,
           pending?.worldId,
           loadTraceId,
+          selectedPath,
         );
         recordAuthoritativeLoad({
           phase: 'authoritative-load',
@@ -491,12 +695,18 @@ function writePendingPerformance(value) {
             segment: 'identity-race-reload-start',
             identity,
           });
-          await runtime.reloadFromSave(identity.worldId, loadedCityCode, saveName, {
+          await runtime.reloadFromSave(
+            identity.worldId,
+            loadedCityCode,
+            restoreCanonicalLineage ? null : saveName,
+            {
             allowLiveFallback: identity.aliased,
+            restoreCanonicalLineage,
             nativeSessionId: identity.nativeSessionId,
             nativeTileId: loadedCityCode,
             loadTraceId,
-          });
+            },
+          );
         }
         await stampWorldIdentity(identity.worldId, loadTraceId);
         recordAuthoritativeLoad({
@@ -553,6 +763,11 @@ function writePendingPerformance(value) {
 
   async function handleGameLoaded(saveName) {
     if (!isCurrent()) return;
+    if (autosaveHookGuard.isNestedLoad(saveName)) return;
+    // Do not let onMapReady boot against the previous native Zustand state.
+    // New-game creation resets gameSessionId during the native load; this hook
+    // is the first lifecycle point at which that new identity is authoritative.
+    gameLoadObserved = true;
     loadedSaveName = typeof saveName === 'string' && saveName ? saveName : null;
     const loadedCityCode = api.utils.getCityCode?.();
     if (!registration.cities.includes(loadedCityCode)) return;
@@ -562,10 +777,24 @@ function writePendingPerformance(value) {
     return reloadLoadedSession(loadedCityCode, 'save-load', loadedSaveName, true);
   }
 
+  async function handleGameInitialized() {
+    if (!isCurrent()) return;
+    // New games call loadInitialData(), which creates a new native
+    // gameSessionId, then emit onGameInit rather than onGameLoaded.
+    gameLoadObserved = true;
+    loadedSaveName = null;
+    const loadedCityCode = api.utils.getCityCode?.();
+    if (!registration.cities.includes(loadedCityCode)) return;
+    if (!started) return start(loadedCityCode, null);
+    if (!ready) return;
+    ensurePanel();
+  }
+
   async function handleGameSaved(saveName) {
     if (!ready || !isCurrent() || typeof saveName !== 'string' || !saveName) return;
     if (startupModeSharePromise && !settlementReady) await startupModeSharePromise;
     if (!ready || !settlementReady || !isCurrent()) return;
+    if (!autosaveHookGuard.begin(saveName)) return;
     const startedAt = performance.now();
     let identityMilliseconds = 0;
     let checkpointResult = null;
@@ -580,13 +809,22 @@ function writePendingPerformance(value) {
       if (!identityBound) {
         throw new Error('Native save identity moved to another authoritative open-world lineage');
       }
-      checkpointResult = await runtime.checkpoint('game-save', { saveName, nativeSessionId, nativeTileId });
+      checkpointResult = await runtime.checkpoint('game-save', {
+        saveName,
+        nativeSessionId,
+        nativeTileId,
+        captureNativeSnapshot: false,
+      });
+      await recordLoadedLineageMetadata(
+        await canonicalPathSelection.selectionFor({ nativeSessionId, saveName }),
+      );
       loadedSaveName = saveName;
       status = checkpointResult?.status === 'projection-quarantined' ? 'skipped' : 'saved';
     } catch (error) {
       failure = String(error?.message ?? error);
       console.warn(`[NY pilot] could not checkpoint native save ${saveName}`, error);
     } finally {
+      autosaveHookGuard.end();
       const runtimePerformance = checkpointResult?.performance
         ?? (diagnostics.latestAutosaveRuntime?.saveName === saveName
           ? diagnostics.latestAutosaveRuntime
@@ -627,6 +865,7 @@ function writePendingPerformance(value) {
       game.restoreNativeCommuteRules();
       return;
     }
+    if (!gameLoadObserved) return;
     if (!started) return start(loadedCityCode, api.gameState.getSaveName?.() ?? loadedSaveName);
     // onMapReady/onGameLoaded can start boot before onCityLoad arrives. Do not
     // race a second transition completion against that same boot: boot owns the
@@ -726,6 +965,14 @@ function writePendingPerformance(value) {
     if (!isCurrent()) return;
     const loadedCityCode = api.utils.getCityCode?.();
     if (!registration.cities.includes(loadedCityCode)) return;
+    if (!gameLoadObserved) {
+      diagnostics.lifecycle = {
+        status: 'waiting-for-native-game-load',
+        cityId: loadedCityCode,
+        capturedAt: Date.now(),
+      };
+      return;
+    }
     if (started && !ready) return;
     await start(loadedCityCode);
     ensurePanel();
@@ -752,6 +999,7 @@ function writePendingPerformance(value) {
     }
   }
 
+  api.hooks.onGameInit?.(() => { void handleGameInitialized(); });
   api.hooks.onGameLoaded?.((saveName) => { void handleGameLoaded(saveName); });
   api.hooks.onGameSaved?.((saveName) => { void handleGameSaved(saveName); });
   api.hooks.onMapReady((map) => {
@@ -787,6 +1035,8 @@ function writePendingPerformance(value) {
   );
   api.hooks.onGameEnd?.(() => {
     if (!isCurrent()) return;
+    canonicalPathSelection.cancel('Native game session ended');
+    canonicalPathPanel.dispose?.();
     modeShareInvalidation.cancel();
     projectionOverlayController?.dispose?.();
     geographicContextController?.dispose?.();
@@ -799,6 +1049,12 @@ function writePendingPerformance(value) {
     tileSourceStyleHandler = null;
     latestMap = null;
     game.restoreNativeCommuteRules();
+    // The native API clears every mod UI component after onGameEnd callbacks
+    // return. Re-register after that cleanup so the home screen gets its
+    // saved-world loader when the game transitions back to the menu.
+    scheduleSavedWorldHomeRegistration(() => {
+      if (isCurrent()) registerSavedWorldHome();
+    });
   });
   console.info('[NY pilot] registered', registration);
 })();
