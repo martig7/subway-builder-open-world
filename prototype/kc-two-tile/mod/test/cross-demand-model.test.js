@@ -28,8 +28,21 @@ test('decodes compact cross demand and builds resident/worker projections', () =
   assert.equal(model.pointFeatures('residents').features.length, 1);
   assert.equal(model.pointFeatures('workers').features.length, 2);
   assert.equal(model.pointDetails('home', 'residents').popCount, 2);
-  assert.equal(model.connections('home', 'residents').features.length, 2);
+  assert.equal(model.connections('home', 'residents').features.length, 4);
   assert.equal(model.popSelection(0).features[0].geometry.type, 'LineString');
+});
+
+test('per-point projections hide unrelated demand points and expose every unique endpoint', () => {
+  const model = new CrossDemandModel(data, ledger);
+
+  assert.deepEqual(model.pointFeatures('workers', 'work-a').features.map((feature) => feature.properties.id), ['work-a']);
+  const features = model.connections('home', 'residents').features;
+  assert.equal(features.filter((feature) => feature.properties.kind === 'connection').length, 2);
+  assert.deepEqual(
+    features.filter((feature) => feature.properties.view === 'per-point-endpoint')
+      .map((feature) => [feature.properties.id, feature.properties.kind, feature.properties.mass]),
+    [['work-a', 'work', 6], ['work-b', 'work', 4]],
+  );
 });
 
 test('matches the native area-proportional demand bubble sizing and mode-share RGB mixing', () => {

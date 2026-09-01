@@ -20,14 +20,14 @@ export function createTileState(worldTime = 0) {
   };
 }
 
-export function createWorld({ worldId, tileIds, activeTileId = null, worldTime = 0, elapsedSeconds = worldTime * 3600, wallet = 0, cohorts = [] }) {
+export function createWorld({ worldId, tileIds, activeTileId = null, worldTime = 0, elapsedSeconds = worldTime * 3600, wallet = 0, gameMode = null, cohorts = [] }) {
   const ids = normalizedTileIds(tileIds);
   activeTileId ??= ids[0];
   if (!ids.includes(activeTileId)) throw new Error(`Unknown active tile: ${activeTileId}`);
   const gatewayLedger = Object.fromEntries(cohorts.map((cohort) => [cohort.id, createCommuteEntry(cohort)]));
   const tiles = Object.fromEntries(ids.map((id) => [id, createTileState(worldTime)]));
   return {
-    schemaVersion: 1, worldId, tileIds: ids, activeTileId, worldTime, elapsedSeconds, wallet, farePolicy: { fare: 2.5 },
+    schemaVersion: 1, worldId, tileIds: ids, activeTileId, worldTime, elapsedSeconds, wallet, gameMode, farePolicy: { fare: 2.5 },
     revision: 0, tiles, gatewayLedger, gatewayCatalog: {}, commuteCatalogBuildHash: null,
     commuteLastProcessedHour: worldTime, crossModeShare: null, crossPopModeChoices: {},
     crossTileFinancials: { transitTrips: 0, fareRevenue: 0, pendingNativeRevenue: 0 },
@@ -84,6 +84,8 @@ export function assertWorld(world, tileIds = world?.tileIds ?? Object.keys(world
   if (!ids.includes(world.activeTileId)) throw new Error('World has no valid active tile');
   if (!Number.isSafeInteger(world.revision) || world.revision < 0) throw new Error('Invalid world revision');
   if (!Number.isFinite(world.elapsedSeconds) || world.elapsedSeconds < 0) throw new Error('Invalid exact world time');
+  world.gameMode ??= null;
+  if (world.gameMode !== null && !['easy', 'sandbox'].includes(world.gameMode)) throw new Error('Invalid world game mode');
   for (const tileId of ids) {
     const tile = world.tiles[tileId];
     if (!tile || !Number.isSafeInteger(tile.revision) || tile.revision < 0) throw new Error(`Invalid tile revision: ${tileId}`);

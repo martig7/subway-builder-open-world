@@ -4,7 +4,7 @@ import hashlib
 import math
 import sqlite3
 from collections import defaultdict
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -191,6 +191,8 @@ def pack_voronoi_cohorts(
     progress: Callable[[str], None] | None = None,
     flow_query: str = "SELECT home_site,work_site,mass FROM site_flows WHERE tile=?",
     flow_parameters: tuple[object, ...] | None = None,
+    home_site_ids: Iterable[str] | None = None,
+    work_site_ids: Iterable[str] | None = None,
 ) -> list[dict[str, Any]]:
     if not 0 < minimum_size <= target_size <= maximum_size:
         raise ValueError("Cohort sizes must satisfy 0 < minimum <= target <= maximum")
@@ -198,6 +200,15 @@ def pack_voronoi_cohorts(
         return []
 
     coordinates = {site_id: (float(site["x"]), float(site["y"])) for site_id, site in sites.items()}
+    home_candidates = list(home_site_ids) if home_site_ids is not None else list(sites)
+    work_candidates = list(work_site_ids) if work_site_ids is not None else list(sites)
+    if not home_candidates or not work_candidates:
+        return []
+    unknown_candidates = [
+        site_id for site_id in (*home_candidates, *work_candidates) if site_id not in coordinates
+    ]
+    if unknown_candidates:
+        raise KeyError(f"Unknown role-restricted demand site: {unknown_candidates[0]}")
     seed_rows: list[tuple[str, str, int]] = []
     direct_rows: list[tuple[str, str, int]] = []
     fallback: tuple[int, str, str, int] | None = None
@@ -265,17 +276,16 @@ def pack_voronoi_cohorts(
 
     input_mass = sum(cell["mass"] for cell in cells)
     _merge_undersized_cells(cells, minimum_size, maximum_size)
-    site_ids = list(sites)
-    site_positions = np.asarray([coordinates[site_id] for site_id in site_ids], dtype=np.float64)
-    site_tree = cKDTree(site_positions)
+    home_tree = cKDTree(np.asarray([coordinates[site_id] for site_id in home_candidates], dtype=np.float64))
+    work_tree = cKDTree(np.asarray([coordinates[site_id] for site_id in work_candidates], dtype=np.float64))
     active_cells = [cell for cell in cells if cell["active"]]
     home_positions = np.asarray([cell["position"][:2] for cell in active_cells], dtype=np.float64)
     work_positions = np.asarray([cell["position"][2:] for cell in active_cells], dtype=np.float64)
-    home_indices = np.atleast_1d(site_tree.query(home_positions, k=1, workers=-1)[1])
-    work_indices = np.atleast_1d(site_tree.query(work_positions, k=1, workers=-1)[1])
+    home_indices = np.atleast_1d(home_tree.query(home_positions, k=1, workers=-1)[1])
+    work_indices = np.atleast_1d(work_tree.query(work_positions, k=1, workers=-1)[1])
     combined: dict[tuple[str, str], int] = defaultdict(int)
     for cell, home_index, work_index in zip(active_cells, home_indices, work_indices, strict=True):
-        combined[(site_ids[int(home_index)], site_ids[int(work_index)])] += int(cell["mass"])
+        combined[(home_candidates[int(home_index)], work_candidates[int(work_index)])] += int(cell["mass"])
 
     result: list[dict[str, Any]] = []
     for pair, mass in sorted(combined.items()):

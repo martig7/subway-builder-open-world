@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerCrossDemandViewer, transitLegPresentation } from '../src/ui/cross-demand-viewer.js';
+import { createRendererVirtualization } from '../src/ui/renderer-virtualization.js';
 
 function overlayMap(sources, layers) {
   const sourceById = new Map();
@@ -69,13 +70,12 @@ test('registers a native toolbar panel and map-backed cross-demand layers', () =
   const sources = [];
   const layers = [];
   let panel;
-  let mapReady;
   const api = {
     map: {
       registerSource: (id, source) => sources.push([id, source]),
       registerLayer: (layer) => layers.push(layer),
     },
-    hooks: { onMapReady: (callback) => { mapReady = callback; } },
+    hooks: {},
     ui: { addToolbarPanel: (definition) => { panel = definition; } },
     utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
   };
@@ -84,7 +84,7 @@ test('registers a native toolbar panel and map-backed cross-demand layers', () =
     runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
     tilePackages: { loadCrossDemand: async () => null },
   });
-  mapReady(overlayMap(sources, layers));
+  controller.attachMap(overlayMap(sources, layers));
 
   assert.equal(sources.length, 2);
   assert.deepEqual(layers.map((layer) => layer.id), [
@@ -93,28 +93,28 @@ test('registers a native toolbar panel and map-backed cross-demand layers', () =
     'kc-cross-demand-points',
     'kc-cross-demand-endpoints',
   ]);
+  assert.equal(layers.every((layer) => layer.minzoom === 10), true);
   assert.equal(panel.id, 'kc-cross-demand-viewer');
   assert.equal(panel.icon, 'UsersRound');
-  assert.equal(typeof mapReady, 'function');
   assert.equal(typeof controller.attachMap, 'function');
+  assert.equal(typeof controller.detachMap, 'function');
   assert.equal('colorMode' in controller.snapshot(), false);
   assert.equal(typeof controller.setColorMode, 'undefined');
 });
 
 test('keeps demand bubbles at a constant geographic size through high zoom', () => {
   const layers = [];
-  let mapReady;
   const api = {
     map: { registerSource() {}, registerLayer() {} },
-    hooks: { onMapReady: (callback) => { mapReady = callback; } }, ui: { addToolbarPanel() {} },
+    hooks: {}, ui: { addToolbarPanel() {} },
     utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
   };
-  registerCrossDemandViewer({
+  const controller = registerCrossDemandViewer({
     api,
     runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
     tilePackages: { loadCrossDemand: async () => null },
   });
-  mapReady(overlayMap([], layers));
+  controller.attachMap(overlayMap([], layers));
 
   const radiusExpression = layers.find((layer) => layer.id === 'kc-cross-demand-points').paint['circle-radius'];
   const strokeExpression = layers.find((layer) => layer.id === 'kc-cross-demand-points').paint['circle-stroke-width'];
@@ -127,6 +127,108 @@ test('keeps demand bubbles at a constant geographic size through high zoom', () 
     const nativeStrokePixels = 4 * nativePixelsPerMetre;
     assert.ok(Math.abs(evaluateRadius(strokeExpression, zoom, { selected: false }) - nativeStrokePixels) < 0.01);
   }
+});
+
+test('point selection replaces the global demand field with the selected point and its endpoints', async () => {
+  const api = {
+    map: { registerSource() {}, registerLayer() {} }, hooks: {}, ui: { addToolbarPanel() {} },
+    utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
+  };
+  const controller = registerCrossDemandViewer({
+    api,
+    runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
+    tilePackages: { loadCrossDemand: async () => ({
+      schemaVersion: 1, tileId: 'KCW', gateways: ['central'],
+      points: [
+        ['home-a', -94.66, 39.1, 'KCW', 60, 0],
+        ['home-b', -94.64, 39.11, 'KCW', 40, 0],
+        ['work-a', -94.54, 39.1, 'KCE', 0, 60],
+        ['work-b', -94.52, 39.11, 'KCE', 0, 40],
+      ],
+      pops: [
+        ['pop-a', 60, 0, 2, 0],
+        ['pop-b', 40, 1, 3, 0],
+      ],
+    }) },
+  });
+  const map = overlayMap([], []);
+  controller.attachMap(map);
+  await controller.open();
+  assert.deepEqual(
+    map.getSource('kc-cross-demand-points-source').data.features.map((feature) => feature.properties.id),
+    ['home-a', 'home-b'],
+  );
+
+  controller.selectPoint('home-a');
+
+  assert.deepEqual(
+    map.getSource('kc-cross-demand-points-source').data.features.map((feature) => feature.properties.id),
+    ['home-a'],
+  );
+  const details = map.getSource('kc-cross-demand-details-source').data.features;
+  assert.deepEqual(details.map((feature) => feature.properties.kind), ['connection', 'work']);
+  assert.equal(details[1].properties.view, 'per-point-endpoint');
+  assert.equal(details[1].properties.id, 'work-a');
+});
+
+test('clips cross-demand dots to the live render halo', async () => {
+  let haloChanged;
+  let virtualization = createRendererVirtualization({
+    activeTileId: 'near',
+    tileCatalog: { tiles: [{ id: 'near', bounds: [-95, 39, -94, 40] }] },
+    renderDistance: 1,
+  });
+  const rendererVirtualization = {
+    getRendererVirtualization: () => virtualization,
+    subscribeRenderDistance: (listener) => { haloChanged = listener; return () => {}; },
+  };
+  const api = {
+    map: { registerSource() {}, registerLayer() {} }, hooks: {}, ui: { addToolbarPanel() {} },
+    utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
+  };
+  const controller = registerCrossDemandViewer({
+    api,
+    runtime: { view: () => ({ activeTileId: 'near', gatewayLedger: {} }) },
+    rendererVirtualization,
+    tilePackages: { loadCrossDemand: async () => ({
+      schemaVersion: 1, tileId: 'near', gateways: ['central'],
+      points: [
+        ['home-near', -94.8, 39.1, 'near', 60, 0],
+        ['home-far', -93.8, 39.1, 'far', 40, 0],
+        ['work-far', -93.7, 39.2, 'far', 0, 60],
+      ],
+      pops: [['pop-near-far', 60, 0, 2, 0]],
+    }) },
+  });
+  const map = overlayMap([], []);
+  controller.attachMap(map);
+  await controller.open();
+
+  assert.deepEqual(
+    map.getSource('kc-cross-demand-points-source').data.features.map((feature) => feature.properties.id),
+    ['home-near'],
+  );
+  controller.selectPoint('home-near');
+  assert.deepEqual(
+    map.getSource('kc-cross-demand-details-source').data.features.map((feature) => feature.properties.kind),
+    ['connection'],
+  );
+
+  virtualization = createRendererVirtualization({
+    activeTileId: 'near',
+    tileCatalog: { tiles: [{ id: 'near', bounds: [-95, 39, -93, 40] }] },
+    renderDistance: 9,
+  });
+  haloChanged(9);
+
+  assert.deepEqual(
+    map.getSource('kc-cross-demand-points-source').data.features.map((feature) => feature.properties.id),
+    ['home-near'],
+  );
+  assert.deepEqual(
+    map.getSource('kc-cross-demand-details-source').data.features.map((feature) => feature.properties.kind),
+    ['connection', 'work'],
+  );
 });
 
 test('refreshes displayed colors and details when runtime mode share is recalculated', async () => {
@@ -227,4 +329,35 @@ test('adds driving and generalized-cost diagnostics to the selected pop', async 
   await controller.open();
   controller.selectPop(0);
   assert.equal(controller.popDetails().modeChoiceComparison, expectedComparison);
+});
+
+test('selected cross pops replace the geometric line with the shared asynchronous road path', async () => {
+  const api = {
+    map: { registerSource() {}, registerLayer() {} }, hooks: {}, ui: { addToolbarPanel() {} },
+    utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
+  };
+  const roadPath = [[-94.66, 39.1], [-94.61, 39.12], [-94.54, 39.1]];
+  const routeCalls = [];
+  const controller = registerCrossDemandViewer({
+    api,
+    runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
+    tilePackages: { loadCrossDemand: async () => ({
+      schemaVersion: 1, tileId: 'KCW', gateways: ['central'],
+      points: [['home', -94.66, 39.1, 'KCW', 50, 0], ['work', -94.54, 39.1, 'KCE', 0, 50]],
+      pops: [['nec-cross-pop-1', 50, 0, 1, 0]],
+    }) },
+    routePaths: { resolve: async (city, popId) => {
+      routeCalls.push([city, popId]);
+      return { coordinates: roadPath, source: 'generated-road-graph' };
+    } },
+  });
+  const map = overlayMap([], []);
+  controller.attachMap(map);
+  await controller.open();
+  controller.selectPop(0);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(routeCalls, [['KCW', 'nec-cross-pop-1']]);
+  assert.equal(controller.snapshot().routeStatus, 'generated-road-graph');
+  assert.deepEqual(map.getSource('kc-cross-demand-details-source').data.features[0].geometry.coordinates, roadPath);
 });

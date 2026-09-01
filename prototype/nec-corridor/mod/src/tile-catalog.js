@@ -14,6 +14,7 @@ const tiles = catalogSource.tiles
     cityName: `Northeast Corridor — Grid ${tile.column}, ${tile.row}`,
     description: `NY-sized Northeast Corridor tile at grid column ${tile.column}, row ${tile.row}`,
     population: 0,
+    initialViewState: Object.freeze({ ...(tile.initialViewState ?? tile.initialView) }),
     neighbors: Object.freeze(tile.neighbors ?? []),
   }));
 
@@ -23,6 +24,8 @@ export const tileCatalog = Object.freeze({
   ...catalogSource,
   id: 'NEC_CORRIDOR_34',
   name: 'Northeast Corridor 34-tile open world',
+  minZoom: 0.01,
+  maxZoom: 15,
   basemapMinZoom: 0.01,
   initialView: Object.freeze({
     center: [...catalogSource.initialView.center],

@@ -269,7 +269,12 @@ export function applyModeShares(world, totals, {
     const next = totals.get(key);
     if (!next) continue;
     const modeTotal = Object.values(next).reduce((sum, value) => sum + value, 0);
-    if (modeTotal !== entry.flow.mass) throw new Error(`Calculated mode share does not conserve flow ${entry.flow.id}`);
+    // Demand masses and mode shares are decimal estimates. Requiring bit-for-bit
+    // equality rejects valid totals after ordinary IEEE-754 arithmetic (for
+    // example, a 13,125-person flow can differ by ~1e-12 after splitting).
+    if (Math.abs(modeTotal - entry.flow.mass) > 1e-9) {
+      throw new Error(`Calculated mode share does not conserve flow ${entry.flow.id}`);
+    }
     if (JSON.stringify(entry.modeChoice) !== JSON.stringify(next)) changedFlows++;
     entry.modeChoice = { ...next };
     entry.transitJourneys = structuredClone(transitJourneys.get(key) ?? []);

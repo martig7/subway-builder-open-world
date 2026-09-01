@@ -5,7 +5,6 @@ import {
   NetworkProjection,
   createNativeNetworkSnapshot,
   createGlobalNetwork,
-  isLegacyProjectedSnapshot,
   repairStationTrackGroupIntegrity,
   routeTileIdsById,
   stripNetworkFromSnapshot,
@@ -15,7 +14,7 @@ import { fareSegmentsFromStationRoutes, quoteJourneyFare } from './journey-fare.
 import { repairNativeStateRouteTimings } from './route-timing-integrity.js';
 import {
   backgroundFinanceForHour,
-  migrateCachedNativeRevenueProfile,
+  migrateNativeFinanceSidecar,
   nativeComparableFinanceForHour,
   summarizeNativeFinanceAudit,
 } from './native-finance-model.js';
@@ -118,7 +117,6 @@ function summarizeWorldForLoad(world) {
     worldTime: world.worldTime,
     elapsedSeconds: world.elapsedSeconds,
     pendingTransition: world.pendingTransition ?? null,
-    projectionWriteQuarantine: world.projectionWriteQuarantine ?? null,
     globalNetworkHash: world.globalNetwork?.hash ?? null,
     globalNetworkRevision: world.globalNetwork?.revision ?? null,
     activeProjection: world.activeProjection ? {
@@ -154,24 +152,26 @@ function createCanonicalNetwork(source, revision = 0) {
 }
 
 export class WorldTileRuntime {
-  constructor({ game, tilePackages, worldState, initialWorld, tileIds = initialWorld?.tileIds ?? tilePackages?.tileIds?.(), tileCatalog = null, networkRecovery = null, now = () => Date.now(), telemetry = () => {} }) {
+  constructor({ game, tilePackages, worldState, initialWorld, tileIds = initialWorld?.tileIds ?? tilePackages?.tileIds?.(), tileCatalog = null, revenueAccrual = null, backgroundNativeExpenses = true, now = () => Date.now(), telemetry = () => {} }) {
     this.game = game; this.tilePackages = tilePackages; this.worldState = worldState; this.initialWorld = initialWorld;
     this.tileIds = Object.freeze([...tileIds]);
     if (!this.tileIds.length || new Set(this.tileIds).size !== this.tileIds.length) throw new Error('Runtime tile IDs must be a non-empty unique list');
-    this.tileCatalog = tileCatalog; this.networkRecovery = networkRecovery; this.now = now; this.telemetry = telemetry; this.world = null; this.viewWorldFallback = null; this.inFlight = new Map(); this.serial = Promise.resolve(); this.listeners = new Set();
+    this.tileCatalog = tileCatalog; this.revenueAccrual = revenueAccrual; this.backgroundNativeExpenses = backgroundNativeExpenses !== false; this.now = now; this.telemetry = telemetry; this.world = null; this.viewWorldFallback = null; this.inFlight = new Map(); this.serial = Promise.resolve(); this.listeners = new Set();
     this.nativeNetworkMode = CANONICAL_NATIVE_NETWORK_MODE;
     this.fullNativeNetworkEnabled = true;
     this.networkProjection = tileCatalog ? new NetworkProjection({ guardBandMeters: 250 }) : null;
+    this.derivedNetworkInvalidations = new Set();
   }
   async boot(worldId, loadedTileId = null, {
     saveName = null,
     allowLiveFallback = false,
-    restoreCanonicalLineage = false,
     nativeSessionId = null,
     nativeTileId = null,
+    nativeAuthoritativeLoad = false,
     loadTraceId = null,
   } = {}) {
     if (this.world) return this.view();
+    this.revenueAccrual?.invalidate?.();
     const startupStartedAt = this.now();
     const traceId = loadTraceId
       ?? `boot:${worldId}:${nativeSessionId ?? 'unbound'}:${startupStartedAt}`;
@@ -185,7 +185,7 @@ export class WorldTileRuntime {
       nativeSessionId,
       nativeTileId,
       allowLiveFallback,
-      restoreCanonicalLineage,
+      nativeAuthoritativeLoad,
       elapsedMilliseconds: Math.max(0, this.now() - startupStartedAt),
       ...details,
     });
@@ -201,12 +201,9 @@ export class WorldTileRuntime {
     trace('capability-supported');
     finishStartupStage('capability');
     trace('storage-load-start');
-    // A canonical lineage is selected independently of the native save that
-    // triggered this lifecycle callback. Checkpoint pairing belongs only to
-    // ordinary native-save loads.
     const persistedWorld = await this.worldState.load(
       worldId,
-      restoreCanonicalLineage || saveName == null ? { loadTraceId: traceId } : {
+      saveName == null ? { loadTraceId: traceId } : {
         saveName,
         allowLiveFallback,
         nativeSessionId,
@@ -214,13 +211,10 @@ export class WorldTileRuntime {
         loadTraceId: traceId,
       },
     );
-    if (restoreCanonicalLineage && !persistedWorld) {
-      throw new Error(`Canonical lineage is unavailable: ${worldId}`);
-    }
     let startupRequiresFullWorldSave = !persistedWorld
-      || (!restoreCanonicalLineage && saveName != null)
+      || saveName != null
       || allowLiveFallback
-      || restoreCanonicalLineage;
+      || nativeAuthoritativeLoad;
     trace('storage-load-complete', {
       source: persistedWorld ? 'persisted' : 'new-world',
       persistedWorld: summarizeWorldForLoad(persistedWorld),
@@ -234,9 +228,14 @@ export class WorldTileRuntime {
     });
     const bootInitialActiveTileId = this.world.activeTileId;
     migrateWorldTileSet(this.world, this.tileIds);
-    for (const [tileId, profile] of Object.entries(this.world.backgroundNativeFinance?.tileRevenueProfiles ?? {})) {
-      this.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = migrateCachedNativeRevenueProfile(profile);
-    }
+    // Older sidecars contain useful recovery estimates for the complete
+    // network, but predate the explicit rule that the loaded native save owns
+    // every operational and infrastructure expense. Migrate that ownership
+    // before startup catch-up; migrating only the revenue rows lets the legacy
+    // expense estimate charge the same native hour a second time.
+    this.world.backgroundNativeFinance = migrateNativeFinanceSidecar(
+      this.world.backgroundNativeFinance,
+    );
     this.#migrateBackgroundFinanceOwnership(this.world);
     // Schema-v1 prototype worlds created before exact clock preservation only
     // have the coarse hourly simulation clock.
@@ -247,71 +246,6 @@ export class WorldTileRuntime {
       for (const tile of Object.values(this.world.tiles ?? {})) {
         if (tile.snapshot) tile.snapshot = this.game.compactSnapshot(tile.snapshot);
       }
-    }
-    let networkRecoveryChanged = false;
-    if (typeof this.networkRecovery === 'function') {
-      const recovery = await this.networkRecovery(this.world);
-      networkRecoveryChanged = recovery?.changed === true;
-      if (networkRecoveryChanged) startupRequiresFullWorldSave = true;
-      if (networkRecoveryChanged) this.telemetry({ phase: 'network-recovery', ...recovery.imported });
-      trace('network-recovery-complete', {
-        changed: networkRecoveryChanged,
-        imported: recovery?.imported ?? null,
-        world: summarizeWorldForLoad(this.world),
-      });
-    }
-    if (this.world.globalNetwork?.nativeState) {
-      const groupRepair = repairStationTrackGroupIntegrity(this.world.globalNetwork.nativeState);
-      const routeRepair = repairNativeStateRouteTimings(groupRepair.state);
-      const normalizedNetwork = createGlobalNetwork(
-        routeRepair.state,
-        (Number(this.world.globalNetwork.revision) || 0) + 1,
-      );
-      const projectionMetadataRepaired = normalizedNetwork.hash !== this.world.globalNetwork.hash;
-      if (groupRepair.changed || routeRepair.changed || projectionMetadataRepaired) {
-        this.world.globalNetwork = normalizedNetwork;
-        this.world.activeProjection = null;
-        this.world.projectionOverlay = { type: 'FeatureCollection', features: [] };
-        this.world.revision = (Number(this.world.revision) || 0) + 1;
-        // Force the repaired canonical network back through native loadSave.
-        // Merely cleaning the sidecar would leave the already-loaded facade
-        // trains paired with a speed map that omits their remote tracks.
-        networkRecoveryChanged = true;
-        startupRequiresFullWorldSave = true;
-        this.telemetry({
-          phase: 'route-timing-integrity-repaired',
-          repairedRoutes: routeRepair.repairedRoutes,
-          repairedStops: routeRepair.repairedStops,
-          repairedTrackGroups: groupRepair.repairedGroupIds,
-          projectionMetadataRepaired,
-        });
-      }
-    }
-    const financeNetworkHash = this.world.backgroundNativeFinance?.networkHash ?? null;
-    const expenseNetworkHash = this.world.backgroundNativeFinance?.expenseProfile?.networkHash
-      ?? financeNetworkHash;
-    const authoritativeNetworkHash = this.world.globalNetwork?.hash ?? null;
-    if (networkRecoveryChanged || financeNetworkHash !== authoritativeNetworkHash) {
-      // Keep the last completely compiled ledger and its paired native
-      // ownership rules live while the replacement is prepared. Invalidating
-      // either half here creates an accounting blackout (or double-counting)
-      // between startup and the next successful recalculation.
-      this.world.crossModeShare = null;
-      if (this.world.backgroundNativeFinance) {
-        this.world.backgroundNativeFinance.pendingHandoff = {
-          networkHash: authoritativeNetworkHash,
-          previousNetworkHash: financeNetworkHash,
-          reason: networkRecoveryChanged ? 'network-recovery' : 'network-hash-mismatch',
-          status: 'pending',
-        };
-      }
-      this.telemetry({
-        phase: 'native-finance-handoff-pending',
-        reason: networkRecoveryChanged ? 'network-recovery' : 'network-hash-mismatch',
-        previousNetworkHash: financeNetworkHash,
-        previousExpenseNetworkHash: expenseNetworkHash,
-        networkHash: authoritativeNetworkHash,
-      });
     }
     for (const [tileId, tile] of Object.entries(this.world.tiles ?? {})) {
       const data = tile.snapshot?.data;
@@ -364,22 +298,17 @@ export class WorldTileRuntime {
       // Unless a cross-tile handoff is pending, the native state that fired
       // onCityLoad is authoritative: it contains the difficulty's starting
       // balance for a new game, the loaded save, or the live hot-reload state.
-      // A pending handoff is the one case where the destination's freshly reset
-      // store must be replaced by the already committed world state.
-      const projectionQuarantined = this.world.projectionWriteQuarantine?.active === true;
-      const restorePersistedWorld = restoreCanonicalLineage === true;
-      const adoptLoadedRuntime = !restorePersistedWorld
-        && !this.world.pendingTransition
-        && !projectionQuarantined;
       trace('state-adoption-path-selected', {
-        adoptLoadedRuntime,
-        restorePersistedWorld,
-        projectionQuarantined,
+        adoptLoadedRuntime: true,
         pendingTransition: this.world.pendingTransition ?? null,
-        authoritativeAliasRestore: allowLiveFallback,
+        topologyAuthority: 'native-save',
       });
-      if (adoptLoadedRuntime) {
-        const capturedGlobalsChanged = await this.#captureAuthoritativeGlobals(this.world);
+      const capturedGlobalsChanged = await this.#captureAuthoritativeGlobals(this.world, {
+          // An explicitly aliased fallback is a true user save-load. Its
+          // native clock is authoritative even when the retained live sidecar
+          // belongs to a later autosave.
+          allowClockRegression: allowLiveFallback || nativeAuthoritativeLoad,
+        });
         startupRequiresFullWorldSave ||= capturedGlobalsChanged;
         trace('authoritative-globals-captured', {
           worldTime: this.world.worldTime,
@@ -388,8 +317,8 @@ export class WorldTileRuntime {
         });
         const authoritativeHour = Math.floor(this.world.elapsedSeconds / 3600);
         this.#ensureBackgroundFinanceClock(this.world, authoritativeHour);
-        this.#recoverLegacySettlementBaseline(this.world, authoritativeHour);
-        if (allowLiveFallback && authoritativeHour < this.world.worldTime) {
+        if (!this.revenueAccrual) this.#recoverLegacySettlementBaseline(this.world, authoritativeHour);
+        if ((allowLiveFallback || nativeAuthoritativeLoad) && authoritativeHour < this.world.worldTime) {
           rebaseCommutesTo(this.world, authoritativeHour);
           this.world.worldTime = authoritativeHour;
           for (const tile of Object.values(this.world.tiles)) {
@@ -408,8 +337,12 @@ export class WorldTileRuntime {
         }
         this.#advanceDraft(this.world, authoritativeHour);
         try {
-          await this.#syncCrossTileFinance(this.world);
-          await this.#syncBackgroundNativeFinance(this.world, authoritativeHour);
+          // A native load only supplies the current native state. Revenue is
+          // eligible for posting on the next hourly tick, never during boot.
+          if (!this.revenueAccrual) {
+            await this.#syncCrossTileFinance(this.world);
+            await this.#syncBackgroundNativeFinance(this.world, authoritativeHour);
+          }
         } catch (error) {
           // A fare-posting failure must never make the player's native save
           // unloadable. Retain the pending batch for an idempotent later retry.
@@ -426,48 +359,21 @@ export class WorldTileRuntime {
           snapshot: summarizeNetworkForLoad(liveSnapshot),
         });
         if (this.networkProjection) {
-          // A one-time recovery changes the authoritative network before the
-          // native store is captured. Publish that recovered projection now;
-          // otherwise a later native callback can reconcile the still-stale
-          // loaded save and delete every entity the recovery just restored.
-          if (networkRecoveryChanged) {
-            this.#armProjectionWriteQuarantine(this.world, {
-              reason: 'network-recovery',
-              tileId: this.world.activeTileId,
-            });
-            await this.worldState.save(this.world);
-          }
           const adoption = await this.#adoptProjectionSnapshot(this.world, this.world.activeTileId, liveSnapshot, {
-            // An explicit save alias means this native save is only a tile-local
-            // projection of the sidecar checkpoint. Its loaded transit slices
-            // may be older or incomplete, so always republish the authoritative
-            // projection even when reconciliation has no reason to reject them.
-            restore: networkRecoveryChanged || allowLiveFallback ? true : 'rejected',
-            migrationFallback: allowLiveFallback,
+            restore: false,
             trace,
           });
-          startupRequiresFullWorldSave ||= adoption.changed || adoption.migrated;
+          startupRequiresFullWorldSave ||= adoption.changed;
         } else activeTile.snapshot = liveSnapshot;
-      } else {
-        if (!projectionQuarantined) {
-          this.#armProjectionWriteQuarantine(this.world, {
-            reason: restorePersistedWorld ? 'canonical-lineage-restore' : 'tile-transition',
-            tileId: this.world.activeTileId,
-            transitionId: this.world.pendingTransition?.transitionId ?? null,
-            fromTileId: this.world.pendingTransition?.from ?? null,
-          });
-          await this.worldState.save(this.world);
-        }
-        await this.#restoreDestinationNetwork(
-          this.world,
-          this.world.activeTileId,
-          this.world.pendingTransition?.from,
-          trace,
-        );
-      }
       finishStartupStage('stateAdoption');
-      await this.game.setAuthoritativeGlobals(this.world);
-      trace('authoritative-globals-applied');
+      if (!this.revenueAccrual) {
+        await this.game.setAuthoritativeGlobals(this.world);
+        trace('authoritative-globals-applied');
+      } else {
+        await this.game.setAuthoritativeGameMode?.(this.world.gameMode);
+        await this.game.setAuthoritativeClock?.(this.world.elapsedSeconds);
+        trace('authoritative-globals-retained-native');
+      }
       finishStartupStage('authoritativeGlobals');
       const commuteRefresh = await this.game.refreshNativeCommutes?.();
       if (commuteRefresh) this.telemetry({ phase: 'commute-refresh', ...commuteRefresh });
@@ -478,7 +384,6 @@ export class WorldTileRuntime {
         observedNativeNetwork: await this.game.inspectNativeNetworkForDiagnostics?.() ?? null,
       });
       finishStartupStage('verification');
-      if (this.world.projectionWriteQuarantine?.active) this.#clearProjectionWriteQuarantine(this.world);
       // A route may cross the logical tile boundary while remaining owned by
       // the native save that created it. Capture the freshly loaded save on
       // first boot so global cross-tile routing can search that profile too.
@@ -503,7 +408,7 @@ export class WorldTileRuntime {
         startupFinance,
         this.world.globalNetwork?.hash ?? null,
       ).ready;
-      if (startupFinanceConfigured && !startupFinanceReady) {
+      if (!this.revenueAccrual && startupFinanceConfigured && !startupFinanceReady) {
         await this.#recoverStaleNativeFinanceProfile(
           this.world,
           Math.floor(this.world.elapsedSeconds / 3600),
@@ -550,9 +455,9 @@ export class WorldTileRuntime {
   }
   async reloadFromSave(worldId, loadedTileId, saveName, {
     allowLiveFallback = false,
-    restoreCanonicalLineage = false,
     nativeSessionId = null,
     nativeTileId = null,
+    nativeAuthoritativeLoad = false,
     loadTraceId = null,
   } = {}) {
     return this.#enqueue(async () => {
@@ -575,9 +480,9 @@ export class WorldTileRuntime {
         const view = await this.boot(worldId, loadedTileId, {
           saveName,
           allowLiveFallback,
-          restoreCanonicalLineage,
           nativeSessionId,
           nativeTileId,
+          nativeAuthoritativeLoad,
           loadTraceId,
         });
         this.#notify({ type: 'save-loaded', saveName });
@@ -589,6 +494,22 @@ export class WorldTileRuntime {
         this.viewWorldFallback = null;
       }
     });
+  }
+  getActiveTileId() {
+    const world = this.world ?? this.viewWorldFallback;
+    if (!world) throw new Error('WorldTileRuntime.boot must complete first');
+    return world.activeTileId;
+  }
+  markDerivedNetworkDirty(reason = 'route-service-change') {
+    this.derivedNetworkInvalidations.add(String(reason));
+    return this.derivedNetworkDirtyReasons();
+  }
+  derivedNetworkDirtyReasons() {
+    return [...this.derivedNetworkInvalidations].sort();
+  }
+  getInterliningRevision() {
+    const revision = this.game?.getInterliningRevision?.();
+    return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
   }
   view() {
     const world = this.world ?? this.viewWorldFallback;
@@ -606,7 +527,7 @@ export class WorldTileRuntime {
       .map((routeId) => world.globalNetwork?.routeDescriptors?.[routeId])
       .filter(Boolean);
     const lineage = summarizeLineage(world);
-    return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, day: lineage.day, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, fare: lineage.fare, revision: world.revision, routeCount: lineage.routeCount, stationCount: lineage.stationCount, trainCount: lineage.trainCount, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, projectionWriteQuarantine: world.projectionWriteQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: world.gatewayLedger, crossPopModeChoices: world.crossPopModeChoices ?? {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
+    return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, day: lineage.day, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, fare: lineage.fare, revision: world.revision, routeCount: lineage.routeCount, stationCount: lineage.stationCount, trainCount: lineage.trainCount, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: world.gatewayLedger, crossPopModeChoices: world.crossPopModeChoices ?? {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
   }
   projectionOverlay() { return deepCopy((this.world ?? this.viewWorldFallback)?.projectionOverlay ?? { type: 'FeatureCollection', features: [] }); }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -647,7 +568,7 @@ export class WorldTileRuntime {
     const finance = this.#ensureBackgroundFinanceClock(world, Math.floor(world.elapsedSeconds / 3600));
     const hadNativeFinanceProfile = Object.keys(finance.tileRevenueProfiles ?? {}).length > 0
       || Boolean(finance.expenseProfile);
-    if (nativeFinanceProfile?.expenseProfile) {
+    if (this.backgroundNativeExpenses && nativeFinanceProfile?.expenseProfile) {
       finance.expenseProfile = {
         ...deepCopy(nativeFinanceProfile.expenseProfile),
         networkHash: world.globalNetwork?.hash ?? null,
@@ -660,7 +581,8 @@ export class WorldTileRuntime {
     const tileIdsByRoute = globalState && hasSpatialTileCatalog
       ? routeTileIdsById(globalState, this.tileCatalog, { guardBandMeters: NATIVE_DEMAND_TILE_GUARD_METERS })
       : null;
-    if (typeof this.tilePackages.loadNativeDemand === 'function') {
+    if (typeof this.tilePackages.loadNativeDemand === 'function'
+      || typeof this.tilePackages.evaluateNativeDemand === 'function') {
       for (const candidateTileId of this.tileIds) {
         try {
           const localized = globalState && tileIdsByRoute
@@ -708,17 +630,44 @@ export class WorldTileRuntime {
             });
             continue;
           }
-          const demand = await this.tilePackages.loadNativeDemand(candidateTileId);
-          if (!demand) { results.unavailable.push(candidateTileId); continue; }
-          const result = evaluateOffTileNativeDemand({
+          // An unserved tile has exactly zero transit revenue for this network.
+          // Avoid inflating and parsing its full native demand package merely
+          // to prove that no journey can enter a route. If service is added to
+          // the tile later, the changed network context invalidates this zero
+          // profile and the real demand package is evaluated normally.
+          const hasLocalRouteService = (candidateProfile.routes ?? []).length > 0;
+          const canSeedUnservedProfile = !hasLocalRouteService
+            && existingProfile == null
+            && this.tilePackages.canSkipNativeDemandForUnservedTile?.(candidateTileId) === true;
+          const evaluationInput = {
             tileId: candidateTileId,
-            demand,
             networkProfile: candidateProfile,
             farePolicy: localFarePolicy,
             globalNativeState: globalState,
             financeOwnedRouteIds: localFinanceOwnedRouteIds,
             existingProfile,
-          });
+          };
+          let result = null;
+          let packageEvaluationError = null;
+          if (!canSeedUnservedProfile
+            && typeof this.tilePackages.evaluateNativeDemand === 'function') {
+            try {
+              result = await this.tilePackages.evaluateNativeDemand(evaluationInput);
+            } catch (error) {
+              packageEvaluationError = error;
+            }
+          }
+          if (!result) {
+            const demand = canSeedUnservedProfile
+              ? { points: [], pops: [] }
+              : await this.tilePackages.loadNativeDemand?.(candidateTileId);
+            if (!demand) {
+              if (packageEvaluationError) throw packageEvaluationError;
+              results.unavailable.push(candidateTileId);
+              continue;
+            }
+            result = evaluateOffTileNativeDemand({ ...evaluationInput, demand });
+          }
           finance.tileRevenueProfiles[candidateTileId] = deepCopy(result.profile);
           results[result.status]++;
           this.telemetry({
@@ -767,7 +716,7 @@ export class WorldTileRuntime {
       });
     }
     return {
-      compiled: Boolean(projected || finance.expenseProfile),
+      compiled: Boolean(projected || (this.backgroundNativeExpenses && finance.expenseProfile)),
       ...results,
       activeSource: projected?.source ?? 'native-store-fallback',
     };
@@ -777,6 +726,7 @@ export class WorldTileRuntime {
     this.#requireBooted();
     return this.#enqueue(async () => {
       const passiveCacheReady = this.world.crossModeShare?.schemaVersion === 1
+        && this.derivedNetworkInvalidations.size === 0
         && this.world.backgroundNativeFinance?.networkHash === (this.world.globalNetwork?.hash ?? null)
         && this.tileIds.every((tileId) => isCurrentOffTileNativeDemandProfile(
           this.world.backgroundNativeFinance?.tileRevenueProfiles?.[tileId],
@@ -790,9 +740,12 @@ export class WorldTileRuntime {
         return { status: 'already-current', ...this.world.crossModeShare };
       }
       await this.#captureAuthoritativeGlobals(this.world);
+      await this.#refreshDerivedNetworkIfDirty(this.world, this.world.activeTileId);
       this.#advanceDraft(this.world, Math.floor(this.world.elapsedSeconds / 3600));
-      await this.#syncCrossTileFinance(this.world);
-      await this.#syncBackgroundNativeFinance(this.world, Math.floor(this.world.elapsedSeconds / 3600));
+      if (!this.revenueAccrual) {
+        await this.#syncCrossTileFinance(this.world);
+        await this.#syncBackgroundNativeFinance(this.world, Math.floor(this.world.elapsedSeconds / 3600));
+      }
       const tileId = this.world.activeTileId;
       const previousProfile = this.world.tiles[tileId].networkProfile;
       const previousSignature = previousProfile?.signature;
@@ -810,21 +763,44 @@ export class WorldTileRuntime {
         const commuteRefresh = await this.game.refreshNativeCommutes?.();
         if (commuteRefresh) this.telemetry({ phase: 'commute-refresh', reason: 'native-finance-profile', tileId, ...commuteRefresh });
       }
-      const nativeFinanceProfile = await this.#compileAndCommitFinanceHandoff(
-        this.world,
-        tileId,
-        profile,
-        reason,
-      );
+      const nativeFinanceProfile = this.revenueAccrual
+        ? await this.#compileNativeFinanceProfile(this.world, tileId, profile)
+        : await this.#compileAndCommitFinanceHandoff(
+          this.world,
+          tileId,
+          profile,
+          reason,
+        );
       // Compilation can restore only one side of finance (most commonly the
       // global expense profile while a remote demand package is unavailable).
       // Drain whichever stream is now current immediately so a tile switch
       // does not wait for another hour boundary or display active-tile-only
       // costs in the meantime.
-      const backgroundFinance = await this.#syncBackgroundNativeFinance(
-        this.world,
-        Math.floor(this.world.elapsedSeconds / 3600),
-      );
+      let backgroundFinance;
+      if (this.revenueAccrual) {
+        const finance = this.#ensureBackgroundFinanceClock(
+          this.world,
+          Math.floor(this.world.elapsedSeconds / 3600),
+        );
+        if (finance.networkHash && Object.keys(finance.tileRevenueProfiles ?? {}).length) {
+          this.revenueAccrual.replaceProfiles({
+            networkHash: finance.networkHash,
+            profiles: finance.tileRevenueProfiles,
+          });
+        } else this.revenueAccrual.invalidate();
+        backgroundFinance = {
+          persisted: false,
+          status: 'profiles-replaced',
+          revenue: 0,
+          expenses: 0,
+          profileCount: Object.keys(finance.tileRevenueProfiles ?? {}).length,
+        };
+      } else {
+        backgroundFinance = await this.#syncBackgroundNativeFinance(
+          this.world,
+          Math.floor(this.world.elapsedSeconds / 3600),
+        );
+      }
       if (backgroundFinance.persisted) {
         if (typeof this.worldState.saveSettlement === 'function') {
           await this.worldState.saveSettlement(this.world);
@@ -874,16 +850,25 @@ export class WorldTileRuntime {
       const previousRevenue = this.world.crossTileFinancials?.fareRevenue ?? 0;
       const nativeAuditChanged = await this.#captureAuthoritativeGlobals(this.world);
       const targetHour = Math.floor(this.world.elapsedSeconds / 3600);
-      const nativeFinanceProfile = await this.#recoverStaleNativeFinanceProfile(
-        this.world,
-        targetHour,
-        reason,
-      );
+      const nativeFinanceProfile = this.revenueAccrual
+        ? { status: 'derived-cache', networkHash: this.world.globalNetwork?.hash ?? null }
+        : await this.#recoverStaleNativeFinanceProfile(
+          this.world,
+          targetHour,
+          reason,
+        );
       const advancement = this.#advanceDraft(this.world, targetHour);
       const crossFinancialsPosted = await this.#syncCrossTileFinance(this.world);
-      const background = await this.#syncBackgroundNativeFinance(this.world, targetHour);
+      const background = this.revenueAccrual
+        ? await this.#postNativeRevenueHour(this.world, targetHour)
+        : await this.#syncBackgroundNativeFinance(this.world, targetHour);
       const profileStatusChanged = ['recovered', 'partial', 'failed'].includes(nativeFinanceProfile.status);
-      const financialsPosted = crossFinancialsPosted || background.persisted || nativeAuditChanged || profileStatusChanged;
+      // NativeRevenueAccrual persists its deterministic receipt inside the
+      // native financial history. It is intentionally not a sidecar write.
+      const financialsPosted = crossFinancialsPosted
+        || (!this.revenueAccrual && background.persisted)
+        || nativeAuditChanged
+        || profileStatusChanged;
       if (financialsPosted) {
         assertWorld(this.world, this.tileIds);
         if (typeof this.worldState.saveSettlement === 'function') await this.worldState.saveSettlement(this.world);
@@ -913,16 +898,6 @@ export class WorldTileRuntime {
     captureNativeSnapshot = true,
   } = {}) {
     this.#requireBooted();
-    if (this.world.projectionWriteQuarantine?.active) {
-      const result = {
-        status: 'projection-quarantined',
-        reason,
-        tileId: this.world.activeTileId,
-        quarantine: deepCopy(this.world.projectionWriteQuarantine),
-      };
-      this.telemetry({ phase: 'projection-write-blocked', operation: 'checkpoint', ...result });
-      return result;
-    }
     const requestedAt = this.now();
     return this.#enqueue(async () => {
       const operationStartedAt = this.now();
@@ -939,7 +914,6 @@ export class WorldTileRuntime {
         projectionAdoption: 0,
         liveWorldSave: 0,
         checkpointIndexRead: 0,
-        revisionAssetsWrite: 0,
         revisionPayloadWrite: 0,
         checkpointIndexWrite: 0,
         livePointerWrite: 0,
@@ -986,14 +960,17 @@ export class WorldTileRuntime {
             const networkSnapshot = createNativeNetworkSnapshot(current.snapshot, {
               nativeState: nativeNetwork,
             });
-            const adoption = await timeStage('projectionAdoption', () => (
-              this.#adoptProjectionSnapshot(
-                this.world,
-                this.world.activeTileId,
-                networkSnapshot,
-                { restore: false, fastPath: true },
-              )
-            ));
+          const adoption = await timeStage('projectionAdoption', () => (
+            this.#adoptProjectionSnapshot(
+              this.world,
+              this.world.activeTileId,
+              networkSnapshot,
+              {
+                restore: false,
+                fastPath: true,
+              },
+            )
+          ));
             projectionStatus = adoption.fastPath
               ? 'native-network-captured'
               : 'native-network-reconciled';
@@ -1001,6 +978,7 @@ export class WorldTileRuntime {
             projectionStatus = 'deferred-native-save';
           }
         }
+        this.derivedNetworkInvalidations.clear();
         this.world.tiles[this.world.activeTileId].revision++; this.world.revision++;
         if (saveName != null && typeof this.worldState.saveCheckpoint === 'function') {
           const checkpointStartedAt = this.now();
@@ -1013,7 +991,6 @@ export class WorldTileRuntime {
           if (checkpointStages) {
             for (const name of [
               'checkpointIndexRead',
-              'revisionAssetsWrite',
               'revisionPayloadWrite',
               'checkpointIndexWrite',
               'livePointerWrite',
@@ -1059,120 +1036,75 @@ export class WorldTileRuntime {
       }
     });
   }
-  async saveAsCanonicalLineage({ worldId } = {}) {
-    this.#requireBooted();
-    if (typeof worldId !== 'string' || !worldId.trim()) throw new Error('A canonical lineage requires a world id');
-    if (worldId === this.world.worldId) throw new Error('The new canonical lineage must have a different world id');
-    if (this.world.projectionWriteQuarantine?.active) {
-      throw new Error('Cannot save a new canonical lineage while topology recovery is pending');
-    }
-    return this.#enqueue(async () => {
-      const wasPaused = await this.#pausePreservingUserState();
-      try {
-        const draft = deepCopy(this.world);
-        await this.#captureAuthoritativeGlobals(draft);
-        // Capture first: the live native clock may have advanced beyond the
-        // last sidecar write. The lineage must be stamped with that exact
-        // metro-save time before hourly catch-up is calculated.
-        const authoritativeHour = Math.floor(draft.elapsedSeconds / 3_600);
-        this.#advanceDraft(draft, authoritativeHour);
-        await this.#syncCrossTileFinance(draft);
-        await this.#syncBackgroundNativeFinance(draft, authoritativeHour);
-        const tile = draft.tiles[draft.activeTileId];
-        const snapshot = await this.game.captureSnapshot(tile.snapshot);
-        await this.game.validateSnapshot(snapshot);
-        if (this.networkProjection) {
-          await this.#adoptProjectionSnapshot(draft, draft.activeTileId, snapshot, {
-            restore: false,
-            fastPath: true,
-          });
-        } else tile.snapshot = snapshot;
-        draft.worldId = worldId.trim();
-        draft.revision++;
-        tile.revision++;
-        assertWorld(draft, this.tileIds);
-        await this.worldState.save(draft);
-        const lineage = summarizeLineage(draft);
-        return {
-          worldId: draft.worldId,
-          ...lineage,
-          revision: draft.revision,
-        };
-      } finally {
-        await this.#restoreUserPauseState(wasPaused);
-      }
-    });
-  }
   async reconcileActiveProjection(reason = 'network-change') {
     this.#requireBooted();
     if (!this.networkProjection) return { status: 'projection-disabled', reason };
-    if (this.world.projectionWriteQuarantine?.active) {
-      const result = {
-        status: 'projection-quarantined',
-        reason,
-        tileId: this.world.activeTileId,
-        warning: { code: 'projection-write-quarantined' },
-      };
-      this.telemetry({ phase: 'projection-write-blocked', operation: 'reconcile', ...result });
-      return result;
-    }
     return this.#enqueue(async () => {
-      const wasPaused = await this.#pausePreservingUserState();
-      try {
-        const tileId = this.world.activeTileId;
-        const snapshot = await this.game.captureSnapshot(this.world.tiles[tileId].snapshot);
-        await this.game.validateSnapshot(snapshot);
-        const result = await this.#adoptProjectionSnapshot(this.world, tileId, snapshot, { restore: 'rejected' });
-        if (result.changed) {
-          this.world.revision++;
-          this.world.tiles[tileId].revision++;
+      const tileId = this.world.activeTileId;
+      const snapshot = await this.#captureLiveNetworkSnapshot(this.world, tileId);
+      const result = await this.#adoptProjectionSnapshot(this.world, tileId, snapshot, {
+        restore: false,
+      });
+      this.derivedNetworkInvalidations.clear();
+      if (result.changed) {
+        this.world.revision++;
+        this.world.tiles[tileId].revision++;
+      }
+      await this.worldState.save(this.world);
+      const status = result.accepted ? (result.changed ? 'accepted' : 'unchanged') : 'rejected';
+      if (result.accepted && result.changed) {
+        const commuteRefresh = await this.game.refreshNativeCommutes?.();
+        if (commuteRefresh) {
+          this.telemetry({ phase: 'commute-refresh', reason, tileId, ...commuteRefresh });
         }
-        await this.worldState.save(this.world);
-        const status = result.accepted ? (result.changed ? 'accepted' : 'unchanged') : 'rejected';
-        if (result.accepted && result.changed) {
-          const commuteRefresh = await this.game.refreshNativeCommutes?.();
-          if (commuteRefresh) {
-            this.telemetry({ phase: 'commute-refresh', reason, tileId, ...commuteRefresh });
-          }
-        }
-        this.telemetry({ phase: 'network-projection-reconcile', status, reason, tileId, warning: result.warning ?? null });
-        this.#notify({ type: 'projection-changed', status, reason, warning: result.warning ?? null });
-        return { status, reason, tileId, warning: result.warning ?? null };
-      } finally { await this.#restoreUserPauseState(wasPaused); }
+      }
+      this.telemetry({
+        phase: 'network-projection-reconcile',
+        status,
+        reason,
+        tileId,
+        captureMode: 'live-native-network-v1',
+        warning: result.warning ?? null,
+      });
+      this.#notify({ type: 'projection-changed', status, reason, warning: result.warning ?? null });
+      return { status, reason, tileId, warning: result.warning ?? null };
     });
   }
   async reconcileActiveScheduleChanges(changes) {
     this.#requireBooted();
     if (!this.networkProjection) return { status: 'projection-disabled', reason: 'schedule-change' };
     return this.#enqueue(async () => {
-      const wasPaused = await this.#pausePreservingUserState();
-      try {
-        const tileId = this.world.activeTileId;
-        const result = this.networkProjection.applyRouteScheduleChanges(this.world.globalNetwork, changes);
-        this.world.projectionWarning = result.warning ?? null;
-        if (!result.accepted) {
-          this.telemetry({ phase: 'network-projection-schedule', status: 'rejected', tileId, warning: result.warning });
-          this.#notify({ type: 'projection-changed', status: 'rejected', reason: 'schedule-change', warning: result.warning });
-          return { status: 'rejected', reason: 'schedule-change', tileId, warning: result.warning };
-        }
-        if (result.changed) this.world.globalNetwork = result.network;
-        const snapshot = await this.game.captureSnapshot(this.world.tiles[tileId].snapshot);
-        await this.game.validateSnapshot(snapshot);
-        // The native scheduler has already applied this schedule with
-        // setRoutes(..., false). Rebuild the persisted projection around that
-        // state, but do not loadSave it back into the game: loadSave calls
-        // setRoutes(..., true) and needlessly reruns the interlining worker.
-        await this.#adoptProjectionSnapshot(this.world, tileId, snapshot, { restore: false, reconcile: false });
-        if (result.changed) {
-          this.world.revision++;
-          this.world.tiles[tileId].revision++;
-        }
-        await this.worldState.save(this.world);
-        const status = result.changed ? 'accepted' : 'unchanged';
-        this.telemetry({ phase: 'network-projection-schedule', status, tileId, routeIds: changes.map(({ routeId }) => routeId) });
-        this.#notify({ type: 'projection-changed', status, reason: 'schedule-change', warning: null });
-        return { status, reason: 'schedule-change', tileId, warning: null };
-      } finally { await this.#restoreUserPauseState(wasPaused); }
+      const tileId = this.world.activeTileId;
+      const result = this.networkProjection.applyRouteScheduleChanges(this.world.globalNetwork, changes);
+      this.world.projectionWarning = result.warning ?? null;
+      if (!result.accepted) {
+        this.telemetry({ phase: 'network-projection-schedule', status: 'rejected', tileId, warning: result.warning });
+        this.#notify({ type: 'projection-changed', status: 'rejected', reason: 'schedule-change', warning: result.warning });
+        return { status: 'rejected', reason: 'schedule-change', tileId, warning: result.warning };
+      }
+      if (result.changed) this.world.globalNetwork = result.network;
+      // The native scheduler has already committed this state. Reconcile the
+      // direct network slices without generating a save or stopping the clock.
+      const snapshot = await this.#captureLiveNetworkSnapshot(this.world, tileId);
+      await this.#adoptProjectionSnapshot(this.world, tileId, snapshot, {
+        restore: false,
+      });
+      this.derivedNetworkInvalidations.clear();
+      if (result.changed) {
+        this.world.revision++;
+        this.world.tiles[tileId].revision++;
+      }
+      await this.worldState.save(this.world);
+      const status = result.changed ? 'accepted' : 'unchanged';
+      this.telemetry({
+        phase: 'network-projection-schedule',
+        status,
+        tileId,
+        routeIds: changes.map(({ routeId }) => routeId),
+        captureMode: 'live-native-network-v1',
+      });
+      this.#notify({ type: 'projection-changed', status, reason: 'schedule-change', warning: null });
+      return { status, reason: 'schedule-change', tileId, warning: null };
     });
   }
   async advanceTo(worldTime) {
@@ -1193,7 +1125,7 @@ export class WorldTileRuntime {
       return this.view();
     });
   }
-  async stageNavigationTransition(tileId) {
+  async stageNavigationTransition(tileId, { stageNativeRecovery = null } = {}) {
     this.#requireBooted();
     if (!this.tileIds.includes(tileId)) throw new Error(`Unknown tile: ${tileId}`);
     if (tileId === this.world.activeTileId) return { status: 'already-active', worldId: this.world.worldId, tileId };
@@ -1204,6 +1136,7 @@ export class WorldTileRuntime {
       const draft = deepCopy(this.world);
       await this.#registerCommuteCatalog(draft, tileId);
       let lease = false;
+      let recoveryStage = null;
       const wasPaused = await this.#pausePreservingUserState();
       try {
         lease = await this.worldState.acquireLease(draft.worldId, transitionId);
@@ -1211,7 +1144,9 @@ export class WorldTileRuntime {
         await this.#captureAuthoritativeGlobals(draft);
         const sourceSnapshot = await this.game.captureSnapshot(draft.tiles[sourceId].snapshot);
         await this.game.validateSnapshot(sourceSnapshot);
-        if (this.networkProjection) await this.#adoptProjectionSnapshot(draft, sourceId, sourceSnapshot, { restore: 'rejected' });
+        if (this.networkProjection) {
+          await this.#adoptProjectionSnapshot(draft, sourceId, sourceSnapshot, { restore: false });
+        }
         else draft.tiles[sourceId].snapshot = sourceSnapshot;
         const sourceProfile = await this.#captureNetworkProfile(draft, sourceId);
         if (sourceProfile) draft.tiles[sourceId].networkProfile = sourceProfile;
@@ -1223,21 +1158,46 @@ export class WorldTileRuntime {
         draft.revision++;
         draft.tiles[sourceId].revision++;
         draft.tiles[tileId].revision++;
-        draft.pendingTransition = { transitionId, from: sourceId, to: tileId, mode: 'route-navigation' };
-        this.#armProjectionWriteQuarantine(draft, {
-          reason: 'tile-transition', transitionId, tileId, fromTileId: sourceId,
-        });
+        draft.pendingTransition = {
+          transitionId,
+          from: sourceId,
+          to: tileId,
+          mode: 'route-navigation',
+          // This handoff exists only in the live renderer. The storage adapter
+          // strips it so the native save remains the only durable topology.
+          nativeSnapshot: deepCopy(sourceSnapshot),
+        };
         assertWorld(draft, this.tileIds);
+        if (stageNativeRecovery != null) {
+          if (typeof stageNativeRecovery !== 'function') {
+            throw new TypeError('stageNativeRecovery must be a function');
+          }
+          recoveryStage = await stageNativeRecovery(sourceSnapshot, {
+            transitionId,
+            worldId: draft.worldId,
+            from: sourceId,
+            to: tileId,
+          });
+        }
         await this.worldState.commit(draft, transitionId);
         this.world = draft;
+        this.derivedNetworkInvalidations.clear();
         return { status: 'reload-required', transitionId, worldId: draft.worldId, tileId, from: sourceId };
+      } catch (error) {
+        try { await recoveryStage?.rollback?.(); } catch (rollbackError) {
+          error.recoveryRollbackError = rollbackError;
+        }
+        throw error;
       } finally {
         await this.#restoreUserPauseState(wasPaused);
         if (lease) await this.worldState.releaseLease(draft.worldId, transitionId);
       }
     });
   }
-  async completeStagedTransition(loadedTileId, { loadTraceId = null } = {}) {
+  async completeStagedTransition(loadedTileId, {
+    loadTraceId = null,
+    navigationTransition = null,
+  } = {}) {
     this.#requireBooted();
     return this.#enqueue(async () => {
       const startedAt = this.now();
@@ -1254,6 +1214,48 @@ export class WorldTileRuntime {
       });
       trace('transition-completion-start', { world: summarizeWorldForLoad(this.world) });
       let pending = this.world.pendingTransition;
+      let repairedFromNavigation = false;
+      const tokenTargetsLoadedTile = typeof navigationTransition?.worldId === 'string'
+        && navigationTransition.worldId
+        && navigationTransition.worldId !== this.world.worldId
+        && navigationTransition.tileId === loadedTileId
+        && this.tileIds.includes(loadedTileId)
+        && this.tileIds.includes(navigationTransition.from);
+      if (tokenTargetsLoadedTile) {
+        // The callback can belong to an older runtime generation whose World
+        // was replaced while the browser navigation remained in flight. The
+        // token is not sufficient by itself: recover only a durable World that
+        // independently confirms either the staged destination or its exact
+        // source tile. Fabricated and stale cross-World tokens still fail shut.
+        const tokenWorld = await this.worldState.load(navigationTransition.worldId, {
+          loadTraceId: traceId,
+        });
+        if (tokenWorld) migrateWorldTileSet(tokenWorld, this.tileIds);
+        const tokenPending = tokenWorld?.pendingTransition;
+        const tokenPendingMatches = tokenWorld?.activeTileId === loadedTileId
+          && tokenPending?.to === loadedTileId
+          && tokenPending.from === navigationTransition.from;
+        const tokenSourceMatches = tokenPending == null
+          && tokenWorld?.activeTileId === navigationTransition.from;
+        const tokenDestinationMatches = tokenPending == null
+          && tokenWorld?.activeTileId === loadedTileId;
+        if (tokenWorld?.worldId === navigationTransition.worldId
+          && (tokenPendingMatches || tokenSourceMatches || tokenDestinationMatches)) {
+          const staleWorldId = this.world.worldId;
+          this.world = tokenWorld;
+          pending = tokenPending;
+          assertWorld(this.world, this.tileIds);
+          this.telemetry({
+            phase: 'navigation-token-world-rehydrated',
+            staleWorldId,
+            recoveredWorldId: this.world.worldId,
+            loadedTileId,
+            sourceTileId: navigationTransition.from,
+            transitionId: navigationTransition.transitionId ?? tokenPending?.transitionId ?? null,
+          });
+          trace('navigation-token-world-rehydrated', { world: summarizeWorldForLoad(this.world) });
+        }
+      }
       if (this.world.activeTileId !== loadedTileId || (pending && pending.to !== loadedTileId)) {
         // onCityLoad may be delivered to a runtime whose in-memory world was
         // captured before another lifecycle path staged and persisted the
@@ -1278,6 +1280,47 @@ export class WorldTileRuntime {
           trace('transition-world-rehydrated', { world: summarizeWorldForLoad(this.world) });
         }
       }
+      const navigationMatches = !pending
+        && navigationTransition?.worldId === this.world.worldId
+        && navigationTransition?.tileId === loadedTileId
+        && this.tileIds.includes(loadedTileId)
+        && (navigationTransition?.from == null
+          || navigationTransition.from === this.world.activeTileId);
+      if (this.world.activeTileId !== loadedTileId && navigationMatches) {
+        // The browser navigation token is written only after an explicit user
+        // tile selection. If a stale lifecycle/cache write lost the matching
+        // World Record marker, reconstruct that marker before loading cached
+        // topology. Tokens for another World or source tile still fail closed.
+        const sourceTileId = this.world.activeTileId;
+        const transitionId = typeof navigationTransition.transitionId === 'string'
+          && navigationTransition.transitionId
+          ? navigationTransition.transitionId
+          : `${this.world.worldId}:${this.world.revision}:navigation-repair:${sourceTileId}->${loadedTileId}`;
+        const repaired = deepCopy(this.world);
+        repaired.activeTileId = loadedTileId;
+        repaired.revision++;
+        repaired.tiles[sourceTileId].revision++;
+        repaired.tiles[loadedTileId].revision++;
+        repaired.pendingTransition = {
+          transitionId,
+          from: sourceTileId,
+          to: loadedTileId,
+          mode: 'route-navigation-repair',
+        };
+        assertWorld(repaired, this.tileIds);
+        await this.worldState.save(repaired);
+        this.world = repaired;
+        pending = repaired.pendingTransition;
+        repairedFromNavigation = true;
+        this.telemetry({
+          phase: 'staged-transition-repaired',
+          sourceTileId,
+          loadedTileId,
+          transitionId,
+          evidence: 'matching-user-navigation-token',
+        });
+        trace('transition-world-repaired', { world: summarizeWorldForLoad(this.world) });
+      }
       if (this.world.activeTileId !== loadedTileId || (pending && pending.to !== loadedTileId)) {
         throw new Error(
           `No staged transition targets loaded tile: ${loadedTileId} `
@@ -1289,8 +1332,10 @@ export class WorldTileRuntime {
       // consumed the marker. Rebuilding the active projection is both
       // idempotent and necessary because the native city loader may have reset
       // its transit slices in the meantime.
-      const completionStatus = pending
-        ? 'committed'
+      const completionStatus = repairedFromNavigation
+        ? 'repaired-navigation'
+        : pending
+          ? 'committed'
         : (this.world.committedTransitionId ? 'already-committed' : 'repaired-active');
       const pkg = await this.tilePackages.prepare(loadedTileId);
       await this.#registerCommuteCatalog(this.world, loadedTileId);
@@ -1300,19 +1345,16 @@ export class WorldTileRuntime {
       const wasPaused = await this.#pausePreservingUserState();
       trace('pause-acquired', { userWasPaused: wasPaused });
       try {
-        if (!this.world.projectionWriteQuarantine?.active) {
-          this.#armProjectionWriteQuarantine(this.world, {
-            reason: 'tile-transition',
-            transitionId: pending?.transitionId ?? this.world.committedTransitionId ?? null,
-            tileId: loadedTileId,
-            fromTileId: pending?.from ?? null,
-          });
-          await this.worldState.save(this.world);
-        }
         const destination = this.world.tiles[loadedTileId];
         await this.#restoreDestinationNetwork(this.world, loadedTileId, pending?.from ?? null, trace);
-        await this.game.setAuthoritativeGlobals(this.world);
-        trace('authoritative-globals-applied');
+        if (!this.revenueAccrual) {
+          await this.game.setAuthoritativeGlobals(this.world);
+          trace('authoritative-globals-applied');
+        } else {
+          await this.game.setAuthoritativeGameMode?.(this.world.gameMode);
+          await this.game.setAuthoritativeClock?.(this.world.elapsedSeconds);
+          trace('authoritative-globals-retained-native');
+        }
         const destinationProfile = await this.#captureNetworkProfile(this.world, loadedTileId);
         if (destinationProfile) destination.networkProfile = destinationProfile;
         const commuteRefresh = await this.game.refreshNativeCommutes?.();
@@ -1328,8 +1370,6 @@ export class WorldTileRuntime {
         trace('native-verified', {
           observedNativeNetwork: await this.game.inspectNativeNetworkForDiagnostics?.() ?? null,
         });
-        this.#clearProjectionWriteQuarantine(this.world);
-        if (!destination.snapshot) throw new Error(`Destination snapshot was not captured: ${loadedTileId}`);
         if (pending) this.world.committedTransitionId = pending.transitionId;
         this.world.pendingTransition = null;
         await this.worldState.save(this.world);
@@ -1470,8 +1510,8 @@ export class WorldTileRuntime {
   #financeProfileReadiness(finance, networkHash) {
     const revenueCurrent = Object.keys(finance?.tileRevenueProfiles ?? {}).length > 0
       && finance?.networkHash === networkHash;
-    const expenseCurrent = Boolean(finance?.expenseProfile)
-      && (finance.expenseProfile.networkHash ?? finance.networkHash) === networkHash;
+    const expenseCurrent = !this.backgroundNativeExpenses || (Boolean(finance?.expenseProfile)
+      && (finance.expenseProfile.networkHash ?? finance.networkHash) === networkHash);
     return { revenueCurrent, expenseCurrent, ready: revenueCurrent && expenseCurrent };
   }
   #markFinanceHandoffPending(world, networkHash, reason, details = {}) {
@@ -1605,6 +1645,14 @@ export class WorldTileRuntime {
     finance.pendingHandoff ??= null;
     finance.totalRevenue = Number.isFinite(finance.totalRevenue) ? finance.totalRevenue : 0;
     finance.totalExpenses = Number.isFinite(finance.totalExpenses) ? finance.totalExpenses : 0;
+    if (!this.backgroundNativeExpenses) {
+      // Canonical-native integrations let the game charge the complete rail
+      // network. Retained legacy projections must never become a second
+      // expense authority after a mod reload or sidecar migration.
+      finance.expenseProfile = null;
+      finance.totalExpenses = 0;
+      finance.lastExpenseSettledHour = targetHour;
+    }
     finance.audit ??= { schemaVersion: NATIVE_FINANCE_AUDIT_SCHEMA_VERSION, samples: [], rolling24Hours: null, updatedAtHour: null };
     if (!Number.isSafeInteger(finance.lastSettledHour) || finance.lastSettledHour > targetHour) {
       // Old sidecars have no inactive-finance cursor. Starting at the live
@@ -1682,8 +1730,8 @@ export class WorldTileRuntime {
     const recoveredFinance = world.backgroundNativeFinance;
     const recoveredRevenue = Object.keys(recoveredFinance.tileRevenueProfiles ?? {}).length > 0
       && recoveredFinance.networkHash === networkHash;
-    const recoveredExpenses = Boolean(recoveredFinance.expenseProfile)
-      && (recoveredFinance.expenseProfile.networkHash ?? recoveredFinance.networkHash) === networkHash;
+    const recoveredExpenses = !this.backgroundNativeExpenses || (Boolean(recoveredFinance.expenseProfile)
+      && (recoveredFinance.expenseProfile.networkHash ?? recoveredFinance.networkHash) === networkHash);
     recoveredFinance.profileRecovery = {
       networkHash,
       attemptedAtHour: targetHour,
@@ -1697,6 +1745,31 @@ export class WorldTileRuntime {
     this.telemetry({ phase: 'native-finance-profile-recovery', ...recoveredFinance.profileRecovery });
     return deepCopy(recoveredFinance.profileRecovery);
   }
+  async #postNativeRevenueHour(world, targetHour) {
+    const finance = this.#ensureBackgroundFinanceClock(world, targetHour);
+    if (finance.networkHash && Object.keys(finance.tileRevenueProfiles ?? {}).length) {
+      this.revenueAccrual.replaceProfiles({
+        networkHash: finance.networkHash,
+        profiles: finance.tileRevenueProfiles,
+      });
+    }
+    const posting = await this.revenueAccrual.postHour({
+      worldId: world.worldId,
+      hour: targetHour,
+      activeTileId: world.activeTileId,
+      projection: this.#committedFinanceOwnership(world) ?? { activeTileId: world.activeTileId },
+    });
+    if (Number.isFinite(posting.wallet)) world.wallet = posting.wallet;
+    return {
+      persisted: false,
+      status: posting.status,
+      revenue: posting.postedRevenue,
+      calculatedRevenue: posting.calculatedRevenue,
+      expenses: 0,
+      postingId: posting.postingId,
+      wallet: posting.wallet,
+    };
+  }
   async #syncBackgroundNativeFinance(world, targetHour = Math.floor(world.elapsedSeconds / 3600)) {
     if (!Number.isSafeInteger(targetHour) || targetHour < 0) throw new Error('Invalid background finance hour');
     const finance = this.#ensureBackgroundFinanceClock(world, targetHour);
@@ -1706,7 +1779,7 @@ export class WorldTileRuntime {
       ?? null;
     const revenueProfileCurrent = Object.keys(finance.tileRevenueProfiles).length > 0
       && finance.networkHash === currentNetworkHash;
-    const expenseProfileCurrent = Boolean(finance.expenseProfile)
+    const expenseProfileCurrent = this.backgroundNativeExpenses && Boolean(finance.expenseProfile)
       && (finance.expenseProfile.networkHash ?? finance.networkHash) === currentNetworkHash;
     const revenueStartHour = finance.lastRevenueSettledHour;
     const expenseStartHour = finance.lastExpenseSettledHour;
@@ -1936,19 +2009,39 @@ export class WorldTileRuntime {
     });
     return changed;
   }
-  async #captureAuthoritativeGlobals(world) {
+  async #captureAuthoritativeGlobals(world, { allowClockRegression = false } = {}) {
     if (typeof this.game.captureAuthoritativeGlobals !== 'function') return false;
     const globals = await this.game.captureAuthoritativeGlobals();
     if (!Number.isFinite(globals?.wallet)) throw new Error('Invalid captured world balance');
     world.wallet = globals.wallet;
+    if (globals.gameMode != null) {
+      if (!['easy', 'sandbox'].includes(globals.gameMode)) throw new Error('Invalid captured game mode');
+      world.gameMode = globals.gameMode;
+    }
     if (!Number.isFinite(globals?.elapsedSeconds) || globals.elapsedSeconds < 0) throw new Error('Invalid captured game time');
-    world.elapsedSeconds = globals.elapsedSeconds;
+    if (!allowClockRegression && globals.elapsedSeconds < world.elapsedSeconds) {
+      // Ordinary ticks and native saves are observations of the live session,
+      // not authority to rewind the sidecar. Native save-load flows replace or
+      // explicitly rebase the world before reaching this seam. Keeping the
+      // monotonic clock here prevents autosave races from trapping settlement
+      // and leaves inactive-tile revenue profiles/cursors intact.
+      this.telemetry({
+        phase: 'native-clock-regression-ignored',
+        capturedElapsedSeconds: globals.elapsedSeconds,
+        retainedElapsedSeconds: world.elapsedSeconds,
+        retainedWorldTime: world.worldTime,
+      });
+    } else world.elapsedSeconds = globals.elapsedSeconds;
     if (Number.isFinite(globals?.farePolicy?.fare)) {
       world.farePolicy = deepCopy(globals.farePolicy);
       this.#mergeCapturedFareGroups(world, globals.farePolicy.fareGroups);
     }
     if (globals?.financialHistory) world.financialHistory = deepCopy(globals.financialHistory);
-    const financeRebase = this.game.rebaseNativeFinanceForCanonicalMode?.();
+    // Revenue-only mode treats the native ledger as immutable input here.
+    // Legacy rebasing/auditing exists only for the old sidecar-owned model.
+    const financeRebase = this.revenueAccrual
+      ? null
+      : this.game.rebaseNativeFinanceForCanonicalMode?.();
     if (financeRebase?.financialHistory) world.financialHistory = deepCopy(financeRebase.financialHistory);
     if (financeRebase?.changed) {
       this.telemetry({
@@ -1964,7 +2057,7 @@ export class WorldTileRuntime {
         historyExpenses: financeRebase.historyExpenses ?? 0,
       });
     }
-    return Boolean(this.#ingestNativeFinanceAudit(world) || financeRebase?.changed);
+    return Boolean((!this.revenueAccrual && this.#ingestNativeFinanceAudit(world)) || financeRebase?.changed);
   }
   #mergeCapturedFareGroups(world, capturedGroups) {
     if (!Array.isArray(capturedGroups) || !world.globalNetwork?.nativeState) return;
@@ -1990,6 +2083,36 @@ export class WorldTileRuntime {
     const catalog = await this.tilePackages.loadCommuteCatalog(tileId);
     return registerCommuteCatalog(world, catalog);
   }
+  async #captureLiveNetworkSnapshot(world, tileId) {
+    const nativeNetwork = await this.game.captureNativeNetworkState?.();
+    if (!nativeNetwork) throw new Error('Live native network capture is unavailable');
+    return createNativeNetworkSnapshot(world.tiles[tileId]?.snapshot, {
+      nativeState: nativeNetwork,
+    });
+  }
+  async #refreshDerivedNetworkIfDirty(world, tileId) {
+    if (this.derivedNetworkInvalidations.size === 0) {
+      return { status: 'current', reasons: [] };
+    }
+    const reasons = this.derivedNetworkDirtyReasons();
+    const snapshot = await this.#captureLiveNetworkSnapshot(world, tileId);
+    const result = await this.#adoptProjectionSnapshot(world, tileId, snapshot, {
+      restore: false,
+    });
+    for (const reason of reasons) this.derivedNetworkInvalidations.delete(reason);
+    this.telemetry({
+      phase: 'derived-network-refresh',
+      status: result.changed ? 'refreshed' : 'unchanged',
+      tileId,
+      reasons,
+      marker: 'native-derived-state-lazy-v1',
+    });
+    return {
+      status: result.changed ? 'refreshed' : 'unchanged',
+      reasons,
+      result,
+    };
+  }
   async #captureNetworkProfile(world, tileId) {
     if (world.globalNetwork?.nativeState) {
       const state = world.globalNetwork.nativeState;
@@ -2004,28 +2127,19 @@ export class WorldTileRuntime {
   }
   async #adoptProjectionSnapshot(world, tileId, snapshot, {
     restore = false,
-    reconcile = true,
     fastPath = false,
-    migrationFallback = false,
     trace = null,
   } = {}) {
-    const legacyProjected = migrationFallback || isLegacyProjectedSnapshot(snapshot, {
-      baseline: world.activeProjection,
-      fallbackState: world.globalNetwork?.nativeState,
-    });
-    // A legacy projection is the one case where the sidecar may supply
-    // missing topology.  Normal native snapshots are promoted wholesale,
-    // including deletions and all supporting topology arrays.
-    const nextNetwork = legacyProjected && world.globalNetwork
-      ? createCanonicalNetwork(world.globalNetwork.nativeState, (Number(world.globalNetwork.revision) || 0) + 1)
-      : createCanonicalNetwork(snapshot, (Number(world.globalNetwork?.revision) || 0) + 1);
+    const nextNetwork = createCanonicalNetwork(
+      snapshot,
+      (Number(world.globalNetwork?.revision) || 0) + 1,
+    );
     const canonicalSnapshot = createNativeNetworkSnapshot(snapshot, nextNetwork);
     const reconciliation = {
       accepted: true,
       changed: !world.globalNetwork || nextNetwork.hash !== world.globalNetwork.hash,
       network: nextNetwork,
       warning: null,
-      migrated: legacyProjected,
     };
     const previousNetwork = world.globalNetwork;
     const previousProjection = world.activeProjection;
@@ -2037,9 +2151,9 @@ export class WorldTileRuntime {
     if (!this.networkProjection) {
       world.tiles[tileId].snapshot = stripNetworkFromSnapshot(canonicalSnapshot);
       try {
-        if (restore === true || legacyProjected) {
+        if (restore === true) {
           await this.game.validateSnapshot(canonicalSnapshot);
-          await this.game.restoreSnapshot(canonicalSnapshot);
+          await this.#restoreNativeSnapshot(canonicalSnapshot);
         }
       } catch (error) {
         world.globalNetwork = previousNetwork;
@@ -2051,7 +2165,7 @@ export class WorldTileRuntime {
       }
       return reconciliation;
     }
-    if (fastPath && !legacyProjected
+    if (fastPath
       && world.activeProjection?.activeTileId === tileId
       && this.networkProjection.isSnapshotStructurallyCurrent?.({
         network: world.globalNetwork,
@@ -2078,7 +2192,6 @@ export class WorldTileRuntime {
       warning: reconciliation.warning ?? null,
       authoritativeNetwork: summarizeNetworkForLoad(world.globalNetwork?.nativeState),
       mode: this.nativeNetworkMode,
-      migrated: legacyProjected,
     });
     const built = this.networkProjection.build({
       network: world.globalNetwork,
@@ -2105,16 +2218,16 @@ export class WorldTileRuntime {
     world.projectionOverlay = built.overlay;
     world.tiles[tileId].snapshot = stripNetworkFromSnapshot(canonicalSnapshot);
     try {
-      if (restore === true || legacyProjected || (restore === 'rejected' && !reconciliation.accepted)) {
+      if (restore === true) {
         trace?.('native-restore-start', {
-          reason: legacyProjected ? 'legacy-projection-migration' : (restore === true ? 'authoritative' : 'reconciliation-rejected'),
+          reason: 'authoritative',
           snapshot: summarizeNetworkForLoad(canonicalSnapshot),
           mode: this.nativeNetworkMode,
         });
         await this.game.validateSnapshot(canonicalSnapshot);
-        await this.game.restoreSnapshot(canonicalSnapshot);
+        await this.#restoreNativeSnapshot(canonicalSnapshot);
         trace?.('native-restore-complete', {
-          reason: legacyProjected ? 'legacy-projection-migration' : (restore === true ? 'authoritative' : 'reconciliation-rejected'),
+          reason: 'authoritative',
           snapshot: summarizeNetworkForLoad(canonicalSnapshot),
           observedNativeNetwork: await this.game.inspectNativeNetworkForDiagnostics?.() ?? null,
           mode: this.nativeNetworkMode,
@@ -2140,10 +2253,21 @@ export class WorldTileRuntime {
     this.telemetry({ phase: 'network-projection-build', tileId, ...built.diagnostics, warning: world.projectionWarning });
     return { ...reconciliation, projection: built.manifest, diagnostics: built.diagnostics, mode: this.nativeNetworkMode };
   }
+  async #restoreNativeSnapshot(snapshot, authoritativeFinanceSnapshot = null) {
+    // Route navigation initializes the destination city before this restore.
+    // Prefer the source snapshot captured while the source ledger was still
+    // live; the destination store is only a fallback for older snapshots that
+    // do not contain a newly introduced native financial field.
+    return this.game.restoreSnapshot(snapshot, {
+      preserveNativeFinance: Boolean(this.revenueAccrual),
+      authoritativeFinanceSnapshot,
+    });
+  }
   async #restoreDestinationNetwork(world, destinationId, sourceId, trace = null) {
+    const sourceSnapshot = world.pendingTransition?.nativeSnapshot
+      ?? (sourceId ? world.tiles[sourceId]?.snapshot : null);
     if (this.networkProjection) {
       const destination = world.tiles[destinationId];
-      const sourceSnapshot = sourceId ? world.tiles[sourceId]?.snapshot : null;
       const destinationBase = destination.snapshot ?? await this.game.captureSnapshot(sourceSnapshot);
       if (!world.globalNetwork) world.globalNetwork = createGlobalNetwork(sourceSnapshot ?? destinationBase);
       // The projection is now presentation-only.  Restore the complete
@@ -2171,7 +2295,7 @@ export class WorldTileRuntime {
         mode: this.nativeNetworkMode,
       });
       await this.game.validateSnapshot(canonicalSnapshot);
-      await this.game.restoreSnapshot(canonicalSnapshot);
+      await this.#restoreNativeSnapshot(canonicalSnapshot, sourceSnapshot);
       trace?.('native-restore-complete', {
         reason: 'destination-network',
         destinationId,
@@ -2192,15 +2316,14 @@ export class WorldTileRuntime {
       return canonicalSnapshot;
     }
     const destination = world.tiles[destinationId];
-    const sourceSnapshot = sourceId ? world.tiles[sourceId]?.snapshot : null;
     if (!sourceSnapshot || typeof this.game.mergeSharedTransitNetwork !== 'function') {
-      if (destination.snapshot) await this.game.restoreSnapshot(destination.snapshot);
+      if (destination.snapshot) await this.#restoreNativeSnapshot(destination.snapshot, sourceSnapshot);
       return destination.snapshot;
     }
     const destinationBase = destination.snapshot ?? await this.game.captureSnapshot(sourceSnapshot);
     const merged = this.game.mergeSharedTransitNetwork(destinationBase, sourceSnapshot);
     await this.game.validateSnapshot(merged);
-    await this.game.restoreSnapshot(merged);
+    await this.#restoreNativeSnapshot(merged, sourceSnapshot);
     destination.snapshot = merged;
     return merged;
   }
@@ -2216,12 +2339,18 @@ export class WorldTileRuntime {
       phase = 'lease'; lease = await this.worldState.acquireLease(draft.worldId, transitionId); if (!lease) throw new Error('Another transition currently holds the world lease'); this.#emit(transitionId, phase, started);
       phase = 'pause'; wasPaused = await this.#pausePreservingUserState(); paused = true; this.#emit(transitionId, phase, started);
       await this.#captureAuthoritativeGlobals(draft);
-      phase = 'snapshot'; const sourceSnapshot = await this.game.captureSnapshot(); await this.game.validateSnapshot(sourceSnapshot); if (this.networkProjection) await this.#adoptProjectionSnapshot(draft, sourceId, sourceSnapshot, { restore: 'rejected' }); else draft.tiles[sourceId].snapshot = sourceSnapshot; this.#emit(transitionId, phase, started);
+      phase = 'snapshot'; const sourceSnapshot = await this.game.captureSnapshot(); await this.game.validateSnapshot(sourceSnapshot); if (this.networkProjection) await this.#adoptProjectionSnapshot(draft, sourceId, sourceSnapshot, { restore: false }); else draft.tiles[sourceId].snapshot = sourceSnapshot; this.#emit(transitionId, phase, started);
       const sourceProfile = await this.#captureNetworkProfile(draft, sourceId); if (sourceProfile) draft.tiles[sourceId].networkProfile = sourceProfile;
       phase = 'reconcile'; this.#applyActivity(draft, await this.game.reconcileActiveResults()); this.#emit(transitionId, phase, started);
       phase = 'catchup'; this.#advanceDraft(draft, Math.floor(draft.elapsedSeconds / 3600)); await this.#syncCrossTileFinance(draft); await this.#syncBackgroundNativeFinance(draft, Math.floor(draft.elapsedSeconds / 3600)); this.#emit(transitionId, phase, started);
       phase = 'load'; await this.game.loadStaticPackage(destinationPackage); const destination = draft.tiles[tileId]; await this.#restoreDestinationNetwork(draft, tileId, sourceId); this.#emit(transitionId, phase, started);
-      phase = 'globals'; await this.game.setAuthoritativeGlobals(draft); this.#emit(transitionId, phase, started);
+      phase = 'globals';
+      if (!this.revenueAccrual) await this.game.setAuthoritativeGlobals(draft);
+      else {
+        await this.game.setAuthoritativeGameMode?.(draft.gameMode);
+        await this.game.setAuthoritativeClock?.(draft.elapsedSeconds);
+      }
+      this.#emit(transitionId, phase, started);
       const destinationProfile = await this.#captureNetworkProfile(draft, tileId); if (destinationProfile) destination.networkProfile = destinationProfile;
       phase = 'commute-refresh'; const commuteRefresh = await this.game.refreshNativeCommutes?.(); if (commuteRefresh) this.telemetry({ transitionId, phase, ...commuteRefresh }); this.#emit(transitionId, phase, started);
       phase = 'restore'; await this.game.restoreCamera(destinationPackage.manifest?.viewport ?? destination.snapshot?.viewport ?? sourceSnapshot.viewport ?? sourceSnapshot.camera); this.#emit(transitionId, phase, started);
@@ -2254,30 +2383,6 @@ export class WorldTileRuntime {
     else await this.game.resume();
   }
 
-  #armProjectionWriteQuarantine(world, {
-    reason, tileId, transitionId = null, fromTileId = null,
-  }) {
-    world.projectionWriteQuarantine = {
-      active: true,
-      reason,
-      tileId,
-      fromTileId,
-      transitionId,
-      armedAt: this.now(),
-      authoritativeNetworkHash: world.globalNetwork?.hash ?? null,
-    };
-    this.telemetry({ phase: 'projection-write-quarantined', ...world.projectionWriteQuarantine });
-  }
-
-  #clearProjectionWriteQuarantine(world) {
-    const cleared = world.projectionWriteQuarantine;
-    world.projectionWriteQuarantine = null;
-    this.telemetry({
-      phase: 'projection-write-quarantine-cleared',
-      tileId: world.activeTileId,
-      transitionId: cleared?.transitionId ?? null,
-    });
-  }
 }
 
 export { PHASES };

@@ -30,6 +30,10 @@ cd prototype\ny-state\mod
 npm run build
 ```
 
+## Architecture notes
+
+- [Train state boundaries](docs/train-state-boundaries.md) distinguishes durable train inventory and route assignment from transient rendering and simulation state.
+
 ## Data
 
 Raw Census LODES files, OSM extracts, OSRM graphs, Depot output, PMTiles, building indexes, and other generated binary packages are not stored in Git. They are large and reproducible from the pinned source/configuration files in each prototype. See the prototype READMEs for acquisition and build commands.

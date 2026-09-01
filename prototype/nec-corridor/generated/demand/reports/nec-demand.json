@@ -1,7 +1,17 @@
 {
   "aggregation": {
     "algorithm": "deterministic sparse Voronoi sites; weighted 4D capacity-constrained Voronoi cohorts",
-    "drivingModel": "straight-line at 13.4 m/s; OSRM enrichment pending",
+    "drivingModel": {
+      "graphVersion": "generated-roads-v1",
+      "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+      "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+      "provider": "generated-road-graph",
+      "speedKph": {
+        "highway": 85.0,
+        "major": 50.0,
+        "minor": 30.0
+      }
+    },
     "maximumCohortSize": 200,
     "minimumCohortSize": 50,
     "pointMergeDistanceM": 100
@@ -25,14 +35,19 @@
     "54": 72558
   },
   "directedTilePairs": 1087,
-  "elapsedSeconds": 2186.01,
+  "elapsedSeconds": 1747.165,
   "excludedRows": 7120348,
   "excludedWorkers": 7858159,
   "inputRows": 22379010,
   "inputWorkers": 24432954,
   "localWorkers": 17805870,
-  "peakRssBytesAtFinish": 988446720,
+  "peakRssBytesAtFinish": 1022812160,
   "prototype": true,
+  "roadRouting": {
+    "completed": true,
+    "graphVersion": "generated-roads-v1",
+    "report": "nec-road-routing.json"
+  },
   "scannedRows": 29499358,
   "scannedWorkers": 32291113,
   "schemaVersion": 1,
@@ -46,7 +61,7 @@
     {
       "cohortCount": 1011,
       "demandBytes": 121864,
-      "elapsedSeconds": 2.976,
+      "elapsedSeconds": 2.375,
       "localWorkers": 118942,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -56,7 +71,7 @@
     {
       "cohortCount": 562,
       "demandBytes": 65905,
-      "elapsedSeconds": 1.782,
+      "elapsedSeconds": 1.589,
       "localWorkers": 64224,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -66,7 +81,7 @@
     {
       "cohortCount": 525,
       "demandBytes": 64028,
-      "elapsedSeconds": 1.819,
+      "elapsedSeconds": 1.608,
       "localWorkers": 63495,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -76,7 +91,7 @@
     {
       "cohortCount": 187,
       "demandBytes": 20109,
-      "elapsedSeconds": 1.234,
+      "elapsedSeconds": 1.142,
       "localWorkers": 22825,
       "maximumCohort": 199,
       "minimumCohort": 52,
@@ -86,7 +101,7 @@
     {
       "cohortCount": 8380,
       "demandBytes": 977166,
-      "elapsedSeconds": 16.612,
+      "elapsedSeconds": 14.152,
       "localWorkers": 972084,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -96,7 +111,7 @@
     {
       "cohortCount": 13752,
       "demandBytes": 1620744,
-      "elapsedSeconds": 28.977,
+      "elapsedSeconds": 25.872,
       "localWorkers": 1598234,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -106,7 +121,7 @@
     {
       "cohortCount": 812,
       "demandBytes": 101889,
-      "elapsedSeconds": 2.008,
+      "elapsedSeconds": 2.007,
       "localWorkers": 93373,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -116,7 +131,7 @@
     {
       "cohortCount": 1250,
       "demandBytes": 153508,
-      "elapsedSeconds": 2.592,
+      "elapsedSeconds": 2.63,
       "localWorkers": 142102,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -126,7 +141,7 @@
     {
       "cohortCount": 909,
       "demandBytes": 112772,
-      "elapsedSeconds": 2.232,
+      "elapsedSeconds": 2.27,
       "localWorkers": 109698,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -136,7 +151,7 @@
     {
       "cohortCount": 4301,
       "demandBytes": 541376,
-      "elapsedSeconds": 9.18,
+      "elapsedSeconds": 8.325,
       "localWorkers": 496542,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -146,7 +161,7 @@
     {
       "cohortCount": 6638,
       "demandBytes": 835307,
-      "elapsedSeconds": 14.566,
+      "elapsedSeconds": 12.67,
       "localWorkers": 770814,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -156,7 +171,7 @@
     {
       "cohortCount": 12420,
       "demandBytes": 1516915,
-      "elapsedSeconds": 27.413,
+      "elapsedSeconds": 24.157,
       "localWorkers": 1453035,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -166,7 +181,7 @@
     {
       "cohortCount": 2521,
       "demandBytes": 320339,
-      "elapsedSeconds": 5.686,
+      "elapsedSeconds": 5.131,
       "localWorkers": 289872,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -176,7 +191,7 @@
     {
       "cohortCount": 924,
       "demandBytes": 119382,
-      "elapsedSeconds": 2.561,
+      "elapsedSeconds": 2.275,
       "localWorkers": 106936,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -186,7 +201,7 @@
     {
       "cohortCount": 2721,
       "demandBytes": 341349,
-      "elapsedSeconds": 6.231,
+      "elapsedSeconds": 5.71,
       "localWorkers": 322814,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -196,7 +211,7 @@
     {
       "cohortCount": 3082,
       "demandBytes": 392601,
-      "elapsedSeconds": 7.317,
+      "elapsedSeconds": 5.936,
       "localWorkers": 357331,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -206,7 +221,7 @@
     {
       "cohortCount": 48317,
       "demandBytes": 5272192,
-      "elapsedSeconds": 120.745,
+      "elapsedSeconds": 100.871,
       "localWorkers": 5635799,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -216,7 +231,7 @@
     {
       "cohortCount": 5336,
       "demandBytes": 662323,
-      "elapsedSeconds": 11.576,
+      "elapsedSeconds": 9.91,
       "localWorkers": 625011,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -226,7 +241,7 @@
     {
       "cohortCount": 176,
       "demandBytes": 19090,
-      "elapsedSeconds": 1.256,
+      "elapsedSeconds": 1.093,
       "localWorkers": 19901,
       "maximumCohort": 195,
       "minimumCohort": 50,
@@ -236,7 +251,7 @@
     {
       "cohortCount": 19,
       "demandBytes": 1814,
-      "elapsedSeconds": 1.141,
+      "elapsedSeconds": 0.995,
       "localWorkers": 2197,
       "maximumCohort": 195,
       "minimumCohort": 53,
@@ -246,7 +261,7 @@
     {
       "cohortCount": 1011,
       "demandBytes": 127037,
-      "elapsedSeconds": 2.862,
+      "elapsedSeconds": 2.434,
       "localWorkers": 116617,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -256,7 +271,7 @@
     {
       "cohortCount": 325,
       "demandBytes": 39484,
-      "elapsedSeconds": 1.437,
+      "elapsedSeconds": 1.35,
       "localWorkers": 36598,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -266,7 +281,7 @@
     {
       "cohortCount": 1509,
       "demandBytes": 191813,
-      "elapsedSeconds": 3.6,
+      "elapsedSeconds": 3.203,
       "localWorkers": 173008,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -276,7 +291,7 @@
     {
       "cohortCount": 5965,
       "demandBytes": 736462,
-      "elapsedSeconds": 12.633,
+      "elapsedSeconds": 11.083,
       "localWorkers": 691974,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -286,7 +301,7 @@
     {
       "cohortCount": 1463,
       "demandBytes": 184929,
-      "elapsedSeconds": 3.394,
+      "elapsedSeconds": 2.996,
       "localWorkers": 169387,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -296,7 +311,7 @@
     {
       "cohortCount": 6095,
       "demandBytes": 766524,
-      "elapsedSeconds": 13.405,
+      "elapsedSeconds": 12.535,
       "localWorkers": 713422,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -306,7 +321,7 @@
     {
       "cohortCount": 534,
       "demandBytes": 64662,
-      "elapsedSeconds": 2.126,
+      "elapsedSeconds": 1.78,
       "localWorkers": 61466,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -316,7 +331,7 @@
     {
       "cohortCount": 2802,
       "demandBytes": 341953,
-      "elapsedSeconds": 5.897,
+      "elapsedSeconds": 5.132,
       "localWorkers": 321976,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -326,7 +341,7 @@
     {
       "cohortCount": 774,
       "demandBytes": 96955,
-      "elapsedSeconds": 2.221,
+      "elapsedSeconds": 1.911,
       "localWorkers": 90639,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -336,7 +351,7 @@
     {
       "cohortCount": 1916,
       "demandBytes": 245585,
-      "elapsedSeconds": 4.332,
+      "elapsedSeconds": 3.796,
       "localWorkers": 219149,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -346,7 +361,7 @@
     {
       "cohortCount": 14368,
       "demandBytes": 1679423,
-      "elapsedSeconds": 28.627,
+      "elapsedSeconds": 25.17,
       "localWorkers": 1659385,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -356,7 +371,7 @@
     {
       "cohortCount": 714,
       "demandBytes": 86499,
-      "elapsedSeconds": 2.174,
+      "elapsedSeconds": 1.97,
       "localWorkers": 82522,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -366,7 +381,7 @@
     {
       "cohortCount": 843,
       "demandBytes": 104826,
-      "elapsedSeconds": 2.424,
+      "elapsedSeconds": 2.121,
       "localWorkers": 96614,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -376,7 +391,7 @@
     {
       "cohortCount": 963,
       "demandBytes": 111339,
-      "elapsedSeconds": 2.593,
+      "elapsedSeconds": 2.424,
       "localWorkers": 107884,
       "maximumCohort": 200,
       "minimumCohort": 50,

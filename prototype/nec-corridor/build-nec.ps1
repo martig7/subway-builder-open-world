@@ -59,4 +59,15 @@ if (-not $SkipDepot) {
         --env "NEC_DEPOT_TILE_IDS=$($Tile -join ',')" `
         $image python /work/depot/generate_nec.py
     if ($LASTEXITCODE -ne 0) { throw 'NEC Depot build failed.' }
+    $basemapArguments = @{}
+    if ($Tile) { $basemapArguments.Tile = $Tile }
+    & (Join-Path $prototypeRoot 'tools\build-unified-basemaps.ps1') @basemapArguments
+    if ($LASTEXITCODE -ne 0) { throw 'Unified NEC low-zoom basemap build failed.' }
+}
+
+# This is deliberately a splice after both expensive producers. It reuses the
+# completed Depot roads and compact demand cohorts; it never reruns either.
+if (-not $SkipDemand -and -not $SkipDepot -and -not $Tile) {
+    python -m nec_world_builder.cli enrich-driving
+    if ($LASTEXITCODE -ne 0) { throw 'NEC generated-road driving-time splice failed.' }
 }

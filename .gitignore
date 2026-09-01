@@ -8,7 +8,6 @@ recovery/20??-??-??-*/
 recovery/**/game-bundle-*.js
 
 # Generated geometry over GitHub's file-size limit
-prototype/japan/generated/japan-prefecture-boundaries.geojson
 prototype/nec-corridor/generated/maps/depot/NE02/ne02-nobuildings.geojson
 
 # Dependencies and build products
@@ -22,9 +21,14 @@ prototype/nec-corridor/generated/maps/depot/NE02/ne02-nobuildings.geojson
 # Downloaded source data and generated binary packages
 **/raw-data/
 prototype/kc-two-tile/artifacts/
-prototype/ny-state/generated/work/
+prototype/*/generated/work/
+prototype/*/generated/maps/
+prototype/*/generated/mod/
+prototype/japan/generated/
+prototype/tokyo-kanagawa/generated/prefecture-admin-level4.geojson
 prototype/ny-state/generated/pilot/basemap/
 prototype/ny-state/generated/pilot/tiles/
+map-creator/data/
 
 # Local routing/database products
 **/*.sqlite
@@ -34,6 +38,7 @@ prototype/ny-state/generated/pilot/tiles/
 **/*.osrm*
 **/*.mbtiles
 **/*.pmtiles
+**/*.pmtiles-journal
 **/*.mvt
 **/*.pkl
 

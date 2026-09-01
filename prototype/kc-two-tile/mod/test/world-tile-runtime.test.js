@@ -7,8 +7,12 @@ import { MemoryTilePackageAdapter } from '../src/adapters/memory-tile-package-ad
 import { HttpTilePackageAdapter } from '../src/adapters/http-tile-package-adapter.js';
 import { ModStorageWorldStateAdapter } from '../src/adapters/mod-storage-world-state-adapter.js';
 import { compactNativeSnapshot, SubwayBuilderGameAdapter } from '../src/adapters/subway-builder-game-adapter.js';
+import { NativeRevenueAccrual } from '../src/native-revenue-accrual.js';
 import { createGlobalNetwork } from '../src/network-projection.js';
-import { applyNetworkRecovery } from '../src/network-recovery.js';
+import {
+  OPEN_WORLD_RUNTIME_METADATA_KEY,
+  OPEN_WORLD_RUNTIME_SAVE_NAME,
+} from '../src/autosave-hook-guard.js';
 import { packages, cohorts } from '../fixtures/two-tile-fixture.js';
 
 function setup(options = {}) {
@@ -18,7 +22,7 @@ function setup(options = {}) {
   return { game, storage, runtime };
 }
 
-function setupProjectedRuntime() {
+function setupProjectedRuntime(runtimeOptions = {}) {
   const game = new FakeGameAdapter();
   const storage = new ModStorageWorldStateAdapter();
   const tilePackages = new MemoryTilePackageAdapter({
@@ -34,9 +38,229 @@ function setupProjectedRuntime() {
     tilePackages,
     tileCatalog: { tiles: [{ id: 'T0', column: 0, row: 0, bounds: [0, 0, 1, 1] }] },
     initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
+    ...runtimeOptions,
   });
   return { game, storage, runtime };
 }
+
+test('reads the active tile without constructing a full runtime view', async () => {
+  const { game, runtime } = setup();
+  assert.throws(() => runtime.getActiveTileId(), /boot must complete first/);
+  await runtime.boot('active-tile-accessor', 'KCW');
+  runtime.view = () => { throw new Error('full runtime view constructed'); };
+  game.getInterliningRevision = () => 7;
+
+  assert.equal(runtime.getActiveTileId(), 'KCW');
+  assert.equal(runtime.getInterliningRevision(), 7);
+});
+
+test('dirty service state refreshes from native ground truth only at recalculation', async () => {
+  const { game, runtime } = setupProjectedRuntime({ backgroundNativeExpenses: false });
+  await runtime.boot('lazy-native-service-refresh', 'T0');
+  game.log.length = 0;
+  game.native.routes = [{ id: 'live-route', stNodes: [], idealTrainCount: 2 }];
+
+  runtime.markDerivedNetworkDirty('route-service-change');
+
+  assert.equal(game.log.includes('captureNativeNetworkState'), false);
+  assert.equal(
+    runtime.world.globalNetwork.nativeState.routes.some(({ id }) => id === 'live-route'),
+    false,
+  );
+
+  await runtime.recalculateCrossTileModeShare({
+    reason: 'midnight-change',
+    day: 2,
+    force: true,
+  });
+
+  assert.equal(
+    game.log.filter((entry) => entry === 'captureNativeNetworkState').length,
+    1,
+  );
+  assert.equal(
+    runtime.world.globalNetwork.nativeState.routes.some(({ id }) => id === 'live-route'),
+    true,
+  );
+  assert.deepEqual(runtime.derivedNetworkDirtyReasons(), []);
+});
+
+test('game-owned expense mode posts inactive revenue without recording expenses', async () => {
+  const { runtime, game } = setupProjectedRuntime({ backgroundNativeExpenses: false });
+  await runtime.boot('game-owned-expenses', 'T0');
+  const networkHash = runtime.world.globalNetwork?.hash ?? null;
+  runtime.world.backgroundNativeFinance = {
+    schemaVersion: 2,
+    networkHash,
+    lastSettledHour: 0,
+    lastRevenueSettledHour: 0,
+    lastExpenseSettledHour: 0,
+    tileRevenueProfiles: {
+      T1: {
+        hourly: Array.from({ length: 24 }, () => ({
+          revenue: 20,
+          revenueByRoute: { remote: 20 },
+        })),
+      },
+    },
+    expenseProfile: {
+      networkHash,
+      financeOwnedRouteIds: ['remote'],
+      routeHourly: { remote: Array(24).fill(40) },
+      infrastructureItems: [{
+        id: 'remote-track', category: 'trackMaintenance', hourlyCost: 70,
+        trackIds: ['remote-track'], financeOwned: true,
+      }],
+    },
+    ownershipProjection: structuredClone(runtime.world.activeProjection),
+    totalRevenue: 0,
+    totalExpenses: 0,
+  };
+  game.native.clock = 3_600;
+
+  const result = await runtime.settleCrossTileCommutes('hourly');
+
+  assert.equal(result.backgroundRevenue, 20);
+  assert.equal(result.backgroundExpenses, 0, 'the game is the only expense authority in this mode');
+  assert.equal(game.native.financialHistory.currentHourRevenue, 20);
+  assert.equal(game.native.financialHistory.currentHourExpenses, 0);
+  assert.equal(runtime.view().backgroundNativeFinance.totalExpenses, 0);
+  assert.equal(runtime.view().backgroundNativeFinance.expenseProfile, null);
+});
+
+test('autosave clock regression preserves inactive revenue and its settlement cursor', async () => {
+  const { runtime, game, storage } = setupProjectedRuntime({ backgroundNativeExpenses: false });
+  await runtime.boot('autosave-revenue-preservation', 'T0');
+  const networkHash = runtime.world.globalNetwork?.hash ?? null;
+  runtime.world.backgroundNativeFinance = {
+    schemaVersion: 2,
+    networkHash,
+    lastSettledHour: 0,
+    lastRevenueSettledHour: 0,
+    lastExpenseSettledHour: 0,
+    tileRevenueProfiles: {
+      T1: {
+        source: 'off-tile-estimator',
+        hourly: Array.from({ length: 24 }, () => ({
+          revenue: 20,
+          revenueByRoute: { remote: 20 },
+        })),
+      },
+    },
+    expenseProfile: null,
+    ownershipProjection: structuredClone(runtime.world.activeProjection),
+    totalRevenue: 0,
+    totalExpenses: 0,
+  };
+  game.native.clock = 2 * 3_600;
+  await runtime.settleCrossTileCommutes('hourly');
+  const savedProfile = structuredClone(runtime.view().backgroundNativeFinance.tileRevenueProfiles);
+
+  game.native.clock = 1 * 3_600;
+  await assert.doesNotReject(runtime.checkpoint('game-save', {
+    saveName: 'Autosave',
+    captureNativeSnapshot: false,
+  }));
+  assert.deepEqual(runtime.view().backgroundNativeFinance.tileRevenueProfiles, savedProfile);
+  assert.equal(runtime.view().backgroundNativeFinance.lastRevenueSettledHour, 2);
+  const autosave = await storage.load('autosave-revenue-preservation', { saveName: 'Autosave' });
+  assert.deepEqual(autosave.backgroundNativeFinance.tileRevenueProfiles, savedProfile);
+  assert.equal(autosave.backgroundNativeFinance.lastRevenueSettledHour, 2);
+
+  game.native.clock = 3 * 3_600;
+  const nextHour = await runtime.settleCrossTileCommutes('hourly');
+  assert.equal(nextHour.backgroundRevenue, 20);
+  assert.deepEqual(runtime.view().backgroundNativeFinance.tileRevenueProfiles, savedProfile);
+  assert.equal(runtime.view().backgroundNativeFinance.lastRevenueSettledHour, 3);
+});
+
+test('autosave network capture never restores a transient native snapshot', async () => {
+  const { runtime, game } = setupProjectedRuntime({ backgroundNativeExpenses: false });
+  game.native.tracks = [{ id: 'remote-track', coords: [[0.2, 0.5], [0.8, 0.5]] }];
+  game.native.trackGroups = [{ id: 'remote-group', trackIds: ['remote-track'] }];
+  game.native.stations = [{ id: 'remote-station', coords: [0.5, 0.5], stNodeIds: ['remote-node'] }];
+  game.native.stNodes = [{ id: 'remote-node', trackIds: ['remote-track'] }];
+  game.native.stationGroups = [{ id: 'remote-stations', stationIds: ['remote-station'] }];
+  game.native.signals = [];
+  game.native.routes = [{ id: 'remote', trackIds: ['remote-track'], stationIds: ['remote-station'] }];
+  game.native.trains = [{ id: 'remote-train', routeId: 'remote' }];
+  await runtime.boot('autosave-native-restore-guard', 'T0');
+  runtime.world.backgroundNativeFinance.tileRevenueProfiles.T1 = {
+    source: 'off-tile-estimator',
+    dailyRevenue: 4_800,
+    hourly: Array.from({ length: 24 }, () => ({
+      revenue: 200,
+      revenueByRoute: { remote: 200 },
+    })),
+  };
+  const savedProfile = structuredClone(runtime.world.backgroundNativeFinance.tileRevenueProfiles);
+  game.native.wallet = 1_500;
+  game.native.financialHistory = {
+    entries: [{ timestamp: 0, revenue: 500, expenses: 25 }],
+    lastHourTimestamp: 3_600,
+    currentHourRevenue: 200,
+    currentHourExpenses: 25,
+    currentHourExpenseCategories: { trainOperational: 25 },
+  };
+  // A read-only autosave capture must never turn a transient inventory gap
+  // into a native restore.
+  game.native.tracks = [];
+  const financeBefore = structuredClone(game.native.financialHistory);
+  const nativeRestore = game.restoreSnapshot.bind(game);
+  game.restoreSnapshot = async (snapshot) => {
+    await nativeRestore(snapshot);
+    // Native loadSave runs its own topology/finance initialization. Model the
+    // visible production side effect so this regression catches both halves
+    // of the user's report rather than only checking an implementation log.
+    game.native.financialHistory.currentHourExpenses += 1_000_000;
+  };
+  game.log.length = 0;
+
+  await runtime.checkpoint('game-save', {
+    saveName: 'Autosave',
+    captureNativeSnapshot: false,
+  });
+
+  assert.equal(game.log.includes('restoreSnapshot'), false,
+    'autosave must never call native loadSave while capturing current topology');
+  assert.deepEqual(game.native.financialHistory, financeBefore,
+    'autosave must preserve native revenue and expense history exactly');
+  assert.deepEqual(runtime.view().backgroundNativeFinance.tileRevenueProfiles, savedProfile,
+    'autosave must preserve every inactive-tile revenue profile');
+});
+
+test('native-authoritative load adopts native finance without a sidecar checkpoint or restore', async () => {
+  const { runtime, game, storage } = setupProjectedRuntime();
+  await runtime.boot('native-authoritative-load', 'T0');
+  await runtime.advanceTo(9);
+  game.native.clock = 7 * 3_600 + 123;
+  game.native.wallet = 777;
+  game.native.tracks = [{ id: 'native-save-track', coords: [[0.2, 0.2], [0.8, 0.2]] }];
+  game.native.financialHistory = {
+    entries: [{ timestamp: 6 * 3_600, revenue: 70, expenses: 20 }],
+    lastHourTimestamp: 7 * 3_600,
+    currentHourRevenue: 7,
+    currentHourExpenses: 2,
+    currentHourExpenseCategories: { trainOperational: 2 },
+  };
+  const nativeHistory = structuredClone(game.native.financialHistory);
+  game.log.length = 0;
+
+  await runtime.reloadFromSave(
+    'native-authoritative-load',
+    'T0',
+    'Older native save',
+    { nativeAuthoritativeLoad: true },
+  );
+
+  assert.equal(runtime.view().elapsedSeconds, 7 * 3_600 + 123);
+  assert.equal(runtime.view().wallet, 777);
+  assert.deepEqual(game.native.financialHistory, nativeHistory);
+  assert.deepEqual(runtime.world.globalNetwork.nativeState.tracks, game.native.tracks);
+  assert.equal((await storage.load('native-authoritative-load')).globalNetwork, undefined);
+  assert.equal(game.log.includes('restoreSnapshot'), false,
+    'a native-authoritative load must never load a sidecar snapshot back into the game');
+});
 
 test('boot reports a complete startup performance breakdown', async () => {
   const game = new FakeGameAdapter();
@@ -101,60 +325,6 @@ test('reopening an unchanged canonical world uses the compact settlement journal
   assert.equal(settlementSaves, 1);
 });
 
-test('boot repairs a projected route facade promoted into the authoritative network', async () => {
-  const { runtime, storage } = setupProjectedRuntime();
-  await runtime.boot('projection-facade-recovery', 'T0');
-  const canonicalRoute = {
-    id: 'empire',
-    stNodes: [{ id: 'nyc' }, { id: 'albany' }],
-    stCombos: [{
-      startStNodeId: 'nyc',
-      endStNodeId: 'albany',
-      path: [{ trackId: 'remote-track', length: 10_000 }],
-    }],
-    trainSchedule: { highDemand: 3 },
-  };
-  const deferredTrain = {
-    id: 'empire-train',
-    routeId: 'empire',
-    windows: { train: { tracks: [{ trackId: 'remote-track' }] } },
-  };
-  const canonical = createGlobalNetwork({
-    tracks: [{ id: 'remote-track', coords: [[3.2, 0.5], [3.8, 0.5]] }],
-    stations: [], routes: [canonicalRoute], trains: [deferredTrain],
-    trackGroups: [], signals: [], stNodes: [], stationGroups: [], fareGroups: [], routeFinancials: {},
-    ownedTrainCount: 1, ownedCarsByType: { 'commuter-rail': 1 },
-  });
-  runtime.world.globalNetwork = {
-    ...canonical,
-    hash: 'polluted-projection-hash',
-    nativeState: {
-      ...canonical.nativeState,
-      routes: [{
-        ...canonicalRoute,
-        stNodes: [{ id: 'nyc' }],
-        stCombos: [],
-        openWorldProjectionDormant: true,
-        openWorldGlobalRoute: {
-          ...canonicalRoute,
-          openWorldNativeCommuteRoute: canonicalRoute,
-        },
-        openWorldNativeCommuteTrains: [deferredTrain],
-      }],
-      trains: [],
-    },
-  };
-  runtime.world.activeProjection = null;
-  await storage.save(runtime.world);
-  runtime.world = null;
-
-  await runtime.boot('projection-facade-recovery', 'T0');
-
-  assert.deepEqual(runtime.world.globalNetwork.nativeState.routes, [canonicalRoute]);
-  assert.deepEqual(runtime.world.globalNetwork.nativeState.trains, [deferredTrain]);
-  assert.equal(JSON.stringify(runtime.world.globalNetwork.nativeState.routes).includes('openWorld'), false);
-  assert.notEqual(runtime.world.globalNetwork.hash, 'polluted-projection-hash');
-});
 
 test('autosave checkpoint is non-mutating and preserves the player pause state', async () => {
   const { runtime, game } = setupProjectedRuntime();
@@ -183,53 +353,6 @@ test('native game-save checkpoint does not recapture the native snapshot', async
     'native save hook must not invoke a second native save generation');
   assert.equal(game.log.includes('captureNativeNetworkState'), true,
     'native save checkpoint should refresh topology without generating a save');
-});
-
-test('saving a new canonical lineage copies the current runtime without switching it', async () => {
-  const { runtime, storage } = setupProjectedRuntime();
-  await runtime.boot('source-lineage', 'T0');
-  const before = runtime.view();
-
-  const saved = await runtime.saveAsCanonicalLineage({ worldId: 'saved-lineage' });
-  const copied = await storage.load('saved-lineage');
-
-  assert.equal(saved.worldId, 'saved-lineage');
-  assert.equal(saved.routeCount, 0);
-  assert.equal(runtime.view().worldId, before.worldId);
-  assert.equal(copied.worldId, 'saved-lineage');
-  assert.equal(copied.activeTileId, before.activeTileId);
-});
-
-test('loading a selected canonical lineage restores its native-save wallet and exact clock', async () => {
-  const { runtime, game, storage } = setupProjectedRuntime();
-  await runtime.boot('source-lineage-for-restore', 'T0');
-
-  game.native.wallet = 777;
-  game.native.clock = 2 * 86_400 + 123;
-  game.native.transitCost = 4.25;
-  const saved = await runtime.saveAsCanonicalLineage({ worldId: 'saved-lineage-for-restore' });
-  assert.equal(saved.wallet, 777);
-  assert.equal(saved.elapsedSeconds, 2 * 86_400 + 123);
-  assert.equal(saved.worldTime, 48);
-  assert.equal((await storage.readLineageMetadata('saved-lineage-for-restore')).wallet, 777);
-
-  // Simulate the native game still holding a different save when the user
-  // selects the canonical lineage from the toolbox.
-  game.native.wallet = 11;
-  game.native.clock = 99;
-  game.native.transitCost = 1;
-  await runtime.reloadFromSave('saved-lineage-for-restore', 'T0', 'Other native save', {
-    restoreCanonicalLineage: true,
-    nativeSessionId: 'other-native-session',
-    nativeTileId: 'T0',
-  });
-
-  assert.equal(runtime.view().wallet, 777);
-  assert.equal(runtime.view().elapsedSeconds, 2 * 86_400 + 123);
-  assert.equal(runtime.view().worldTime, 48);
-  assert.equal(game.native.wallet, 777);
-  assert.equal(game.native.clock, 2 * 86_400 + 123);
-  assert.equal(game.native.transitCost, 4.25);
 });
 
 test('autosave checkpoint reports one reconciled per-stage performance profile', async () => {
@@ -273,7 +396,6 @@ test('autosave checkpoint reports one reconciled per-stage performance profile',
     'projectionAdoption',
     'liveWorldSave',
     'checkpointIndexRead',
-    'revisionAssetsWrite',
     'revisionPayloadWrite',
     'checkpointIndexWrite',
     'livePointerWrite',
@@ -323,11 +445,18 @@ test('accepted in-window construction does not reload the save or change pause s
   const result = await runtime.reconcileActiveProjection('track-built');
 
   assert.equal(result.status, 'accepted');
+  assert.equal(game.log.includes('captureNativeNetworkState'), true,
+    'reconciliation must capture the live network slices directly');
+  assert.equal(game.log.includes('captureSnapshot'), false,
+    'reconciliation must not generate a full native save snapshot');
+  assert.equal(game.log.includes('pause'), false,
+    'reconciliation must not pause the simulation');
   assert.equal(game.log.includes('restoreSnapshot'), false, 'accepted edits must not invoke native loadSave');
   assert.equal(game.paused, true, 'reconciliation must preserve a user pause');
   assert.equal(game.log.includes('resume'), false, 'accepted edits must not force the simulation to resume');
   assert.equal(commuteRefreshes, 1, 'accepted topology edits must refresh native pop paths');
 });
+
 
 test('loading a save preserves the pause state selected by the player', async () => {
   const { runtime, game } = setup();
@@ -359,56 +488,21 @@ test('rolls game and world back when a native load phase fails', async () => {
   assert.equal((await storage.load('fixture')).activeTileId, 'KCW');
 });
 
-test('an aborted staged projection quarantines later autosaves until authoritative rail is restored', async () => {
-  const game = new FakeGameAdapter();
-  const storage = new ModStorageWorldStateAdapter();
-  const tilePackages = new MemoryTilePackageAdapter(Object.fromEntries(['T0', 'T1'].map((tileId) => [tileId, {
-    manifest: { tileId, cityCode: tileId, schemaVersion: 1, dataFiles: {} },
-    demand: [],
-    commuteCatalog: { buildHash: 'projection-quarantine', buckets: [], gateways: [] },
-  }])));
-  const runtimeOptions = {
-    game,
-    worldState: storage,
-    tilePackages,
-    tileCatalog: { tiles: [
-      { id: 'T0', column: 0, row: 0, bounds: [0, 0, 1, 1] },
-      { id: 'T1', column: 1, row: 0, bounds: [1, 0, 2, 1] },
-    ] },
-    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-  };
-  const runtime = new WorldTileRuntime(runtimeOptions);
-  await runtime.boot('projection-quarantine-world', 'T0');
-  game.native.tracks = [{ id: 'authoritative-track', coords: [[0.2, 0.2], [0.8, 0.2]] }];
-  await runtime.reconcileActiveProjection('track-built');
-  await runtime.stageNavigationTransition('T1');
+test('a staged switch persists navigation state but not its native rail handoff', async () => {
+  const { runtime, game, storage } = setup();
+  await runtime.boot('topology-free-transition', 'KCW');
+  game.native.tracks = [{ id: 'live-only-track', coords: [[0.2, 0.2], [0.8, 0.2]] }];
+  runtime.markDerivedNetworkDirty('route-service-change');
 
-  // The destination city loader has cleared transit state, then native
-  // loadSave aborts before the authoritative projection can be published.
-  game.native.tracks = [];
-  game.failAt = 'restoreSnapshot';
-  await assert.rejects(runtime.completeStagedTransition('T1'), /Injected game failure/);
+  await runtime.stageNavigationTransition('KCE');
+  const persisted = await storage.load('topology-free-transition');
 
-  const quarantined = await storage.load('projection-quarantine-world');
-  assert.equal(quarantined.projectionWriteQuarantine?.active, true);
-  assert.equal(quarantined.projectionWriteQuarantine?.tileId, 'T1');
-  assert.deepEqual(
-    quarantined.globalNetwork.nativeState.tracks.map(({ id }) => id),
-    ['authoritative-track'],
-  );
-
-  game.failAt = null;
-  const checkpoint = await runtime.checkpoint('game-save', { saveName: 'Autosave after failure' });
-  assert.equal(checkpoint.status, 'projection-quarantined');
-  assert.deepEqual(
-    (await storage.load('projection-quarantine-world')).globalNetwork.nativeState.tracks.map(({ id }) => id),
-    ['authoritative-track'],
-  );
-
-  const recovered = new WorldTileRuntime(runtimeOptions);
-  await recovered.boot('projection-quarantine-world', 'T1');
-  assert.equal(recovered.view().projectionWriteQuarantine, null);
-  assert.deepEqual(game.native.tracks.map(({ id }) => id), ['authoritative-track']);
+  assert.equal(persisted.pendingTransition.to, 'KCE');
+  assert.equal(persisted.pendingTransition.nativeSnapshot, undefined);
+  assert.equal(persisted.globalNetwork, undefined);
+  assert.equal(persisted.tiles.KCW.snapshot, undefined);
+  assert.deepEqual(runtime.world.pendingTransition.nativeSnapshot.tracks, game.native.tracks);
+  assert.deepEqual(runtime.derivedNetworkDirtyReasons(), []);
 });
 
 test('stages a live tile switch for route navigation without loading a city in place', async () => {
@@ -424,7 +518,59 @@ test('stages a live tile switch for route navigation without loading a city in p
   assert.equal(game.log.includes('loadStaticPackage'), false);
   const saved = await storage.load('reload-world');
   assert.equal(saved.pendingTransition.to, 'KCE');
-  assert.ok(saved.tiles.KCW.snapshot);
+  assert.equal(saved.tiles.KCW.snapshot, undefined);
+  assert.ok(runtime.world.pendingTransition.nativeSnapshot);
+});
+
+test('stages a native recovery handoff before route navigation can reset the live game', async () => {
+  const { runtime, game } = setup();
+  await runtime.boot('native-recovery-world', 'KCW');
+  game.native.tracks = [{ id: 'live-track', coords: [[0.2, 0.2], [0.8, 0.2]] }];
+  game.native.stations = [{ id: 'live-station', routeIds: ['live-route'] }];
+  game.native.routes = [{ id: 'live-route', bullet: 'R' }];
+  game.native.wallet = 12_345;
+  let pendingNativeSave = null;
+
+  await runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async (snapshot, transition) => {
+      pendingNativeSave = structuredClone({
+        ...snapshot,
+        cityCode: transition.to,
+      });
+    },
+  });
+
+  // Subway Builder's StoreInitializer clears the live store before it asks
+  // the main process for a pending save. The staged handoff must therefore
+  // exist before browser navigation begins.
+  game.native = {
+    objects: [], tracks: [], stations: [], routes: [], wallet: 0,
+    activity: { departures: [], walletDelta: 0 },
+  };
+  if (pendingNativeSave) game.native = structuredClone(pendingNativeSave);
+
+  assert.equal(pendingNativeSave?.cityCode, 'KCE');
+  assert.deepEqual(game.native.tracks.map(({ id }) => id), ['live-track']);
+  assert.deepEqual(game.native.stations.map(({ id }) => id), ['live-station']);
+  assert.deepEqual(game.native.routes.map(({ id }) => id), ['live-route']);
+  assert.equal(game.native.wallet, 12_345);
+});
+
+test('rolls back a staged native recovery handoff when the World commit fails', async () => {
+  const { runtime, storage } = setup();
+  await runtime.boot('native-recovery-rollback', 'KCW');
+  const commit = storage.commit.bind(storage);
+  storage.commit = async (...args) => {
+    await commit(...args);
+    throw new Error('Injected World commit failure');
+  };
+  let rollbacks = 0;
+
+  await assert.rejects(runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async () => ({ rollback: async () => { rollbacks += 1; } }),
+  }), /Injected World commit failure/);
+
+  assert.equal(rollbacks, 1);
 });
 
 test('completes a staged switch after the destination city loads through its route', async () => {
@@ -518,6 +664,100 @@ test('network recalculation evaluates native demand for an unvisited tile', asyn
   assert.ok(profiles.T1.dailyRevenue > 0);
 });
 
+test('network recalculation accepts compact native-demand evaluations from a package adapter', async () => {
+  const tileIds = ['T0', 'T1'];
+  const tilePackages = new MemoryTilePackageAdapter(Object.fromEntries(tileIds.map((tileId) => [tileId, {
+    manifest: { tileId, cityCode: tileId, schemaVersion: 1, dataFiles: {} },
+    commuteCatalog: { buildHash: 'compact-native-evaluation', buckets: [], gateways: [] },
+  }])));
+  const evaluationInputs = [];
+  tilePackages.loadNativeDemand = async () => {
+    throw new Error('full parsed demand crossed into the runtime');
+  };
+  tilePackages.evaluateNativeDemand = async (input) => {
+    evaluationInputs.push(input);
+    return {
+      status: 'evaluated',
+      profile: {
+        schemaVersion: 3,
+        source: 'off-tile-estimator',
+        evaluatorSchemaVersion: 3,
+        contextKey: `${input.tileId}:context`,
+        evaluationKey: `${input.tileId}:evaluation`,
+        tileId: input.tileId,
+        hourly: Array.from({ length: 24 }, () => ({ revenue: 0, revenueByRoute: {} })),
+        transitPopulation: 0,
+        dailyRevenue: input.tileId === 'T1' ? 1_234 : 0,
+      },
+    };
+  };
+  const runtime = new WorldTileRuntime({
+    game: new FakeGameAdapter(),
+    worldState: new ModStorageWorldStateAdapter(),
+    tilePackages,
+    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
+  });
+  await runtime.boot('compact-native-evaluation-world', 'T0');
+  runtime.world.globalNetwork = {
+    hash: 'global-network',
+    nativeState: {
+      stations: [],
+      routes: [{ id: 'R', stNodes: [], idealTrainCount: 1, stComboTimings: [] }],
+      trains: [], fareGroups: [], tracks: [], trackGroups: [],
+    },
+  };
+  runtime.world.activeProjection = { financeOwnedRouteIds: [], financeOwnedTrackIds: [] };
+
+  await runtime.recalculateCrossTileModeShare({ reason: 'network-change', force: true });
+
+  assert.deepEqual(evaluationInputs.map(({ tileId }) => tileId), tileIds);
+  assert.equal(evaluationInputs.every((input) => !('demand' in input)), true);
+  assert.equal(runtime.view().backgroundNativeFinance.tileRevenueProfiles.T1.dailyRevenue, 1_234);
+});
+
+test('network recalculation falls back to parsed demand when package evaluation fails', async () => {
+  const tileIds = ['T0', 'T1'];
+  const nativeDemand = { points: [], pops: [] };
+  const tilePackages = new MemoryTilePackageAdapter(Object.fromEntries(tileIds.map((tileId) => [tileId, {
+    manifest: { tileId, cityCode: tileId, schemaVersion: 1, dataFiles: {} },
+    nativeDemand,
+    commuteCatalog: { buildHash: 'native-evaluation-fallback', buckets: [], gateways: [] },
+  }])));
+  const attempted = [];
+  const loaded = [];
+  const loadNativeDemand = tilePackages.loadNativeDemand.bind(tilePackages);
+  tilePackages.evaluateNativeDemand = async ({ tileId }) => {
+    attempted.push(tileId);
+    throw new Error('worker crashed');
+  };
+  tilePackages.loadNativeDemand = async (tileId) => {
+    loaded.push(tileId);
+    return loadNativeDemand(tileId);
+  };
+  const runtime = new WorldTileRuntime({
+    game: new FakeGameAdapter(),
+    worldState: new ModStorageWorldStateAdapter(),
+    tilePackages,
+    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
+  });
+  await runtime.boot('native-evaluation-fallback-world', 'T0');
+  runtime.world.globalNetwork = {
+    hash: 'global-network',
+    nativeState: {
+      stations: [],
+      routes: [{ id: 'R', stNodes: [], idealTrainCount: 1, stComboTimings: [] }],
+      trains: [], fareGroups: [], tracks: [], trackGroups: [],
+    },
+  };
+  runtime.world.activeProjection = { financeOwnedRouteIds: [], financeOwnedTrackIds: [] };
+
+  await runtime.recalculateCrossTileModeShare({ reason: 'network-change', force: true });
+
+  assert.deepEqual(attempted, tileIds);
+  assert.deepEqual(loaded, tileIds);
+  assert.equal(runtime.view().backgroundNativeFinance.tileRevenueProfiles.T1.source, 'off-tile-estimator');
+});
+
 test('cached native demand is not recalculated by startup, save-load, or tile lifecycle events', async () => {
   const nativeDemand = { points: [], pops: [] };
   const packageFixture = Object.fromEntries(Object.entries(packages).map(([tileId, pkg]) => [tileId, {
@@ -567,13 +807,14 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
 });
 
 test('route and fare-group changes recalculate native demand only for tiles served by their routes', async () => {
-  const tileIds = ['T0', 'T1', 'T2'];
+  const tileIds = ['T0', 'T1', 'T2', 'T3'];
   const nativeDemand = { points: [], pops: [] };
   const tilePackages = new MemoryTilePackageAdapter(Object.fromEntries(tileIds.map((tileId) => [tileId, {
     manifest: { tileId, cityCode: tileId, schemaVersion: 1, dataFiles: {} },
     demand: [], nativeDemand,
     commuteCatalog: { buildHash: 'selective-native-demand', buckets: [], gateways: [] },
   }])));
+  tilePackages.canSkipNativeDemandForUnservedTile = () => true;
   const loadedNativeDemand = [];
   const loadNativeDemand = tilePackages.loadNativeDemand.bind(tilePackages);
   tilePackages.loadNativeDemand = async (tileId) => {
@@ -617,6 +858,11 @@ test('route and fare-group changes recalculate native demand only for tiles serv
   await runtime.boot('selective-native-demand', 'T0');
   runtime.world.globalNetwork = createGlobalNetwork(nativeState);
   await runtime.recalculateCrossTileModeShare({ reason: 'midnight-change', day: 1, force: true });
+  assert.deepEqual(
+    loadedNativeDemand.sort(),
+    ['T0', 'T1', 'T2'],
+    'an initial finance compile must not decode demand for a tile with no local route service',
+  );
   loadedNativeDemand.length = 0;
 
   runtime.world.globalNetwork = createGlobalNetwork({
@@ -666,7 +912,7 @@ test('keeps the visible transit network when switching logical city saves', asyn
   await runtime.boot('shared-network-world');
 
   await runtime.stageNavigationTransition('KCE');
-  assert.deepEqual((await storage.load('shared-network-world')).tiles.KCW.snapshot.tracks, network.tracks);
+  assert.equal((await storage.load('shared-network-world')).tiles.KCW.snapshot, undefined);
   // Remix loads KCE through its native city route, which resets these slices.
   Object.assign(game.native, { tracks: [], stations: [], routes: [], trains: [] });
   await runtime.completeStagedTransition('KCE');
@@ -737,7 +983,7 @@ test('a late city-load callback is idempotent after destination boot committed t
   assert.equal(destination.view().activeTileId, 'KCE');
 });
 
-test('fresh destination boot restores the complete native rail and clips only presentation layers', async () => {
+test('fresh destination boot rebuilds presentation from the native save rail', async () => {
   const tileIds = ['T0', 'T1', 'T2', 'T3'];
   const catalog = {
     tiles: tileIds.map((id, column) => ({ id, column, row: 0, bounds: [column, 0, column + 1, 1] })),
@@ -778,6 +1024,7 @@ test('fresh destination boot restores the complete native rail and clips only pr
   await source.stageNavigationTransition('T3');
 
   const destinationGame = new FakeGameAdapter();
+  destinationGame.native = structuredClone(sourceGame.native);
   const destination = new WorldTileRuntime({
     game: destinationGame,
     worldState: storage,
@@ -787,6 +1034,7 @@ test('fresh destination boot restores the complete native rail and clips only pr
   });
   await destination.boot('projected-handoff', 'T3');
 
+  assert.equal((await storage.load('projected-handoff')).globalNetwork, undefined);
   assert.deepEqual(destinationGame.native.tracks.map((track) => track.id), [
     'west-track',
     'crossing-track',
@@ -841,6 +1089,9 @@ test('canonical native schedule adoption keeps native topology normalization', a
   assert.equal(generic.status, 'accepted');
   assert.equal(game.native.routes[0].trainSchedule.highDemand, 5);
   assert.deepEqual(game.native.routes[0].stCombos, [{ editorNormalized: true }]);
+  assert.equal(game.log.includes('captureNativeNetworkState'), true);
+  assert.equal(game.log.includes('captureSnapshot'), false);
+  assert.equal(game.log.includes('pause'), false);
   assert.equal(game.log.includes('restoreSnapshot'), false, 'canonical edits must not be rolled back to a projection baseline');
 
   game.log.length = 0;
@@ -859,6 +1110,9 @@ test('canonical native schedule adoption keeps native topology normalization', a
   assert.equal(direct.status, 'unchanged');
   assert.equal(runtime.world.globalNetwork.nativeState.routes[0].trainSchedule.highDemand, 5);
   assert.equal(game.native.routes[0].trainSchedule.highDemand, 5);
+  assert.equal(game.log.includes('captureNativeNetworkState'), true);
+  assert.equal(game.log.includes('captureSnapshot'), false);
+  assert.equal(game.log.includes('pause'), false);
   assert.equal(
     game.log.includes('restoreSnapshot'),
     false,
@@ -866,55 +1120,6 @@ test('canonical native schedule adoption keeps native topology normalization', a
   );
 });
 
-test('city-load completion repairs an active destination when transition markers were consumed', async () => {
-  const tileIds = ['T0', 'T1', 'T2', 'T3'];
-  const catalog = {
-    tiles: tileIds.map((id, column) => ({ id, column, row: 0, bounds: [column, 0, column + 1, 1] })),
-  };
-  const emptyCatalog = { buildHash: 'transition-repair', buckets: [], gateways: [] };
-  const handoffPackages = Object.fromEntries(tileIds.map((tileId) => [tileId, {
-    manifest: { tileId, cityCode: tileId, schemaVersion: 1, dataFiles: {} },
-    demand: [], commuteCatalog: emptyCatalog,
-  }]));
-  const storage = new ModStorageWorldStateAdapter();
-  const sourceGame = new FakeGameAdapter();
-  Object.assign(sourceGame.native, {
-    tracks: [{ id: 'empire-track', coords: [[0.5, 0.5], [3.5, 0.5]] }],
-    stations: [
-      { id: 'west', coords: [0.5, 0.5], stNodeIds: ['west-node'] },
-      { id: 'east', coords: [3.5, 0.5], stNodeIds: ['east-node'] },
-    ],
-    routes: [{ id: 'empire-line', stationIds: ['west', 'east'], trackIds: ['empire-track'] }],
-    trains: [], trackGroups: [], signals: [], stNodes: [], stationGroups: [], fareGroups: [], routeFinancials: {},
-  });
-  const source = new WorldTileRuntime({
-    game: sourceGame, worldState: storage, tilePackages: new MemoryTilePackageAdapter(handoffPackages),
-    tileCatalog: catalog, initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-  });
-  await source.boot('transition-repair-world', 'T0');
-  await source.stageNavigationTransition('T3');
-
-  const destinationGame = new FakeGameAdapter();
-  const destination = new WorldTileRuntime({
-    game: destinationGame, worldState: storage, tilePackages: new MemoryTilePackageAdapter(handoffPackages),
-    tileCatalog: catalog, initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-  });
-  await destination.boot('transition-repair-world', 'T3');
-
-  // The browser navigation token can outlive the persisted transition marker.
-  // Reproduce the late callback after a checkpoint/migration lost that marker
-  // and after the native city loader reset the transit slices.
-  destination.world.committedTransitionId = null;
-  Object.assign(destinationGame.native, { tracks: [], stations: [], routes: [], trains: [] });
-
-  const result = await destination.completeStagedTransition('T3');
-
-  assert.equal(result.status, 'repaired-active');
-  assert.ok(destination.projectionOverlay().features.some(
-    (feature) => feature.properties.sourceTrackId === 'empire-track',
-  ));
-  assert.equal(destination.world.globalNetwork.nativeState.tracks.length, 1);
-});
 
 test('city-load completion rehydrates a staged handoff when the callback runtime is stale', async () => {
   const storage = new ModStorageWorldStateAdapter();
@@ -952,9 +1157,66 @@ test('city-load completion still rejects an unrelated tile with no persisted han
   await runtime.boot('unrelated-city-load', 'KCW');
 
   await assert.rejects(
-    runtime.completeStagedTransition('KCE'),
+    runtime.completeStagedTransition('KCE', {
+      navigationTransition: { worldId: 'another-world', tileId: 'KCE', from: 'KCW' },
+    }),
     /No staged transition targets loaded tile: KCE \(active=KCW, pending=none\)/,
   );
+});
+
+test('city-load completion repairs a missing stage only from a matching user navigation token', async () => {
+  const { runtime, storage } = setup();
+  await runtime.boot('navigation-token-repair');
+
+  const result = await runtime.completeStagedTransition('KCE', {
+    navigationTransition: {
+      worldId: 'navigation-token-repair',
+      tileId: 'KCE',
+      from: 'KCW',
+      transitionId: 'navigation-token-repair:KCW->KCE',
+    },
+  });
+
+  assert.equal(result.status, 'repaired-navigation');
+  assert.equal(runtime.view().activeTileId, 'KCE');
+  assert.equal(runtime.world.pendingTransition, null);
+  assert.equal((await storage.load('navigation-token-repair')).activeTileId, 'KCE');
+});
+
+test('city-load completion recovers the token world when the callback runtime owns a stale world', async () => {
+  const storage = new ModStorageWorldStateAdapter();
+  const intended = new WorldTileRuntime({
+    game: new FakeGameAdapter(),
+    worldState: storage,
+    tilePackages: new MemoryTilePackageAdapter(packages),
+    initialWorld: { wallet: 100, cohorts },
+  });
+  await intended.boot('navigation-token-world', 'KCW');
+
+  const stale = new WorldTileRuntime({
+    game: new FakeGameAdapter(),
+    worldState: storage,
+    tilePackages: new MemoryTilePackageAdapter(packages),
+    initialWorld: { wallet: 100, cohorts },
+  });
+  await stale.boot('stale-callback-world', 'KCW');
+  const storedTokenWorld = await storage.load('navigation-token-world');
+  assert.equal(storedTokenWorld.activeTileId, 'KCW');
+  assert.equal(storedTokenWorld.pendingTransition, null);
+
+  const result = await stale.completeStagedTransition('KCE', {
+    navigationTransition: {
+      worldId: 'navigation-token-world',
+      tileId: 'KCE',
+      from: 'KCW',
+      transitionId: 'navigation-token-world:0:KCW->KCE',
+    },
+  });
+
+  assert.equal(result.status, 'repaired-navigation');
+  assert.equal(stale.view().worldId, 'navigation-token-world');
+  assert.equal(stale.view().activeTileId, 'KCE');
+  assert.equal((await storage.load('navigation-token-world')).activeTileId, 'KCE');
 });
 
 test('a late source save-load cannot overwrite a staged destination handoff', async () => {
@@ -990,6 +1252,199 @@ test('carries the active game balance into the destination tile', async () => {
 
   assert.equal(runtime.view().wallet, 37);
   assert.equal(game.native.wallet, 37);
+});
+
+test('carries the sandbox money sentinel and ledger into the destination tile', async () => {
+  const { runtime, game } = setup();
+  await runtime.boot('sandbox-money-world');
+  const sandboxMoney = Number.MAX_SAFE_INTEGER;
+  const sandboxHistory = {
+    entries: [{ timestamp: 0, balance: sandboxMoney, hourlyRevenue: 0, hourlyExpenses: 0 }],
+    lastHourTimestamp: 0,
+    currentHourRevenue: 0,
+    currentHourExpenses: 0,
+    currentHourExpenseCategories: {},
+  };
+  game.native.gameMode = 'sandbox';
+  game.native.wallet = sandboxMoney;
+  game.native.financialHistory = structuredClone(sandboxHistory);
+
+  await runtime.stageNavigationTransition('KCE');
+  // StoreInitializer replaces the destination ledger before handoff.
+  game.native = {
+    ...game.native,
+    gameMode: 'easy',
+    wallet: 1_000_000,
+    objects: [],
+    activity: { departures: [], walletDelta: 0 },
+  };
+  await runtime.completeStagedTransition('KCE');
+
+  assert.equal(runtime.view().wallet, sandboxMoney);
+  assert.equal(game.native.gameMode, 'sandbox');
+  assert.equal(game.native.wallet, sandboxMoney);
+  assert.deepEqual(game.native.financialHistory, sandboxHistory);
+});
+
+test('finance-blind NEC handoff transfers the complete native financial state', async () => {
+  const game = new FakeGameAdapter();
+  const storage = new ModStorageWorldStateAdapter({ financeMode: 'blind' });
+  const runtime = new WorldTileRuntime({
+    game,
+    worldState: storage,
+    tilePackages: new MemoryTilePackageAdapter(packages),
+    revenueAccrual: new NativeRevenueAccrual({ adapter: game }),
+    backgroundNativeExpenses: false,
+    initialWorld: { wallet: 100, cohorts },
+  });
+  await runtime.boot('complete-finance-blind-world');
+  const sourceFinance = {
+    gameMode: 'easy',
+    wallet: 842_500,
+    transitCost: 4.75,
+    fareGroups: [{ id: 'express-fares', routeIds: ['R1'], fare: 7.5 }],
+    financialHistory: {
+      entries: [{ timestamp: 3_600, balance: 842_500, hourlyRevenue: 12_000, hourlyExpenses: 4_500 }],
+      lastHourTimestamp: 3_600,
+      currentHourRevenue: 2_000,
+      currentHourExpenses: 750,
+      currentHourExpenseCategories: { trainOperational: 750 },
+    },
+    routeFinancials: {
+      byRoute: { R1: [{ timestamp: 3_600, revenue: 12_000, expenses: 3_000 }] },
+      lastHourTimestamp: 3_600,
+      currentHour: { R1: { revenue: 2_000, expenses: 500 } },
+    },
+    bonds: [{ id: 'bond-1', principal: 250_000, remainingPrincipal: 200_000 }],
+    hasGoneBankrupt: true,
+    rockefellerPaidOut: true,
+    buildingDemolitionSpendAllTime: 91_000,
+  };
+  Object.assign(game.native, structuredClone(sourceFinance));
+
+  await runtime.stageNavigationTransition('KCE');
+  const staged = await storage.load('complete-finance-blind-world');
+  assert.equal(staged.gameMode, 'easy', 'game mode is world configuration, not sidecar finance');
+  assert.equal(staged.wallet, undefined, 'the sidecar remains finance-blind');
+
+  Object.assign(game.native, {
+    gameMode: 'sandbox',
+    wallet: 1_000_000,
+    transitCost: 2.5,
+    fareGroups: [],
+    financialHistory: {
+      entries: [], lastHourTimestamp: 0, currentHourRevenue: 0,
+      currentHourExpenses: 0, currentHourExpenseCategories: {},
+    },
+    routeFinancials: { byRoute: {}, lastHourTimestamp: 0, currentHour: {} },
+    bonds: [],
+    hasGoneBankrupt: false,
+    rockefellerPaidOut: false,
+    buildingDemolitionSpendAllTime: 0,
+    objects: [], activity: { departures: [], walletDelta: 0 },
+  });
+  await runtime.completeStagedTransition('KCE');
+
+  for (const [field, value] of Object.entries(sourceFinance)) {
+    assert.deepEqual(game.native[field], value, field);
+  }
+});
+
+test('finance-blind NEC handoff keeps the native date aligned with financial history', async () => {
+  const game = new FakeGameAdapter();
+  const storage = new ModStorageWorldStateAdapter({ financeMode: 'blind' });
+  const runtime = new WorldTileRuntime({
+    game,
+    worldState: storage,
+    tilePackages: new MemoryTilePackageAdapter(packages),
+    revenueAccrual: new NativeRevenueAccrual({ adapter: game }),
+    backgroundNativeExpenses: false,
+    initialWorld: { wallet: 100, cohorts },
+  });
+  await runtime.boot('finance-date-handoff-world');
+  const sourceElapsedSeconds = 41 * 24 * 3_600 + 12 * 3_600 + 34;
+  game.native.clock = sourceElapsedSeconds;
+  game.native.financialHistory = {
+    entries: [{
+      timestamp: 41 * 24 * 3_600,
+      balance: 842_500,
+      hourlyRevenue: 12_000,
+      hourlyExpenses: 4_500,
+    }],
+    lastHourTimestamp: 41 * 24 * 3_600 + 12 * 3_600,
+    currentHourRevenue: 2_000,
+    currentHourExpenses: 750,
+    currentHourExpenseCategories: { trainOperational: 750 },
+  };
+  const sourceHistory = structuredClone(game.native.financialHistory);
+
+  await runtime.stageNavigationTransition('KCE');
+  assert.equal(runtime.view().elapsedSeconds, sourceElapsedSeconds,
+    'the staged World Record must capture the source native clock');
+  assert.equal(runtime.world.tiles.KCW.snapshot.clock, sourceElapsedSeconds,
+    'the source runtime snapshot must retain the source native clock');
+  game.native = {
+    ...game.native,
+    clock: 0,
+    financialHistory: {
+      entries: [], lastHourTimestamp: 0, currentHourRevenue: 0,
+      currentHourExpenses: 0, currentHourExpenseCategories: {},
+    },
+    objects: [], activity: { departures: [], walletDelta: 0 },
+  };
+  await runtime.completeStagedTransition('KCE');
+
+  assert.equal(game.native.clock, sourceElapsedSeconds, 'tile navigation must not return the calendar to Day 1');
+  assert.deepEqual(game.native.financialHistory, sourceHistory);
+  assert.ok(game.native.financialHistory.lastHourTimestamp <= game.native.clock,
+    'the restored history must not sit in the future relative to the native clock');
+});
+
+test('fresh finance-blind destination boot cannot import a stale $100m tile expense', async () => {
+  const storage = new ModStorageWorldStateAdapter({ financeMode: 'blind' });
+  const tilePackages = new MemoryTilePackageAdapter(packages);
+  const sourceGame = new FakeGameAdapter();
+  const source = new WorldTileRuntime({
+    game: sourceGame,
+    worldState: storage,
+    tilePackages,
+    revenueAccrual: new NativeRevenueAccrual({ adapter: sourceGame }),
+    initialWorld: { activeTileId: 'KCW', wallet: 1_000_000, cohorts },
+  });
+  await source.boot('finance-blind-tile-switch', 'KCW');
+  const nativeHistory = {
+    entries: [], lastHourTimestamp: 7_200,
+    currentHourRevenue: 5_000_000, currentHourExpenses: 0,
+    currentHourExpenseCategories: {},
+  };
+  sourceGame.native.wallet = 503_000_000;
+  sourceGame.native.financialHistory = structuredClone(nativeHistory);
+  source.world.tiles.KCE.snapshot = {
+    ...structuredClone(sourceGame.native),
+    wallet: 403_000_000,
+    financialHistory: {
+      ...structuredClone(nativeHistory),
+      currentHourExpenses: 100_000_000,
+      currentHourExpenseCategories: { infrastructure: 100_000_000 },
+    },
+  };
+  await source.stageNavigationTransition('KCE');
+
+  const destinationGame = new FakeGameAdapter();
+  destinationGame.native.wallet = 503_000_000;
+  destinationGame.native.financialHistory = structuredClone(nativeHistory);
+  const destination = new WorldTileRuntime({
+    game: destinationGame,
+    worldState: storage,
+    tilePackages,
+    revenueAccrual: new NativeRevenueAccrual({ adapter: destinationGame }),
+    initialWorld: { activeTileId: 'KCW', wallet: 1_000_000, cohorts },
+  });
+
+  await destination.boot('finance-blind-tile-switch', 'KCE');
+
+  assert.equal(destinationGame.native.wallet, 503_000_000);
+  assert.deepEqual(destinationGame.native.financialHistory, nativeHistory);
 });
 
 test('accumulates native revenue and expenses from successive tiles in the global wallet and history', async () => {
@@ -1667,6 +2122,70 @@ test('save-load boot rebuilds stale inactive-tile finance before reporting ready
   assert.equal(startupEvents.find(({ phase }) => phase === 'startup-performance')?.status, 'ready');
 });
 
+test('recovery migrates legacy expense ownership before settling the loaded native hour', async () => {
+  const { runtime, game, storage } = setupProjectedRuntime();
+  await runtime.boot('legacy-expense-recovery', 'T0');
+  const networkHash = runtime.world.globalNetwork?.hash ?? null;
+  runtime.world.backgroundNativeFinance = {
+    schemaVersion: 2,
+    networkHash,
+    ownershipProjection: structuredClone(runtime.world.activeProjection),
+    pendingHandoff: null,
+    lastSettledHour: 8,
+    lastRevenueSettledHour: 8,
+    lastExpenseSettledHour: 8,
+    tileRevenueProfiles: {},
+    // This is the pre-native-ownership shape written by older mod builds.
+    // It is an audit/recovery estimate, not a second expense authority.
+    expenseProfile: {
+      networkHash,
+      financeOwnedRouteIds: ['global'],
+      routeHourly: { global: Array(24).fill(50) },
+      infrastructureItems: [],
+    },
+    totalRevenue: 0,
+    totalExpenses: 0,
+  };
+  runtime.world.worldTime = 8;
+  runtime.world.elapsedSeconds = 8 * 3_600;
+  for (const tile of Object.values(runtime.world.tiles)) tile.lastSimulatedTime = 8;
+  await storage.save(runtime.world);
+
+  game.native.clock = 9 * 3_600;
+  game.native.wallet = 1_000;
+  game.native.financialHistory = {
+    entries: [],
+    lastHourTimestamp: 9 * 3_600,
+    currentHourRevenue: 0,
+    currentHourExpenses: 50,
+    currentHourExpenseCategories: { trainOperational: 50 },
+  };
+  let backgroundPosts = 0;
+  const postBackgroundNativeFinance = game.postBackgroundNativeFinance.bind(game);
+  game.postBackgroundNativeFinance = async (...args) => {
+    backgroundPosts++;
+    return postBackgroundNativeFinance(...args);
+  };
+  const recovered = new WorldTileRuntime({
+    game,
+    worldState: storage,
+    tilePackages: runtime.tilePackages,
+    tileCatalog: runtime.tileCatalog,
+    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
+  });
+
+  await recovered.boot('legacy-expense-recovery', 'T0', {
+    saveName: 'Recovered native save',
+    allowLiveFallback: true,
+  });
+
+  assert.equal(backgroundPosts, 0, 'recovery must not post the native save\'s expenses a second time');
+  assert.equal(game.native.wallet, 1_000);
+  assert.equal(game.native.financialHistory.currentHourExpenses, 50);
+  assert.equal(recovered.view().backgroundNativeFinance.accountingOwnership.nativeExpenses, 'full-network');
+  assert.equal(recovered.view().backgroundNativeFinance.expenseProfile.nativeTopologyComplete, true);
+});
+
 test('stale native revenue profiles do not block a current global expense profile', async () => {
   const { runtime, game } = setupProjectedRuntime();
   await runtime.boot('current-expenses-stale-revenue', 'T0');
@@ -2018,312 +2537,6 @@ test('loading an older autosave restores its matching commute checkpoint', async
   assert.equal(game.native.clock, 7 * 3_600);
 });
 
-test('aliased recovery rebases future sidecar time to the native save without dropping its network', async () => {
-  const { runtime, game, storage } = setup();
-  await runtime.boot('aliased-recovery-clock');
-  await runtime.advanceTo(9);
-  runtime.world.globalNetwork = createGlobalNetwork({
-    tracks: [{ id: 'recovered-track', coords: [[0, 0], [1, 0]] }],
-    stations: [{ id: 'recovered-station', coords: [0, 0] }],
-    routes: [{ id: 'recovered-route', fullName: 'Recovered route' }],
-    trains: [{ id: 'recovered-train', routeId: 'recovered-route' }],
-  });
-  await storage.save(runtime.world);
-  game.native.clock = 7 * 3_600 + 123;
-
-  const recovered = new WorldTileRuntime({
-    game,
-    worldState: storage,
-    tilePackages: new MemoryTilePackageAdapter(packages),
-    initialWorld: { wallet: 100, cohorts },
-  });
-
-  await assert.doesNotReject(recovered.boot('aliased-recovery-clock', 'KCW', {
-    saveName: 'Uncheckpointed destination save',
-    allowLiveFallback: true,
-  }));
-  assert.equal(recovered.view().worldTime, 7);
-  assert.equal(recovered.view().elapsedSeconds, 7 * 3_600 + 123);
-  assert.equal(recovered.world.commuteLastProcessedHour, 7);
-  assert.deepEqual(
-    recovered.world.globalNetwork.nativeState.routes.map((route) => route.fullName),
-    ['Recovered route'],
-  );
-});
-
-test('boot persists an injected remote-network recovery through world storage', async () => {
-  const { runtime, game, storage } = setup();
-  await runtime.boot('api-network-recovery');
-  runtime.world.globalNetwork = createGlobalNetwork({
-    tracks: [{ id: 'visible-track', coords: [[0, 0], [1, 0]] }],
-    routes: [], stations: [], trains: [],
-  });
-  await storage.save(runtime.world);
-
-  const recovered = new WorldTileRuntime({
-    game,
-    worldState: storage,
-    tilePackages: new MemoryTilePackageAdapter(packages),
-    initialWorld: { wallet: 100, cohorts },
-    networkRecovery: async (world) => applyNetworkRecovery(world, {
-      recoveryId: 'remote-network-v1',
-      nativeState: {
-        tracks: [{ id: 'remote-track', coords: [[4, 0], [5, 0]] }],
-        routes: [{ id: 'remote-route', fullName: 'Remote route' }],
-        stations: [], trains: [],
-      },
-    }),
-  });
-
-  await recovered.boot('api-network-recovery', 'KCW');
-
-  const persisted = await storage.load('api-network-recovery');
-  assert.deepEqual(
-    persisted.globalNetwork.nativeState.routes.map((route) => route.fullName),
-    ['Remote route'],
-  );
-  assert.deepEqual(
-    persisted.globalNetwork.nativeState.tracks.map((track) => track.id).sort(),
-    ['remote-track', 'visible-track'],
-  );
-  assert.ok(persisted.networkRecoveries['remote-network-v1']);
-});
-
-test('network recovery invalidates stale inactive-tile finance profiles before startup settlement', async () => {
-  const nativeDemand = {
-    points: [
-      { id: 'home', location: [1.2, 0.5], residents: 100, jobs: 0 },
-      { id: 'work', location: [1.8, 0.5], residents: 0, jobs: 100 },
-    ],
-    pops: [{
-      id: 'remote-pop', size: 100, residenceId: 'home', jobId: 'work',
-      drivingSeconds: 3_600, drivingDistance: 25_000,
-    }],
-  };
-  const packageFixture = Object.fromEntries(['T0', 'T1'].map((tileId) => [tileId, {
-    manifest: { tileId, cityCode: tileId, schemaVersion: 1, dataFiles: {} },
-    nativeDemand,
-    commuteCatalog: { buildHash: 'recovery-finance', buckets: [], gateways: [] },
-  }]));
-  const tilePackages = new MemoryTilePackageAdapter(packageFixture);
-  const tileCatalog = { tiles: [
-    { id: 'T0', column: 0, row: 0, bounds: [0, 0, 1, 1] },
-    { id: 'T1', column: 1, row: 0, bounds: [1, 0, 2, 1] },
-  ] };
-  const game = new FakeGameAdapter();
-  const storage = new ModStorageWorldStateAdapter();
-  const original = new WorldTileRuntime({
-    game, worldState: storage, tilePackages, tileCatalog,
-    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-  });
-  await original.boot('recovery-finance-world', 'T0');
-  const staleProfile = (tileId, hourlyRevenue = 0) => ({
-    schemaVersion: 3,
-    source: 'off-tile-estimator',
-    evaluatorSchemaVersion: 3,
-    contextKey: `${tileId}:stale-empty-network`,
-    evaluationKey: `${tileId}:stale`,
-    tileId,
-    hourly: Array.from({ length: 24 }, () => ({
-      revenue: hourlyRevenue,
-      revenueByRoute: hourlyRevenue ? { stale: hourlyRevenue } : {},
-    })),
-    transitPopulation: 0,
-    dailyRevenue: hourlyRevenue * 24,
-  });
-  original.world.backgroundNativeFinance.tileRevenueProfiles = {
-    T0: staleProfile('T0'),
-    T1: staleProfile('T1', 999),
-  };
-  original.world.crossModeShare = {
-    schemaVersion: 1, day: 1, reason: 'startup', calculatedAtHour: 0,
-    evaluatedPops: 0, transitViablePops: 0, changedFlows: 0, revision: 1,
-  };
-  await storage.save(original.world);
-
-  let nativeDemandLoads = 0;
-  const loadNativeDemand = tilePackages.loadNativeDemand.bind(tilePackages);
-  tilePackages.loadNativeDemand = async (...args) => {
-    nativeDemandLoads++;
-    return loadNativeDemand(...args);
-  };
-  let backgroundPosts = 0;
-  const postBackgroundNativeFinance = game.postBackgroundNativeFinance.bind(game);
-  game.postBackgroundNativeFinance = async (...args) => {
-    backgroundPosts++;
-    return postBackgroundNativeFinance(...args);
-  };
-  game.native.clock = 3_600;
-  const recovered = new WorldTileRuntime({
-    game, worldState: storage, tilePackages, tileCatalog,
-    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-    networkRecovery: async (world) => applyNetworkRecovery(world, {
-      recoveryId: 'finance-network-v1',
-      nativeState: {
-        tracks: [], trackGroups: [], signals: [],
-        stations: [
-          { id: 'home-station', coords: [1.2, 0.5], stNodeIds: ['home-node'], buildType: 'constructed' },
-          { id: 'work-station', coords: [1.8, 0.5], stNodeIds: ['work-node'], buildType: 'constructed' },
-        ],
-        stNodes: [{ id: 'home-node' }, { id: 'work-node' }],
-        routes: [{
-          id: 'R', stNodes: [{ id: 'home-node' }, { id: 'work-node' }], idealTrainCount: 2,
-          stComboTimings: [
-            { stNodeIndex: 0, arrivalTime: 0, departureTime: 20 },
-            { stNodeIndex: 1, arrivalTime: 600, departureTime: 620 },
-          ],
-        }],
-        trains: [], fareGroups: [],
-      },
-    }),
-  });
-
-  await recovered.boot('recovery-finance-world', 'T0');
-  assert.equal(backgroundPosts, 0, 'startup must not settle a stale profile before reevaluating it');
-  const result = await recovered.recalculateCrossTileModeShare({ reason: 'startup' });
-
-  assert.notEqual(result.status, 'cached');
-  assert.ok(nativeDemandLoads > 0);
-  assert.ok(recovered.view().backgroundNativeFinance.tileRevenueProfiles.T1.dailyRevenue > 0);
-  assert.equal(
-    recovered.view().backgroundNativeFinance.networkHash,
-    recovered.world.globalNetwork.hash,
-  );
-});
-
-test('boot restores recovered visible topology before a later reconciliation can delete it', async () => {
-  const { runtime, game, storage } = setupProjectedRuntime();
-  await runtime.boot('visible-network-recovery', 'T0');
-  runtime.world.globalNetwork = createGlobalNetwork({
-    tracks: [], routes: [], stations: [], trains: [], trackGroups: [],
-  });
-  runtime.world.activeProjection = null;
-  await storage.save(runtime.world);
-  game.native.tracks = [];
-
-  const recovered = new WorldTileRuntime({
-    game,
-    worldState: storage,
-    tilePackages: runtime.tilePackages,
-    tileCatalog: runtime.tileCatalog,
-    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-    networkRecovery: async (world) => applyNetworkRecovery(world, {
-      recoveryId: 'visible-network-v1',
-      nativeState: {
-        tracks: [{ id: 'recovered-track', coords: [[0.2, 0.2], [0.8, 0.2]] }],
-        routes: [], stations: [], trains: [], trackGroups: [],
-      },
-    }),
-  });
-
-  await recovered.boot('visible-network-recovery', 'T0');
-  assert.deepEqual(game.native.tracks.map(({ id }) => id), ['recovered-track']);
-
-  await recovered.reconcileActiveProjection('post-startup-native-callback');
-  assert.deepEqual(
-    recovered.world.globalNetwork.nativeState.tracks.map(({ id }) => id),
-    ['recovered-track'],
-  );
-});
-
-test('aliased stale native save restores the authoritative visible topology on boot', async () => {
-  const { runtime, game, storage } = setupProjectedRuntime();
-  await runtime.boot('aliased-stale-native-network', 'T0');
-  game.native.tracks = [{ id: 'authoritative-track', coords: [[0.2, 0.2], [0.8, 0.2]] }];
-  await runtime.reconcileActiveProjection('track-built');
-  await runtime.checkpoint('game-save', {
-    saveName: 'Autosave',
-    nativeSessionId: 'stale-native-save',
-    nativeTileId: 'T0',
-  });
-
-  // The player resumes an older native autosave whose transit projection is
-  // missing rail that remains present in its authoritative open-world checkpoint.
-  game.native.tracks = [];
-  const loadTrace = [];
-  const recovered = new WorldTileRuntime({
-    game,
-    worldState: storage,
-    tilePackages: runtime.tilePackages,
-    tileCatalog: runtime.tileCatalog,
-    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-    telemetry: (event) => {
-      if (event.phase === 'authoritative-load') loadTrace.push(event);
-    },
-  });
-
-  await recovered.boot('aliased-stale-native-network', 'T0', {
-    saveName: 'Autosave',
-    allowLiveFallback: true,
-    nativeSessionId: 'stale-native-save',
-    nativeTileId: 'T0',
-    loadTraceId: 'stale-save-regression',
-  });
-
-  assert.deepEqual({
-    native: game.native.tracks.map(({ id }) => id),
-    authoritative: recovered.world.globalNetwork.nativeState.tracks.map(({ id }) => id),
-  }, {
-    native: ['authoritative-track'],
-    authoritative: ['authoritative-track'],
-  });
-  const segments = loadTrace.map(({ segment }) => segment);
-  for (const segment of [
-    'boot-start',
-    'storage-load-start',
-    'storage-load-complete',
-    'authoritative-globals-captured',
-    'live-snapshot-captured',
-    'projection-built',
-    'native-restore-start',
-    'native-restore-complete',
-    'native-verified',
-    'storage-saved',
-    'boot-complete',
-  ]) assert.ok(segments.includes(segment), `missing authoritative load segment: ${segment}`);
-});
-
-test('boot repairs and persists station groups missing from the world sidecar', async () => {
-  const { runtime, game, storage } = setupProjectedRuntime();
-  await runtime.boot('sidecar-track-group-repair', 'T0');
-  const network = createGlobalNetwork({
-    tracks: [
-      {
-        id: 'platform-a', type: 'station', trackType: 'commuter-rail', buildType: 'constructed',
-        coords: [[0.4, 0.5], [0.5, 0.5]],
-      },
-      {
-        id: 'platform-b', type: 'station', trackType: 'commuter-rail', buildType: 'constructed',
-        coords: [[0.5, 0.51], [0.4, 0.51]],
-      },
-    ],
-    trackGroups: [{ id: 'station-a', type: 'station', trackIds: ['platform-a', 'platform-b'] }],
-    stations: [{
-      id: 'station-a', coords: [0.45, 0.505], trackGroupId: 'station-a',
-      trackIds: ['platform-a', 'platform-b'], stNodeIds: [], routeIds: [],
-    }],
-    routes: [],
-    trains: [],
-  });
-  network.nativeState.trackGroups = [];
-  runtime.world.globalNetwork = network;
-  await storage.save(runtime.world);
-
-  const recovered = new WorldTileRuntime({
-    game,
-    worldState: storage,
-    tilePackages: runtime.tilePackages,
-    tileCatalog: runtime.tileCatalog,
-    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] },
-  });
-  await recovered.boot('sidecar-track-group-repair', 'T0');
-
-  const persisted = await storage.load('sidecar-track-group-repair');
-  assert.deepEqual(
-    persisted.globalNetwork.nativeState.trackGroups.map(({ id }) => id),
-    ['station-a'],
-  );
-});
 
 test('an already-running runtime can replace its world from a loaded save checkpoint', async () => {
   const { runtime, game } = setup();
@@ -2494,13 +2707,251 @@ function realSeamFixture({ omit = [], publicCityCode = 'KCW' } = {}) {
 }
 
 test('production adapter uses the inspected 1.6.0 getState seam and API 1.0.0 surface', async () => {
-  const fixture = realSeamFixture(); const adapter = new SubwayBuilderGameAdapter(fixture);
+  const fixture = realSeamFixture();
+  const internalOperations = [];
+  fixture.nativeSaveLifecycle = {
+    runInternalOperation: async (operation, action) => {
+      internalOperations.push(operation);
+      return action();
+    },
+  };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
   const report = adapter.probe(); assert.equal(report.supported, true); assert.deepEqual(report.callbackMethods, ['getState', 'setMoney', 'setTicketCost']);
   assert.equal(report.selectedActions.staticData, 'loadInitialData'); assert.ok(report.stateMethods.includes('generateSave'));
   await adapter.pause(); const save = await adapter.captureSnapshot(); await adapter.loadStaticPackage({ manifest: { tileId: 'KCE', dataFiles: { demandData: 'demand_data.json' } } }); await adapter.restoreSnapshot({ ...save, cityCode: 'KCE' });
   await adapter.setAuthoritativeGlobals({ worldTime: 8, wallet: 20, farePolicy: { fare: 3 } }); await adapter.resume();
   assert.deepEqual(fixture.calls.map(([name]) => name), ['time', 'save', 'files', 'city', 'time', 'load', 'time', 'money', 'fare', 'time', 'time']);
+  assert.equal(save.name, OPEN_WORLD_RUNTIME_SAVE_NAME);
+  assert.deepEqual(save.metadata[OPEN_WORLD_RUNTIME_METADATA_KEY], {
+    schemaVersion: 1,
+    purpose: 'tile-runtime',
+  });
+  assert.deepEqual(internalOperations.map(({ kind, saveName, metadataMarked }) => ({
+    kind, saveName, metadataMarked,
+  })), [
+    {
+      kind: 'runtime-snapshot-generate',
+      saveName: OPEN_WORLD_RUNTIME_SAVE_NAME,
+      metadataMarked: false,
+    },
+    {
+      kind: 'runtime-snapshot-load',
+      saveName: OPEN_WORLD_RUNTIME_SAVE_NAME,
+      metadataMarked: true,
+    },
+  ]);
   assert.equal(fixture.state.timeConfig.elapsedSeconds, 8 * 3600);
+});
+
+test('tile snapshot restore can replace topology without importing a $100m expense', async () => {
+  const fixture = realSeamFixture({ publicCityCode: 'KCE' });
+  const nativeHistory = {
+    entries: [{ timestamp: 3_600, revenue: 15_000_000, expenses: 2_000_000 }],
+    lastHourTimestamp: 7_200,
+    currentHourRevenue: 5_000_000,
+    currentHourExpenses: 0,
+    currentHourExpenseCategories: {},
+  };
+  fixture.state.money = 503_000_000;
+  fixture.state.financialHistory = structuredClone(nativeHistory);
+  fixture.state.loadSave = (snapshot) => {
+    fixture.state.cityCode = snapshot.cityCode;
+    fixture.state.money = snapshot.data.money;
+    fixture.state.financialHistory = structuredClone(snapshot.data.financialHistory);
+  };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+  await adapter.adoptStaticPackage({ manifest: { tileId: 'KCE', cityCode: 'KCE' } }, 'KCE');
+
+  await adapter.restoreSnapshot({
+    name: OPEN_WORLD_RUNTIME_SAVE_NAME,
+    cityCode: 'KCE',
+    viewport: {},
+    data: {
+      routes: [{ id: 'global-route' }], tracks: [], stations: [], trains: [],
+      money: 403_000_000,
+      financialHistory: {
+        ...structuredClone(nativeHistory),
+        currentHourExpenses: 100_000_000,
+        currentHourExpenseCategories: { infrastructure: 100_000_000 },
+      },
+    },
+  }, { preserveNativeFinance: true });
+
+  assert.equal(fixture.state.money, 503_000_000, 'tile presentation must not change the native balance');
+  assert.deepEqual(
+    fixture.state.financialHistory,
+    nativeHistory,
+    'tile presentation must not import snapshot expenses into native history',
+  );
+});
+
+test('tile snapshot restore transfers every native financial field from the source tile', async () => {
+  const fixture = realSeamFixture({ publicCityCode: 'KCE' });
+  const sourceFinance = {
+    gameMode: 'easy',
+    money: 842_500,
+    transitCost: 4.75,
+    fareGroups: [{ id: 'express-fares', routeIds: ['R1'], fare: 7.5 }],
+    financialHistory: {
+      entries: [{ timestamp: 3_600, balance: 842_500, hourlyRevenue: 12_000, hourlyExpenses: 4_500 }],
+      lastHourTimestamp: 3_600,
+      currentHourRevenue: 2_000,
+      currentHourExpenses: 750,
+      currentHourExpenseCategories: { trainOperational: 750 },
+    },
+    routeFinancials: {
+      byRoute: { R1: [{ timestamp: 3_600, revenue: 12_000, expenses: 3_000 }] },
+      lastHourTimestamp: 3_600,
+      currentHour: { R1: { revenue: 2_000, expenses: 500 } },
+    },
+    bonds: [{ id: 'bond-1', principal: 250_000, remainingPrincipal: 200_000 }],
+    hasGoneBankrupt: true,
+    rockefellerPaidOut: true,
+    buildingDemolitionSpendAllTime: 91_000,
+  };
+  Object.assign(fixture.state, {
+    gameMode: 'sandbox',
+    money: 1_000_000,
+    transitCost: 2.5,
+    fareGroups: [],
+    financialHistory: { entries: [], currentHourRevenue: 0, currentHourExpenses: 0 },
+    routeFinancials: { byRoute: {}, currentHour: {} },
+    bonds: [],
+    hasGoneBankrupt: false,
+    rockefellerPaidOut: false,
+    buildingDemolitionSpendAllTime: 0,
+  });
+  fixture.state.loadSave = (snapshot) => {
+    Object.assign(fixture.state, structuredClone(snapshot.data));
+    fixture.state.cityCode = snapshot.cityCode;
+  };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+  await adapter.adoptStaticPackage({ manifest: { tileId: 'KCE', cityCode: 'KCE' } }, 'KCE');
+
+  await adapter.restoreSnapshot({
+    name: OPEN_WORLD_RUNTIME_SAVE_NAME,
+    cityCode: 'KCE',
+    viewport: {},
+    data: {
+      routes: [], tracks: [], stations: [], trains: [],
+      gameMode: 'sandbox', money: 1_000_000, transitCost: 2.5,
+      fareGroups: [], financialHistory: {}, routeFinancials: {}, bonds: [],
+      hasGoneBankrupt: false, rockefellerPaidOut: false,
+      buildingDemolitionSpendAllTime: 0,
+    },
+  }, {
+    preserveNativeFinance: true,
+    authoritativeFinanceSnapshot: { data: sourceFinance },
+  });
+
+  for (const [field, value] of Object.entries(sourceFinance)) {
+    assert.deepEqual(fixture.state[field], value, field);
+  }
+});
+
+test('tile snapshot finance transfer supplies the route-financials envelope required by the native dashboard', async () => {
+  const fixture = realSeamFixture({ publicCityCode: 'KCE' });
+  const routeId = '09d2a90e-71f9-4f06-b717-8ed248945f35';
+  fixture.state.loadSave = (snapshot) => {
+    Object.assign(fixture.state, structuredClone(snapshot.data));
+    fixture.state.cityCode = snapshot.cityCode;
+  };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+  await adapter.adoptStaticPackage({ manifest: { tileId: 'KCE', cityCode: 'KCE' } }, 'KCE');
+
+  await adapter.restoreSnapshot({
+    name: OPEN_WORLD_RUNTIME_SAVE_NAME,
+    cityCode: 'KCE',
+    viewport: {},
+    data: {
+      routes: [{ id: routeId }], tracks: [], stations: [], trains: [],
+      routeFinancials: { byRoute: {}, lastHourTimestamp: 0, currentHour: {} },
+    },
+  }, {
+    preserveNativeFinance: true,
+    authoritativeFinanceSnapshot: { data: { routeFinancials: {} } },
+  });
+
+  assert.doesNotThrow(() => fixture.state.routes.map((route) => ({
+    hourly: fixture.state.routeFinancials.byRoute[route.id] ?? [],
+    currentHour: fixture.state.routeFinancials.currentHour[route.id] ?? { revenue: 0, expenses: 0 },
+  })));
+  assert.deepEqual(fixture.state.routeFinancials, {
+    byRoute: {}, lastHourTimestamp: 0, currentHour: {},
+  });
+});
+
+test('production adapter restores the exact native clock without changing finance', async () => {
+  const fixture = realSeamFixture();
+  const sourceFinance = {
+    money: 842_500,
+    financialHistory: {
+      entries: [{ timestamp: 3_542_400, hourlyRevenue: 12_000, hourlyExpenses: 4_500 }],
+      lastHourTimestamp: 3_585_600,
+      currentHourRevenue: 2_000,
+      currentHourExpenses: 750,
+      currentHourExpenseCategories: { trainOperational: 750 },
+    },
+    routeFinancials: {
+      byRoute: { R1: [{ timestamp: 3_585_600, revenue: 2_000, expenses: 500 }] },
+      lastHourTimestamp: 3_585_600,
+      currentHour: { R1: { revenue: 2_000, expenses: 500 } },
+    },
+    bonds: [{ id: 'bond-1', remainingPrincipal: 200_000 }],
+  };
+  Object.assign(fixture.state, structuredClone(sourceFinance));
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+
+  await adapter.setAuthoritativeClock(3_585_634);
+
+  assert.equal(fixture.state.timeConfig.elapsedSeconds, 3_585_634);
+  assert.equal(fixture.state.timeConfig.paused, true);
+  for (const [field, value] of Object.entries(sourceFinance)) {
+    assert.deepEqual(fixture.state[field], value, field);
+  }
+});
+
+test('tile snapshot restore preserves sandbox mode with its unlimited native ledger', async () => {
+  const fixture = realSeamFixture({ publicCityCode: 'KCE' });
+  const sandboxMoney = Number.MAX_SAFE_INTEGER;
+  const sandboxHistory = {
+    entries: [{ timestamp: 0, balance: sandboxMoney, hourlyRevenue: 0, hourlyExpenses: 0 }],
+    lastHourTimestamp: 0,
+    currentHourRevenue: 0,
+    currentHourExpenses: 0,
+    currentHourExpenseCategories: {},
+  };
+  Object.assign(fixture.state, {
+    gameMode: 'sandbox',
+    money: sandboxMoney,
+    financialHistory: structuredClone(sandboxHistory),
+  });
+  fixture.state.loadSave = (snapshot) => {
+    Object.assign(fixture.state, structuredClone(snapshot.data));
+    fixture.state.cityCode = snapshot.cityCode;
+  };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+  await adapter.adoptStaticPackage({ manifest: { tileId: 'KCE', cityCode: 'KCE' } }, 'KCE');
+
+  await adapter.restoreSnapshot({
+    name: OPEN_WORLD_RUNTIME_SAVE_NAME,
+    cityCode: 'KCE',
+    viewport: {},
+    data: {
+      routes: [], tracks: [], stations: [], trains: [],
+      gameMode: 'easy',
+      money: 1_000_000,
+      financialHistory: {
+        entries: [], lastHourTimestamp: 0,
+        currentHourRevenue: 0, currentHourExpenses: 0,
+        currentHourExpenseCategories: {},
+      },
+    },
+  }, { preserveNativeFinance: true });
+
+  assert.equal(fixture.state.gameMode, 'sandbox');
+  assert.equal(fixture.state.money, sandboxMoney);
+  assert.deepEqual(fixture.state.financialHistory, sandboxHistory);
 });
 
 test('production adapter persists and recovers authoritative identity through native autosaves', async () => {
@@ -4299,12 +4750,24 @@ test('clipped-route preview guard preserves a remote loop-closing station occurr
   );
 });
 
-test('snapshot restore guards transient preview-layer ordering before loadSave mutates the style', async () => {
+test('snapshot restore guards transient layer additions and moves before loadSave mutates the style', async () => {
   const fixture = realSeamFixture();
   const layers = new Set(['preview-track-speeds-under']);
+  const rawAdds = [];
   const rawMoves = [];
   const map = {
+    style: {
+      _layers: { 'preview-track-speeds-under': { id: 'preview-track-speeds-under' } },
+      _order: ['preview-track-speeds-under'],
+    },
     getLayer: (id) => layers.has(id) ? { id } : undefined,
+    addLayer(layer, beforeId) {
+      rawAdds.push([layer.id, beforeId]);
+      if (beforeId != null && !layers.has(beforeId)) {
+        throw new Error(`Cannot add layer "${layer.id}" before non-existing layer "${beforeId}".`);
+      }
+      return this;
+    },
     moveLayer(layerId, beforeId) {
       rawMoves.push([layerId, beforeId]);
       if (beforeId != null && !layers.has(beforeId)) {
@@ -4315,6 +4778,7 @@ test('snapshot restore guards transient preview-layer ordering before loadSave m
   };
   fixture.api.utils.getMap = () => map;
   fixture.state.loadSave = (value) => {
+    map.addLayer({ id: 'preview-track-elevations' }, 'preview-track-labels');
     map.moveLayer('preview-track-speeds-under', 'preview-track-elevations');
     fixture.state.cityCode = value.cityCode;
   };
@@ -4323,6 +4787,7 @@ test('snapshot restore guards transient preview-layer ordering before loadSave m
   await assert.doesNotReject(adapter.restoreSnapshot({
     cityCode: 'KCW', data: { routes: [], tracks: [], stations: [], trains: [] },
   }));
+  assert.deepEqual(rawAdds, []);
   assert.deepEqual(rawMoves, []);
 });
 
@@ -4470,6 +4935,32 @@ test('production adapter posts inactive native estimates through native accounti
   assert.deepEqual(fixture.state.routeFinancials.currentHour['route-a'], { revenue: 12, expenses: 7 });
   assert.equal(fixture.calls.filter(([name]) => name === 'set-route-financials').length, 1);
   assert.deepEqual(fixture.state.financialHistory.openWorldBackgroundFinanceReceipts, [posting.postingId]);
+});
+
+test('production adapter repairs a chart-only native posting before publishing history', async () => {
+  const fixture = realSeamFixture();
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+  fixture.state.addRevenue = (amount) => {
+    fixture.state.financialHistory.currentHourRevenue += amount;
+  };
+  fixture.state.addExpense = (amount, category) => {
+    fixture.state.financialHistory.currentHourExpenses += amount;
+    fixture.state.financialHistory.currentHourExpenseCategories[category]
+      = (fixture.state.financialHistory.currentHourExpenseCategories[category] ?? 0) + amount;
+  };
+
+  const result = await adapter.postBackgroundNativeFinance({
+    postingId: 'world:chart-only-native-posting',
+    targetElapsedSeconds: 3_600,
+    revenue: 20,
+    expenseCategories: { trainOperational: 7, trackMaintenance: 11 },
+  });
+
+  assert.equal(result.wallet, 52);
+  assert.equal(fixture.state.money, 50 + 20 - 18);
+  assert.equal(fixture.state.financialHistory.currentHourRevenue, 20);
+  assert.equal(fixture.state.financialHistory.currentHourExpenses, 18);
+  assert.deepEqual(fixture.calls.filter(([name]) => name === 'money'), [['money', 52]]);
 });
 
 test('production adapter refuses capital expenses in recurring background postings', async () => {
@@ -4908,6 +5399,8 @@ test('production adapter uses a lean template checkpoint without running native 
 
   const snapshot = await adapter.captureSnapshot(template);
 
+  assert.equal(snapshot.name, OPEN_WORLD_RUNTIME_SAVE_NAME);
+  assert.equal(snapshot.metadata[OPEN_WORLD_RUNTIME_METADATA_KEY].schemaVersion, 1);
   assert.deepEqual(snapshot.data.tracks, [{ id: 'new-track' }]);
   assert.equal(snapshot.data.money, 42);
   assert.equal('compressedDemandData' in snapshot.data, false);

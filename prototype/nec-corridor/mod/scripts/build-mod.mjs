@@ -1,14 +1,17 @@
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
+const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 const generatedRoot = path.resolve(root, '..', 'generated');
 const catalogPath = path.join(generatedRoot, 'catalog', 'nec-tile-catalog.json');
 const demandRoot = path.join(generatedRoot, 'demand');
 const mapRoot = path.join(generatedRoot, 'maps', 'tiles');
 const packageRoot = path.join(generatedRoot, 'mod', 'tiles');
+const tileServerFiles = [
+  [path.join(root, 'start-tile-server.ps1'), 'start-tile-server.ps1'],
+  [path.resolve(root, '..', 'tools', 'native-pmtiles-server.ps1'), 'native-pmtiles-server.ps1'],
+];
 const selectedTiles = JSON.parse(await readFile(catalogPath, 'utf8')).tiles
   .filter((tile) => tile.status === 'selected');
 
@@ -24,8 +27,7 @@ const missing = [];
 
 async function hasFile(filePath) {
   try {
-    await readFile(filePath);
-    return true;
+    return (await stat(filePath)).size > 0;
   } catch {
     return false;
   }
@@ -55,7 +57,6 @@ if (missing.length) {
 
 const crossCommutes = await readFile(path.join(demandRoot, 'world', 'cross_commutes.json'), 'utf8');
 const crossDemandGzipBase64 = (await readFile(path.join(demandRoot, 'world', 'cross_demand.json.gz'))).toString('base64');
-const networkRecoveryGzipBase64 = gzipSync('{}', { level: 9 }).toString('base64');
 
 await rm(packageRoot, { recursive: true, force: true });
 await mkdir(packageRoot, { recursive: true });
@@ -115,6 +116,28 @@ try {
 
 const distPath = path.join(root, 'dist');
 await mkdir(distPath, { recursive: true });
+const nativeDemandWorkerBuild = await esbuild.build({
+  absWorkingDir: root,
+  entryPoints: [path.join(root, 'src', 'native-demand-evaluator-worker.js')],
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  legalComments: 'none',
+  write: false,
+});
+const nativeDemandWorkerSource = nativeDemandWorkerBuild.outputFiles[0].text;
+const roadRouteWorkerBuild = await esbuild.build({
+  absWorkingDir: root,
+  entryPoints: [path.join(root, 'src', 'road-route-worker.js')],
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  legalComments: 'none',
+  write: false,
+});
+const roadRouteWorkerSource = roadRouteWorkerBuild.outputFiles[0].text;
 await esbuild.build({
   absWorkingDir: root,
   entryPoints: [path.join(root, 'src', 'game-entry.js')],
@@ -128,8 +151,12 @@ await esbuild.build({
   define: {
     __NEC_CROSS_COMMUTE_CATALOG__: crossCommutes,
     __NEC_CROSS_DEMAND_GZIP_BASE64__: JSON.stringify(crossDemandGzipBase64),
-    __NEC_NETWORK_RECOVERY_GZIP_BASE64__: JSON.stringify(networkRecoveryGzipBase64),
+    __NEC_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__: JSON.stringify(nativeDemandWorkerSource),
+    __NEC_ROAD_ROUTE_WORKER_SOURCE__: JSON.stringify(roadRouteWorkerSource),
   },
 });
 await copyFile(path.join(root, 'manifest.json'), path.join(distPath, 'manifest.json'));
+for (const [source, filename] of tileServerFiles) {
+  await copyFile(source, path.join(distPath, filename));
+}
 console.log(`Built NEC mod with ${selectedTiles.length} tile packages`);

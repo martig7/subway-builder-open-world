@@ -8,7 +8,9 @@ export function createNetworkProjectionReconciler({
 }) {
   let timer = null;
   let running = false;
+  let runningDone = Promise.resolve();
   let queuedReason = null;
+  let queuedDelayMs = delayMs;
   let cancelled = false;
   let lastRejectedSignature = null;
 
@@ -20,12 +22,16 @@ export function createNetworkProjectionReconciler({
     }
     if (running || !queuedReason) return;
     if (!isReady()) {
-      timer = setTimeout(flush, delayMs);
+      timer = setTimeout(flush, queuedDelayMs);
       return;
     }
     const reason = queuedReason;
+    const reasonDelayMs = queuedDelayMs;
     queuedReason = null;
+    queuedDelayMs = delayMs;
     running = true;
+    let resolveRunning;
+    runningDone = new Promise((resolve) => { resolveRunning = resolve; });
     try {
       const result = await runtime.reconcileActiveProjection(reason);
       if (result?.status === 'rejected') {
@@ -42,26 +48,39 @@ export function createNetworkProjectionReconciler({
         queuedReason = null;
       } else if (!isReady() || /boot must complete first/i.test(error?.message ?? '')) {
         queuedReason ??= reason;
+        queuedDelayMs = reasonDelayMs;
       } else throw error;
     } finally {
       running = false;
-      if (queuedReason && !cancelled) timer = setTimeout(flush, delayMs);
+      if (queuedReason && !cancelled) timer = setTimeout(flush, queuedDelayMs);
+      resolveRunning();
     }
   };
 
   return {
-    queue(reason = 'network-change') {
+    queue(reason = 'network-change', { delayMs: requestedDelayMs } = {}) {
       if (cancelled || !isActive()) return;
       queuedReason = reason;
+      queuedDelayMs = Number.isFinite(requestedDelayMs) && requestedDelayMs >= 0
+        ? requestedDelayMs
+        : delayMs;
       if (!running) {
         if (timer) clearTimeout(timer);
-        timer = setTimeout(flush, delayMs);
+        timer = setTimeout(flush, queuedDelayMs);
       }
     },
     async flush() {
-      if (timer) clearTimeout(timer);
-      timer = null;
-      await flush();
+      if (!isReady()) return;
+      while (!cancelled && isActive()) {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        if (running) {
+          await runningDone;
+          continue;
+        }
+        if (!queuedReason) return;
+        await flush();
+      }
     },
     cancel() {
       cancelled = true;
@@ -83,6 +102,7 @@ export function createRouteScheduleReconciler({
   let timer = null;
   let running = false;
   let cancelled = false;
+  let pendingDelayMs = delayMs;
   const pending = new Map();
 
   const flush = async () => {
@@ -93,11 +113,13 @@ export function createRouteScheduleReconciler({
     }
     if (running || pending.size === 0) return;
     if (!isReady()) {
-      timer = setTimeout(flush, delayMs);
+      timer = setTimeout(flush, pendingDelayMs);
       return;
     }
     const changes = [...pending.values()];
     pending.clear();
+    const retryDelayMs = pendingDelayMs;
+    pendingDelayMs = delayMs;
     running = true;
     try {
       const result = await runtime.reconcileActiveScheduleChanges(changes);
@@ -106,24 +128,28 @@ export function createRouteScheduleReconciler({
       if (!isActive()) pending.clear();
       else if (!isReady() || /boot must complete first/i.test(error?.message ?? '')) {
         for (const change of changes) pending.set(change.routeId, change);
+        pendingDelayMs = retryDelayMs;
       } else throw error;
     } finally {
       running = false;
-      if (pending.size > 0 && !cancelled && isActive()) timer = setTimeout(flush, delayMs);
+      if (pending.size > 0 && !cancelled && isActive()) timer = setTimeout(flush, pendingDelayMs);
     }
   };
 
   return {
-    queue(routeId, schedule, previousSchedule = null) {
+    queue(routeId, schedule, previousSchedule = null, { delayMs: requestedDelayMs } = {}) {
       if (cancelled || !isActive() || routeId == null || !schedule) return;
       pending.set(String(routeId), {
         routeId: String(routeId),
         schedule: structuredClone(schedule),
         previousSchedule: previousSchedule ? structuredClone(previousSchedule) : null,
       });
+      pendingDelayMs = Number.isFinite(requestedDelayMs) && requestedDelayMs >= 0
+        ? requestedDelayMs
+        : delayMs;
       if (!running) {
         if (timer) clearTimeout(timer);
-        timer = setTimeout(flush, delayMs);
+        timer = setTimeout(flush, pendingDelayMs);
       }
     },
     async flush() {
@@ -160,7 +186,11 @@ export function registerNetworkProjectionHooks(
   hooks,
   changed,
   scheduleChanged = null,
-  { readConstructedTrackIds = null, readTrackInventory = null } = {},
+  {
+    readConstructedTrackIds = null,
+    readTrackInventory = null,
+    trainChangeDelayMs = 1_000,
+  } = {},
 ) {
   const readInventory = readTrackInventory ?? (readConstructedTrackIds
     ? () => ({ constructedTrackIds: readConstructedTrackIds(), blueprintTrackIds: [] })
@@ -199,9 +229,16 @@ export function registerNetworkProjectionHooks(
     hooks?.onRouteCreated?.(() => changed('route-created')),
     hooks?.onRouteDeleted?.(() => changed('route-deleted')),
     hooks?.onScheduleChange?.((routeId, schedule, previousSchedule) => {
-      if (scheduleChanged) scheduleChanged(routeId, schedule, previousSchedule);
-      else changed('schedule-change');
+      const trainCountChanged = previousSchedule != null
+        && schedule?.idealTrainCount !== previousSchedule?.idealTrainCount;
+      const options = trainCountChanged ? { delayMs: trainChangeDelayMs } : undefined;
+      if (scheduleChanged) {
+        if (options) scheduleChanged(routeId, schedule, previousSchedule, options);
+        else scheduleChanged(routeId, schedule, previousSchedule);
+      }
+      else changed(trainCountChanged ? 'route-train-count-change' : 'schedule-change', options);
     }),
+    hooks?.onFareGroupsChanged?.(() => changed('fare-groups-change')),
   ];
   return () => { for (const unsubscribe of unsubscribers) if (typeof unsubscribe === 'function') unsubscribe(); };
 }

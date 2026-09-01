@@ -278,6 +278,8 @@ def build_nec_demand(
                     target_size,
                     flow_query="SELECT home_site,work_site,mass FROM cross_site_flows WHERE home_tile=? AND work_tile=?",
                     flow_parameters=(home_tile, work_tile),
+                    home_site_ids=sites_by_tile[home_tile],
+                    work_site_ids=sites_by_tile[work_tile],
                 )
             gateway = _gateway_for_pair(home_tile, work_tile, catalog_by_id)
             for index, cohort in enumerate(packed):
@@ -297,6 +299,12 @@ def build_nec_demand(
                     "drivingDistance": drive,
                     "drivingSeconds": max(60, round(drive / (40 / 3.6))),
                 })
+
+        for cohort in cross_cohorts:
+            if cohort["home"]["tileId"] != cohort["homeTileId"]:
+                raise AssertionError(f"Cross-demand home site escaped its tile: {cohort['id']}")
+            if cohort["work"]["tileId"] != cohort["workTileId"]:
+                raise AssertionError(f"Cross-demand work site escaped its tile: {cohort['id']}")
 
         gateway_rows: dict[str, dict[str, Any]] = {}
         for cohort in cross_cohorts:

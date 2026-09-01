@@ -1,0 +1,8 @@
+{
+  "id": "local.tokyo-kanagawa-open-world",
+  "name": "Tokyo–Kanagawa Open World",
+  "description": "Two-prefecture mainland open world built from e-Stat demand and OpenStreetMap data.",
+  "version": "0.1.0",
+  "author": { "name": "Open World Prototype" },
+  "main": "index.js"
+}

@@ -13,6 +13,7 @@ test('projection hook registration observes constructed network state but not bl
     'onBlueprintPlaced', 'onTrackChange', 'onTrackBuilt',
     'onStationBuilt', 'onStationDeleted',
     'onRouteCreated', 'onRouteDeleted', 'onScheduleChange',
+    'onFareGroupsChanged',
   ]);
   const callback = (name) => registered.find(([registeredName]) => registeredName === name)[1];
   callback('onBlueprintPlaced')([{ id: 'blueprint-track' }]);
@@ -28,6 +29,41 @@ test('projection hook registration observes constructed network state but not bl
     'track-change', 'track-built', 'station-built', 'station-deleted',
     'route-created', 'route-deleted', 'schedule-change',
   ]);
+});
+
+test('deliberate route train-count changes use a one-second coalescing window', async () => {
+  const callbacks = new Map();
+  const hooks = new Proxy({}, {
+    get: (_, name) => (callback) => { callbacks.set(name, callback); return () => {}; },
+  });
+  const calls = [];
+  const reconciler = createNetworkProjectionReconciler({
+    delayMs: 0,
+    runtime: {
+      async reconcileActiveProjection(reason) {
+        calls.push(reason);
+        return { status: 'accepted' };
+      },
+    },
+  });
+  registerNetworkProjectionHooks(
+    hooks,
+    (reason, options) => reconciler.queue(reason, options),
+    null,
+    { trainChangeDelayMs: 1_000 },
+  );
+
+  callbacks.get('onScheduleChange')(
+    'route-pb',
+    { idealTrainCount: 2 },
+    { idealTrainCount: 1 },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.deepEqual(calls, [], 'the burst must remain coalesced for longer than the normal edit delay');
+
+  await reconciler.flush();
+  assert.deepEqual(calls, ['route-train-count-change']);
+  reconciler.cancel();
 });
 
 test('a blueprint-only track callback does not queue projection reconciliation', () => {
@@ -53,6 +89,41 @@ test('a blueprint-only track callback does not queue projection reconciliation',
   constructedTrackIds = ['built-track', 'new-constructed-track'];
   callbacks.get('onTrackChange')('add', 3);
   assert.deepEqual(reasons, ['track-change']);
+});
+
+test('blueprint additions and removals wait for native save or construction', () => {
+  const callbacks = new Map();
+  const hooks = new Proxy({}, {
+    get: (_, name) => (callback) => { callbacks.set(name, callback); return () => {}; },
+  });
+  const structuralReasons = [];
+  let inventory = {
+    constructedTrackIds: ['built-track'],
+    blueprintTrackIds: [],
+  };
+  registerNetworkProjectionHooks(
+    hooks,
+    (reason) => structuralReasons.push(reason),
+    null,
+    {
+      readTrackInventory: () => inventory,
+    },
+  );
+
+  inventory = {
+    constructedTrackIds: ['built-track'],
+    blueprintTrackIds: ['draft-track'],
+  };
+  callbacks.get('onBlueprintPlaced')([{ id: 'draft-track' }]);
+  callbacks.get('onTrackChange')('add', 2);
+
+  inventory = {
+    constructedTrackIds: ['built-track'],
+    blueprintTrackIds: [],
+  };
+  callbacks.get('onTrackChange')('delete', 1);
+
+  assert.deepEqual(structuralReasons, []);
 });
 
 test('station blueprints and their undo stay non-structural when they split constructed track ids', () => {
@@ -143,6 +214,38 @@ test('projection reconciler coalesces a burst and reports rejected edits once', 
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.deepEqual(calls, ['route-created', 'restore-hook-replay']);
   assert.deepEqual(warnings, ['outside-window'], 'the same rejected action should notify once');
+  reconciler.cancel();
+});
+
+test('projection flush waits for an active cache commit before tile switching', async () => {
+  let releaseCommit;
+  let markStarted;
+  const commitStarted = new Promise((resolve) => { markStarted = resolve; });
+  const commitBlocked = new Promise((resolve) => { releaseCommit = resolve; });
+  let committed = false;
+  const reconciler = createNetworkProjectionReconciler({
+    delayMs: 0,
+    runtime: {
+      async reconcileActiveProjection() {
+        markStarted();
+        await commitBlocked;
+        committed = true;
+        return { status: 'accepted' };
+      },
+    },
+  });
+  reconciler.queue('blueprint-change');
+  await commitStarted;
+
+  const flushed = reconciler.flush();
+  let flushResolved = false;
+  void flushed.then(() => { flushResolved = true; });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(flushResolved, false, 'tile staging must wait for the cache commit already in flight');
+
+  releaseCommit();
+  await flushed;
+  assert.equal(committed, true);
   reconciler.cancel();
 });
 

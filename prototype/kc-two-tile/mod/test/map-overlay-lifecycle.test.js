@@ -37,17 +37,19 @@ function fixtureApi() {
 
 test('cross-demand artifacts are owned by the live map instead of the API replay registry', () => {
   const fixture = fixtureApi();
-  registerCrossDemandViewer({
+  const controller = registerCrossDemandViewer({
     api: fixture.api,
     runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
     tilePackages: { loadCrossDemand: async () => null },
   });
   const map = fixtureMap();
-  fixture.fireMapReady(map);
+  controller.attachMap(map);
 
   assert.deepEqual(fixture.replayRegistrations, []);
   assert.equal(map.sources.size, 2);
   assert.equal(map.layers.size, 4);
+  controller.detachMap();
+  assert.equal(controller.map, null);
 });
 
 test('network-projection artifacts are owned by the live map instead of the API replay registry', () => {
@@ -62,4 +64,6 @@ test('network-projection artifacts are owned by the live map instead of the API 
   assert.deepEqual(fixture.replayRegistrations, []);
   assert.equal(map.sources.size, 1);
   assert.equal(map.layers.size, 2);
+  controller.detachMap();
+  assert.equal(controller.map, null);
 });

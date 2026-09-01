@@ -17,6 +17,16 @@ import {
   removeRouteNodes,
   repairRouteTimingIntegrity,
 } from '../route-timing-integrity.js';
+import {
+  OPEN_WORLD_RUNTIME_SAVE_NAME,
+  openWorldRuntimeSnapshotProvenance,
+  stampOpenWorldRuntimeSnapshot,
+} from '../autosave-hook-guard.js';
+import { installNativeSharedTransitObserver } from './native-shared-transit-observer.js';
+import {
+  installSimulationPerformanceDiagnostics,
+  prepareSimulationPerformanceDiagnostics,
+} from '../simulation-performance-diagnostics.js';
 
 /**
  * Subway Builder 1.6.0 integration boundary.
@@ -62,9 +72,187 @@ const CANONICAL_NATIVE_INTERLINING_CACHE = Symbol.for('open-world.canonical-nati
 const CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = Symbol.for('open-world.canonical-native-interlining-cache-version');
 const CANONICAL_NATIVE_INTERLINING_CACHE_BINDING = Symbol.for('open-world.canonical-native-interlining-cache-binding');
 const CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL = Symbol.for('open-world.canonical-native-interlining-cache-original');
-const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 1;
+const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 4;
 const NATIVE_PASS_THROUGH_PLATFORM_PENALTY = 10.1;
 const NATIVE_TURNBACK_WRONG_WAY_PENALTY = 25;
+const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
+  // Sandbox's unlimited balance is a mode invariant, not just a large number.
+  // Restoring a destination tile as "easy" would immediately make the native
+  // expense tick consume its Number.MAX_SAFE_INTEGER money sentinel.
+  'gameMode',
+  'money',
+  'transitCost',
+  'fareGroups',
+  'financialHistory',
+  'routeFinancials',
+  'bonds',
+  'hasGoneBankrupt',
+  'rockefellerPaidOut',
+  'buildingDemolitionSpendAllTime',
+]);
+
+function normalizeNativeRouteFinancialsEnvelope(value, financialHistory = null) {
+  const source = value && typeof value === 'object' && !Array.isArray(value)
+    ? structuredClone(value)
+    : {};
+  const isRouteMap = (candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate);
+  const legacyByRoute = Object.fromEntries(Object.entries(source)
+    .filter(([key]) => !['byRoute', 'currentHour', 'lastHourTimestamp'].includes(key)));
+  const historyTimestamp = Number(financialHistory?.lastHourTimestamp);
+  const routeTimestamp = Number(source.lastHourTimestamp);
+  return {
+    ...source,
+    byRoute: isRouteMap(source.byRoute) ? source.byRoute : legacyByRoute,
+    lastHourTimestamp: Number.isFinite(routeTimestamp)
+      ? routeTimestamp
+      : Number.isFinite(historyTimestamp) ? historyTimestamp : 0,
+    currentHour: isRouteMap(source.currentHour) ? source.currentHour : {},
+  };
+}
+
+function preserveNativeFinancialStateInSnapshot(snapshot, preferredState, fallbackState = preferredState) {
+  const result = structuredClone(snapshot);
+  result.data = { ...(result.data ?? {}) };
+  for (const key of NATIVE_FINANCIAL_STATE_KEYS) {
+    const value = preferredState?.[key] !== undefined
+      ? preferredState[key]
+      : fallbackState?.[key];
+    if (value === undefined) delete result.data[key];
+    else result.data[key] = structuredClone(value);
+  }
+  if (result.data.routeFinancials !== undefined) {
+    result.data.routeFinancials = normalizeNativeRouteFinancialsEnvelope(
+      result.data.routeFinancials,
+      result.data.financialHistory,
+    );
+  }
+  if (result.metadata && typeof result.metadata === 'object') {
+    result.metadata = { ...result.metadata, money: result.data.money };
+  }
+  return result;
+}
+
+function usableNativeLineCoordinates(value) {
+  const coordinates = Array.isArray(value)
+    ? value
+    : value?.geometry?.type === 'LineString'
+      ? value.geometry.coordinates
+      : value?.coordinates;
+  return Array.isArray(coordinates)
+    && coordinates.length >= 2
+    && coordinates.every((point) => (
+      Array.isArray(point)
+      && point.length >= 2
+      && Number.isFinite(Number(point[0]))
+      && Number.isFinite(Number(point[1]))
+    ));
+}
+
+/**
+ * Subway Builder's interlining worker assumes every route submitted by
+ * getSimplifiedRoutesOld produces at least one LineString. During construction
+ * and restore, routes can temporarily reference a missing track/group or a
+ * group whose centerLine has not been rebuilt yet. The native simplifier emits
+ * an empty-coordinate feature for that route when any other route is valid,
+ * and Turf then throws `coordinates is required`.
+ *
+ * Build a calculation-only facade containing the coherent route fragments.
+ * The canonical state is untouched; a later topology callback includes the
+ * route automatically once all of its geometry is available.
+ */
+function nativeInterliningRouteInputs(state, routes) {
+  if (!Array.isArray(routes)) return routes;
+  const tracksById = new Map((state?.tracks ?? [])
+    .filter((track) => track?.id != null && usableNativeLineCoordinates(track?.coords))
+    .map((track) => [String(track.id), track]));
+  const usableGroupTrackIds = new Set();
+  for (const group of state?.trackGroups ?? []) {
+    if (!usableNativeLineCoordinates(group?.centerLine)) continue;
+    for (const trackId of group?.trackIds ?? []) usableGroupTrackIds.add(String(trackId));
+  }
+  const stationNodeIds = new Set((state?.stations ?? [])
+    .flatMap((station) => station?.stNodeIds ?? [])
+    .map(String));
+
+  return routes.flatMap((route) => {
+    if (!route || typeof route !== 'object' || route.tempParentId != null) return [];
+    const stCombos = (route.stCombos ?? []).flatMap((combo) => {
+      if (!stationNodeIds.has(String(combo?.startStNodeId))
+        || !stationNodeIds.has(String(combo?.endStNodeId))) return [];
+      const path = (combo?.path ?? []).filter((segment) => {
+        const trackId = segment?.trackId == null ? null : String(segment.trackId);
+        return trackId != null && tracksById.has(trackId) && usableGroupTrackIds.has(trackId);
+      });
+      return path.length ? [{ ...combo, path }] : [];
+    });
+    return stCombos.length ? [{ ...route, tempParentId: null, stCombos }] : [];
+  });
+}
+
+/**
+ * A newly-created native route exists before the player has drawn any track.
+ * It is a real route definition (name, bullet, color, service settings), but it
+ * cannot participate in native topology or interlining until at least one
+ * station combination owns a path segment.
+ */
+function routeHasNativeTopology(route) {
+  return Array.isArray(route?.stCombos) && route.stCombos.some((combo) => (
+    Array.isArray(combo?.path) && combo.path.some((segment) => segment?.trackId != null)
+  ));
+}
+
+function canonicalNativeRestorePlan(snapshot, nativeNetworkMode, canRestoreDefinitions) {
+  const routes = snapshot?.data?.routes;
+  if (nativeNetworkMode !== CANONICAL_NATIVE_NETWORK_MODE
+    || !canRestoreDefinitions
+    || !Array.isArray(routes)) {
+    return { nativeSnapshot: snapshot, deferredRouteDefinitions: [] };
+  }
+  const deferredRouteDefinitions = routes.filter((route) => !routeHasNativeTopology(route));
+  if (!deferredRouteDefinitions.length) {
+    return { nativeSnapshot: snapshot, deferredRouteDefinitions };
+  }
+  return {
+    nativeSnapshot: {
+      ...snapshot,
+      data: {
+        ...snapshot.data,
+        routes: routes.filter(routeHasNativeTopology),
+      },
+    },
+    deferredRouteDefinitions,
+  };
+}
+
+function restoreDeferredRouteDefinitions(state, savedRoutes, deferredRouteDefinitions) {
+  if (!deferredRouteDefinitions.length) return;
+  if (typeof state?.setRoutes !== 'function') {
+    throw new Error('Native setRoutes is required to restore non-topological route definitions');
+  }
+
+  const deferredIds = new Set(deferredRouteDefinitions.map((route) => String(route.id)));
+  const loadedById = new Map((state.routes ?? []).map((route) => [String(route.id), route]));
+  const restoredRoutes = [];
+  const restoredIds = new Set();
+  for (const savedRoute of savedRoutes) {
+    const id = String(savedRoute.id);
+    const route = deferredIds.has(id) ? savedRoute : loadedById.get(id);
+    if (!route || restoredIds.has(id)) continue;
+    restoredRoutes.push(structuredClone(route));
+    restoredIds.add(id);
+  }
+  for (const route of state.routes ?? []) {
+    const id = String(route.id);
+    if (restoredIds.has(id)) continue;
+    restoredRoutes.push(route);
+    restoredIds.add(id);
+  }
+
+  // false is essential: publishing the definitions must update the route UI
+  // and station membership without asking native interlining to geometrize an
+  // intentionally empty route.
+  state.setRoutes(restoredRoutes, false);
+}
 
 function nativeInterliningFingerprint(state, routes) {
   try {
@@ -73,6 +261,15 @@ function nativeInterliningFingerprint(state, routes) {
       trackType: track?.trackType ?? null,
       buildType: track?.buildType ?? null,
       coords: track?.coords ?? null,
+    }));
+    const trackGroups = (state?.trackGroups ?? []).map((group) => ({
+      id: group?.id ?? null,
+      trackIds: group?.trackIds ?? null,
+      centerLine: group?.centerLine ?? null,
+    }));
+    const stations = (state?.stations ?? []).map((station) => ({
+      id: station?.id ?? null,
+      stNodeIds: station?.stNodeIds ?? null,
     }));
     const routeGeometry = (routes ?? []).map((route) => ({
       id: route?.id ?? null,
@@ -89,6 +286,8 @@ function nativeInterliningFingerprint(state, routes) {
     return JSON.stringify({
       cityCode: state?.cityCode ?? null,
       tracks,
+      trackGroups,
+      stations,
       routes: routeGeometry,
     });
   } catch {
@@ -98,6 +297,19 @@ function nativeInterliningFingerprint(state, routes) {
 
 function hasInterliningResult(state) {
   return Array.isArray(state?.interlinedFeatureCollection?.features);
+}
+
+function advanceNativeInterliningRevision(binding, signature) {
+  if (binding.cache.revisionSignature !== signature) {
+    binding.cache.revision = Number.isSafeInteger(binding.cache.revision)
+      ? binding.cache.revision + 1
+      : 1;
+    binding.cache.revisionSignature = signature;
+  }
+}
+
+function commitNativeInterliningSignature(binding, signature) {
+  binding.cache.signature = signature;
 }
 
 function installCanonicalNativeInterliningCache(adapter, state) {
@@ -111,15 +323,20 @@ function installCanonicalNativeInterliningCache(adapter, state) {
     && existingBinding) {
     existingBinding.adapter = adapter;
     existingBinding.mode = CANONICAL_NATIVE_NETWORK_MODE;
+    adapter[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING] = existingBinding;
     return { installed: true, reused: true };
   }
 
   const original = current[CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL] ?? current;
+  const previousBinding = adapter[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING];
+  const previousRevision = previousBinding?.cache?.revision;
   const binding = {
     adapter,
     mode: CANONICAL_NATIVE_NETWORK_MODE,
     cache: {
       signature: null,
+      revision: Number.isSafeInteger(previousRevision) ? previousRevision + 1 : 0,
+      revisionSignature: null,
       pending: null,
       pendingSignature: null,
     },
@@ -139,16 +356,25 @@ function installCanonicalNativeInterliningCache(adapter, state) {
       return binding.cache.pending;
     }
 
-    const result = original.apply(this, args);
+    const nativeArgs = [...args];
+    nativeArgs[0] = nativeInterliningRouteInputs(live, routes);
+    advanceNativeInterliningRevision(binding, signature);
+    let result;
+    try {
+      result = original.apply(this, nativeArgs);
+    } catch (error) {
+      if (binding.cache.revisionSignature === signature) binding.cache.revisionSignature = null;
+      throw error;
+    }
     if (!result || typeof result.then !== 'function') {
-      binding.cache.signature = signature;
+      commitNativeInterliningSignature(binding, signature);
       return result;
     }
 
     const pending = Promise.resolve(result).then(
       (value) => {
         if (binding.cache.pendingSignature === signature) {
-          binding.cache.signature = signature;
+          commitNativeInterliningSignature(binding, signature);
           binding.cache.pending = null;
           binding.cache.pendingSignature = null;
         }
@@ -156,6 +382,7 @@ function installCanonicalNativeInterliningCache(adapter, state) {
       },
       (error) => {
         if (binding.cache.pendingSignature === signature) {
+          if (binding.cache.revisionSignature === signature) binding.cache.revisionSignature = null;
           binding.cache.pending = null;
           binding.cache.pendingSignature = null;
         }
@@ -172,6 +399,7 @@ function installCanonicalNativeInterliningCache(adapter, state) {
   });
   Object.defineProperty(guarded, CANONICAL_NATIVE_INTERLINING_CACHE_BINDING, { value: binding });
   Object.defineProperty(guarded, CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL, { value: original });
+  adapter[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING] = binding;
   state.recalculateAllRouteGeojsons = guarded;
   return { installed: true, reused: false };
 }
@@ -1335,11 +1563,13 @@ export class SubwayBuilderGameAdapter {
     callbacks = globalThis.__subwayBuilder_storeCallbacks__,
     expectedApiVersion = '1.0.0',
     inspectedGameVersion = '1.6.0',
+    nativeSaveLifecycle = null,
   } = {}) {
     this.api = api;
     this.callbacks = callbacks;
     this.expectedApiVersion = expectedApiVersion;
     this.inspectedGameVersion = inspectedGameVersion;
+    this.nativeSaveLifecycle = nativeSaveLifecycle;
     this.capability = null;
     this.currentPackage = null;
     this.loadedCityCode = null;
@@ -1352,6 +1582,13 @@ export class SubwayBuilderGameAdapter {
     this.nativeFinanceAccountingRouteIds = new Set();
     this.nativeFinanceAuditRouteIds = new Set();
     this.nativeFinanceAuditByHour = new Map();
+    // Hot reload retains Zustand action functions. Remove the previous
+    // profiler generation before mode/finance guards inspect or wrap them.
+    prepareSimulationPerformanceDiagnostics(this.callbacks);
+  }
+
+  installSimulationPerformanceDiagnostics() {
+    return installSimulationPerformanceDiagnostics(this.callbacks);
   }
 
   /**
@@ -1433,6 +1670,34 @@ export class SubwayBuilderGameAdapter {
       interliningCache,
       financeOwnership: 'native-observed',
     };
+  }
+
+  getInterliningRevision() {
+    if (this.nativeNetworkMode !== CANONICAL_NATIVE_NETWORK_MODE) return null;
+    try {
+      const state = this.callbacks?.getState?.();
+      let binding = state?.recalculateAllRouteGeojsons?.[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING];
+      if (!binding
+        || state?.recalculateAllRouteGeojsons?.[CANONICAL_NATIVE_INTERLINING_CACHE_VERSION]
+          !== CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION) {
+        const repair = installCanonicalNativeInterliningCache(this, state);
+        if (!repair.installed) return null;
+        binding = state.recalculateAllRouteGeojsons?.[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING];
+        queueMicrotask(() => {
+          try {
+            const live = this.callbacks?.getState?.();
+            if (live?.recalculateAllRouteGeojsons?.[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING]
+              === binding) {
+              live.setTimeConfig?.({});
+            }
+          } catch {}
+        });
+      }
+      const revision = binding?.cache?.revision;
+      return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -1596,12 +1861,6 @@ export class SubwayBuilderGameAdapter {
     }
   }
 
-  async initializeNewWorld(cityCode) {
-    await this.assertSupported();
-    if (typeof cityCode !== 'string' || !cityCode) throw new Error('A city code is required to initialize a new world');
-    await this.#state().loadInitialData(cityCode);
-  }
-
   getConstructedTrackIds() {
     return this.getTrackInventory().constructedTrackIds;
   }
@@ -1614,6 +1873,11 @@ export class SubwayBuilderGameAdapter {
         .push(String(track.id));
     }
     return inventory;
+  }
+
+  /** Observe confirmed player changes omitted by Subway Builder's public hooks. */
+  observeSharedTransitChanges(changed) {
+    return installNativeSharedTransitObserver(this.callbacks, changed);
   }
 
   /**
@@ -2549,8 +2813,17 @@ export class SubwayBuilderGameAdapter {
     await this.assertSupported();
     const state = this.#state();
     if (!validSave(template)) {
+      const generate = () => state.generateSave({ name: OPEN_WORLD_RUNTIME_SAVE_NAME });
+      const generated = typeof this.nativeSaveLifecycle?.runInternalOperation === 'function'
+        ? await this.nativeSaveLifecycle.runInternalOperation({
+          kind: 'runtime-snapshot-generate',
+          saveName: OPEN_WORLD_RUNTIME_SAVE_NAME,
+          nativeSessionId: state.gameSessionId ?? null,
+          metadataMarked: false,
+        }, generate)
+        : generate();
       return bindSnapshotToCity(
-        compactNativeSnapshot(state.generateSave({ name: 'kc-two-tile-runtime' })),
+        stampOpenWorldRuntimeSnapshot(compactNativeSnapshot(generated)),
         this.loadedCityCode,
       );
     }
@@ -2576,10 +2849,9 @@ export class SubwayBuilderGameAdapter {
     data.elapsedSeconds = state.timeConfig?.elapsedSeconds ?? data.elapsedSeconds ?? 0;
 
     const timestamp = Date.now();
-    return bindSnapshotToCity(structuredClone(compactNativeSnapshot({
+    return bindSnapshotToCity(structuredClone(stampOpenWorldRuntimeSnapshot(compactNativeSnapshot({
       ...template,
       id: globalThis.crypto?.randomUUID?.() ?? `${state.cityCode ?? 'tile'}-${timestamp}`,
-      name: 'kc-two-tile-runtime',
       timestamp,
       cityCode: this.loadedCityCode ?? state.cityCode ?? template.cityCode,
       gameSessionId: state.gameSessionId ?? template.gameSessionId,
@@ -2592,12 +2864,24 @@ export class SubwayBuilderGameAdapter {
       },
       viewport: state.mapViewport ?? template.viewport,
       data,
-    })), this.loadedCityCode);
+    }))), this.loadedCityCode);
   }
 
   /** Read live network slices without entering the native generateSave path. */
   async captureNativeNetworkState() {
     await this.assertSupported();
+    return this.captureNativeNetworkDraft();
+  }
+
+  /** Synchronously snapshot native network slices before a module generation can change. */
+  captureNativeNetworkDraft() {
+    const capability = this.#capability();
+    if (!capability.supported) {
+      throw new Error(
+        `Subway Builder capability probe refused mutation: api=${capability.apiVersion}; `
+        + `missing=${capability.missing.join(',')}`,
+      );
+    }
     const state = this.#state();
     const entityKeys = new Set(['tracks', 'trains', 'routes', 'trackGroups', 'signals', 'stNodes', 'stations', 'stationGroups']);
     return Object.fromEntries(SHARED_TRANSIT_STATE_KEYS.map((key) => [
@@ -2686,6 +2970,7 @@ export class SubwayBuilderGameAdapter {
     return {
       wallet,
       elapsedSeconds,
+      ...(['easy', 'sandbox'].includes(state.gameMode) ? { gameMode: state.gameMode } : {}),
       ...(Number.isFinite(state.transitCost) && state.transitCost >= 0 ? { farePolicy: { fare: state.transitCost, fareGroups: structuredClone(state.fareGroups ?? []) } } : {}),
       ...(state.financialHistory ? { financialHistory: structuredClone(state.financialHistory) } : {}),
     };
@@ -2854,9 +3139,18 @@ export class SubwayBuilderGameAdapter {
     const openingRouteFinancials = structuredClone(state.routeFinancials ?? {
       byRoute: {}, lastHourTimestamp: 0, currentHour: {},
     });
+    const expensesAffectWallet = state.gameMode !== 'sandbox';
 
     if (revenue > 0) state.addRevenue(revenue, true);
     for (const [category, amount] of Object.entries(expenseCategories)) state.addExpense(amount, category);
+    const expectedWallet = openingWallet + revenue - (expensesAffectWallet ? expenses : 0);
+    const postedWallet = Number(this.#state().money);
+    if (!Number.isFinite(postedWallet) || Math.abs(postedWallet - expectedWallet) > 1e-9) {
+      // The dashboard backfill and balance are one accounting transaction. If
+      // a native action updates only one side, repair the balance before the
+      // history is published rather than displaying profit that was not paid.
+      this.callbacks.setMoney(expectedWallet);
+    }
     if (hasRouteAccounting) {
       state.setRouteFinancials(backfillHourlyRouteFinancials(
         openingRouteFinancials,
@@ -2871,11 +3165,14 @@ export class SubwayBuilderGameAdapter {
       {
         targetElapsedSeconds,
         openingWallet,
-        expensesAffectWallet: state.gameMode !== 'sandbox',
+        expensesAffectWallet,
         receiptId: postingId,
       },
     ));
     const finalState = this.#state();
+    if (Math.abs(Number(finalState.money) - expectedWallet) > 1e-9) {
+      throw new Error('Background native finance violated the wallet accounting invariant');
+    }
     return {
       applied: true,
       revenue,
@@ -2933,18 +3230,54 @@ export class SubwayBuilderGameAdapter {
     this.loadedCityCode = cityCode;
   }
 
-  async restoreSnapshot(snapshot) {
+  async restoreSnapshot(snapshot, {
+    preserveNativeFinance = false,
+    authoritativeFinanceSnapshot = null,
+  } = {}) {
     await this.assertSupported();
     await this.validateSnapshot(snapshot);
     const expectedCity = this.currentPackage?.manifest?.cityCode ?? this.currentPackage?.manifest?.tileId ?? this.loadedCityCode;
-    const destinationSnapshot = bindSnapshotToCity(snapshot, expectedCity);
-    const demandBefore = this.#state().demandData;
+    const stateBefore = this.#state();
+    const authoritativeFinanceState = authoritativeFinanceSnapshot?.data
+      ?? authoritativeFinanceSnapshot
+      ?? stateBefore;
+    const destinationSnapshot = bindSnapshotToCity(
+      preserveNativeFinance
+        ? preserveNativeFinancialStateInSnapshot(snapshot, authoritativeFinanceState, stateBefore)
+        : snapshot,
+      expectedCity,
+    );
+    const {
+      nativeSnapshot,
+      deferredRouteDefinitions,
+    } = canonicalNativeRestorePlan(
+      destinationSnapshot,
+      this.nativeNetworkMode,
+      typeof stateBefore.setRoutes === 'function',
+    );
+    const demandBefore = stateBefore.demandData;
     const popCountBefore = demandBefore?.popsMap?.size ?? 0;
     // loadSave synchronously rebuilds MapboxOverlay props. Install the guard
     // before that rebuild; onMapReady is too late for transient preview and
     // elevation layer anchors created during the restore itself.
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
-    await this.#state().loadSave(destinationSnapshot);
+    const provenance = openWorldRuntimeSnapshotProvenance(destinationSnapshot);
+    const restore = async () => {
+      await this.#state().loadSave(nativeSnapshot);
+      restoreDeferredRouteDefinitions(
+        this.#state(),
+        destinationSnapshot.data.routes,
+        deferredRouteDefinitions,
+      );
+    };
+    if (typeof this.nativeSaveLifecycle?.runInternalOperation === 'function') {
+      await this.nativeSaveLifecycle.runInternalOperation({
+        kind: 'runtime-snapshot-load',
+        saveName: provenance.saveName,
+        nativeSessionId: destinationSnapshot.gameSessionId ?? this.#state().gameSessionId ?? null,
+        metadataMarked: provenance.marker != null,
+      }, restore);
+    } else await restore();
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
     const stateAfter = this.#state();
     const popCountAfter = stateAfter.demandData?.popsMap?.size ?? 0;
@@ -3158,9 +3491,30 @@ export class SubwayBuilderGameAdapter {
     return true;
   }
 
-  async setAuthoritativeGlobals({ worldTime, elapsedSeconds = worldTime * 3600, wallet, farePolicy, financialHistory }) {
+  async setAuthoritativeGameMode(gameMode) {
+    if (gameMode == null) return false;
+    if (!['easy', 'sandbox'].includes(gameMode)) throw new Error('Invalid authoritative game mode');
+    const state = this.#state();
+    if (typeof state.setGameMode !== 'function') throw new Error('Native setGameMode action is unavailable');
+    state.setGameMode(gameMode);
+    if (gameMode === 'sandbox' && state.money !== Number.MAX_SAFE_INTEGER) {
+      this.callbacks.setMoney(Number.MAX_SAFE_INTEGER);
+    }
+    return true;
+  }
+
+  async setAuthoritativeClock(elapsedSeconds) {
+    await this.assertSupported();
+    if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+      throw new Error('Invalid authoritative game time');
+    }
+    this.#state().setTimeConfig({ elapsedSeconds: Math.round(elapsedSeconds), paused: true });
+  }
+
+  async setAuthoritativeGlobals({ worldTime, elapsedSeconds = worldTime * 3600, wallet, gameMode = null, farePolicy, financialHistory }) {
     await this.assertSupported();
     if (!Number.isFinite(worldTime) || !Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || !Number.isFinite(wallet)) throw new Error('Invalid authoritative world globals');
+    await this.setAuthoritativeGameMode(gameMode);
     this.callbacks.setMoney(wallet);
     this.callbacks.setTicketCost(farePolicy?.fare ?? 0);
     if (financialHistory) {

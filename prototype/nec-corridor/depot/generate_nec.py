@@ -96,6 +96,9 @@ def _publish(tile_id: str, depot_code: str, city_dir: Path, tile: dict) -> dict[
             _gzip_copy(source, destination)
         else:
             shutil.copyfile(source, destination)
+    # Preserve the unmodified Depot archive as the high-zoom input for the
+    # world-basemap splice. A regenerated tile must never reuse a stale copy.
+    shutil.copyfile(required["tiles.pmtiles"], tile_dir / "tiles.city-only.pmtiles")
     manifest = {
         "schemaVersion": 1,
         "tileId": tile_id,

@@ -1,0 +1,59 @@
+{
+  "consumerManifestId": "local.nec-corridor-open-world",
+  "crossSearches": {
+    "generated-road-graph": 1532,
+    "geometric-disconnected": 49,
+    "geometric-excessive-detour": 8,
+    "searches": 1589
+  },
+  "drivingModel": {
+    "graphVersion": "generated-roads-v1",
+    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+    "provider": "generated-road-graph",
+    "speedKph": {
+      "highway": 85.0,
+      "major": 50.0,
+      "minor": 30.0
+    }
+  },
+  "elapsedSeconds": 797.471,
+  "graph": {
+    "buildSeconds": 153.526,
+    "components": 2596,
+    "directedEdges": 7492110,
+    "graphVersion": "generated-roads-v1",
+    "maximumEdgeMetres": 250.0,
+    "nodes": 3112305,
+    "retainedRawSegments": 19376625,
+    "speedKph": {
+      "highway": 85.0,
+      "major": 50.0,
+      "minor": 30.0
+    },
+    "tileCount": 34
+  },
+  "kind": "generated-road driving-time splice",
+  "policy": {
+    "crossPartitionCount": 1087,
+    "crossSamplesPerTilePair": 4,
+    "maxDetourRatio": 3.0,
+    "maxRoutedDirectMetres": 250000.0,
+    "maxSnapMetres": 5000.0,
+    "minimumDrivingSeconds": 60
+  },
+  "routes": {
+    "crossRoutes": 57531,
+    "drivingMetres": 4735348587,
+    "drivingSeconds": 266405860,
+    "generated-road-tile-pair-model": 56127,
+    "geometric-long-distance": 1353,
+    "geometric-tile-pair-fallback": 51,
+    "nativeRoutes": 153125,
+    "recoveredNativeRoutes": 153125,
+    "routes": 210656,
+    "snapMetres": 0
+  },
+  "schemaVersion": 1,
+  "status": "complete"
+}

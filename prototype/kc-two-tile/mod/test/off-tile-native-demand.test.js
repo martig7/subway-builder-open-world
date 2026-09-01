@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateOffTileNativeDemand } from '../src/off-tile-native-demand.js';
+import {
+  evaluateOffTileNativeDemand,
+  projectOffTileNativeDemandTransferInput,
+} from '../src/off-tile-native-demand.js';
 import { createNetworkProfile } from '../src/cross-tile-mode-choice.js';
 
 function fixtureNetwork(serviceCount = 2) {
@@ -33,6 +36,47 @@ const demand = {
     drivingSeconds: 3_600, drivingDistance: 25_000,
   }],
 };
+
+test('off-tile evaluator projects only finance-relevant native state across a worker seam', () => {
+  const input = {
+    tileId: 'T1',
+    networkProfile: fixtureNetwork(),
+    farePolicy: { fare: 2.5 },
+    globalNativeState: {
+      routes: [{ id: 'R', tempParentId: 'parent', stNodes: Array(1_000).fill({ id: 'node' }) }],
+      fareGroups: [{
+        id: 'group', routeIds: ['R'], flatFare: 2.5,
+        presentation: { color: 'red', history: Array(1_000).fill(1) },
+      }],
+      tracks: Array(1_000).fill({ id: 'track' }),
+    },
+    financeOwnedRouteIds: ['R'],
+    existingProfile: null,
+  };
+
+  const projected = projectOffTileNativeDemandTransferInput(input);
+
+  assert.equal(projected.networkProfile, input.networkProfile);
+  assert.deepEqual(projected.globalNativeState, {
+    routes: [{ id: 'R', tempParentId: 'parent' }],
+    fareGroups: [{
+      id: 'group',
+      fareSystem: undefined,
+      flatFare: 2.5,
+      routeFares: undefined,
+      routeIds: ['R'],
+      transferPolicy: undefined,
+      chargeOnInterGroupTransfer: undefined,
+      boardingCharge: undefined,
+      perKmRate: undefined,
+      fareCap: undefined,
+    }],
+  });
+  assert.deepEqual(
+    evaluateOffTileNativeDemand({ ...projected, demand }),
+    evaluateOffTileNativeDemand({ ...input, demand }),
+  );
+});
 
 test('off-tile evaluator computes local mode share, ridership, and hourly revenue without a game store', () => {
   const result = evaluateOffTileNativeDemand({

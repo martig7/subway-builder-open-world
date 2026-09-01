@@ -2,11 +2,13 @@ import { WorldTileRuntime } from '../../../kc-two-tile/mod/src/world-tile-runtim
 import { SubwayBuilderGameAdapter } from '../../../kc-two-tile/mod/src/adapters/subway-builder-game-adapter.js';
 import { ModStorageWorldStateAdapter } from '../../../kc-two-tile/mod/src/adapters/mod-storage-world-state-adapter.js';
 import { SerializedStorageAdapter } from '../../../kc-two-tile/mod/src/adapters/serialized-storage-adapter.js';
+import {
+  DurableStorageAdapter,
+  IndexedDbRecordStore,
+} from '../../../kc-two-tile/mod/src/adapters/durable-storage-adapter.js';
 import { HashCityNavigationAdapter } from '../../../kc-two-tile/mod/src/adapters/hash-city-navigation-adapter.js';
-import { registerPrototypePanel } from '../../../kc-two-tile/mod/src/ui/prototype-panel.js';
 import { registerCrossDemandViewer } from '../../../kc-two-tile/mod/src/ui/cross-demand-viewer.js';
 import { registerNetworkProjectionOverlay } from '../../../kc-two-tile/mod/src/ui/network-projection-overlay.js';
-import { registerNetworkProjectionHooks } from '../../../kc-two-tile/mod/src/network-projection-hooks.js';
 import {
   refreshPilotCityBindings,
   registerPilotCities,
@@ -17,28 +19,34 @@ import { embeddedCrossData } from './embedded-cross-data.js';
 import { EmbeddedTilePackageAdapter, resolveRendererDataUrl } from './embedded-tile-package-adapter.js';
 import { tileById, tileCatalog } from './tile-catalog.js';
 import { createDailyModeShareInvalidation, registerCrossTileClockHooks, registerModeShareInvalidationHooks } from './mode-share-hook-policy.js';
-import { stabilizeMapLayerMoves } from '../../../kc-two-tile/mod/src/map-layer-stability.js';
+import {
+  installTransientLayerOrderConsoleFilter,
+  stabilizeMapLayerMoves,
+} from '../../../kc-two-tile/mod/src/map-layer-stability.js';
 import { relaxMapZoomLimits } from '../../../kc-two-tile/mod/src/map-zoom-limits.js';
 import { registerGeographicContextOverlay } from '../../../kc-two-tile/mod/src/ui/geographic-context-overlay.js';
+import { registerRenderDistanceToolbar } from '../../../kc-two-tile/mod/src/ui/render-distance-panel.js';
+import { syncCityScopedMapControllers } from '../../../kc-two-tile/mod/src/ui/city-scoped-map-controllers.js';
 import {
   WorldIdentityResolver,
   worldIdentityLoadOptions,
 } from '../../../kc-two-tile/mod/src/world-identity.js';
-import { applyNetworkRecovery, decodeGzipBase64Json } from '../../../kc-two-tile/mod/src/network-recovery.js';
-import { createAutosaveHookGuard } from '../../../kc-two-tile/mod/src/autosave-hook-guard.js';
-import { embeddedNetworkRecoveryGzipBase64 } from './embedded-network-recovery.js';
+import { createNativeSaveLifecycle } from '../../../kc-two-tile/mod/src/autosave-hook-guard.js';
+import { installDrivingRoutePathFetch } from '../../../kc-two-tile/mod/src/driving-route-path-server.js';
+import { NativeRevenueAccrual } from '../../../kc-two-tile/mod/src/native-revenue-accrual.js';
 import {
-  NETWORK_RECOVERY_ID,
-  NETWORK_RECOVERY_REPLACE_ROUTE_IDS,
-  NETWORK_RECOVERY_WORLD_IDS,
-} from './network-recovery-config.js';
+  installNativeReloadRecoveryGuard,
+  stageNativeRecovery,
+} from '../../../kc-two-tile/mod/src/native-reload-recovery.js';
+import { createNecRoutePaths } from './route-path-controller.js';
 
 const PENDING_NAVIGATION_KEY = 'nec-corridor:pending-navigation';
 const PENDING_PERFORMANCE_KEY = 'nec-corridor:pending-performance';
 const DIAGNOSTICS_KEY = 'diagnostics:tile-transitions';
 const CURRENT_CANONICAL_WORLD_ID = 'nec-corridor-world';
-const RECOVERY_SESSION_ALIASES = Object.freeze({});
-const recoveryNetworkPromise = decodeGzipBase64Json(embeddedNetworkRecoveryGzipBase64);
+const DURABLE_STORAGE_VERSION = 'nec-sidecar-indexeddb-v1';
+const DURABLE_STORAGE_DATABASE = 'open-world-sidecar-local.nec-corridor-open-world-v1';
+const SAVE_AUTHORITY_VERSION = 'native-save-authority-v1';
 
 function heapBytes() {
   return Number(globalThis.performance?.memory?.usedJSHeapSize) || null;
@@ -55,31 +63,84 @@ function writePendingPerformance(value) {
 (function installNyStatePilot() {
   const api = globalThis.SubwayBuilderAPI;
   if (!api) throw new Error('[NEC] SubwayBuilderAPI is unavailable');
+  api.ui?.unregisterComponent?.('top-bar', 'nec-corridor-world-saves');
+  api.ui?.unregisterComponent?.('main-menu', 'nec-corridor-world-saves-home');
+  installTransientLayerOrderConsoleFilter();
   stabilizeMapLayerMoves(api.utils?.getMap?.());
   relaxMapZoomLimits(api.utils?.getMap?.(), { sourceMinZoom: tileCatalog.basemapMinZoom });
   const generationKey = '__necCorridorGeneration__';
   const generation = (Number(globalThis[generationKey]) || 0) + 1;
   globalThis[generationKey] = generation;
   const isCurrent = () => globalThis[generationKey] === generation;
+  const loadTrace = (event, details = {}) => console.log(
+    '[DEBUG-NEC-LOAD-CLASSIFY]',
+    event,
+    { generation, capturedAt: Date.now(), ...details },
+  );
+  loadTrace('generation.installed', {
+    currentGeneration: globalThis[generationKey],
+    cityCode: api.utils.getCityCode?.() ?? null,
+    saveName: api.gameState.getSaveName?.() ?? null,
+    nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
+  });
+  const nativeSaveLifecycle = createNativeSaveLifecycle({
+    sessionStorage: globalThis.sessionStorage,
+    storageKey: 'nec-corridor:pending-native-save-echo',
+    trace: loadTrace,
+  });
   const rawStorage = api.storage?.scoped?.();
+  const durableStorageKey = '__necCorridorDurableStorageV1__';
+  let durableStorage = globalThis[durableStorageKey];
+  if (!durableStorage && typeof globalThis.indexedDB?.open === 'function') {
+    durableStorage = new DurableStorageAdapter({
+      recordStore: new IndexedDbRecordStore({
+        indexedDB: globalThis.indexedDB,
+        databaseName: DURABLE_STORAGE_DATABASE,
+      }),
+      // The old 80+ MB scoped document is migration input only. New values,
+      // updates, tombstones, and maintenance all go to individual IDB records.
+      legacyStorage: rawStorage,
+    });
+    globalThis[durableStorageKey] = durableStorage;
+  }
+  if (!durableStorage && rawStorage) {
+    console.warn('[NEC] IndexedDB is unavailable; using legacy shared-document storage');
+    durableStorage = rawStorage;
+  }
+  globalThis.__necCorridorStorageDiagnostics__ = {
+    version: DURABLE_STORAGE_VERSION,
+    backend: durableStorage === rawStorage ? 'legacy-scoped-document' : 'indexeddb-per-record',
+    legacyReadOnly: Boolean(rawStorage && durableStorage !== rawStorage),
+  };
   const storageCoordinatorKey = '__nyStateScopedStorageCoordinator__';
   const storageCoordinator = globalThis[storageCoordinatorKey] ??= { tail: Promise.resolve() };
-  const storage = rawStorage
-    ? new SerializedStorageAdapter({ storage: rawStorage, coordinator: storageCoordinator })
-    : rawStorage;
+  const storage = durableStorage
+    ? new SerializedStorageAdapter({ storage: durableStorage, coordinator: storageCoordinator })
+    : durableStorage;
   const identities = new WorldIdentityResolver({
     storage,
     fallbackWorldId: 'nec-corridor',
-    recoveryAliases: RECOVERY_SESSION_ALIASES,
     canonicalWorldId: CURRENT_CANONICAL_WORLD_ID,
   });
   const tileBase = globalThis.NEC_CORRIDOR_TILE_BASE ?? 'http://127.0.0.1:8799';
   const registration = registerPilotCities(api, { tileBase });
-  const game = new SubwayBuilderGameAdapter({ api });
+  const game = new SubwayBuilderGameAdapter({ api, nativeSaveLifecycle });
+  const electron = globalThis.window?.electron ?? globalThis.electron;
+  const nativeReloadRecovery = installNativeReloadRecoveryGuard({
+    globalObject: globalThis,
+    electron,
+    location: globalThis.location,
+    captureSnapshot: () => game.captureSnapshot(),
+    getCityCode: () => api.utils.getCityCode?.(),
+  });
+  const revenueAccrual = new NativeRevenueAccrual({ adapter: game });
   const navigation = new HashCityNavigationAdapter({
     tileIds: registration.tileIds,
     pendingKey: PENDING_NAVIGATION_KEY,
   });
+  const routePathRuntimeKey = '__necCorridorRoutePathRuntimeV1__';
+  globalThis[routePathRuntimeKey]?.dispose?.();
+  delete globalThis[routePathRuntimeKey];
   const tilePackages = new EmbeddedTilePackageAdapter(registration.tileIds, embeddedCrossData, {
     loadCityData: api.utils?.loadCityData?.bind(api.utils),
     fetchData: globalThis.fetch?.bind(globalThis),
@@ -89,14 +150,17 @@ function writePendingPerformance(value) {
   let crossDemandController = null;
   let projectionOverlayController = null;
   let geographicContextController = null;
+  let gridTileSwitchingId = null;
   let tileSourceStyleHandler = null;
+  let renderDistanceToolbarRegistered = false;
   const diagnostics = globalThis.__necCorridorDiagnostics__ = {
     generation,
+    saveAuthorityVersion: SAVE_AUTHORITY_VERSION,
+    hotReloadDraftCacheVersion: 2,
     registeredAt: Date.now(),
     transitions: [],
     autosaves: [],
     latestAutosave: null,
-    latestAutosaveRuntime: null,
     authoritativeLoads: [],
     latestAuthoritativeLoad: null,
     latest: null,
@@ -123,72 +187,60 @@ function writePendingPerformance(value) {
     api.ui?.showNotification?.('NEC Corridor disabled: incompatible game seam', 'error');
     return;
   }
+  const routePaths = createNecRoutePaths({
+    tilePackages,
+    tileCatalog,
+    getNativeDemand: () => api.gameState.getDemandData?.()
+      ?? globalThis.__subwayBuilder_storeCallbacks__?.getState?.()?.demandData
+      ?? null,
+    workerSource: typeof __NEC_ROAD_ROUTE_WORKER_SOURCE__ === 'string'
+      ? __NEC_ROAD_ROUTE_WORKER_SOURCE__
+      : null,
+  });
+  const uninstallRoutePathFetch = installDrivingRoutePathFetch(globalThis, {
+    owns: routePaths.owns,
+    resolve: async (city, popId) => (await routePaths.resolve(city, popId))?.coordinates ?? null,
+  });
+  const routePathRuntime = {
+    generation,
+    dispose() {
+      routePaths.dispose();
+      uninstallRoutePathFetch();
+    },
+  };
+  globalThis[routePathRuntimeKey] = routePathRuntime;
+  globalThis.__necCorridorRoutePathDiagnostics__ = routePaths.diagnostics;
   diagnostics.nativeNetworkMode = game.activateCanonicalNativeNetworkMode();
   diagnostics.trackGroupLoadGuard = game.installTrackGroupLoadGuard();
+  diagnostics.simulationPerformance = game.installSimulationPerformanceDiagnostics();
 
   const worldState = new ModStorageWorldStateAdapter({
     storage,
     diagnostics: recordAuthoritativeLoad,
+    financeMode: 'blind',
   });
   const runtime = new WorldTileRuntime({
     game,
     tilePackages,
     tileIds: registration.tileIds,
     tileCatalog,
-    networkRecovery: async (world) => {
-      if (!NETWORK_RECOVERY_WORLD_IDS.has(world.worldId)) return { changed: false, imported: {} };
-      return applyNetworkRecovery(world, {
-        recoveryId: NETWORK_RECOVERY_ID,
-        nativeState: await recoveryNetworkPromise,
-        replaceRouteIds: NETWORK_RECOVERY_REPLACE_ROUTE_IDS,
-      });
-    },
     worldState,
+    revenueAccrual,
+    // Subway Builder's canonical native topology remains loaded across NEC
+    // tiles and is the sole authority for every operating/infrastructure cost.
+    backgroundNativeExpenses: false,
     initialWorld: { activeTileId: 'NEC_CP00_RP00', wallet: 1_000_000, cohorts: [] },
     telemetry: (event) => {
       if (event?.phase === 'authoritative-load') {
         recordAuthoritativeLoad(event);
         return;
       }
-      if (event?.phase === 'native-finance-projection-audit') {
-        diagnostics.nativeFinance = {
-          ...event,
-          configuration: game.nativeFinanceAuditStatus?.() ?? null,
-        };
-      }
-      if (event?.phase === 'native-finance-profile-recovery') {
-        diagnostics.nativeFinanceProfileRecovery = event;
-      }
-      if (event?.phase === 'native-finance-handoff'
-        || event?.phase === 'native-finance-handoff-pending') {
-        diagnostics.nativeFinanceHandoff = event;
-      }
       if (event?.phase === 'startup-performance') diagnostics.startupRuntime = event;
-      if (event?.phase === 'autosave-performance') {
-        diagnostics.latestAutosaveRuntime = event;
-        return;
-      }
       console.debug('[NEC]', event);
     },
   });
-
-  function hydratePersistedDiagnostics() {
-    let view;
-    try { view = runtime.view(); } catch { return; }
-    const audit = view.backgroundNativeFinance?.audit;
-    if (audit) {
-      diagnostics.nativeFinance = {
-        phase: 'native-finance-projection-audit',
-        latest: audit.latest ?? null,
-        rolling24Hours: audit.rolling24Hours ?? null,
-        updatedAtHour: audit.updatedAtHour ?? null,
-        configuration: game.nativeFinanceAuditStatus?.() ?? null,
-      };
-    }
-  }
-
   const stageTransition = runtime.stageNavigationTransition.bind(runtime);
-  runtime.stageNavigationTransition = async (tileId) => {
+  runtime.stageNavigationTransition = async (tileId, options = {}) => {
     const sample = {
       fromTileId: runtime.view().activeTileId,
       toTileId: tileId,
@@ -197,7 +249,43 @@ function writePendingPerformance(value) {
     };
     writePendingPerformance(sample);
     try {
-      const result = await stageTransition(tileId);
+      const requestedRecoveryStage = options.stageNativeRecovery;
+      const result = await stageTransition(tileId, {
+        ...options,
+        stageNativeRecovery: async (snapshot, transition) => {
+          const stages = [];
+          try {
+            stages.push(await stageNativeRecovery({
+              electron,
+              snapshot,
+              sourceCityCode: transition.from,
+              destinationCityCode: transition.to,
+              reason: 'tile-navigation',
+              transitionId: transition.transitionId,
+            }));
+            if (typeof requestedRecoveryStage === 'function') {
+              stages.push(await requestedRecoveryStage(snapshot, transition));
+            }
+          } catch (error) {
+            for (const stage of stages.reverse()) {
+              try { await stage?.rollback?.(); } catch {}
+            }
+            throw error;
+          }
+          return {
+            async rollback() {
+              for (const stage of stages.reverse()) await stage?.rollback?.();
+            },
+          };
+        },
+      });
+      if (result?.status === 'reload-required') {
+        // Native city teardown begins after this promise resolves and emits
+        // route/schedule hooks before onCityLoad. Treat that whole interval as
+        // an internal view transition, not as a player network edit.
+        ready = false;
+        settlementReady = false;
+      }
       writePendingPerformance({ ...sample, stagedAt: Date.now(), transitionId: result.transitionId });
       return result;
     } catch (error) {
@@ -215,8 +303,6 @@ function writePendingPerformance(value) {
   let loadedSaveName = null;
   let requestedSessionReload = null;
   let sessionReloadPromise = null;
-  const autosaveHookGuard = createAutosaveHookGuard();
-
   async function recalculateCrossModeShare(reason, day = null, force = false) {
     if (!ready || !isCurrent()) return null;
     const loadedCity = api.utils.getCityCode?.();
@@ -255,7 +341,10 @@ function writePendingPerformance(value) {
   }
 
   async function settleCrossTileCommutes(reason = 'hourly') {
-    if (!ready || !settlementReady || !isCurrent()) return null;
+    // Background native finance is independent of cross-city mode share. A
+    // failed demand refresh must never stop inactive-tile revenue while the
+    // canonical native topology continues charging its expenses.
+    if (!ready || !isCurrent()) return null;
     const loadedCity = api.utils.getCityCode?.();
     if (!registration.cities.includes(loadedCity) || runtime.view().activeTileId !== loadedCity) return null;
     try { return await runtime.settleCrossTileCommutes(reason); }
@@ -265,13 +354,22 @@ function writePendingPerformance(value) {
   const modeShareInvalidation = createDailyModeShareInvalidation({
     recalculate: (reason, day) => recalculateCrossModeShare(reason, day),
   });
-  const routeChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('route-change'); };
-  const scheduleChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('schedule-change'); };
-  const fareChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('fare-change'); };
-  // Native topology edits are authoritative in canonical-native mode. These
-  // hooks only invalidate cross-tile mode share; they never roll a route back
-  // to a geographic projection or rewrite native schedules.
-  const projectionChanged = (reason) => routeChanged(reason);
+  const serviceChanged = (reason = 'route-service-change') => {
+    if (!ready || !isCurrent()) return;
+    runtime.markDerivedNetworkDirty(reason);
+    revenueAccrual.invalidate();
+    modeShareInvalidation.markDirty(reason);
+  };
+  const scheduleChanged = () => serviceChanged('schedule-change');
+  const fareChanged = () => {
+    if (!ready || !isCurrent()) return;
+    revenueAccrual.invalidate();
+    modeShareInvalidation.markDirty('fare-change');
+  };
+  const disposeSharedTransitObserver = game.observeSharedTransitChanges(({ reason }) => {
+    if (reason === 'route-service-change') serviceChanged(reason);
+    else if (reason === 'fare-policy-change') fareChanged();
+  });
 
   async function persistPerformance(sample) {
     diagnostics.latest = sample;
@@ -284,18 +382,52 @@ function writePendingPerformance(value) {
 
   function ensurePanel() {
     if (!started || !isCurrent()) return;
-    registerPrototypePanel({
-      api,
-      runtime,
-      navigation,
-      catalog: tileCatalog,
-      panelId: 'ny-state-seven-tile-switcher',
-    });
+    // Tile selection now happens directly on the world grid. Explicitly
+    // remove the legacy top-bar panel so hot reloads do not retain it.
+    api.ui?.unregisterComponent?.('top-bar', 'ny-state-seven-tile-switcher');
+    if (!renderDistanceToolbarRegistered && geographicContextController) {
+      renderDistanceToolbarRegistered = Boolean(registerRenderDistanceToolbar({
+        api,
+        controller: geographicContextController,
+        panelId: 'nec-corridor-render-distance',
+      }));
+    }
     crossDemandController?.ensurePanel?.();
+  }
+
+  function recordWorldIdentity(identity, { saveName = null, cityCode = null } = {}) {
+    if (!identity?.worldId) return null;
+    const observed = {
+      worldId: identity.worldId,
+      nativeSessionId: identity.nativeSessionId ?? api.gameState.getGameSessionId?.() ?? null,
+      saveName,
+      cityCode: cityCode ?? api.utils.getCityCode?.() ?? null,
+    };
+    diagnostics.currentWorld = observed;
+    return observed;
   }
 
   function runtimeTileId() {
     try { return runtime.view().activeTileId; } catch { return null; }
+  }
+
+  async function switchFromWorldGrid(tileId) {
+    const tile = tileById.get(tileId);
+    if (!tile) throw new Error(`Unknown NEC tile: ${tileId}`);
+    if (runtimeTileId() === tileId) return { status: 'already-active', tileId };
+    if (gridTileSwitchingId) return { status: 'already-switching', tileId: gridTileSwitchingId };
+    gridTileSwitchingId = tileId;
+    try {
+      api.ui?.showNotification?.(`Switching to ${tile.name}…`, 'info', 'Open World');
+      const transition = await runtime.stageNavigationTransition(tileId);
+      navigation.navigateTo(transition);
+      return transition;
+    } catch (error) {
+      api.ui?.showNotification?.(`Tile switch failed: ${error.message}`, 'error', 'Open World');
+      throw error;
+    } finally {
+      gridTileSwitchingId = null;
+    }
   }
 
   async function resolveWorldIdentity(nativeSessionId, pendingWorldId, loadTraceId) {
@@ -329,6 +461,15 @@ function writePendingPerformance(value) {
   }
 
   function reloadLoadedSession(tileId, reason, saveName = loadedSaveName, force = false) {
+    loadTrace('reload.requested', {
+      tileId,
+      reason,
+      saveName,
+      force,
+      started,
+      ready,
+      runtimeTileId: runtimeTileId(),
+    });
     requestedSessionReload = { tileId, reason, saveName, force };
     if (sessionReloadPromise) return sessionReloadPromise;
     sessionReloadPromise = (async () => {
@@ -339,6 +480,13 @@ function writePendingPerformance(value) {
         // accessor can still report the source tile during route navigation.
         const loadedTileId = request.tileId;
         const currentSaveName = api.gameState.getSaveName?.() ?? request.saveName ?? null;
+        loadTrace('reload.executing', {
+          request,
+          loadedTileId,
+          currentSaveName,
+          started,
+          ready,
+        });
         if (!request.force && ready && runtimeTileId() === loadedTileId) {
           ensurePanel();
           continue;
@@ -372,12 +520,13 @@ function writePendingPerformance(value) {
             identity,
           });
           await runtime.reloadFromSave(identity.worldId, loadedTileId, currentSaveName, {
-            allowLiveFallback: identity.aliased,
             nativeSessionId: identity.nativeSessionId,
             nativeTileId: loadedTileId,
+            nativeAuthoritativeLoad: true,
             loadTraceId,
           });
           await stampWorldIdentity(identity.worldId, loadTraceId);
+          recordWorldIdentity(identity, { saveName: currentSaveName, cityCode: loadedTileId });
           if (!isCurrent()) return;
           recordAuthoritativeLoad({
             phase: 'authoritative-load',
@@ -407,7 +556,22 @@ function writePendingPerformance(value) {
     return sessionReloadPromise;
   }
 
-  async function start(loadedCityCode, saveName = loadedSaveName) {
+  async function start(
+    loadedCityCode,
+    saveName = loadedSaveName,
+    { replaceWorld = false, hotReload = false } = {},
+  ) {
+    loadTrace('startup.requested', {
+      loadedCityCode,
+      saveName,
+      current: isCurrent(),
+      started,
+      ready,
+      hasStartPromise: Boolean(startPromise),
+      pendingNavigation: navigation.pending() ?? null,
+      replaceWorld,
+      hotReload,
+    });
     if (!isCurrent() || !registration.cities.includes(loadedCityCode)) return;
     if (startPromise) return startPromise;
     const startedAt = Date.now();
@@ -434,6 +598,7 @@ function writePendingPerformance(value) {
           saveName,
           nativeSessionId,
           pending: pending ?? null,
+          hotReload,
         });
         let identity = await resolveWorldIdentity(nativeSessionId, pending?.worldId, loadTraceId);
         recordAuthoritativeLoad({
@@ -445,18 +610,25 @@ function writePendingPerformance(value) {
           identity,
         });
         finishStage('identityResolution');
-        await runtime.boot(
-          identity.worldId,
-          loadedCityCode,
-          {
-            loadTraceId,
-            ...worldIdentityLoadOptions(identity, {
-              pending: Boolean(pending),
-              saveName,
-              nativeTileId: loadedCityCode,
-            }),
-          },
-        );
+        const loadOptions = {
+          loadTraceId,
+          ...worldIdentityLoadOptions(identity, {
+            pending: Boolean(pending),
+            saveName,
+            nativeTileId: loadedCityCode,
+          }),
+          nativeAuthoritativeLoad: !pending && typeof saveName === 'string' && Boolean(saveName),
+        };
+        if (replaceWorld) {
+          await runtime.reloadFromSave(
+            identity.worldId,
+            loadedCityCode,
+            saveName,
+            loadOptions,
+          );
+        } else {
+          await runtime.boot(identity.worldId, loadedCityCode, loadOptions);
+        }
         const confirmedIdentity = await resolveWorldIdentity(
           nativeSessionId,
           pending?.worldId,
@@ -478,13 +650,14 @@ function writePendingPerformance(value) {
             identity,
           });
           await runtime.reloadFromSave(identity.worldId, loadedCityCode, saveName, {
-            allowLiveFallback: identity.aliased,
             nativeSessionId: identity.nativeSessionId,
             nativeTileId: loadedCityCode,
+            nativeAuthoritativeLoad: !pending && typeof saveName === 'string' && Boolean(saveName),
             loadTraceId,
           });
         }
         await stampWorldIdentity(identity.worldId, loadTraceId);
+        recordWorldIdentity(identity, { saveName, cityCode: loadedCityCode });
         recordAuthoritativeLoad({
           phase: 'authoritative-load',
           loadTraceId,
@@ -493,7 +666,6 @@ function writePendingPerformance(value) {
           runtimeView: runtime.view(),
         });
         finishStage('runtimeBoot');
-        hydratePersistedDiagnostics();
         if (!isCurrent()) return;
         ready = true;
         settlementReady = false;
@@ -501,9 +673,19 @@ function writePendingPerformance(value) {
         finishStage('crossModeShare');
         if (!isCurrent()) return;
         if (pending) navigation.complete(pending);
-        crossDemandController = registerCrossDemandViewer({ api, runtime, tilePackages });
+        geographicContextController = registerGeographicContextOverlay({
+          runtime,
+          tileCatalog,
+          onTileSelect: switchFromWorldGrid,
+        });
+        crossDemandController = registerCrossDemandViewer({
+          api,
+          runtime,
+          tilePackages,
+          routePaths,
+          rendererVirtualization: geographicContextController,
+        });
         projectionOverlayController = registerNetworkProjectionOverlay({ api, runtime });
-        geographicContextController = registerGeographicContextOverlay({ runtime, tileCatalog });
         if (latestMap) crossDemandController.attachMap(latestMap);
         if (latestMap) projectionOverlayController.attachMap(latestMap);
         if (latestMap) geographicContextController.attachMap(latestMap);
@@ -538,18 +720,79 @@ function writePendingPerformance(value) {
   }
 
   async function handleGameLoaded(saveName) {
-    if (!isCurrent()) return;
-    if (autosaveHookGuard.isNestedLoad(saveName)) return;
+    loadTrace('hook.game-loaded', {
+      saveName,
+      current: isCurrent(),
+      started,
+      ready,
+      cityCode: api.utils.getCityCode?.() ?? null,
+      nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
+      pendingNavigation: navigation.pending() ?? null,
+    });
+    if (!isCurrent()) {
+      loadTrace('hook.game-loaded.ignored', { reason: 'stale-generation', saveName });
+      return;
+    }
+    const loadedCityCode = api.utils.getCityCode?.();
+    const pending = navigation.pending();
+    const nativeSessionId = api.gameState.getGameSessionId();
+    const loadKind = nativeSaveLifecycle.classifyLoad(saveName, {
+      nativeSessionId,
+      pendingNavigation: Boolean(pending),
+    });
+    loadTrace('hook.game-loaded.classified', {
+      saveName,
+      loadKind,
+      loadedCityCode,
+      nativeSessionId,
+      pendingNavigation: pending ?? null,
+      started,
+      ready,
+    });
+    if (loadKind === 'save-echo' || loadKind === 'internal-runtime') {
+      // During an in-game mod reload this is often the only late-fired native
+      // lifecycle callback received by the new generation. It must not reload
+      // the native save, but it does prove that the current Zustand state is
+      // fully loaded and is therefore safe to adopt. Without this cold-start
+      // route, gameLoadObserved remains false, onMapReady waits forever, and
+      // inactive-tile demand/revenue profiles are never rebuilt.
+      if (!started && registration.cities.includes(loadedCityCode)) {
+        gameLoadObserved = true;
+        loadedSaveName = null;
+        loadTrace('hook.game-loaded.route', {
+          route: 'hot-reload-startup',
+          loadKind,
+          loadedCityCode,
+          loadedSaveName,
+        });
+        return start(loadedCityCode, null, { hotReload: true });
+      }
+      loadTrace('hook.game-loaded.ignored', {
+        reason: loadKind === 'internal-runtime'
+          ? 'tracked-internal-native-operation'
+          : 'correlated-save-echo',
+        saveName,
+      });
+      return;
+    }
     // Do not let onMapReady boot against the previous native Zustand state.
     // New-game creation resets gameSessionId during the native load; this hook
     // is the first lifecycle point at which that new identity is authoritative.
     gameLoadObserved = true;
     loadedSaveName = typeof saveName === 'string' && saveName ? saveName : null;
-    const loadedCityCode = api.utils.getCityCode?.();
     if (!registration.cities.includes(loadedCityCode)) return;
-    const pending = navigation.pending();
-    if (!started) return start(loadedCityCode, loadedSaveName);
-    if (!ready || pending) return;
+    if (!started) {
+      loadTrace('hook.game-loaded.route', { route: 'startup', loadKind, loadedCityCode, loadedSaveName });
+      return start(loadedCityCode, loadedSaveName);
+    }
+    if (!ready || loadKind === 'tile-navigation') {
+      loadTrace('hook.game-loaded.ignored', {
+        reason: !ready ? 'runtime-not-ready' : 'tile-navigation-owned-by-city-load',
+        loadKind,
+      });
+      return;
+    }
+    loadTrace('hook.game-loaded.route', { route: 'save-load-reload', loadedCityCode, loadedSaveName });
     return reloadLoadedSession(loadedCityCode, 'save-load', loadedSaveName, true);
   }
 
@@ -561,70 +804,93 @@ function writePendingPerformance(value) {
     loadedSaveName = null;
     const loadedCityCode = api.utils.getCityCode?.();
     if (!registration.cities.includes(loadedCityCode)) return;
-    if (!started) return start(loadedCityCode, null);
+    const pending = navigation.pendingFor(loadedCityCode);
+    if (pending) {
+      // Subway Builder emits onGameInit while its router initializes a new
+      // native city store for a Tile View change. The navigation token is the
+      // authoritative distinction from a genuinely new World: keep the live
+      // runtime (and its transient native handoff) for onCityLoad to restore.
+      loadTrace('hook.game-init.route', {
+        route: 'tile-navigation',
+        loadedCityCode,
+        pendingNavigation: pending,
+      });
+      return;
+    }
+    const nativeSessionId = api.gameState.getGameSessionId?.() ?? null;
+    if (!nativeSessionId) throw new Error('The new game did not provide a native session ID');
+    // onGameInit is the one authoritative new-world signal. Claim the new
+    // native UUID explicitly so a stale marker left in renderer memory can
+    // never attach this game to the previous world.
+    await identities.bind(nativeSessionId, nativeSessionId, { force: true });
+    const identity = {
+      nativeSessionId,
+      worldId: nativeSessionId,
+      aliased: false,
+      source: 'new-game',
+    };
+    await stampWorldIdentity(
+      identity.worldId,
+      createAuthoritativeLoadTraceId('new-game', loadedCityCode, nativeSessionId),
+    );
+    recordWorldIdentity(identity, { cityCode: loadedCityCode });
+    if (!started) return start(loadedCityCode, null, { replaceWorld: true });
     if (!ready) return;
     ensurePanel();
   }
 
   async function handleGameSaved(saveName) {
-    if (!ready || !isCurrent() || typeof saveName !== 'string' || !saveName) return;
-    if (startupModeSharePromise && !settlementReady) await startupModeSharePromise;
-    if (!ready || !settlementReady || !isCurrent()) return;
-    if (!autosaveHookGuard.begin(saveName)) return;
-    const startedAt = performance.now();
-    let identityMilliseconds = 0;
-    let checkpointResult = null;
-    let status = 'failed';
-    let failure = null;
-    try {
-      const identityStartedAt = performance.now();
-      const nativeSessionId = api.gameState.getGameSessionId();
-      const nativeTileId = api.utils.getCityCode?.() ?? runtime.view().activeTileId;
-      const identityBound = await identities.bind(nativeSessionId, runtime.view().worldId);
-      identityMilliseconds = performance.now() - identityStartedAt;
-      if (!identityBound) {
-        throw new Error('Native save identity moved to another authoritative open-world lineage');
-      }
-      checkpointResult = await runtime.checkpoint('game-save', {
+    loadTrace('hook.game-saved', {
+      saveName,
+      current: isCurrent(),
+      started,
+      ready,
+      settlementReady,
+      cityCode: api.utils.getCityCode?.() ?? null,
+      nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
+    });
+    if (!isCurrent() || typeof saveName !== 'string' || !saveName) {
+      loadTrace('hook.game-saved.ignored', {
+        saveName,
+        reason: !isCurrent() ? 'stale-generation' : 'invalid-save-name',
+      });
+      return;
+    }
+    const nativeSessionId = api.gameState.getGameSessionId?.() ?? null;
+    const saveKind = nativeSaveLifecycle.classifySave(saveName, { nativeSessionId });
+    if (saveKind === 'internal-runtime') {
+      loadTrace('hook.game-saved.ignored', {
+        reason: saveKind,
         saveName,
         nativeSessionId,
-        nativeTileId,
-        captureNativeSnapshot: false,
       });
-      loadedSaveName = saveName;
-      status = checkpointResult?.status === 'projection-quarantined' ? 'skipped' : 'saved';
-    } catch (error) {
-      failure = String(error?.message ?? error);
-      console.warn(`[NEC] could not checkpoint native save ${saveName}`, error);
-    } finally {
-      autosaveHookGuard.end();
-      const runtimePerformance = checkpointResult?.performance
-        ?? (diagnostics.latestAutosaveRuntime?.saveName === saveName
-          ? diagnostics.latestAutosaveRuntime
-          : null);
-      const elapsed = performance.now() - startedAt;
-      const runtimeStages = runtimePerformance?.stages ?? {};
-      const accounted = identityMilliseconds
-        + Object.values(runtimeStages).reduce((sum, value) => sum + (Number(value) || 0), 0);
-      const sample = {
-        capturedAt: Date.now(),
-        saveName,
-        status,
-        error: failure,
-        tileId: runtime.view().activeTileId,
-        revision: checkpointResult?.revision ?? runtime.view().revision,
-        milliseconds: elapsed,
-        stages: {
-          identityBinding: identityMilliseconds,
-          ...runtimeStages,
-          unattributed: Math.max(0, elapsed - accounted),
-        },
-      };
-      diagnostics.latestAutosave = sample;
-      diagnostics.autosaves.push(sample);
-      if (diagnostics.autosaves.length > 50) diagnostics.autosaves.splice(0, diagnostics.autosaves.length - 50);
-      console.info('[NEC] autosave performance', sample);
+      return;
     }
+    // Native saves own their complete topology and financial history. This
+    // hook is diagnostic only; it performs no mod persistence or native load.
+    const sample = {
+      capturedAt: Date.now(),
+      saveName,
+      status: 'observed',
+      tileId: api.utils.getCityCode?.() ?? null,
+      nativeSessionId,
+      ready,
+    };
+    diagnostics.latestAutosave = sample;
+    diagnostics.autosaves.push(sample);
+    if (diagnostics.autosaves.length > 50) diagnostics.autosaves.splice(0, diagnostics.autosaves.length - 50);
+    loadTrace('hook.game-saved.observed', sample);
+    let worldId = null;
+    try { worldId = runtime.view().worldId ?? null; } catch {}
+    recordWorldIdentity({ nativeSessionId: sample.nativeSessionId, worldId }, {
+      saveName,
+      cityCode: sample.tileId,
+    });
+    loadTrace('hook.game-saved.native-authority-observed', {
+      saveName,
+      nativeSessionId: sample.nativeSessionId,
+      worldId,
+    });
   }
 
   async function handleCityLoad(loadedCityCode) {
@@ -644,8 +910,9 @@ function writePendingPerformance(value) {
     // race a second transition completion against that same boot: boot owns the
     // persisted handoff and clears the navigation token when it succeeds.
     if (!ready && startPromise) await startPromise;
-    if (!isCurrent() || !ready) return;
+    if (!isCurrent()) return;
     const pending = navigation.pendingFor(loadedCityCode);
+    if (!ready && !pending) return;
     if (!pending) {
       const needsReload = !ready || runtimeTileId() !== loadedCityCode;
       if (needsReload) {
@@ -675,6 +942,10 @@ function writePendingPerformance(value) {
       pending,
     });
     try {
+      // Restoring the canonical network emits native route/schedule hooks. It
+      // is a view change, not a player service edit, so keep those hooks from
+      // scheduling a spurious midnight mode-share rebuild.
+      ready = false;
       settlementReady = false;
       const identityBound = await identities.bind(nativeSessionId, pending.worldId, { force: true });
       recordAuthoritativeLoad({
@@ -685,8 +956,15 @@ function writePendingPerformance(value) {
         pendingWorldId: pending.worldId,
         identityBound,
       });
-      await runtime.completeStagedTransition(loadedCityCode, { loadTraceId });
+      await runtime.completeStagedTransition(loadedCityCode, {
+        loadTraceId,
+        navigationTransition: pending,
+      });
       await stampWorldIdentity(pending.worldId, loadTraceId);
+      recordWorldIdentity({ nativeSessionId, worldId: pending.worldId }, {
+        saveName: api.gameState.getSaveName?.() ?? loadedSaveName,
+        cityCode: loadedCityCode,
+      });
       recordAuthoritativeLoad({
         phase: 'authoritative-load',
         loadTraceId,
@@ -780,18 +1058,26 @@ function writePendingPerformance(value) {
     if (latestMap && tileSourceStyleHandler) {
       try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
     }
+    const loadedCityCode = api.utils.getCityCode?.();
+    const ownsLoadedCity = syncCityScopedMapControllers({
+      map,
+      cityCode: loadedCityCode,
+      cityCodes: registration.cities,
+      controllers: [crossDemandController, projectionOverlayController, geographicContextController],
+    });
+    latestMap = map;
+    if (!ownsLoadedCity) {
+      tileSourceStyleHandler = null;
+      return;
+    }
     stabilizeMapLayerMoves(map);
     diagnostics.mapZoom = relaxMapZoomLimits(map, { sourceMinZoom: tileCatalog.basemapMinZoom });
-    latestMap = map;
     tileSourceStyleHandler = () => {
       const refresh = () => repairLoadedMap(map, 'style-load');
       globalThis.requestAnimationFrame?.(refresh) ?? refresh();
     };
     map.on?.('style.load', tileSourceStyleHandler);
     repairLoadedMap(map, 'map-ready');
-    crossDemandController?.attachMap(map);
-    projectionOverlayController?.attachMap(map);
-    geographicContextController?.attachMap(map);
     void ensureLifecyclePanel();
   });
   api.hooks.onCityLoad(handleCityLoad);
@@ -799,18 +1085,34 @@ function writePendingPerformance(value) {
     hourChanged: () => { if (isCurrent()) void settleCrossTileCommutes('hourly'); },
     dayChanged: (day) => { if (isCurrent()) void modeShareInvalidation.flushAtMidnight(day); },
   });
-  registerModeShareInvalidationHooks(api.hooks, { routeChanged, scheduleChanged, fareChanged });
-  registerNetworkProjectionHooks(
-    api.hooks,
-    projectionChanged,
-    scheduleChanged,
-    { readTrackInventory: () => game.getTrackInventory() },
-  );
+  registerModeShareInvalidationHooks(api.hooks, { scheduleChanged, fareChanged });
   api.hooks.onGameEnd?.(() => {
     if (!isCurrent()) return;
+    const pending = navigation.pending();
+    if (pending) {
+      // Route navigation briefly presents as a native game end/init pair.
+      // Tearing down `started` here makes onGameInit replace the World and
+      // discards the in-memory rail/ledger handoff before onCityLoad can use it.
+      ready = false;
+      settlementReady = false;
+      loadedSaveName = null;
+      loadTrace('hook.game-end.ignored', {
+        reason: 'tile-navigation',
+        pendingNavigation: pending,
+      });
+      return;
+    }
     modeShareInvalidation.cancel();
+    disposeSharedTransitObserver();
     projectionOverlayController?.dispose?.();
     geographicContextController?.dispose?.();
+    if (globalThis[routePathRuntimeKey] === routePathRuntime) {
+      routePathRuntime.dispose();
+      delete globalThis[routePathRuntimeKey];
+    }
+    renderDistanceToolbarRegistered = false;
+    started = false;
+    startPromise = null;
     ready = false;
     settlementReady = false;
     loadedSaveName = null;
@@ -821,5 +1123,10 @@ function writePendingPerformance(value) {
     latestMap = null;
     game.restoreNativeCommuteRules();
   });
+  diagnostics.nativeReloadRecovery = {
+    installed: nativeReloadRecovery.installed,
+    version: nativeReloadRecovery.version ?? null,
+    mode: nativeReloadRecovery.mode ?? null,
+  };
   console.info('[NEC] registered', registration);
 })();

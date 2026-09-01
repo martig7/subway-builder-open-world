@@ -371,49 +371,6 @@ export function createNativeNetworkSnapshot(baseSnapshot, network) {
 }
 
 /**
- * A legacy projection snapshot is a recovery/migration input only.  Native
- * snapshots in canonical mode must not be classified from their entity count
- * (a user may legitimately delete an entity); use the explicit projection
- * envelope or a persisted projection baseline instead.
- */
-export function isLegacyProjectedSnapshot(snapshot, { baseline = null, fallbackState = null } = {}) {
-  const state = snapshotState(snapshot);
-  const hasProjectionEnvelope = array(state.routes).some((route) => (
-    route?.openWorldProjectionDormant === true
-    || route?.openWorldGlobalRoute != null
-    || route?.openWorldNativeCommuteRoute != null
-    || route?.openWorldNativeCommuteTrains != null
-    || route?.openWorldNativeCommuteStations != null
-  ));
-  if (hasProjectionEnvelope) return true;
-  const hasFallbackTopology = ENTITY_KEYS.some((key) => (
-    Array.isArray(fallbackState?.[key]) ? fallbackState[key].length > 0
-      : false
-  ));
-  // Older native saves frequently omitted the transit keys entirely after a
-  // city reload.  If the sidecar has topology, that payload is a migration
-  // input rather than an authoritative deletion of the player's network.
-  if (!hasCompleteNativeTopology(state) && hasFallbackTopology) return true;
-  const hasBaselineTopology = ENTITY_KEYS.some((key) => (
-    Array.isArray(baseline?.baselineState?.[key])
-      ? baseline.baselineState[key].length > 0
-      : false
-  ));
-  const hasBaselineEntityGap = ENTITY_KEYS.some((key) => {
-    const baselineIds = new Set(array(baseline?.baselineState?.[key]).map((value) => idOf(value)).filter(Boolean));
-    if (!baselineIds.size) return false;
-    const currentIds = new Set(array(state[key]).map((value) => idOf(value)).filter(Boolean));
-    return [...baselineIds].some((id) => !currentIds.has(id));
-  });
-  if (hasBaselineEntityGap) return true;
-  return Boolean(
-    hasBaselineTopology
-    && baseline?.structuralHash
-    && structuralHashFrom(state) === baseline.structuralHash,
-  );
-}
-
-/**
  * Public contract used by runtime/entry seams.  It intentionally reports
  * completeness independently from the presentation manifest.
  */

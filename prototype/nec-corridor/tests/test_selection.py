@@ -37,6 +37,14 @@ class SelectionTests(unittest.TestCase):
         ])
         self.assertLess(center["bounds"][0], -73)
         self.assertGreater(center["bounds"][2], -74)
+        west = next(tile for tile in catalog["tiles"] if tile["id"] == "NEC_CM01_RP00")
+        self.assertEqual(len(center["boundary"]), 5)
+        self.assertEqual(center["boundary"][0], center["boundary"][-1])
+        self.assertEqual(
+            len({tuple(point) for point in center["boundary"][:-1]}
+                & {tuple(point) for point in west["boundary"][:-1]}),
+            2,
+        )
 
     def test_inconsistent_ownership_is_rejected(self) -> None:
         raw = json.loads(SELECTION_PATH.read_text(encoding="utf-8"))

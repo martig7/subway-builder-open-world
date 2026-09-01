@@ -7,26 +7,34 @@ import { registerPrototypePanel } from './ui/prototype-panel.js';
 import { registerCrossDemandViewer } from './ui/cross-demand-viewer.js';
 import { registerNetworkProjectionOverlay } from './ui/network-projection-overlay.js';
 import { createDailyModeShareInvalidation, registerCrossTileClockHooks, registerModeShareInvalidationHooks } from './mode-share-hook-policy.js';
-import { createNetworkProjectionReconciler, createRouteScheduleReconciler, registerNetworkProjectionHooks } from './network-projection-hooks.js';
 import { registerPrototypeCities } from './city-registration.js';
 import { tileCatalog } from './tile-catalog.js';
-import { stabilizeMapLayerMoves } from './map-layer-stability.js';
+import {
+  installTransientLayerOrderConsoleFilter,
+  stabilizeMapLayerMoves,
+} from './map-layer-stability.js';
 import { relaxMapZoomLimits } from './map-zoom-limits.js';
 import { registerGeographicContextOverlay } from './ui/geographic-context-overlay.js';
+import { syncCityScopedMapControllers } from './ui/city-scoped-map-controllers.js';
 import { WorldIdentityResolver } from './world-identity.js';
-import { createAutosaveHookGuard } from './autosave-hook-guard.js';
+import { createNativeSaveLifecycle } from './autosave-hook-guard.js';
 
 // This file is bundled to one import-free IIFE. It is intentionally a manual,
 // fail-closed feasibility mod, not a production auto-streaming implementation.
 (function installKcTwoTilePrototype() {
   const api = globalThis.SubwayBuilderAPI;
   if (!api) throw new Error('[KC two-tile] SubwayBuilderAPI is unavailable');
+  installTransientLayerOrderConsoleFilter();
   stabilizeMapLayerMoves(api.utils?.getMap?.());
   relaxMapZoomLimits(api.utils?.getMap?.(), { sourceMinZoom: tileCatalog.basemapMinZoom });
   const generationKey = '__kcTwoTileOpenWorldGeneration__';
   const generation = (Number(globalThis[generationKey]) || 0) + 1;
   globalThis[generationKey] = generation;
   const isCurrent = () => globalThis[generationKey] === generation;
+  const nativeSaveLifecycle = createNativeSaveLifecycle({
+    sessionStorage: globalThis.sessionStorage,
+    storageKey: 'kc-two-tile:pending-native-save-echo',
+  });
 
   // Capture mod identity synchronously; plain storage calls lose it after await.
   const storage = api.storage?.scoped?.();
@@ -35,7 +43,7 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
   const tileBase = globalThis.KC_TWO_TILE_TILE_BASE ?? 'http://127.0.0.1:8788';
   const registration = registerPrototypeCities(api, { artifactBase, tileBase });
 
-  const game = new SubwayBuilderGameAdapter({ api });
+  const game = new SubwayBuilderGameAdapter({ api, nativeSaveLifecycle });
   const navigation = new HashCityNavigationAdapter({ tileIds: registration.tileIds });
   const tilePackages = new HttpTilePackageAdapter({ baseUrl: artifactBase, assetValidation: 'manifest', tileIds: registration.tileIds });
   let latestMap = null;
@@ -51,6 +59,7 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
   game.installTrackGroupLoadGuard();
   game.installClippedRouteTickGuard();
   game.installClippedRouteTrackEditGuard();
+  game.installSimulationPerformanceDiagnostics();
 
   async function recordNativeCommuteHealth(reason) {
     const health = { reason, capturedAt: Date.now(), ...game.nativeCommuteHealth() };
@@ -85,7 +94,6 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
   let ready = false;
   let startPromise = null;
   let loadedSaveName = null;
-  const autosaveHookGuard = createAutosaveHookGuard();
 
   async function recalculateCrossModeShare(reason, day = null, force = false) {
     if (!ready || !isCurrent()) return null;
@@ -114,39 +122,27 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
   const modeShareInvalidation = createDailyModeShareInvalidation({
     recalculate: (reason, day) => recalculateCrossModeShare(reason, day),
   });
-  const routeChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('route-change'); };
-  const scheduleChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('schedule-change'); };
-  const fareChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('fare-change'); };
-  const projectionReconciler = createNetworkProjectionReconciler({
-    runtime,
-    isReady: () => ready && isCurrent(),
-    isActive: isCurrent,
-    onRejected: (warning) => api.ui?.showNotification?.(
-      warning?.message ?? 'That network edit is outside the editable tile window and was restored.',
-      'warning',
-      'Open World',
-    ),
-  });
-  const scheduleReconciler = createRouteScheduleReconciler({
-    runtime,
-    isReady: () => ready && isCurrent(),
-    isActive: isCurrent,
-    onRejected: (warning) => api.ui?.showNotification?.(
-      warning?.message ?? 'That route schedule could not be saved.',
-      'warning',
-      'Open World',
-    ),
-  });
-  const projectionChanged = (reason) => {
-    if (ready && isCurrent()) projectionReconciler.queue(reason);
+  const serviceChanged = (reason = 'route-service-change') => {
+    if (!ready || !isCurrent()) return;
+    runtime.markDerivedNetworkDirty(reason);
+    modeShareInvalidation.markDirty(reason);
   };
+  const scheduleChanged = () => serviceChanged('schedule-change');
+  const fareChanged = () => { if (ready && isCurrent()) modeShareInvalidation.markDirty('fare-change'); };
   game.installClippedRoutePreviewEditGuard({
     onConfirmed: () => {
-      if (!ready || !isCurrent()) return;
-      modeShareInvalidation.markDirty('route-change');
-      projectionReconciler.queue('route-edited');
+      serviceChanged('route-service-change');
     },
   });
+  // Keep the cache observer outside the projection preview guard so its
+  // disposer can restore that guard cleanly and hot reload never stacks an
+  // obsolete observer inside the long-lived Zustand action.
+  const disposeSharedTransitObserver = game.observeSharedTransitChanges(
+    ({ reason }) => {
+      if (reason === 'route-service-change') serviceChanged(reason);
+      else if (reason === 'fare-policy-change') fareChanged();
+    },
+  );
 
   function ensurePanels() {
     if (!started || !isCurrent()) return;
@@ -210,7 +206,7 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
 
   async function handleGameLoaded(saveName) {
     if (!isCurrent()) return;
-    if (autosaveHookGuard.isNestedLoad(saveName)) return;
+    if (nativeSaveLifecycle.isNestedLoad(saveName, api.gameState.getGameSessionId?.() ?? null)) return;
     loadedSaveName = typeof saveName === 'string' && saveName ? saveName : null;
     const loadedCityCode = api.utils.getCityCode?.();
     if (!registration.cities.includes(loadedCityCode)) return;
@@ -239,7 +235,7 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
 
   async function handleGameSaved(saveName) {
     if (!ready || !isCurrent() || typeof saveName !== 'string' || !saveName) return;
-    if (!autosaveHookGuard.begin(saveName)) return;
+    if (!nativeSaveLifecycle.begin(saveName, api.gameState.getGameSessionId?.() ?? null)) return;
     try {
       const nativeSessionId = api.gameState.getGameSessionId();
       const nativeTileId = api.utils.getCityCode?.() ?? runtime.view().activeTileId;
@@ -257,7 +253,7 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
     } catch (error) {
       console.warn(`[KC two-tile] could not checkpoint native save ${saveName}`, error);
     } finally {
-      autosaveHookGuard.end();
+      nativeSaveLifecycle.end();
     }
   }
 
@@ -301,12 +297,17 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
   api.hooks.onGameSaved?.((saveName) => { void handleGameSaved(saveName); });
   api.hooks.onMapReady((map) => {
     if (!isCurrent()) return;
+    const loadedCityCode = api.utils.getCityCode?.();
+    const ownsLoadedCity = syncCityScopedMapControllers({
+      map,
+      cityCode: loadedCityCode,
+      cityCodes: registration.cities,
+      controllers: [crossDemandController, projectionOverlayController, geographicContextController],
+    });
+    latestMap = map;
+    if (!ownsLoadedCity) return;
     stabilizeMapLayerMoves(map);
     relaxMapZoomLimits(map, { sourceMinZoom: tileCatalog.basemapMinZoom });
-    latestMap = map;
-    crossDemandController?.attachMap(map);
-    projectionOverlayController?.attachMap(map);
-    geographicContextController?.attachMap(map);
     void ensureLifecyclePanels();
   });
   api.hooks.onCityLoad(handleCityLoad);
@@ -314,18 +315,11 @@ import { createAutosaveHookGuard } from './autosave-hook-guard.js';
     hourChanged: () => { if (isCurrent()) void settleCrossTileCommutes('hourly'); },
     dayChanged: (day) => { if (isCurrent()) void modeShareInvalidation.flushAtMidnight(day); },
   });
-  registerModeShareInvalidationHooks(api.hooks, { routeChanged, scheduleChanged, fareChanged });
-  registerNetworkProjectionHooks(
-    api.hooks,
-    projectionChanged,
-    (routeId, schedule, previousSchedule) => scheduleReconciler.queue(routeId, schedule, previousSchedule),
-    { readTrackInventory: () => game.getTrackInventory() },
-  );
+  registerModeShareInvalidationHooks(api.hooks, { scheduleChanged, fareChanged });
   api.hooks.onGameEnd?.(() => {
     if (!isCurrent()) return;
     modeShareInvalidation.cancel();
-    projectionReconciler.cancel();
-    scheduleReconciler.cancel();
+    disposeSharedTransitObserver();
     projectionOverlayController?.dispose?.();
     geographicContextController?.dispose?.();
     game.restoreNativeCommuteRules();

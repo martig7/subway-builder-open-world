@@ -37,6 +37,10 @@ def build_catalog(selection: Selection, boundary_path: str | Path | None = None)
         )
         ownership_wgs84 = transform(inverse.transform, ownership)
         center = ownership_wgs84.centroid
+        boundary = [
+            [round(longitude, 8), round(latitude, 8)]
+            for longitude, latitude in ownership_wgs84.exterior.coords
+        ]
         state_touches: list[dict[str, Any]] = []
         if states is not None:
             touched = states[states.geometry.intersects(ownership)]
@@ -60,6 +64,7 @@ def build_catalog(selection: Selection, boundary_path: str | Path | None = None)
             "ownershipProjected": list(tile.ownership_projected),
             "haloProjected": list(halo.bounds),
             "bounds": [round(value, 8) for value in ownership_wgs84.bounds],
+            "boundary": boundary,
             "initialView": {
                 "longitude": round(center.x, 8),
                 "latitude": round(center.y, 8),
@@ -94,6 +99,8 @@ def build_catalog(selection: Selection, boundary_path: str | Path | None = None)
         "worldId": "NEC_CORRIDOR_LODES_PROTOTYPE",
         "prototype": True,
         "crs": selection.grid.crs,
+        "minZoom": 0.01,
+        "maxZoom": 15,
         "initialView": {
             "center": [
                 round(sum(tile["initialView"]["longitude"] for tile in tiles) / len(tiles), 8),

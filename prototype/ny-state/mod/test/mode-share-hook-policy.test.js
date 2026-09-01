@@ -6,22 +6,22 @@ import {
   registerModeShareInvalidationHooks,
 } from '../src/mode-share-hook-policy.js';
 
-test('only route service and fare events invalidate cross-city mode share', () => {
+test('public hooks reserve blank route lifecycle for native save and tile handoff', () => {
   const registered = [];
   const hooks = new Proxy({}, {
     get: (_target, hookName) => (callback) => { registered.push([hookName, callback]); },
   });
 
   registerModeShareInvalidationHooks(hooks, {
-    routeChanged() {}, scheduleChanged() {}, fareChanged() {},
+    scheduleChanged() {}, fareChanged() {},
   });
   registerCrossTileClockHooks(hooks, { hourChanged() {}, dayChanged() {} });
 
   const hookNames = registered.map(([name]) => name);
   assert.ok(hookNames.includes('onScheduleChange'));
   assert.ok(hookNames.includes('onTicketPriceChanged'));
-  assert.ok(hookNames.includes('onRouteCreated'));
-  assert.ok(hookNames.includes('onRouteDeleted'));
+  assert.equal(hookNames.includes('onRouteCreated'), false);
+  assert.equal(hookNames.includes('onRouteDeleted'), false);
   assert.equal(hookNames.includes('onStationBuilt'), false);
   assert.equal(hookNames.includes('onStationDeleted'), false);
   assert.equal(hookNames.includes('onTrackChange'), false);

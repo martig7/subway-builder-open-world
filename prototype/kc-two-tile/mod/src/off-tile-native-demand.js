@@ -12,6 +12,37 @@ const POP_FIELDS = Object.freeze([
   'drivingSeconds', 'drivingDistance', 'homeDepartureTime', 'workDepartureTime',
 ]);
 
+/**
+ * Project evaluator input to the smallest structured-clone payload that keeps
+ * fare calculation behavior identical. Native Ledger and topology fields are
+ * deliberately excluded from this off-tile estimation seam.
+ */
+export function projectOffTileNativeDemandTransferInput(input) {
+  const nativeState = input?.globalNativeState;
+  if (!nativeState) return input;
+  return {
+    ...input,
+    globalNativeState: {
+      routes: (nativeState.routes ?? []).map((route) => ({
+        id: route.id,
+        tempParentId: route.tempParentId ?? null,
+      })),
+      fareGroups: (nativeState.fareGroups ?? []).map((group) => ({
+        id: group.id,
+        fareSystem: group.fareSystem,
+        flatFare: group.flatFare,
+        routeFares: group.routeFares,
+        routeIds: group.routeIds,
+        transferPolicy: group.transferPolicy,
+        chargeOnInterGroupTransfer: group.chargeOnInterGroupTransfer,
+        boardingCharge: group.boardingCharge,
+        perKmRate: group.perKmRate,
+        fareCap: group.fareCap,
+      })),
+    },
+  };
+}
+
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue);
   if (value && typeof value === 'object') {

@@ -8,6 +8,15 @@ const POP_LINE_LAYER = 'kc-cross-demand-pop-line';
 const POINT_LAYER = 'kc-cross-demand-points';
 const ENDPOINT_LAYER = 'kc-cross-demand-endpoints';
 
+export function clipDemandDotsToRenderHalo(data, virtualization) {
+  if (!Array.isArray(data?.features) || typeof virtualization?.presentation !== 'function') return data;
+  const features = data.features.filter((feature) => (
+    feature?.geometry?.type !== 'Point'
+    || virtualization.presentation(feature, { clip: false }) != null
+  ));
+  return features.length === data.features.length ? data : { ...data, features };
+}
+
 // Demand radii are geographic metres. MapLibre circle radii are pixels, so
 // convert metres with the Web Mercator scale and double pixels at every zoom.
 // Deliberately omit the native demand layer's additional 2^(zoom * 0.75)
@@ -32,6 +41,7 @@ function ensureMapArtifacts(map) {
   if (!map?.getSource?.(DETAILS_SOURCE)) map?.addSource?.(DETAILS_SOURCE, { type: 'geojson', data: EMPTY });
   if (!map?.getLayer?.(CONNECTION_LAYER)) map?.addLayer?.({
     id: CONNECTION_LAYER, type: 'line', source: DETAILS_SOURCE,
+    minzoom: 10,
     filter: ['==', ['get', 'kind'], 'connection'],
     layout: { visibility: 'none', 'line-cap': 'round' },
     paint: {
@@ -41,12 +51,14 @@ function ensureMapArtifacts(map) {
   });
   if (!map?.getLayer?.(POP_LINE_LAYER)) map?.addLayer?.({
     id: POP_LINE_LAYER, type: 'line', source: DETAILS_SOURCE,
+    minzoom: 10,
     filter: ['==', ['get', 'kind'], 'pop-line'],
     layout: { visibility: 'none', 'line-cap': 'round' },
     paint: { 'line-color': '#ff0000', 'line-width': 4, 'line-opacity': 1 },
   });
   if (!map?.getLayer?.(POINT_LAYER)) map?.addLayer?.({
     id: POINT_LAYER, type: 'circle', source: POINTS_SOURCE,
+    minzoom: 10,
     layout: { visibility: 'none' },
     paint: {
       'circle-radius': zoomScaledRadius,
@@ -61,6 +73,7 @@ function ensureMapArtifacts(map) {
   });
   if (!map?.getLayer?.(ENDPOINT_LAYER)) map?.addLayer?.({
     id: ENDPOINT_LAYER, type: 'circle', source: DETAILS_SOURCE,
+    minzoom: 10,
     filter: ['match', ['get', 'kind'], ['home', 'work'], true, false],
     layout: { visibility: 'none' },
     paint: {
@@ -71,23 +84,27 @@ function ensureMapArtifacts(map) {
 }
 
 export class CrossDemandOverlayController {
-  constructor({ api, runtime, tilePackages }) {
-    this.api = api; this.runtime = runtime; this.tilePackages = tilePackages;
+  constructor({ api, runtime, tilePackages, routePaths = null, rendererVirtualization = null }) {
+    this.api = api; this.runtime = runtime; this.tilePackages = tilePackages; this.routePaths = routePaths;
+    this.rendererVirtualization = rendererVirtualization;
     this.active = false; this.status = 'closed'; this.error = null;
     this.viewMode = 'residents';
     this.selectedPointId = null; this.selectedPopIndex = null;
     this.model = null; this.rawData = null; this.map = null; this.listeners = new Set();
+    this.selectedDrivingPath = null; this.routeStatus = 'idle'; this.routeRequest = 0;
     this.handlePointClick = (event) => event.features?.[0]?.properties?.id && this.selectPoint(event.features[0].properties.id);
     this.handleMouseEnter = () => { if (this.map) this.map.getCanvas().style.cursor = 'pointer'; };
     this.handleMouseLeave = () => { if (this.map) this.map.getCanvas().style.cursor = ''; };
     this.handleStyle = () => requestAnimationFrame(() => this.#refreshMap());
-    api.hooks.onMapReady((map) => this.attachMap(map));
     this.unsubscribeRuntime = runtime.subscribe?.((event) => {
       if (event?.type !== 'cross-mode-share' || !this.rawData) return;
       const view = this.runtime.view();
       this.model = new CrossDemandModel(this.rawData, view.gatewayLedger, view.crossPopModeChoices);
       this.#emit(); this.#refreshMap();
     });
+    this.unsubscribeRenderDistance = rendererVirtualization?.subscribeRenderDistance?.(
+      () => this.#refreshMap(),
+    );
   }
 
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -97,18 +114,14 @@ export class CrossDemandOverlayController {
       active: this.active, status: this.status, error: this.error,
       viewMode: this.viewMode,
       selectedPointId: this.selectedPointId, selectedPopIndex: this.selectedPopIndex,
+      routeStatus: this.routeStatus,
       stats: this.model?.stats ?? null,
     };
   }
 
   attachMap(map) {
     if (this.map === map) return this.#refreshMap();
-    if (this.map) {
-      try { this.map.off('click', POINT_LAYER, this.handlePointClick); } catch {}
-      try { this.map.off('mouseenter', POINT_LAYER, this.handleMouseEnter); } catch {}
-      try { this.map.off('mouseleave', POINT_LAYER, this.handleMouseLeave); } catch {}
-      try { this.map.off('style.load', this.handleStyle); } catch {}
-    }
+    this.detachMap();
     this.map = map;
     map.on('click', POINT_LAYER, this.handlePointClick);
     map.on('mouseenter', POINT_LAYER, this.handleMouseEnter);
@@ -117,6 +130,27 @@ export class CrossDemandOverlayController {
     // redraw loop. `style.load` is the one event where sources need rehydrating.
     map.on('style.load', this.handleStyle);
     this.#refreshMap();
+  }
+
+  detachMap() {
+    if (!this.map) return;
+    try { this.map.off('click', POINT_LAYER, this.handlePointClick); } catch {}
+    try { this.map.off('mouseenter', POINT_LAYER, this.handleMouseEnter); } catch {}
+    try { this.map.off('mouseleave', POINT_LAYER, this.handleMouseLeave); } catch {}
+    try { this.map.off('style.load', this.handleStyle); } catch {}
+    try {
+      const canvas = this.map.getCanvas?.();
+      if (canvas?.style) canvas.style.cursor = '';
+    } catch {}
+    this.map = null;
+  }
+
+  dispose() {
+    this.detachMap();
+    this.unsubscribeRuntime?.();
+    this.unsubscribeRuntime = null;
+    this.unsubscribeRenderDistance?.();
+    this.unsubscribeRenderDistance = null;
   }
 
   async open() {
@@ -137,6 +171,7 @@ export class CrossDemandOverlayController {
 
   close() {
     this.active = false; this.status = 'closed'; this.selectedPointId = null; this.selectedPopIndex = null;
+    this.selectedDrivingPath = null; this.routeStatus = 'idle'; this.routeRequest++;
     this.#refreshMap(); this.#emit();
   }
 
@@ -147,16 +182,39 @@ export class CrossDemandOverlayController {
 
   selectPoint(pointId) {
     if (!this.model?.pointById.has(pointId)) return;
-    this.selectedPointId = pointId; this.selectedPopIndex = null; this.#emit(); this.#refreshMap();
+    this.selectedPointId = pointId; this.selectedPopIndex = null;
+    this.selectedDrivingPath = null; this.routeStatus = 'idle'; this.routeRequest++;
+    this.#emit(); this.#refreshMap();
   }
 
   selectPop(popIndex) {
     if (!this.model?.popDetails(popIndex)) return;
-    this.selectedPopIndex = popIndex; this.#emit(); this.#refreshMap();
+    this.selectedPopIndex = popIndex; this.selectedDrivingPath = null;
+    this.routeStatus = this.routePaths ? 'loading' : 'geometric-fallback';
+    const request = ++this.routeRequest;
+    this.#emit(); this.#refreshMap();
+    if (this.routePaths) void this.#loadDrivingPath(popIndex, request);
   }
 
-  backToPoint() { this.selectedPopIndex = null; this.#emit(); this.#refreshMap(); }
-  clearSelection() { this.selectedPointId = null; this.selectedPopIndex = null; this.#emit(); this.#refreshMap(); }
+  async #loadDrivingPath(popIndex, request) {
+    const pop = this.model?.popDetails(popIndex);
+    if (!pop) return;
+    const city = this.runtime.view().activeTileId;
+    const result = await this.routePaths.resolve(city, pop.id);
+    if (request !== this.routeRequest || this.selectedPopIndex !== popIndex) return;
+    this.selectedDrivingPath = result?.coordinates ?? null;
+    this.routeStatus = result?.source ?? 'geometric-fallback';
+    this.#emit(); this.#refreshMap();
+  }
+
+  backToPoint() {
+    this.selectedPopIndex = null; this.selectedDrivingPath = null;
+    this.routeStatus = 'idle'; this.routeRequest++; this.#emit(); this.#refreshMap();
+  }
+  clearSelection() {
+    this.selectedPointId = null; this.selectedPopIndex = null; this.selectedDrivingPath = null;
+    this.routeStatus = 'idle'; this.routeRequest++; this.#emit(); this.#refreshMap();
+  }
   pointDetails(offset = 0, limit = 40) { return this.model?.pointDetails(this.selectedPointId, this.viewMode, offset, limit) ?? null; }
   popDetails() {
     const pop = this.model?.popDetails(this.selectedPopIndex) ?? null;
@@ -171,6 +229,13 @@ export class CrossDemandOverlayController {
   }
   #setData(sourceId, data) { this.map?.getSource(sourceId)?.setData(data); }
 
+  #clipDemandDots(data) {
+    return clipDemandDotsToRenderHalo(
+      data,
+      this.rendererVirtualization?.getRendererVirtualization?.(),
+    );
+  }
+
   #refreshMap() {
     if (!this.map?.isStyleLoaded?.()) return;
     ensureMapArtifacts(this.map);
@@ -179,15 +244,17 @@ export class CrossDemandOverlayController {
     this.#setVisibility(POINT_LAYER, Boolean(ready && !popSelected));
     this.#setVisibility(CONNECTION_LAYER, Boolean(ready && this.selectedPointId && !popSelected));
     this.#setVisibility(POP_LINE_LAYER, Boolean(popSelected));
-    this.#setVisibility(ENDPOINT_LAYER, Boolean(popSelected));
+    this.#setVisibility(ENDPOINT_LAYER, Boolean(ready && (this.selectedPointId || popSelected)));
     if (!ready) return;
-    this.#setData(POINTS_SOURCE, this.model.pointFeatures(this.viewMode, this.selectedPointId));
+    this.#setData(POINTS_SOURCE, this.#clipDemandDots(
+      this.model.pointFeatures(this.viewMode, this.selectedPointId),
+    ));
     const details = popSelected
-      ? this.model.popSelection(this.selectedPopIndex)
+      ? this.model.popSelection(this.selectedPopIndex, this.selectedDrivingPath)
       : this.selectedPointId
         ? this.model.connections(this.selectedPointId, this.viewMode)
         : EMPTY;
-    this.#setData(DETAILS_SOURCE, details);
+    this.#setData(DETAILS_SOURCE, this.#clipDemandDots(details));
   }
 }
 
@@ -322,12 +389,24 @@ function modeChoiceComparisonSection(h, comparison) {
     row('Walking generalized cost', money(costs.walking)));
 }
 
-export function registerCrossDemandViewer({ api, runtime, tilePackages }) {
+export function registerCrossDemandViewer({
+  api,
+  runtime,
+  tilePackages,
+  routePaths = null,
+  rendererVirtualization = null,
+}) {
   if (typeof api?.ui?.addToolbarPanel !== 'function') throw new Error('ui.addToolbarPanel is unavailable');
   const React = api.utils?.React;
   const h = React?.createElement;
   if (!React || typeof h !== 'function') throw new Error('Native React UI is unavailable');
-  const controller = new CrossDemandOverlayController({ api, runtime, tilePackages });
+  const controller = new CrossDemandOverlayController({
+    api,
+    runtime,
+    tilePackages,
+    routePaths,
+    rendererVirtualization,
+  });
 
   function DemandViewerPanel() {
     const [snapshot, setSnapshot] = React.useState(controller.snapshot());
@@ -349,7 +428,10 @@ export function registerCrossDemandViewer({ api, runtime, tilePackages }) {
     if (pop) return h('div', { className: 'flex flex-col gap-3 p-2 text-sm' },
       h('button', { className: 'self-start text-xs text-primary hover:underline', onClick: () => controller.backToPoint() }, '← Back to demand location'),
       h('div', null, h('div', { className: 'text-xs uppercase tracking-wide text-muted-foreground' }, 'Selected pop'), h('div', { className: 'text-xl font-semibold' }, pop.mass.toLocaleString()), h('div', { className: 'font-mono text-[10px] text-muted-foreground break-all' }, pop.id)),
-      h('div', { className: 'rounded-md border p-2 text-xs' }, h('div', null, `Home: ${pop.home.id} (${pop.home.tileId})`), h('div', null, `Work: ${pop.work.id} (${pop.work.tileId})`)),
+      h('div', { className: 'rounded-md border p-2 text-xs' },
+        h('div', null, `Home: ${pop.home.id} (${pop.home.tileId})`),
+        h('div', null, `Work: ${pop.work.id} (${pop.work.tileId})`),
+        h('div', { className: 'text-muted-foreground' }, `Driving path: ${snapshot.routeStatus}`)),
       h('div', null, h('div', { className: 'mb-1 font-medium' }, 'Mode share'), modeChart(h, pop.modeChoice)),
       modeChoiceComparisonSection(h, pop.modeChoiceComparison),
       transitPathSection(h, pop.transitPath));

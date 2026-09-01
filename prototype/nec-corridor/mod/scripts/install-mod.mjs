@@ -1,7 +1,7 @@
 import { copyFile, cp, lstat, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { PILOT_TILE_IDS } from '../src/tile-catalog.js';
-import { ensureTileServerReady } from './tile-server-control.mjs';
+import { ensureTileServerReady, stopTileServer } from './tile-server-control.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const distPath = path.join(root, 'dist');
@@ -14,7 +14,9 @@ const cityDataFilenames = [
   'runways_taxiways.geojson.gz',
   'cross_commutes.json',
   'cross_demand.json.gz',
+  'tiles.pmtiles',
 ];
+const tileServerFilenames = ['start-tile-server.ps1', 'native-pmtiles-server.ps1'];
 
 function applicationDataPathForPlatform() {
   if (process.platform === 'win32') {
@@ -40,6 +42,7 @@ async function modDirectoryName() {
 const distManifest = JSON.parse(await readFile(path.join(distPath, 'manifest.json'), 'utf8'));
 if (distManifest.main !== 'index.js') throw new Error('dist manifest must use index.js');
 await lstat(path.join(distPath, distManifest.main));
+for (const filename of tileServerFilenames) await lstat(path.join(distPath, filename));
 for (const tileId of PILOT_TILE_IDS) {
   for (const filename of cityDataFilenames) await lstat(path.join(packagesPath, tileId, filename));
 }
@@ -49,6 +52,12 @@ const modsPath = path.join(applicationDataPath, 'mods');
 const citiesDataPath = path.join(applicationDataPath, 'cities', 'data');
 const targetPath = path.resolve(modsPath, await modDirectoryName());
 if (path.dirname(targetPath) !== modsPath) throw new Error(`Refusing unsafe mod target: ${targetPath}`);
+
+await stopTileServer({
+  starterPath: path.join(root, 'start-tile-server.ps1'),
+  installRoot: targetPath,
+});
+console.log('Stopped the existing NEC PMTiles service before replacement');
 
 await mkdir(modsPath, { recursive: true });
 await rm(targetPath, { recursive: true, force: true });
@@ -68,6 +77,6 @@ for (const tileId of PILOT_TILE_IDS) {
 }
 
 const tileServer = await ensureTileServerReady({
-  starterPath: path.join(root, 'start-tile-server.ps1'),
+  starterPath: path.join(targetPath, 'start-tile-server.ps1'),
 });
 console.log(`PMTiles service: ${tileServer.status} at ${tileServer.baseUrl}`);

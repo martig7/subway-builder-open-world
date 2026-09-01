@@ -76,7 +76,6 @@ export class WorldIdentityResolver {
     authoritativeWorldId = null,
     ancestorSessionIds = [],
     allowCanonicalFallback = false,
-    selectedWorldId = null,
   } = {}) {
     const hasNativeSessionId = typeof nativeSessionId === 'string' && Boolean(nativeSessionId);
     const sessionId = hasNativeSessionId ? nativeSessionId : this.#getIsolatedWorldId();
@@ -86,19 +85,6 @@ export class WorldIdentityResolver {
       const worldId = typeof settled === 'string' && settled ? settled : pendingWorldId;
       await this.#promoteCanonicalWorld(worldId);
       return { nativeSessionId: sessionId, worldId, aliased: sessionId !== worldId };
-    }
-    if (typeof selectedWorldId === 'string' && selectedWorldId) {
-      const selected = await this.bind(sessionId, selectedWorldId, { force: true });
-      if (!selected) throw new Error('The selected canonical save path could not be persisted');
-      const settled = await this.#readAlias(sessionId, selectedWorldId, { refresh: true });
-      const worldId = typeof settled === 'string' && settled ? settled : selectedWorldId;
-      return {
-        nativeSessionId: sessionId,
-        worldId,
-        aliased: worldId !== sessionId,
-        source: 'user-selection',
-        sourceSessionId: null,
-      };
     }
     const alias = await this.#readAlias(sessionId, null);
     const recoveryAlias = this.recoveryAliases[sessionId];
@@ -233,15 +219,11 @@ export function worldIdentityLoadOptions(identity, {
   pending = false,
   saveName = null,
   nativeTileId = null,
-  restoreCanonicalLineage = false,
 } = {}) {
   if (pending) return {};
   return {
-    // A selected canonical lineage is its own save source. Do not pair it
-    // with the currently-open native save/checkpoint during boot.
-    ...(!restoreCanonicalLineage && typeof saveName === 'string' && saveName ? { saveName } : {}),
+    ...(typeof saveName === 'string' && saveName ? { saveName } : {}),
     allowLiveFallback: identity?.aliased === true,
-    ...(restoreCanonicalLineage ? { restoreCanonicalLineage: true } : {}),
     nativeSessionId: identity?.nativeSessionId ?? null,
     nativeTileId,
   };

@@ -1,24 +1,35 @@
 {
   "assets": [
     {
-      "bytes": 39484,
-      "path": "demand_data.json.gz",
-      "sha256": "3828e84b85829641bff9238a0fdd0e31eefa62c93e46d3e37c57bd77730271b7"
-    },
-    {
-      "bytes": 408407,
+      "bytes": 408606,
       "path": "cross_commutes.json",
-      "sha256": "8c368abd362f41420ef1e6625c55238499ee03739d011314c54701b4210c9718"
+      "sha256": "91a3cb418d8efc097d054ef40338d7c47f77969b2c2ca2cc1fc041c520695ecd"
     },
     {
-      "bytes": 4404566,
+      "bytes": 4397793,
       "path": "cross_demand.json.gz",
-      "sha256": "0ccf3d0fb458a8307b19beda34276ed89717746ec670177b9d76df62e537abaa"
+      "sha256": "f6ae82f08c801867a9534d8515f964c96ee88f87250b3b4acf0f83b113a54df7"
+    },
+    {
+      "bytes": 39573,
+      "path": "demand_data.json.gz",
+      "sha256": "4e4e6b50c45beb9e40637ea275c0ae33eb4554594c685aec17ca3a01e6dbe327"
     }
   ],
   "cityCode": "NEC_CM01_RP01",
   "dataFiles": {
     "demandData": "demand_data.json.gz"
+  },
+  "drivingModel": {
+    "graphVersion": "generated-roads-v1",
+    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+    "provider": "generated-road-graph",
+    "speedKph": {
+      "highway": 85.0,
+      "major": 50.0,
+      "minor": 30.0
+    }
   },
   "runtimeFiles": {
     "crossCommutes": {

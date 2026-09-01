@@ -1,7 +1,7 @@
 import { tileCatalog } from './tile-catalog.js';
 
 export const DEFAULT_TILE_BASE = 'http://127.0.0.1:8799';
-export const BASEMAP_REVISION = 'nec-corridor-z0-z9-v1';
+export const BASEMAP_REVISION = 'nec-corridor-z0-z9-v2';
 
 export function cityDefinitionsFor(catalog = tileCatalog) {
   return catalog.tiles.map((tile) => ({

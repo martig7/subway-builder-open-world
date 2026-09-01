@@ -67,13 +67,53 @@ The current tests cover export validation, half-open tile assignment, catalog ne
 
 M4 packages the map-only demand and Depot assets using the same contract as the NY canary. The demand compiler writes one package per selected tile under `generated/demand/`, including `demand_data.json.gz`, `cross_commutes.json`, `cross_demand.json.gz`, and a manifest. The completed demand report is `generated/demand/reports/nec-demand.json`.
 
-The Depot runner downloads the 14 official Geofabrik OSM extracts, uses OSM building multipolygons instead of the optional Overture building catalog, and writes the Subway Builder map assets under `generated/maps/tiles/<tile-id>/`. Each tile contains the compressed building index, roads, runways/taxiways, PMTiles, and `map-manifest.json`. The map run is resumable through per-tile benchmark markers:
+The Depot runner downloads the 14 official Geofabrik OSM extracts, uses OSM building multipolygons instead of the optional Overture building catalog, and writes the Subway Builder map assets under `generated/maps/tiles/<tile-id>/`. Each tile contains the compressed building index, roads, runways/taxiways, PMTiles, and `map-manifest.json`. After Depot finishes, the build follows the original NY canary and splices pinned Natural Earth 10m land, lakes, and country boundaries at zooms 0–9 into every archive while retaining local Depot detail at zooms 10–15. The unmodified archive remains as `tiles.city-only.pmtiles`; candidate archives are verified and probed outside the NEC footprint before replacement. The map run is resumable through per-tile benchmark markers:
 
 ```powershell
 & .\prototype\nec-corridor\build-nec.ps1
 ```
 
 Use `-SkipDownloads`, `-SkipDemand`, or `-SkipDepot` to resume a specific phase. To run a single tile, pass `-Tile NEC_CM01_RM01`; the wrapper forwards that filter into Docker. OSM source provenance is recorded in `config/osm.sources.json`, and the Depot summary is `generated/maps/reports/nec-depot.json`.
+
+### Generated-road driving-time splice
+
+After complete map and demand artifacts exist, enrich them without rerunning
+LODES aggregation, Voronoi packing, Depot, PMTiles, or unified basemaps:
+
+```powershell
+$env:PYTHONPATH = (Join-Path (Get-Location) 'prototype/nec-corridor/src')
+python -m nec_world_builder.cli enrich-driving
+```
+
+The stage constructs a shortest-time graph from the already-generated
+`roads.geojson.gz` files using effective speeds of 85 km/h for highways,
+50 km/h for major roads, and 30 km/h for minor roads. It atomically splices the
+resulting seconds and metres into native and cross-tile demand, recalculates
+cross-commute summaries, and refreshes package hashes. Trips over 250 km, snaps
+farther than 5 km, disconnected paths, and implausible detours retain the prior
+geometric estimate. The audit report is
+`generated/demand/reports/nec-road-routing.json`.
+
+Native outputs and directed cross-tile-pair models are checkpointed in the
+transactional staging directory, so an interrupted run resumes completed work.
+Cross demand is partitioned by directed tile pair: up to four deterministic
+road routes calibrate each partition's distance and time factors, reducing the
+full NEC cross search from 57,531 paths to at most 4,348 representative paths.
+
+### On-demand driving-route rendering
+
+The NEC consumer also serves the game's native
+`map://paths/<city>/<popId>` request for `nec-native-pop-*` and
+`nec-cross-pop-*` cohorts. Native pop details and the cross-demand viewer share
+one asynchronous route-path module. It loads generated `roads.geojson.gz`
+partitions lazily, routes in a Web Worker with the same 85/50/30 km/h effective
+speeds, and caches the two most recent road graphs.
+
+In-tile requests start with the active tile. Cross-tile requests use the
+shortest neighbor chain from the NEC tile catalog and expand that corridor by
+one tile only if the first graph is disconnected. Routes over 250 km, failed
+snaps, disconnected graphs, and excessive detours retain the geometric
+fallback. No route graph is built until a player opens a pop path.
 
 ## Mod scaffold
 
@@ -88,4 +128,4 @@ npm run install
 Pop-Location
 ```
 
-`npm run build` waits until every selected tile has both its demand package and its Depot map package. It writes staged packages to `generated/mod/tiles/`; it does not install anything into the game. `npm run install` is the explicit install step and uses port `8799` for the NEC PMTiles service so it does not collide with the NY canary service on `8798`.
+`npm run build` waits until every selected tile has both its demand package and its Depot map package. It writes staged packages to `generated/mod/tiles/` and bundles `start-tile-server.ps1` plus its native PMTiles server helper into `mod/dist/`; it does not install anything into the game. `npm run install` is the explicit install step. It copies each PMTiles archive into the installed city data, launches the bundled startup script from the installed mod directory, and uses port `8799` so the NEC service does not collide with the NY canary service on `8798`.

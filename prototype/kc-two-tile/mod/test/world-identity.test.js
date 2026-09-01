@@ -165,26 +165,6 @@ test('a persisted authoritative world marker survives a native autosave id chang
   });
 });
 
-test('an explicit user-selected canonical path overrides a stale alias', async () => {
-  const storage = new Map([
-    [`${WORLD_IDENTITY_ALIAS_PREFIX}native-save`, 'old-world'],
-  ]);
-  const resolver = new WorldIdentityResolver({ storage });
-
-  const resolved = await resolver.resolve('native-save', null, {
-    selectedWorldId: 'chosen-world',
-  });
-
-  assert.deepEqual(resolved, {
-    nativeSessionId: 'native-save',
-    worldId: 'chosen-world',
-    aliased: true,
-    source: 'user-selection',
-    sourceSessionId: null,
-  });
-  assert.equal(storage.get(`${WORLD_IDENTITY_ALIAS_PREFIX}native-save`), 'chosen-world');
-});
-
 test('an aliased autosave without a public save name still requests authoritative restoration', () => {
   assert.deepEqual(worldIdentityLoadOptions({
     nativeSessionId: 'new-autosave-id',

@@ -13,11 +13,20 @@ test('persists the world handoff and changes city through the mounted data route
   const router = { state: { location: { pathname: '/game' } }, navigate: (to) => destinations.push(to) };
   const navigation = new HashCityNavigationAdapter({ router, sessionStorage, tileIds: ['KCW', 'KCE'] });
 
-  navigation.navigateTo({ worldId: 'world-1', tileId: 'KCE' });
+  navigation.navigateTo({
+    worldId: 'world-1',
+    tileId: 'KCE',
+    from: 'KCW',
+    transitionId: 'world-1:KCW->KCE',
+  });
 
   assert.deepEqual(destinations, ['/game?city=KCE']);
-  assert.deepEqual(navigation.pending(), { worldId: 'world-1', tileId: 'KCE' });
-  assert.deepEqual(navigation.pendingFor('KCE'), { worldId: 'world-1', tileId: 'KCE' });
+  assert.deepEqual(navigation.pending(), {
+    worldId: 'world-1', tileId: 'KCE', from: 'KCW', transitionId: 'world-1:KCW->KCE',
+  });
+  assert.deepEqual(navigation.pendingFor('KCE'), {
+    worldId: 'world-1', tileId: 'KCE', from: 'KCW', transitionId: 'world-1:KCW->KCE',
+  });
   navigation.complete({ worldId: 'world-1', tileId: 'KCE' });
   assert.equal(values.has(PENDING_KEY), false);
 });

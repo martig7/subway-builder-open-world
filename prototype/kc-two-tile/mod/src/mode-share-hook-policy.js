@@ -1,5 +1,5 @@
 export const STRUCTURAL_NETWORK_HOOKS = Object.freeze([
-  'onRouteCreated', 'onRouteDeleted', 'onScheduleChange',
+  'onScheduleChange',
 ]);
 
 export const FARE_HOOKS = Object.freeze([
@@ -7,13 +7,11 @@ export const FARE_HOOKS = Object.freeze([
 ]);
 
 /**
- * Register only service-level invalidations. Blueprint station/track edits do
- * not carry passengers until a route or schedule uses them, while native
- * trains spawn/despawn as part of ordinary timetable operation.
+ * Register only public schedule/fare invalidations. Store-action observation
+ * classifies committed route-stop changes; route creation/deletion hooks are
+ * too broad because blank route design does not change passenger service.
  */
-export function registerModeShareInvalidationHooks(hooks, { routeChanged, scheduleChanged, fareChanged }) {
-  hooks?.onRouteCreated?.(routeChanged);
-  hooks?.onRouteDeleted?.(routeChanged);
+export function registerModeShareInvalidationHooks(hooks, { scheduleChanged, fareChanged }) {
   hooks?.onScheduleChange?.(scheduleChanged);
   for (const hookName of FARE_HOOKS) hooks?.[hookName]?.(fareChanged);
 }

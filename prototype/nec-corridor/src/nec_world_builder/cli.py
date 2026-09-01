@@ -9,6 +9,7 @@ from .catalog import build_catalog, write_catalog
 from .demand import build_nec_demand, default_nec_source_files
 from .inventory import inventory_lodes
 from .metrics import write_tile_metrics
+from .road_routing import enrich_nec_driving
 from .selection import load_selection
 
 
@@ -27,6 +28,7 @@ DEFAULT_ACQUISITION_REPORT = DEFAULT_RAW_DIR / "acquisition-report.json"
 DEFAULT_RESOLVED_LOCK = ROOT / "config" / "sources.lock.resolved.json"
 DEFAULT_DEMAND = ROOT / "generated" / "demand"
 DEFAULT_DEMAND_DB = ROOT / "generated" / "work" / "nec-demand.sqlite"
+DEFAULT_MAPS = ROOT / "generated" / "maps" / "tiles"
 
 
 def _state_path(value: str) -> tuple[str, str]:
@@ -78,6 +80,17 @@ def main(argv: list[str] | None = None) -> int:
     demand.add_argument("--work-database", default=str(DEFAULT_DEMAND_DB))
     demand.add_argument("--tile", action="append", dest="tiles")
 
+    driving = commands.add_parser("enrich-driving", help="splice generated-road driving times into existing demand packages")
+    driving.add_argument("--catalog", default=str(DEFAULT_CATALOG))
+    driving.add_argument("--maps", default=str(DEFAULT_MAPS))
+    driving.add_argument("--demand", default=str(DEFAULT_DEMAND))
+    driving.add_argument("--maximum-edge-metres", type=float, default=250.0)
+    driving.add_argument("--max-routed-direct-km", type=float, default=250.0)
+    driving.add_argument("--max-snap-metres", type=float, default=5_000.0)
+    driving.add_argument("--max-detour-ratio", type=float, default=3.0)
+    driving.add_argument("--cross-samples-per-tile-pair", type=int, default=4)
+    driving.add_argument("--no-resume", action="store_true", help="discard any transactional routing checkpoints")
+
     acquire = commands.add_parser("acquire-sources")
     acquire.add_argument("--config", default=str(DEFAULT_CONFIG), help="world config used for the default state list")
     acquire.add_argument("--lock", default=str(DEFAULT_LOCK))
@@ -90,6 +103,22 @@ def main(argv: list[str] | None = None) -> int:
     acquire.add_argument("--resolved-lock-out", default=str(DEFAULT_RESOLVED_LOCK))
 
     args = parser.parse_args(argv)
+
+    if args.command == "enrich-driving":
+        report = enrich_nec_driving(
+            args.catalog,
+            args.maps,
+            args.demand,
+            maximum_edge_metres=args.maximum_edge_metres,
+            max_routed_direct_metres=args.max_routed_direct_km * 1_000,
+            max_snap_metres=args.max_snap_metres,
+            max_detour_ratio=args.max_detour_ratio,
+            cross_samples_per_tile_pair=args.cross_samples_per_tile_pair,
+            resume=not args.no_resume,
+            progress=lambda message: print(message, flush=True),
+        )
+        print(json.dumps({"valid": True, "status": report["status"], "routes": report["routes"], "out": args.demand}, sort_keys=True))
+        return 0
 
     if args.command == "acquire-sources":
         config = json.loads(Path(args.config).read_text(encoding="utf-8"))

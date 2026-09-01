@@ -2,7 +2,7 @@
   "buckets": [
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6539,
+      "defaultTravelSeconds": 3584,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RM02",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-3df5d77aa261c85514fbbca1",
@@ -11,7 +11,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18138,
+      "defaultTravelSeconds": 9733,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RM03",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-5976f954393db96dc6fc71a8",
@@ -20,7 +20,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5741,
+      "defaultTravelSeconds": 2961,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RP00",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-ce9efdbfbea435a713b08546",
@@ -29,7 +29,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18747,
+      "defaultTravelSeconds": 10800,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RP01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-bdff5bdb07159696ad148a4e",
@@ -38,7 +38,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3601,
+      "defaultTravelSeconds": 2610,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RM01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-d5bdd3630a24f41dae7bd936",
@@ -47,7 +47,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8619,
+      "defaultTravelSeconds": 4265,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RM02",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-1b774317524fd91281fa36db",
@@ -56,7 +56,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20563,
+      "defaultTravelSeconds": 9994,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RM03",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-4d88a5bd3344825ce9a18474",
@@ -65,7 +65,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9694,
+      "defaultTravelSeconds": 4898,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RP00",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-e566a4d47983084c99f765cd",
@@ -74,7 +74,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19442,
+      "defaultTravelSeconds": 9153,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RP01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-9e77efab3ff4c254912e80b2",
@@ -83,7 +83,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15928,
+      "defaultTravelSeconds": 7188,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-010b65cfb17c150971bd2f38",
@@ -92,7 +92,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21631,
+      "defaultTravelSeconds": 10554,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RM02",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-41646ba277a29960d44250b4",
@@ -101,7 +101,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27503,
+      "defaultTravelSeconds": 12937,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RM03",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-af0f8f46efdaa3705f8833dc",
@@ -110,7 +110,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19275,
+      "defaultTravelSeconds": 9926,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-12456515c5bca3e5d61b48c6",
@@ -119,7 +119,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23100,
+      "defaultTravelSeconds": 9899,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-3d36896bbf3cd51b659e2b82",
@@ -128,7 +128,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27074,
+      "defaultTravelSeconds": 17321,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-6be367545e276cf2b486f7b1",
@@ -137,7 +137,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 31829,
+      "defaultTravelSeconds": 31830,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-5b25454d280d6ac0675b40f4",
@@ -146,7 +146,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5797,
+      "defaultTravelSeconds": 3649,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP00_RM01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-ade6b7ddd237421ccddc66c0",
@@ -155,7 +155,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9690,
+      "defaultTravelSeconds": 4361,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-5a0120d5fc8c36e1a7b94254",
@@ -164,7 +164,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21864,
+      "defaultTravelSeconds": 10145,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP00_RP01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-0c1fe3bcce56e44159638cc4",
@@ -173,7 +173,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 34214,
+      "defaultTravelSeconds": 31516,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP00_RP02",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-90f166a0ec1167f8aa25b369",
@@ -182,7 +182,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19821,
+      "defaultTravelSeconds": 9076,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP01_RP00",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-291164a35ae4588626bdbe23",
@@ -191,7 +191,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 30272,
+      "defaultTravelSeconds": 26767,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP01_RP01",
       "homeTileId": "NEC_CM01_RM01",
       "id": "nec-cross-flow-bc3719ce018df47ab455f557",
@@ -299,7 +299,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7554,
+      "defaultTravelSeconds": 3520,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RM02",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-bd51ac0283f3a1cbca1a2e17",
@@ -308,7 +308,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 1945,
+      "defaultTravelSeconds": 1229,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM01_RM03",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-a73292e9d0279463cc60d427",
@@ -317,7 +317,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17414,
+      "defaultTravelSeconds": 8014,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM01_RP00",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-33fde55e8c2f1bc6395a2f93",
@@ -326,7 +326,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28318,
+      "defaultTravelSeconds": 13320,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM01_RP01",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-a2d2ea26e516aa7f400d4be4",
@@ -335,7 +335,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8484,
+      "defaultTravelSeconds": 4481,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RM01",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-4e2cde34bacc8c42a2224bdd",
@@ -344,7 +344,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4853,
+      "defaultTravelSeconds": 3456,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RM02",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-6aa3c9e5f7dfcdab1eb85d4c",
@@ -353,7 +353,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3991,
+      "defaultTravelSeconds": 2416,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RM03",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-889fa552b61112e1d32b7b51",
@@ -362,7 +362,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19763,
+      "defaultTravelSeconds": 9286,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RP00",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-dfe209f25043695567caf475",
@@ -380,7 +380,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21068,
+      "defaultTravelSeconds": 9218,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM03_RM01",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-4f71293ab23a6a4b7f232709",
@@ -389,7 +389,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18998,
+      "defaultTravelSeconds": 9139,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM03_RM02",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-9b029b6914adb0a758e97a7b",
@@ -398,7 +398,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21007,
+      "defaultTravelSeconds": 13620,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM03_RM03",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-325e0a0164fed8c1f862ab6f",
@@ -416,7 +416,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27187,
+      "defaultTravelSeconds": 13359,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM04_RM01",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-7b1d69c6d3cda8e0879a48e6",
@@ -425,7 +425,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25036,
+      "defaultTravelSeconds": 13692,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM04_RM02",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-fd2f6111b8fb7941824aa21a",
@@ -434,7 +434,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27531,
+      "defaultTravelSeconds": 14247,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-99631680bd3740666925c478",
@@ -443,7 +443,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10654,
+      "defaultTravelSeconds": 5045,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CP00_RM01",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-603a92413403c0cb5440703a",
@@ -452,7 +452,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19343,
+      "defaultTravelSeconds": 8532,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CP00_RP00",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-2939251e5791dcd3208a1c64",
@@ -479,7 +479,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26195,
+      "defaultTravelSeconds": 18391,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CP01_RP00",
       "homeTileId": "NEC_CM01_RM02",
       "id": "nec-cross-flow-c592bc7101a823c34425aeb0",
@@ -596,7 +596,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19098,
+      "defaultTravelSeconds": 10061,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RM03",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-40b96d6c2027de3ae684e34a",
@@ -605,7 +605,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 1750,
+      "defaultTravelSeconds": 1493,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM01_RM03",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-47600fdd5dd0889ee608b58b",
@@ -614,7 +614,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28341,
+      "defaultTravelSeconds": 15058,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM01_RP00",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-004d70dfda660c0a32ee06c2",
@@ -632,7 +632,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15583,
+      "defaultTravelSeconds": 7202,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM02_RM01",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-68bcd0fb800f433c689e2741",
@@ -641,7 +641,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8061,
+      "defaultTravelSeconds": 3734,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM02_RM02",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-f1aaf906b1b26f8100b0f909",
@@ -650,7 +650,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3879,
+      "defaultTravelSeconds": 2741,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM02_RM03",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-daf6decdbd5c56f9a8d4d1cd",
@@ -659,7 +659,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28697,
+      "defaultTravelSeconds": 13552,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM02_RP00",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-f7a9db969ed936aa337e1d65",
@@ -677,7 +677,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25104,
+      "defaultTravelSeconds": 12460,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM03_RM01",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-586e3bc8f7b68e2c17f1cfdc",
@@ -686,7 +686,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18399,
+      "defaultTravelSeconds": 9069,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM03_RM02",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-b1bc807e8a61ed72e6a81d16",
@@ -722,7 +722,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23073,
+      "defaultTravelSeconds": 10701,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM04_RM02",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-617b5925bb5cfbf3a68b304e",
@@ -731,7 +731,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22142,
+      "defaultTravelSeconds": 11495,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM04_RM03",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-32d0db9abf07cdb68a95cdf2",
@@ -740,7 +740,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21877,
+      "defaultTravelSeconds": 13602,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CP00_RM01",
       "homeTileId": "NEC_CM01_RM03",
       "id": "nec-cross-flow-a551d685d22bcddbfa03bd3b",
@@ -884,7 +884,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5987,
+      "defaultTravelSeconds": 3561,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RP00",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-fd06b5da19a5936b3a2dee05",
@@ -893,7 +893,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17906,
+      "defaultTravelSeconds": 8461,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM01_RP00",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-5605ac65039936c6af837763",
@@ -902,7 +902,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28555,
+      "defaultTravelSeconds": 14931,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM01_RP00",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-d9a12b36fe020e7e1bf81e7d",
@@ -911,7 +911,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3762,
+      "defaultTravelSeconds": 2359,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM01_RP01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-421d49bb99e2efd568cfaa51",
@@ -920,7 +920,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10427,
+      "defaultTravelSeconds": 6310,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RM01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-58adba371fe4f9742066fd6c",
@@ -929,7 +929,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20273,
+      "defaultTravelSeconds": 9901,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RM02",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-1296e45a94e478ab9b5f50b9",
@@ -947,7 +947,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3750,
+      "defaultTravelSeconds": 2417,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RP00",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-64084045ea7c73523e342b08",
@@ -956,7 +956,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9237,
+      "defaultTravelSeconds": 5347,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RP01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-ac03fbfef8b4b8dd1924f827",
@@ -965,7 +965,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18489,
+      "defaultTravelSeconds": 8483,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM03_RM01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-e491d3ad09b9c2820aef6117",
@@ -992,7 +992,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15513,
+      "defaultTravelSeconds": 8023,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM03_RP00",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-cfd9a8d02f849c8d391cddba",
@@ -1001,7 +1001,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26046,
+      "defaultTravelSeconds": 12400,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM04_RM01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-96a13fcbf78533ac83a123fa",
@@ -1028,7 +1028,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7547,
+      "defaultTravelSeconds": 4039,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RM01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-8d7bdddacb2fe4585fcbe092",
@@ -1037,7 +1037,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4665,
+      "defaultTravelSeconds": 2497,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RP00",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-ec66a54dc3e300209226afc7",
@@ -1046,7 +1046,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7332,
+      "defaultTravelSeconds": 4030,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RP01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-002af185249a3a4fafa5d66c",
@@ -1055,7 +1055,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24231,
+      "defaultTravelSeconds": 12310,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RP02",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-8d6ad64e60df79511d7fbe5a",
@@ -1064,7 +1064,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14305,
+      "defaultTravelSeconds": 7071,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP01_RP00",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-23c2db25fe4028be6b34a2e4",
@@ -1073,7 +1073,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21226,
+      "defaultTravelSeconds": 10880,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-bc187a0ad8364049b3e8a6f1",
@@ -1082,7 +1082,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28672,
+      "defaultTravelSeconds": 14690,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP01_RP02",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-73c9b248ff691cfcda6da4a6",
@@ -1100,7 +1100,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28272,
+      "defaultTravelSeconds": 12865,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CM01_RP00",
       "id": "nec-cross-flow-52662ea32bc67cbcd6f07554",
@@ -1181,7 +1181,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19043,
+      "defaultTravelSeconds": 11406,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM01_RP01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-0d8f3bbcd0b7bf8bebe0db0b",
@@ -1199,7 +1199,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4067,
+      "defaultTravelSeconds": 4121,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM01_RP01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-5e9f80266768bae66d6e80c7",
@@ -1208,7 +1208,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19520,
+      "defaultTravelSeconds": 11686,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM02_RM01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-8f5ee5ce5437faf2d9787419",
@@ -1235,7 +1235,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8410,
+      "defaultTravelSeconds": 6681,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM02_RP00",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-19e18b9d1421ada1ee06504d",
@@ -1244,7 +1244,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6084,
+      "defaultTravelSeconds": 5405,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM02_RP01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-68a1f4cbb6085d8b4faca334",
@@ -1253,7 +1253,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23920,
+      "defaultTravelSeconds": 13756,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-fed21861d2ea68d8e5181404",
@@ -1280,7 +1280,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17227,
+      "defaultTravelSeconds": 10781,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-3f6bda3139443991bd5d537c",
@@ -1307,7 +1307,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19575,
+      "defaultTravelSeconds": 11327,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RM01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-7fc02b6885acd44c779f1532",
@@ -1316,7 +1316,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10368,
+      "defaultTravelSeconds": 5248,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RP00",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-48ae142312048f558e5622f1",
@@ -1325,7 +1325,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4331,
+      "defaultTravelSeconds": 2492,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RP01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-2063a8f6de52c574414f0768",
@@ -1334,7 +1334,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15604,
+      "defaultTravelSeconds": 7981,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RP02",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-a79eaaa58156c24e60305fcd",
@@ -1343,7 +1343,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17156,
+      "defaultTravelSeconds": 9672,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP01_RP00",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-05f0f0f155bb45f8f5ac999d",
@@ -1352,7 +1352,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17295,
+      "defaultTravelSeconds": 9484,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP01_RP01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-29ddbb89fee8b6d3b0925a7b",
@@ -1361,7 +1361,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19448,
+      "defaultTravelSeconds": 11093,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP01_RP02",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-9678cae7ab3839efd94df42b",
@@ -1370,7 +1370,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23471,
+      "defaultTravelSeconds": 13053,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP02_RP00",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-d4d4d3658fb1263a9ccf6896",
@@ -1379,7 +1379,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24532,
+      "defaultTravelSeconds": 12045,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP02_RP01",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-c67b7bebeabf019865cd9860",
@@ -1388,7 +1388,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28819,
+      "defaultTravelSeconds": 14903,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CM01_RP01",
       "id": "nec-cross-flow-1c8f8d25820f8bff5087fbd9",
@@ -1460,7 +1460,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3652,
+      "defaultTravelSeconds": 2720,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-71451797994a82d1a0e7d33a",
@@ -1469,7 +1469,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8413,
+      "defaultTravelSeconds": 4127,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-fa0e3fdc1bd6d923bbf059ff",
@@ -1478,7 +1478,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15445,
+      "defaultTravelSeconds": 7051,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM02_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-e3eafe3e5e5b7631cc23210a",
@@ -1487,7 +1487,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11065,
+      "defaultTravelSeconds": 5478,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-0485ca512b63f7522d9ab78d",
@@ -1496,7 +1496,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19654,
+      "defaultTravelSeconds": 11855,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM02_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-163b1195fc2d26d4c1345a74",
@@ -1505,7 +1505,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4055,
+      "defaultTravelSeconds": 2268,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RM02",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-adc1e8c5f71dac95534f3b04",
@@ -1514,7 +1514,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15416,
+      "defaultTravelSeconds": 7027,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RM03",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-af1a5794e85dd0c6b7f681f0",
@@ -1523,7 +1523,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5589,
+      "defaultTravelSeconds": 3267,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-0065d2fb609925cd98dbbdc2",
@@ -1532,7 +1532,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17532,
+      "defaultTravelSeconds": 9147,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-57d1b7e3c12a5db727446b30",
@@ -1541,7 +1541,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6887,
+      "defaultTravelSeconds": 3868,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-a17e3f29115c8e8009aebe05",
@@ -1550,7 +1550,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11341,
+      "defaultTravelSeconds": 5807,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RM02",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-84a6026445972307c93361d2",
@@ -1559,7 +1559,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19664,
+      "defaultTravelSeconds": 9655,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RM03",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-c4bcdf9b6ae07bb4276fea8a",
@@ -1568,7 +1568,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13260,
+      "defaultTravelSeconds": 7669,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-6b827c07f759289a9cf9b153",
@@ -1577,7 +1577,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16815,
+      "defaultTravelSeconds": 7564,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-da78cdf19bd51aad72636efc",
@@ -1586,7 +1586,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19928,
+      "defaultTravelSeconds": 10115,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-1f4d70b3029911ccc9e64589",
@@ -1595,7 +1595,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26679,
+      "defaultTravelSeconds": 11882,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-e7477e107c048e230cba3023",
@@ -1604,7 +1604,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13925,
+      "defaultTravelSeconds": 6695,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP00_RM01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-343e4fbbcb5b9205434f27b9",
@@ -1613,7 +1613,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18213,
+      "defaultTravelSeconds": 8834,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-3d23da309c921113520cd2e9",
@@ -1622,7 +1622,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26889,
+      "defaultTravelSeconds": 12803,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP00_RP01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-48d06567d55fb7b77e756b4d",
@@ -1631,7 +1631,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 38335,
+      "defaultTravelSeconds": 38334,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP00_RP02",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-2b7d7d527eba4f7d698b64d6",
@@ -1640,7 +1640,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28032,
+      "defaultTravelSeconds": 19586,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP01_RP00",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-d445fdb13be84b426fa9ab6d",
@@ -1649,7 +1649,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 34159,
+      "defaultTravelSeconds": 34158,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP01_RP01",
       "homeTileId": "NEC_CM02_RM01",
       "id": "nec-cross-flow-7b9a73c4f0c6519b7e90ba98",
@@ -1757,7 +1757,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8924,
+      "defaultTravelSeconds": 4296,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RM02",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-40dcacdcbc8a9551e58880af",
@@ -1766,7 +1766,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4258,
+      "defaultTravelSeconds": 2970,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RM02",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-dd62f30731cc76ff14875d78",
@@ -1775,7 +1775,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6830,
+      "defaultTravelSeconds": 3591,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM02_RM02",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-5db612f356ed5154f96633fe",
@@ -1784,7 +1784,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19894,
+      "defaultTravelSeconds": 9639,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RM02",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-804f724942a91bc6727f98ce",
@@ -1802,7 +1802,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4480,
+      "defaultTravelSeconds": 2428,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RM02",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-5cab6025bce10a88744ae8a1",
@@ -1811,7 +1811,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5283,
+      "defaultTravelSeconds": 2916,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM02_RM03",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-76d9e28a2b185cb11cd15262",
@@ -1820,7 +1820,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19626,
+      "defaultTravelSeconds": 9307,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-9c729e9b9797210261a480d8",
@@ -1829,7 +1829,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28716,
+      "defaultTravelSeconds": 13390,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-ca6b4d32d82a08105db21f9b",
@@ -1838,7 +1838,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11217,
+      "defaultTravelSeconds": 6482,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RM01",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-84ba1be625c6867611919c3e",
@@ -1847,7 +1847,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6976,
+      "defaultTravelSeconds": 3394,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RM02",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-ac9841b058bb37bae3fddd23",
@@ -1856,7 +1856,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11438,
+      "defaultTravelSeconds": 7166,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RM03",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-f5b5f00a1e5597d4f948482a",
@@ -1865,7 +1865,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24628,
+      "defaultTravelSeconds": 12660,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RP00",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-fafdea07511cf0010a8dbc26",
@@ -1874,7 +1874,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18559,
+      "defaultTravelSeconds": 9866,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM04_RM01",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-602b7b62f9d48ff75fa3f081",
@@ -1883,7 +1883,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14186,
+      "defaultTravelSeconds": 6702,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM04_RM02",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-6e38c521a3fcb4dec5d6514a",
@@ -1892,7 +1892,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18187,
+      "defaultTravelSeconds": 8107,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-1e97b66d1a903ce62d718ee9",
@@ -1901,7 +1901,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16790,
+      "defaultTravelSeconds": 8403,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CP00_RM01",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-068f56e0d019bb44bbd08718",
@@ -1910,7 +1910,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24679,
+      "defaultTravelSeconds": 11637,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CP00_RP00",
       "homeTileId": "NEC_CM02_RM02",
       "id": "nec-cross-flow-4d378170480b9a5fed3a8188",
@@ -2045,7 +2045,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20579,
+      "defaultTravelSeconds": 9821,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RM03",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-d2d070bbdcde2ee5fdea365b",
@@ -2054,7 +2054,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4324,
+      "defaultTravelSeconds": 2739,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RM03",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-c740223a089c3dfbc28bf602",
@@ -2063,7 +2063,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3891,
+      "defaultTravelSeconds": 2063,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM02_RM03",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-b8dfd6a29d94fa95ff9f187c",
@@ -2090,7 +2090,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15485,
+      "defaultTravelSeconds": 6497,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RM03",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-0105f1681956956914d08526",
@@ -2099,7 +2099,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5674,
+      "defaultTravelSeconds": 3748,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM02_RM03",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-7d2f066c2f60d58d7f346309",
@@ -2126,7 +2126,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23197,
+      "defaultTravelSeconds": 11563,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM03_RM01",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-3f771e3303e47dc4b0ac24c6",
@@ -2135,7 +2135,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13733,
+      "defaultTravelSeconds": 6747,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM03_RM02",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-098f533e3440e7922a4d83be",
@@ -2144,7 +2144,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9902,
+      "defaultTravelSeconds": 8865,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM03_RM03",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-9e1e0d20def6b2d25bc5e2b8",
@@ -2162,7 +2162,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26392,
+      "defaultTravelSeconds": 13054,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM04_RM01",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-1ad688da73c8d72a1a44226d",
@@ -2171,7 +2171,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18634,
+      "defaultTravelSeconds": 9986,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM04_RM02",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-280432cb017740d76a180526",
@@ -2180,7 +2180,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19208,
+      "defaultTravelSeconds": 12758,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM04_RM03",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-88ea1aecfbb56f03638fb360",
@@ -2189,7 +2189,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25987,
+      "defaultTravelSeconds": 13030,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CP00_RM01",
       "homeTileId": "NEC_CM02_RM03",
       "id": "nec-cross-flow-fac40143a9c25873b4cf61ea",
@@ -2324,7 +2324,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10187,
+      "defaultTravelSeconds": 5038,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-6b5a83681d1b860c1f8e02a6",
@@ -2333,7 +2333,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19840,
+      "defaultTravelSeconds": 8994,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-76e129b7a29c870d86b02d6d",
@@ -2351,7 +2351,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4246,
+      "defaultTravelSeconds": 2440,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-f94772b631c8895f189a7f4c",
@@ -2360,7 +2360,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7424,
+      "defaultTravelSeconds": 5064,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-c920bf563fc813020b9e87e0",
@@ -2369,7 +2369,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6991,
+      "defaultTravelSeconds": 3510,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-2ba8e9ace073bf33a9d5d3e2",
@@ -2378,7 +2378,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18911,
+      "defaultTravelSeconds": 9635,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM02_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-5d7f7df70b15e77e6e40c603",
@@ -2396,7 +2396,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4143,
+      "defaultTravelSeconds": 3302,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-a39e0bfff6965c38e3435328",
@@ -2405,7 +2405,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12969,
+      "defaultTravelSeconds": 7084,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM03_RM01",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-80f6ecc6e9d12fd359c4d82f",
@@ -2414,7 +2414,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25236,
+      "defaultTravelSeconds": 15607,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM03_RM02",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-15e25c05929388a919690e30",
@@ -2432,7 +2432,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6141,
+      "defaultTravelSeconds": 3393,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM03_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-40cb6e5499007aa79d152c75",
@@ -2441,7 +2441,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20254,
+      "defaultTravelSeconds": 9016,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM04_RM01",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-c7652b4072e8c757bafabdc4",
@@ -2450,7 +2450,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29630,
+      "defaultTravelSeconds": 20766,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM04_RM02",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-fdf7c803c6776e997d90897c",
@@ -2468,7 +2468,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15478,
+      "defaultTravelSeconds": 8058,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP00_RM01",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-9a42a492c7fe9c3693dcb881",
@@ -2477,7 +2477,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15125,
+      "defaultTravelSeconds": 7212,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP00_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-673192e5fad6b86158b0b598",
@@ -2486,7 +2486,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17660,
+      "defaultTravelSeconds": 8647,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP00_RP01",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-733c623629d4f6110d5728a1",
@@ -2495,7 +2495,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28993,
+      "defaultTravelSeconds": 13953,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP00_RP02",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-d97a8112537d459680415c89",
@@ -2504,7 +2504,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23659,
+      "defaultTravelSeconds": 11536,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP01_RP00",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-c06fd1ab348d0cd79ea212cb",
@@ -2513,7 +2513,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 30085,
+      "defaultTravelSeconds": 25446,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CM02_RP00",
       "id": "nec-cross-flow-2c26f533f114720616776e5c",
@@ -2621,7 +2621,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19975,
+      "defaultTravelSeconds": 9916,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-22916b3e6cfdfdfb562c1b8b",
@@ -2648,7 +2648,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10964,
+      "defaultTravelSeconds": 6343,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-8dd0194a7bc8b4ebe502a8f8",
@@ -2657,7 +2657,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4821,
+      "defaultTravelSeconds": 4122,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-016d7e8d2f244a96ad165a71",
@@ -2666,7 +2666,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18313,
+      "defaultTravelSeconds": 9527,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-9693b11a9608ff35aab04d19",
@@ -2693,7 +2693,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4537,
+      "defaultTravelSeconds": 3444,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM02_RP01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-4659021593477294e31f3d73",
@@ -2702,7 +2702,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20212,
+      "defaultTravelSeconds": 10077,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-23cd0b0dd35c734579bde01e",
@@ -2729,7 +2729,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12045,
+      "defaultTravelSeconds": 6418,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-95b7766d3a39f7a09afd9d4c",
@@ -2738,7 +2738,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25825,
+      "defaultTravelSeconds": 12358,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-9eb0e08ee33e159bd215bcfe",
@@ -2765,7 +2765,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24689,
+      "defaultTravelSeconds": 12145,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RM01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-3296a2f5bd32108394999d58",
@@ -2774,7 +2774,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23575,
+      "defaultTravelSeconds": 12174,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RP00",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-72330243579ed09ffc9bc3a2",
@@ -2783,7 +2783,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18591,
+      "defaultTravelSeconds": 10155,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RP01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-6a84ae2d32dc5d700ef74cae",
@@ -2792,7 +2792,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21884,
+      "defaultTravelSeconds": 13616,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RP02",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-94d491b0463476e7d04e7d2a",
@@ -2801,7 +2801,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 30478,
+      "defaultTravelSeconds": 26010,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP01_RP00",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-fb1462abf307ab7046470608",
@@ -2810,7 +2810,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29179,
+      "defaultTravelSeconds": 23349,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP01_RP01",
       "homeTileId": "NEC_CM02_RP01",
       "id": "nec-cross-flow-462b9bba885bc4645168b71c",
@@ -2918,7 +2918,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15378,
+      "defaultTravelSeconds": 6752,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-210415d9fbfddb3646b1bc3b",
@@ -2927,7 +2927,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20438,
+      "defaultTravelSeconds": 10350,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-3add1f22dc50d78e03aca13c",
@@ -2936,7 +2936,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24729,
+      "defaultTravelSeconds": 12068,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-fa6f97f97482cce38e3e71a5",
@@ -2945,7 +2945,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18506,
+      "defaultTravelSeconds": 9107,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-981da1076ed4db5946a1437f",
@@ -2954,7 +2954,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24405,
+      "defaultTravelSeconds": 14106,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-7757d2bf8e498b9facbdef8c",
@@ -2963,7 +2963,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6924,
+      "defaultTravelSeconds": 3273,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-352340b9aa860efb2cf8ec26",
@@ -2972,7 +2972,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7886,
+      "defaultTravelSeconds": 5542,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-00864e19b4d95f372d2051c7",
@@ -2981,7 +2981,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22157,
+      "defaultTravelSeconds": 11473,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-aab7e11c9a615539536c2578",
@@ -2990,7 +2990,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13195,
+      "defaultTravelSeconds": 6150,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-b6c71ac96b2fd1d8fa3a67fc",
@@ -2999,7 +2999,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20285,
+      "defaultTravelSeconds": 9564,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CM03_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-33c14123b00cfeceae1574b8",
@@ -3008,7 +3008,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5956,
+      "defaultTravelSeconds": 3413,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-6915aef2a4b68dc5ee763435",
@@ -3017,7 +3017,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17665,
+      "defaultTravelSeconds": 8525,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-e05f90ff9207278635622d85",
@@ -3026,7 +3026,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9547,
+      "defaultTravelSeconds": 6971,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-a3fedbd9c31c4503f0899de2",
@@ -3035,7 +3035,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4850,
+      "defaultTravelSeconds": 2829,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-1af584e2a0ae61a6d37b6255",
@@ -3044,7 +3044,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10718,
+      "defaultTravelSeconds": 6084,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-200c6efeb405339c3ac25400",
@@ -3053,7 +3053,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20726,
+      "defaultTravelSeconds": 10220,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-1029eff7daa7a431061564d5",
@@ -3062,7 +3062,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24512,
+      "defaultTravelSeconds": 10925,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CP00_RM01",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-c2b6e8cdcb9e8feda3dc6a51",
@@ -3071,7 +3071,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27745,
+      "defaultTravelSeconds": 19278,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CM03_RM01",
       "id": "nec-cross-flow-8d7788244651f0b2b0f5bea9",
@@ -3206,7 +3206,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20528,
+      "defaultTravelSeconds": 10014,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-2608068f88f30f35612c8b79",
@@ -3215,7 +3215,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19010,
+      "defaultTravelSeconds": 10142,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-3b5e76d9482604f7e31b19c7",
@@ -3224,7 +3224,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18851,
+      "defaultTravelSeconds": 9395,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-06d24948000aa3a7af1957af",
@@ -3233,7 +3233,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29376,
+      "defaultTravelSeconds": 20403,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-5f5784f4f083fd92f8ab0496",
@@ -3251,7 +3251,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12114,
+      "defaultTravelSeconds": 5681,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-aadcf127ab34141d890e1ded",
@@ -3260,7 +3260,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5666,
+      "defaultTravelSeconds": 3560,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-98929efcf0b19a62fa8989ba",
@@ -3269,7 +3269,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14172,
+      "defaultTravelSeconds": 8797,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-4c08cfd3818ea04bfb4fc336",
@@ -3278,7 +3278,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23302,
+      "defaultTravelSeconds": 11826,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-f5d8918573e652f2baff1ff1",
@@ -3296,7 +3296,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6392,
+      "defaultTravelSeconds": 5452,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM03_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-bdc52fb8bb3f6cdd2c7a5f2c",
@@ -3305,7 +3305,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7026,
+      "defaultTravelSeconds": 3538,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-1a9dee4550778549cb9e7e28",
@@ -3314,7 +3314,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22279,
+      "defaultTravelSeconds": 11276,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-b22c9d32aaebb6640206715b",
@@ -3323,7 +3323,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10863,
+      "defaultTravelSeconds": 5610,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM04_RM01",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-19f11b7f59efa8fb79798e98",
@@ -3332,7 +3332,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3646,
+      "defaultTravelSeconds": 2164,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM04_RM02",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-ce9636ccdbdf0b5c8325895a",
@@ -3341,7 +3341,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6782,
+      "defaultTravelSeconds": 3338,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-45925f46f935492249c90fdd",
@@ -3350,7 +3350,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28921,
+      "defaultTravelSeconds": 17805,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CP00_RM01",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-da326a4a3e9df2bba1dbc37e",
@@ -3467,7 +3467,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 78195,
+      "defaultTravelSeconds": 78194,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CP03_RP03",
       "homeTileId": "NEC_CM03_RM02",
       "id": "nec-cross-flow-7d88245fe7b6ea0fb43d1bd6",
@@ -3503,7 +3503,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26718,
+      "defaultTravelSeconds": 15907,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-ea9dd3305a0554230f2ac4c3",
@@ -3512,7 +3512,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21016,
+      "defaultTravelSeconds": 14234,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-23cc065abc08d9495343a216",
@@ -3521,7 +3521,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15501,
+      "defaultTravelSeconds": 10236,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-c38355bb789c3d2c2339116c",
@@ -3548,7 +3548,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21182,
+      "defaultTravelSeconds": 10234,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-05764e3d5cce0b48ff51a8e8",
@@ -3557,7 +3557,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10069,
+      "defaultTravelSeconds": 6338,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-dfb491d92738d43359189f58",
@@ -3566,7 +3566,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8503,
+      "defaultTravelSeconds": 9048,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-e0d198eea9762566909b33be",
@@ -3575,7 +3575,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 32414,
+      "defaultTravelSeconds": 32415,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-1c34e8f1634cdad038ddb210",
@@ -3593,7 +3593,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18761,
+      "defaultTravelSeconds": 10181,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-2b96b60109eeb13f7508075d",
@@ -3602,7 +3602,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6131,
+      "defaultTravelSeconds": 3143,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM03_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-3fe44fc6f4bc3285501c0ef1",
@@ -3620,7 +3620,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17639,
+      "defaultTravelSeconds": 8299,
       "gatewayId": "NECGW_NEC_CM03_RM03_NEC_CM04_RM01",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-c1eb988e87ed08ef2b721a03",
@@ -3629,7 +3629,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7320,
+      "defaultTravelSeconds": 4412,
       "gatewayId": "NECGW_NEC_CM03_RM03_NEC_CM04_RM02",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-f5c3c2b348834fdaaa577870",
@@ -3638,7 +3638,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5287,
+      "defaultTravelSeconds": 3339,
       "gatewayId": "NECGW_NEC_CM03_RM03_NEC_CM04_RM03",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-b44ccb2257e92f01343a1e3a",
@@ -3701,7 +3701,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 63889,
+      "defaultTravelSeconds": 63890,
       "gatewayId": "NECGW_NEC_CM03_RM03_NEC_CP01_RP02",
       "homeTileId": "NEC_CM03_RM03",
       "id": "nec-cross-flow-a5f96001287703e2262a0929",
@@ -3791,7 +3791,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19130,
+      "defaultTravelSeconds": 10084,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-2e5ff2d947d2b3261796e498",
@@ -3800,7 +3800,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28536,
+      "defaultTravelSeconds": 14728,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-595588f8e5cf48d625e0d013",
@@ -3818,7 +3818,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15110,
+      "defaultTravelSeconds": 7680,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-4db53e4f7141ac0af3ecc31c",
@@ -3827,7 +3827,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15991,
+      "defaultTravelSeconds": 9774,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-cd72be063036b86431898b3c",
@@ -3836,7 +3836,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12454,
+      "defaultTravelSeconds": 7284,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-dfda8c8e4d7683fc586d34f7",
@@ -3845,7 +3845,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23019,
+      "defaultTravelSeconds": 12694,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-c907f678c9989af37f141858",
@@ -3863,7 +3863,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5886,
+      "defaultTravelSeconds": 3643,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-63bec5b882a1b1e0e169b4e1",
@@ -3872,7 +3872,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11292,
+      "defaultTravelSeconds": 6450,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-9c5170bfd1839133d8c8c1c2",
@@ -3881,7 +3881,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7780,
+      "defaultTravelSeconds": 4506,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-e9a494596e83d5920f204032",
@@ -3890,7 +3890,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22815,
+      "defaultTravelSeconds": 10840,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM03_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-7d333339df20b951d65e6ea4",
@@ -3908,7 +3908,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11206,
+      "defaultTravelSeconds": 5823,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CM04_RM01",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-2f2744a9cb520cba9f986d53",
@@ -3917,7 +3917,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25210,
+      "defaultTravelSeconds": 11989,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CM04_RM02",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-fed60f85efe794146693c2dd",
@@ -3935,7 +3935,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28423,
+      "defaultTravelSeconds": 20936,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CP00_RM01",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-2fda6a96ec5474f35fc3ed61",
@@ -3944,7 +3944,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28552,
+      "defaultTravelSeconds": 21158,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CP00_RP00",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-e61719123f1190144d328d9b",
@@ -4016,7 +4016,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 52762,
+      "defaultTravelSeconds": 52761,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CP02_RP02",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-bef42afe10d5e9ad2554c650",
@@ -4025,7 +4025,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 58855,
+      "defaultTravelSeconds": 58854,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CP02_RP03",
       "homeTileId": "NEC_CM03_RP00",
       "id": "nec-cross-flow-8db476b9a504ad3e5f2af8ee",
@@ -4079,7 +4079,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23460,
+      "defaultTravelSeconds": 10828,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-2746895966e21ee5c7bd3f4f",
@@ -4088,7 +4088,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27317,
+      "defaultTravelSeconds": 12972,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-79f89cdf8fc65ef213aba9cc",
@@ -4106,7 +4106,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26776,
+      "defaultTravelSeconds": 15317,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-c571a0233c207bf31565171d",
@@ -4124,7 +4124,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18341,
+      "defaultTravelSeconds": 8167,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-83e8c4d08a3b5b3ce1536e61",
@@ -4133,7 +4133,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16525,
+      "defaultTravelSeconds": 11559,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-4bd65599e4d0d6efa4db254a",
@@ -4142,7 +4142,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25811,
+      "defaultTravelSeconds": 12500,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-53f8086993f0c4902b375542",
@@ -4151,7 +4151,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20378,
+      "defaultTravelSeconds": 9310,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-94244ddf12708ce6e1890032",
@@ -4160,7 +4160,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25668,
+      "defaultTravelSeconds": 12426,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-196721b5cf15a12bc816d98c",
@@ -4169,7 +4169,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5571,
+      "defaultTravelSeconds": 3495,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-dc8a9feeb73a76ceb42b2959",
@@ -4178,7 +4178,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10172,
+      "defaultTravelSeconds": 5345,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-7005aef09c84621a3d1c731c",
@@ -4187,7 +4187,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17657,
+      "defaultTravelSeconds": 8079,
       "gatewayId": "NECGW_NEC_CM03_RM03_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-35b420f90589db7014391eca",
@@ -4196,7 +4196,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12830,
+      "defaultTravelSeconds": 7685,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CM04_RM01",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-50026e6654be13b48d64a894",
@@ -4205,7 +4205,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5659,
+      "defaultTravelSeconds": 3853,
       "gatewayId": "NECGW_NEC_CM04_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-6a21d1fff7641d7d8813fe9f",
@@ -4214,7 +4214,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15433,
+      "defaultTravelSeconds": 8101,
       "gatewayId": "NECGW_NEC_CM04_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM01",
       "id": "nec-cross-flow-7d8b27641e877a3d5ad3cbb0",
@@ -4358,7 +4358,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26937,
+      "defaultTravelSeconds": 16049,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-e65790608dd7e1dcd7def82a",
@@ -4367,7 +4367,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25732,
+      "defaultTravelSeconds": 12781,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-85213df6c92827148e86fbde",
@@ -4376,7 +4376,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23712,
+      "defaultTravelSeconds": 11080,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-0df4682a316da7aad3cbdf93",
@@ -4403,7 +4403,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20452,
+      "defaultTravelSeconds": 9758,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-573f231a420806ac72480d11",
@@ -4412,7 +4412,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14178,
+      "defaultTravelSeconds": 7227,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-9d7cbb1e64cb9ebe3914d216",
@@ -4421,7 +4421,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20089,
+      "defaultTravelSeconds": 10362,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-219be74e846fc806d2064fd8",
@@ -4430,7 +4430,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27832,
+      "defaultTravelSeconds": 19633,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-5615ee248abb35fa21d71b52",
@@ -4448,7 +4448,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11514,
+      "defaultTravelSeconds": 5475,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-d981a51b8e19fc283569e4ef",
@@ -4457,7 +4457,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3585,
+      "defaultTravelSeconds": 2081,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-bd9c7b1f1339d95f9e30b100",
@@ -4466,7 +4466,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9076,
+      "defaultTravelSeconds": 5667,
       "gatewayId": "NECGW_NEC_CM03_RM03_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-48edfc0a433e3b7304411aa6",
@@ -4475,7 +4475,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24599,
+      "defaultTravelSeconds": 12635,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-8909e8778c3412b74f2aecd9",
@@ -4484,7 +4484,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3872,
+      "defaultTravelSeconds": 2396,
       "gatewayId": "NECGW_NEC_CM04_RM01_NEC_CM04_RM02",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-8267c82064c27e0492e3cca6",
@@ -4493,7 +4493,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4420,
+      "defaultTravelSeconds": 2413,
       "gatewayId": "NECGW_NEC_CM04_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-6ff0bca287cc36bc5a4759c4",
@@ -4646,7 +4646,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 91225,
+      "defaultTravelSeconds": 91226,
       "gatewayId": "NECGW_NEC_CM04_RM02_NEC_CP04_RP03",
       "homeTileId": "NEC_CM04_RM02",
       "id": "nec-cross-flow-54a62124b3a69d1b892420cb",
@@ -4655,7 +4655,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 31837,
+      "defaultTravelSeconds": 27887,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-17a8197ebf406f58a48537db",
@@ -4664,7 +4664,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28108,
+      "defaultTravelSeconds": 14246,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-0cae4b5a109281e0c9b1ec87",
@@ -4700,7 +4700,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26733,
+      "defaultTravelSeconds": 15749,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-c293fc91795d80b0ec62f93a",
@@ -4709,7 +4709,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16952,
+      "defaultTravelSeconds": 9141,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-7a1c48f6faaaf33f29d95538",
@@ -4718,7 +4718,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17999,
+      "defaultTravelSeconds": 12839,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-5c13a5316d17742375f17acd",
@@ -4745,7 +4745,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22018,
+      "defaultTravelSeconds": 10287,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-0593e9af099e840798dbfbf6",
@@ -4754,7 +4754,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6173,
+      "defaultTravelSeconds": 3240,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-9ef25cee9b8dac6f976f8191",
@@ -4763,7 +4763,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4256,
+      "defaultTravelSeconds": 2991,
       "gatewayId": "NECGW_NEC_CM03_RM03_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-9281aa1920cda4ea3a41a88f",
@@ -4781,7 +4781,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16081,
+      "defaultTravelSeconds": 9286,
       "gatewayId": "NECGW_NEC_CM04_RM01_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-cf3065bc62dd4e08f180c0e9",
@@ -4790,7 +4790,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4678,
+      "defaultTravelSeconds": 2994,
       "gatewayId": "NECGW_NEC_CM04_RM02_NEC_CM04_RM03",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-a11b552be0b7bf307bf8d13d",
@@ -4853,7 +4853,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 67835,
+      "defaultTravelSeconds": 67834,
       "gatewayId": "NECGW_NEC_CM04_RM03_NEC_CP01_RP02",
       "homeTileId": "NEC_CM04_RM03",
       "id": "nec-cross-flow-b0253284dca71fc6bd96c029",
@@ -4943,7 +4943,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5613,
+      "defaultTravelSeconds": 3033,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-f97421771f997a446dde7471",
@@ -4952,7 +4952,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9347,
+      "defaultTravelSeconds": 4236,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-4f41a9827f18fe51ba47d577",
@@ -4961,7 +4961,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22609,
+      "defaultTravelSeconds": 13884,
       "gatewayId": "NECGW_NEC_CM01_RM03_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-72a632e933ada7538c56b08a",
@@ -4970,7 +4970,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6515,
+      "defaultTravelSeconds": 3831,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-a572a05eec1b9e0a3d042c60",
@@ -4979,7 +4979,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19004,
+      "defaultTravelSeconds": 9645,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-9e9e9f0c12c5e5f604bbbf16",
@@ -4988,7 +4988,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13723,
+      "defaultTravelSeconds": 6785,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-8b2e3631913ad296051de082",
@@ -4997,7 +4997,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17680,
+      "defaultTravelSeconds": 8874,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-97c99707737491435aa7e68c",
@@ -5006,7 +5006,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28036,
+      "defaultTravelSeconds": 13442,
       "gatewayId": "NECGW_NEC_CM02_RM03_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-e713b1ce0a6bd833995d751d",
@@ -5015,7 +5015,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15980,
+      "defaultTravelSeconds": 7970,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-98b5139e377e4ccc2eee9ad8",
@@ -5024,7 +5024,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25763,
+      "defaultTravelSeconds": 12659,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-9ddfba9e6e3638ff26f04b72",
@@ -5033,7 +5033,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24652,
+      "defaultTravelSeconds": 11188,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-afc0d933882181552b6827bc",
@@ -5042,7 +5042,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29839,
+      "defaultTravelSeconds": 22938,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-6f96f5545ca0ed33c634ab2c",
@@ -5060,7 +5060,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27027,
+      "defaultTravelSeconds": 12883,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CP00_RM01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-1d413def34238a463c601b30",
@@ -5096,7 +5096,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6559,
+      "defaultTravelSeconds": 3462,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-39c75620ede49bdcabd4ba21",
@@ -5105,7 +5105,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18145,
+      "defaultTravelSeconds": 8870,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-07806a805e79deb3f9e9cfa5",
@@ -5123,7 +5123,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12873,
+      "defaultTravelSeconds": 7082,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-da1bf74d3c0330ad1688dea4",
@@ -5132,7 +5132,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23897,
+      "defaultTravelSeconds": 11332,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP01_RP01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-c90feeb9a49c84295857e732",
@@ -5159,7 +5159,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28658,
+      "defaultTravelSeconds": 14333,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP02_RP01",
       "homeTileId": "NEC_CP00_RM01",
       "id": "nec-cross-flow-f1ad727c22da582b4a30a58c",
@@ -5240,7 +5240,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9232,
+      "defaultTravelSeconds": 4023,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-db44659992c7d2187dc3f2a1",
@@ -5249,7 +5249,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19191,
+      "defaultTravelSeconds": 8460,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-f6694f07fb852015f58ad82c",
@@ -5267,7 +5267,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3766,
+      "defaultTravelSeconds": 2252,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-a2e5f1ac6ba6318c94e48d70",
@@ -5276,7 +5276,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9890,
+      "defaultTravelSeconds": 5874,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-ac24c199324b468ce9843f49",
@@ -5285,7 +5285,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18489,
+      "defaultTravelSeconds": 8170,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-3e2f0a6df462a329ebf3d4f8",
@@ -5294,7 +5294,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25844,
+      "defaultTravelSeconds": 11605,
       "gatewayId": "NECGW_NEC_CM02_RM02_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-afc17c8b0bba25b91b546e68",
@@ -5312,7 +5312,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16376,
+      "defaultTravelSeconds": 7426,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-a201dea52e44d3eb17e756af",
@@ -5321,7 +5321,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24302,
+      "defaultTravelSeconds": 11904,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-2a11052ed9c98949c0cd34f0",
@@ -5330,7 +5330,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28070,
+      "defaultTravelSeconds": 18561,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-f522aec06249e965e63cc4f0",
@@ -5357,7 +5357,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26895,
+      "defaultTravelSeconds": 18334,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-35be0cbb2e4a9d62ad8b30a4",
@@ -5393,7 +5393,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6678,
+      "defaultTravelSeconds": 3118,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP00_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-9935de1e635fe00fed7053fe",
@@ -5402,7 +5402,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8119,
+      "defaultTravelSeconds": 5259,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-c71b9e152ac41a524351defa",
@@ -5411,7 +5411,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24566,
+      "defaultTravelSeconds": 11561,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP00_RP02",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-c6534b45a40a14e402788632",
@@ -5420,7 +5420,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5076,
+      "defaultTravelSeconds": 2623,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP01_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-a2fb342b118163a44654d0cc",
@@ -5429,7 +5429,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12375,
+      "defaultTravelSeconds": 6036,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-8a42f171db198dc89674903f",
@@ -5438,7 +5438,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24631,
+      "defaultTravelSeconds": 13205,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP01_RP02",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-c3160dd361beeb25a409105b",
@@ -5447,7 +5447,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15655,
+      "defaultTravelSeconds": 6749,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP02_RP00",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-771f33448080eb392825dcba",
@@ -5456,7 +5456,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19285,
+      "defaultTravelSeconds": 9085,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-3c02db226fe003cd8fcc5aa0",
@@ -5465,7 +5465,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29815,
+      "defaultTravelSeconds": 23461,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP02_RP02",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-9109016cc4b80488c6582263",
@@ -5483,7 +5483,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29497,
+      "defaultTravelSeconds": 22607,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP03_RP01",
       "homeTileId": "NEC_CP00_RP00",
       "id": "nec-cross-flow-722e473f48ec8c3a65d06849",
@@ -5537,7 +5537,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21492,
+      "defaultTravelSeconds": 9716,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-98d741ad06cf915fefdc0629",
@@ -5564,7 +5564,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7776,
+      "defaultTravelSeconds": 6006,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-5ebb649f7df936915f0dbf09",
@@ -5573,7 +5573,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4086,
+      "defaultTravelSeconds": 3500,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-64a8e49f754620ccb87ebc42",
@@ -5582,7 +5582,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27604,
+      "defaultTravelSeconds": 17246,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-a7e8795a10c4248eb6905c96",
@@ -5609,7 +5609,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19067,
+      "defaultTravelSeconds": 9400,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-4aa3cf76368f11a3321ea7e3",
@@ -5618,7 +5618,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19280,
+      "defaultTravelSeconds": 10293,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-c569a0d536a243f652e961f8",
@@ -5663,7 +5663,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 39291,
+      "defaultTravelSeconds": 39292,
       "gatewayId": "NECGW_NEC_CM04_RM01_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-737617c72e606b2bcea65b70",
@@ -5690,7 +5690,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18271,
+      "defaultTravelSeconds": 8675,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-f22efa4fca874c8b8ff0ada0",
@@ -5699,7 +5699,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8817,
+      "defaultTravelSeconds": 4118,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP00_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-93b9b58c2891e7973cbcda42",
@@ -5708,7 +5708,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10424,
+      "defaultTravelSeconds": 4576,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP00_RP02",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-599a63918d04307b2448ae0b",
@@ -5717,7 +5717,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8634,
+      "defaultTravelSeconds": 5557,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-9bb2d1f32ef8712388c59444",
@@ -5726,7 +5726,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3798,
+      "defaultTravelSeconds": 2838,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP01_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-96dfa61703387b0a9606075a",
@@ -5735,7 +5735,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8690,
+      "defaultTravelSeconds": 6434,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP01_RP02",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-991a96d517bedaf686f04b3a",
@@ -5744,7 +5744,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16342,
+      "defaultTravelSeconds": 10622,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP02_RP00",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-c88e8bd477c45a9e792730b6",
@@ -5753,7 +5753,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14291,
+      "defaultTravelSeconds": 7574,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP02_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-b688d130bb586f1fb792d2d3",
@@ -5762,7 +5762,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20226,
+      "defaultTravelSeconds": 10810,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-da91930b5d4377fe635bf08c",
@@ -5780,7 +5780,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24538,
+      "defaultTravelSeconds": 11704,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP03_RP01",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-7eded5ffd04ec1210b3b470e",
@@ -5789,7 +5789,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27669,
+      "defaultTravelSeconds": 19573,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP00_RP01",
       "id": "nec-cross-flow-4cffb1d08c8510fc91389e41",
@@ -5861,7 +5861,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23831,
+      "defaultTravelSeconds": 10471,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP00_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-1d9821312d274a633c4ed498",
@@ -5870,7 +5870,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15584,
+      "defaultTravelSeconds": 8534,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP00_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-e92900df91d8fb06445ebdc8",
@@ -5915,7 +5915,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21776,
+      "defaultTravelSeconds": 14927,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP00_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-bc387c6c1c8b2b804b632d88",
@@ -5996,7 +5996,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24992,
+      "defaultTravelSeconds": 11804,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP00_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-24e6a6e109a81df3c644f50e",
@@ -6005,7 +6005,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8643,
+      "defaultTravelSeconds": 6124,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP00_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-277f97d38f92db758921c7c0",
@@ -6014,7 +6014,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25580,
+      "defaultTravelSeconds": 14682,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP01_RP00",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-7d5ad9a6eb00e19414cef7e0",
@@ -6023,7 +6023,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12599,
+      "defaultTravelSeconds": 6531,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP01_RP01",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-510b85ec37d688a2197aefd2",
@@ -6032,7 +6032,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4311,
+      "defaultTravelSeconds": 3083,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP01_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-ee3763e5379cd68fcb22ef99",
@@ -6041,7 +6041,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27116,
+      "defaultTravelSeconds": 17638,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP00",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-724bcac976f3cf73cf3f2325",
@@ -6050,7 +6050,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22109,
+      "defaultTravelSeconds": 10883,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP01",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-26bb5f4bd1cae8c8cc5be4f3",
@@ -6059,7 +6059,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19402,
+      "defaultTravelSeconds": 10126,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-4819005a0e7304136139d4f0",
@@ -6068,7 +6068,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19109,
+      "defaultTravelSeconds": 12786,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP03",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-fd5aafc50f37a92c8a25f548",
@@ -6077,7 +6077,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27754,
+      "defaultTravelSeconds": 13524,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP03_RP01",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-c97f0920f442f0f223b885e9",
@@ -6086,7 +6086,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26318,
+      "defaultTravelSeconds": 12940,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP03_RP02",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-dabafea4e6b04c1c0868554e",
@@ -6095,7 +6095,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28930,
+      "defaultTravelSeconds": 13968,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP00_RP02",
       "id": "nec-cross-flow-f89bac93ec259e6c69d58782",
@@ -6122,7 +6122,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20483,
+      "defaultTravelSeconds": 9158,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-4a412e53322c9ca6097c6bca",
@@ -6131,7 +6131,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25797,
+      "defaultTravelSeconds": 13050,
       "gatewayId": "NECGW_NEC_CM01_RM02_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-5a5096442b5c44fa56fbbbf2",
@@ -6149,7 +6149,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14460,
+      "defaultTravelSeconds": 6980,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-422322d98a8ef54e85f958a1",
@@ -6158,7 +6158,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17237,
+      "defaultTravelSeconds": 9472,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-5ce79b7d92cdb9f689116977",
@@ -6167,7 +6167,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27285,
+      "defaultTravelSeconds": 15508,
       "gatewayId": "NECGW_NEC_CM02_RM01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-2e0f27110182f6e94c6be5b9",
@@ -6194,7 +6194,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24485,
+      "defaultTravelSeconds": 11752,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-7b4407f7de39081edac3f687",
@@ -6203,7 +6203,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 30888,
+      "defaultTravelSeconds": 27384,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-2f8209e922b96b6aff136a5b",
@@ -6275,7 +6275,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13522,
+      "defaultTravelSeconds": 8442,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-97b56d3b79503e26e93fa01b",
@@ -6284,7 +6284,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5941,
+      "defaultTravelSeconds": 3521,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-aa9c96608391696c62975c51",
@@ -6293,7 +6293,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8338,
+      "defaultTravelSeconds": 4907,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-3c18648611c5dabb86a7cf09",
@@ -6302,7 +6302,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25072,
+      "defaultTravelSeconds": 14094,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP01_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-208b4e5e0fe2462075106d68",
@@ -6311,7 +6311,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4846,
+      "defaultTravelSeconds": 3399,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-a01c1d3d89fb9754104a5d6e",
@@ -6320,7 +6320,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19297,
+      "defaultTravelSeconds": 13247,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-7f54ec258545d05c7e892753",
@@ -6329,7 +6329,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4723,
+      "defaultTravelSeconds": 2314,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP02_RP00",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-feafaf885950cb2ed711f778",
@@ -6338,7 +6338,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9345,
+      "defaultTravelSeconds": 4538,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-0aa3167a91b72d0fcb3eae81",
@@ -6347,7 +6347,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21623,
+      "defaultTravelSeconds": 9724,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP02_RP02",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-e2e1767f495e155c98a4bfb1",
@@ -6365,7 +6365,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20153,
+      "defaultTravelSeconds": 9479,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP03_RP01",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-55e3b256d93b17fb1f49d2b8",
@@ -6374,7 +6374,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26063,
+      "defaultTravelSeconds": 14281,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP03_RP02",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-d19f91a679fcb24dfd9a7970",
@@ -6401,7 +6401,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28155,
+      "defaultTravelSeconds": 20540,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP04_RP01",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-0c09b33213bfc84b017a6b63",
@@ -6410,7 +6410,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 41865,
+      "defaultTravelSeconds": 41866,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP04_RP03",
       "homeTileId": "NEC_CP01_RP00",
       "id": "nec-cross-flow-b1bcc8092266081909b45031",
@@ -6419,7 +6419,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29770,
+      "defaultTravelSeconds": 24692,
       "gatewayId": "NECGW_NEC_CM01_RM01_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-ce872b023b6bab01e68d8564",
@@ -6446,7 +6446,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21088,
+      "defaultTravelSeconds": 10103,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-9552f3ebc1a9ac7fdf08d195",
@@ -6455,7 +6455,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15883,
+      "defaultTravelSeconds": 8834,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-d133b3cfafc748312c7d00e7",
@@ -6500,7 +6500,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28665,
+      "defaultTravelSeconds": 15534,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-b718dafaf057e7c3a41952af",
@@ -6536,7 +6536,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 37773,
+      "defaultTravelSeconds": 37772,
       "gatewayId": "NECGW_NEC_CM03_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-88491f710f61fd7eb8649875",
@@ -6572,7 +6572,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23617,
+      "defaultTravelSeconds": 11541,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-83da5edb2e7cc2d878a80678",
@@ -6581,7 +6581,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11814,
+      "defaultTravelSeconds": 6220,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-516e38dafcb69b28a9e31d40",
@@ -6590,7 +6590,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4101,
+      "defaultTravelSeconds": 3152,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-ab32dc7e30f77d3c56cb2f44",
@@ -6599,7 +6599,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15006,
+      "defaultTravelSeconds": 7745,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-881f3f31f3f4051760c3359d",
@@ -6608,7 +6608,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4390,
+      "defaultTravelSeconds": 2771,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP01_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-b7b6e1b52498cdd4062556e9",
@@ -6617,7 +6617,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3636,
+      "defaultTravelSeconds": 2378,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-0953f0e472d50e582a448b0c",
@@ -6626,7 +6626,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6228,
+      "defaultTravelSeconds": 3297,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP00",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-4bf9371b711c8edfe23cbb65",
@@ -6635,7 +6635,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5016,
+      "defaultTravelSeconds": 3087,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-52ebbf58bea95882a2f5a27c",
@@ -6644,7 +6644,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9074,
+      "defaultTravelSeconds": 4321,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-60e90f88fbc6555b051ae49a",
@@ -6653,7 +6653,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23302,
+      "defaultTravelSeconds": 12592,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP03",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-d70c12fe9408f79f59496405",
@@ -6662,7 +6662,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14976,
+      "defaultTravelSeconds": 7597,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP03_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-726e64c24bead398e29d3a52",
@@ -6671,7 +6671,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16097,
+      "defaultTravelSeconds": 7274,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-8a7f1fe513a3334897b173bf",
@@ -6680,7 +6680,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26638,
+      "defaultTravelSeconds": 12406,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP03_RP03",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-11461ca8f9c5f9fc557f80ea",
@@ -6698,7 +6698,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23518,
+      "defaultTravelSeconds": 11345,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP04_RP01",
       "homeTileId": "NEC_CP01_RP01",
       "id": "nec-cross-flow-270a85c207974f51f97a6e53",
@@ -6743,7 +6743,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28767,
+      "defaultTravelSeconds": 14764,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-c19991fa415aa3b118a57e9d",
@@ -6752,7 +6752,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19935,
+      "defaultTravelSeconds": 10863,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-4c6dceb82149679d1995f2b7",
@@ -6797,7 +6797,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28173,
+      "defaultTravelSeconds": 17145,
       "gatewayId": "NECGW_NEC_CM02_RP01_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-da7255a9ad5b642280a5680a",
@@ -6878,7 +6878,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25207,
+      "defaultTravelSeconds": 13741,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-ca35cda060f5671703e314bc",
@@ -6887,7 +6887,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9899,
+      "defaultTravelSeconds": 5839,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-fff805b7da124630dcb76d82",
@@ -6896,7 +6896,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5124,
+      "defaultTravelSeconds": 2962,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-0f708c5da5b62498e209d4df",
@@ -6905,7 +6905,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19129,
+      "defaultTravelSeconds": 11072,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-c5eaef28cd6a605242a385fb",
@@ -6914,7 +6914,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3983,
+      "defaultTravelSeconds": 2752,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP01_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-21191571d3d0ada548ce0c15",
@@ -6923,7 +6923,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18802,
+      "defaultTravelSeconds": 18852,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP00",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-c4a66b22bbac6078926e3cd9",
@@ -6932,7 +6932,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8128,
+      "defaultTravelSeconds": 5105,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP01",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-e0caf99919ac092bc70275f4",
@@ -6941,7 +6941,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7506,
+      "defaultTravelSeconds": 4140,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-e816875ef6625a542116ade1",
@@ -6950,7 +6950,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11007,
+      "defaultTravelSeconds": 7923,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP03",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-a8963ecebeaffbbe5cfc7819",
@@ -6959,7 +6959,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17827,
+      "defaultTravelSeconds": 8367,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP03_RP01",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-e764b2b31adde9f5d7bbbead",
@@ -6968,7 +6968,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 16161,
+      "defaultTravelSeconds": 7350,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP03_RP02",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-37eb37af7a06a5c037df9d6f",
@@ -6977,7 +6977,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17997,
+      "defaultTravelSeconds": 10459,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-599c050cd8c74a113a7fc7c3",
@@ -6995,7 +6995,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26283,
+      "defaultTravelSeconds": 19563,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP04_RP01",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-ddc7f61c0e9e62cc6fb166c8",
@@ -7004,7 +7004,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27167,
+      "defaultTravelSeconds": 13423,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP04_RP03",
       "homeTileId": "NEC_CP01_RP02",
       "id": "nec-cross-flow-8178625abba6089e5fc82b99",
@@ -7040,7 +7040,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23570,
+      "defaultTravelSeconds": 12797,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP02_RP00",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-4ae62c868db4799d112327af",
@@ -7139,7 +7139,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20735,
+      "defaultTravelSeconds": 11072,
       "gatewayId": "NECGW_NEC_CP00_RM01_NEC_CP02_RP00",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-1ae5089d6eca7d55b5fbe084",
@@ -7148,7 +7148,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15828,
+      "defaultTravelSeconds": 7023,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP02_RP00",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-d23d174e4b4630222724133c",
@@ -7166,7 +7166,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26443,
+      "defaultTravelSeconds": 17216,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP00",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-01f9b002cc1faa0b3073e674",
@@ -7175,7 +7175,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6285,
+      "defaultTravelSeconds": 3250,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP02_RP00",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-1a3f2255a2d99d1e494da803",
@@ -7184,7 +7184,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7104,
+      "defaultTravelSeconds": 3698,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP00",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-96a508ef55d7d8db2ce59c25",
@@ -7193,7 +7193,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15584,
+      "defaultTravelSeconds": 7756,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP00",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-43b55d0087b928fd55d97055",
@@ -7202,7 +7202,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 2142,
+      "defaultTravelSeconds": 1397,
       "gatewayId": "NECGW_NEC_CP02_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-5094b729293e334ee54ccdac",
@@ -7211,7 +7211,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15620,
+      "defaultTravelSeconds": 7368,
       "gatewayId": "NECGW_NEC_CP02_RP00_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-9edfc76867098cfd063c20ec",
@@ -7220,7 +7220,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28367,
+      "defaultTravelSeconds": 14979,
       "gatewayId": "NECGW_NEC_CP02_RP00_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-c7948f0bca62f6d1071a5e17",
@@ -7229,7 +7229,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9111,
+      "defaultTravelSeconds": 4571,
       "gatewayId": "NECGW_NEC_CP02_RP00_NEC_CP03_RP01",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-5d85d524da6719a624459580",
@@ -7238,7 +7238,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18187,
+      "defaultTravelSeconds": 8565,
       "gatewayId": "NECGW_NEC_CP02_RP00_NEC_CP03_RP02",
       "homeTileId": "NEC_CP02_RP00",
       "id": "nec-cross-flow-bfd3ee640b9358a1036a851d",
@@ -7310,7 +7310,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28273,
+      "defaultTravelSeconds": 14144,
       "gatewayId": "NECGW_NEC_CM01_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-20800fa79ba0bbe90f64f307",
@@ -7319,7 +7319,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24093,
+      "defaultTravelSeconds": 11745,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-ad96a534339ce35b81819053",
@@ -7373,7 +7373,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 49413,
+      "defaultTravelSeconds": 49412,
       "gatewayId": "NECGW_NEC_CM03_RM01_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-5e4dab00fe73452b4b5b9d87",
@@ -7445,7 +7445,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19201,
+      "defaultTravelSeconds": 8426,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-680aba5b21b9f88b7a05c593",
@@ -7454,7 +7454,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14185,
+      "defaultTravelSeconds": 7880,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-91ceb5d812b61d24ef275be0",
@@ -7463,7 +7463,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21322,
+      "defaultTravelSeconds": 10869,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-69b6ed5659bd73ee5f772556",
@@ -7472,7 +7472,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9742,
+      "defaultTravelSeconds": 4440,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-734392cb47d2c89161eb2980",
@@ -7481,7 +7481,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4514,
+      "defaultTravelSeconds": 2943,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-c6ac02bf7794abd91cea2ac1",
@@ -7490,7 +7490,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6728,
+      "defaultTravelSeconds": 4754,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-2564e0a341ce9091293d5b39",
@@ -7499,7 +7499,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 2486,
+      "defaultTravelSeconds": 1708,
       "gatewayId": "NECGW_NEC_CP02_RP00_NEC_CP02_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-ef4f95d6e8f1f18dee9a4ffb",
@@ -7508,7 +7508,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3357,
+      "defaultTravelSeconds": 1995,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-ee4383e9b383a0c0ab8d4f1b",
@@ -7517,7 +7517,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21305,
+      "defaultTravelSeconds": 11531,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-17f5f2b88341a31fc1746edd",
@@ -7526,7 +7526,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3810,
+      "defaultTravelSeconds": 3142,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP03_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-9c786c37ceab35a248da4848",
@@ -7535,7 +7535,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8121,
+      "defaultTravelSeconds": 4233,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-ac9d2e0a8d7e80aa93eec545",
@@ -7544,7 +7544,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20810,
+      "defaultTravelSeconds": 9709,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP03_RP03",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-3911a98f4b802eefce09c200",
@@ -7562,7 +7562,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15829,
+      "defaultTravelSeconds": 8422,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP04_RP01",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-156d8b34d83504236efaffa4",
@@ -7571,7 +7571,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28783,
+      "defaultTravelSeconds": 12816,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP04_RP03",
       "homeTileId": "NEC_CP02_RP01",
       "id": "nec-cross-flow-a158e14f3752f2785f3553bb",
@@ -7616,7 +7616,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 29199,
+      "defaultTravelSeconds": 16034,
       "gatewayId": "NECGW_NEC_CM01_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-0cab7b4be047a296f0c1dc1f",
@@ -7652,7 +7652,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 40808,
+      "defaultTravelSeconds": 40807,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-6570962a4178eede9406b4e1",
@@ -7742,7 +7742,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 30169,
+      "defaultTravelSeconds": 24807,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-860889ca0e2aebda70025c4e",
@@ -7751,7 +7751,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21123,
+      "defaultTravelSeconds": 11186,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-891ad763735d53766b7d5142",
@@ -7760,7 +7760,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17660,
+      "defaultTravelSeconds": 10093,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-5549a59a1cec9a39894d71e0",
@@ -7769,7 +7769,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20804,
+      "defaultTravelSeconds": 10248,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-6c5c49c2f92794afd5f350a6",
@@ -7778,7 +7778,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7429,
+      "defaultTravelSeconds": 4979,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-18d6573782c423ae2005019d",
@@ -7787,7 +7787,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5176,
+      "defaultTravelSeconds": 2904,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-c3b3ef700fc73eeed89c093b",
@@ -7805,7 +7805,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3178,
+      "defaultTravelSeconds": 2290,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP02_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-71aef89be481f4cd884ed0a7",
@@ -7814,7 +7814,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6183,
+      "defaultTravelSeconds": 3873,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-ea539696fc11c5c7b3e1f987",
@@ -7823,7 +7823,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7779,
+      "defaultTravelSeconds": 4049,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP03_RP01",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-f4a58987865633e30cb0b17d",
@@ -7832,7 +7832,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4806,
+      "defaultTravelSeconds": 2672,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP03_RP02",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-342f2a701dc376737e6f903a",
@@ -7841,7 +7841,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8787,
+      "defaultTravelSeconds": 5411,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-5f9141be064b74f5e1a15778",
@@ -7859,7 +7859,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17115,
+      "defaultTravelSeconds": 7698,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP04_RP01",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-643fff7df641ee5e06b12545",
@@ -7868,7 +7868,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 18581,
+      "defaultTravelSeconds": 9234,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP04_RP03",
       "homeTileId": "NEC_CP02_RP02",
       "id": "nec-cross-flow-0f03c9caccaefb821f6bb8fc",
@@ -8048,7 +8048,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19199,
+      "defaultTravelSeconds": 12379,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-127091c39aed05254e00229a",
@@ -8066,7 +8066,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21046,
+      "defaultTravelSeconds": 12007,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-95a2c25f7fc2bf3f58abe90d",
@@ -8075,7 +8075,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 9586,
+      "defaultTravelSeconds": 7594,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-10e2764aaa934292d104cb95",
@@ -8093,7 +8093,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19961,
+      "defaultTravelSeconds": 11282,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-8abc00ec18243ab064bf0583",
@@ -8102,7 +8102,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 6154,
+      "defaultTravelSeconds": 3991,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP02_RP03",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-8ab56990cebd2fee2fdda654",
@@ -8111,7 +8111,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19923,
+      "defaultTravelSeconds": 9439,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP03_RP01",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-ae5c9975adcd9332ca136c62",
@@ -8120,7 +8120,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7656,
+      "defaultTravelSeconds": 4470,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP03_RP02",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-5b0c35ce541bdad2142e6c2d",
@@ -8129,7 +8129,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5759,
+      "defaultTravelSeconds": 3310,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP03_RP03",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-bb1ad77fbf5861f7d73a347a",
@@ -8147,7 +8147,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27341,
+      "defaultTravelSeconds": 11972,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP04_RP01",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-b5106bca014bbd7fdcbac707",
@@ -8156,7 +8156,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13769,
+      "defaultTravelSeconds": 7997,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP04_RP03",
       "homeTileId": "NEC_CP02_RP03",
       "id": "nec-cross-flow-9488bd32ea980a11d326935e",
@@ -8327,7 +8327,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 30057,
+      "defaultTravelSeconds": 23004,
       "gatewayId": "NECGW_NEC_CP00_RP00_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-c4e4444b6fe3c68881f563ef",
@@ -8336,7 +8336,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25575,
+      "defaultTravelSeconds": 12285,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-98e0de253558540d1d6127e2",
@@ -8345,7 +8345,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27351,
+      "defaultTravelSeconds": 13432,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-f24dd76e1c7f9427e24c4f0c",
@@ -8354,7 +8354,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20079,
+      "defaultTravelSeconds": 9076,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-2d8cd5b1b74dfc591613915f",
@@ -8363,7 +8363,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 14691,
+      "defaultTravelSeconds": 7344,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-54e7d7b69a0bc9a84ce41eeb",
@@ -8372,7 +8372,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17285,
+      "defaultTravelSeconds": 8376,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-01d2c13a18fb6ae75fbe8281",
@@ -8381,7 +8381,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 10058,
+      "defaultTravelSeconds": 5601,
       "gatewayId": "NECGW_NEC_CP02_RP00_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-dea3cf9b10cd0b18095f4220",
@@ -8390,7 +8390,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4038,
+      "defaultTravelSeconds": 2618,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-3dc80d776e8719098b84f0aa",
@@ -8399,7 +8399,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7304,
+      "defaultTravelSeconds": 3694,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-156f8f38bb932b098e8f7795",
@@ -8408,7 +8408,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 21667,
+      "defaultTravelSeconds": 10409,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP03_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-67102751ff65891572487a00",
@@ -8417,7 +8417,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4978,
+      "defaultTravelSeconds": 3016,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-0b51c7ebf8b6381b83327c08",
@@ -8426,7 +8426,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17463,
+      "defaultTravelSeconds": 8040,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-371b84eb7b33a24f1a196418",
@@ -8444,7 +8444,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5364,
+      "defaultTravelSeconds": 4078,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP04_RP01",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-1e7ffa709030e0575c08ecbc",
@@ -8453,7 +8453,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 23924,
+      "defaultTravelSeconds": 10687,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP04_RP03",
       "homeTileId": "NEC_CP03_RP01",
       "id": "nec-cross-flow-7d1ff55398dba48b3fd2f4cf",
@@ -8561,7 +8561,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 72535,
+      "defaultTravelSeconds": 72534,
       "gatewayId": "NECGW_NEC_CM03_RM02_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-dc6c65aa099abfb079ae70ef",
@@ -8633,7 +8633,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28242,
+      "defaultTravelSeconds": 17923,
       "gatewayId": "NECGW_NEC_CP00_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-d414d4a1735224aaf15fa384",
@@ -8642,7 +8642,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25926,
+      "defaultTravelSeconds": 12599,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-a633350c4f6508cfde071fd0",
@@ -8651,7 +8651,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26115,
+      "defaultTravelSeconds": 12852,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-65ada1bcc340431a33a00ba5",
@@ -8660,7 +8660,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15790,
+      "defaultTravelSeconds": 6952,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-27f68c4ca72166f9467a3cf8",
@@ -8669,7 +8669,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15653,
+      "defaultTravelSeconds": 7287,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-99979fb6dcbee1416d7abe23",
@@ -8687,7 +8687,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8297,
+      "defaultTravelSeconds": 4368,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-25b43abc9d18493a275c16f3",
@@ -8696,7 +8696,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4470,
+      "defaultTravelSeconds": 2762,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-1cf3d6d4da13c52c0d2188e5",
@@ -8705,7 +8705,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 7208,
+      "defaultTravelSeconds": 3627,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-63a3bb586f5c9599c89973cf",
@@ -8714,7 +8714,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4955,
+      "defaultTravelSeconds": 2826,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP03_RP02",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-1ca6b2fee60ff7182601f0e1",
@@ -8723,7 +8723,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4517,
+      "defaultTravelSeconds": 3154,
       "gatewayId": "NECGW_NEC_CP03_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-a8b502de252137fb98579ac8",
@@ -8741,7 +8741,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 12468,
+      "defaultTravelSeconds": 6106,
       "gatewayId": "NECGW_NEC_CP03_RP02_NEC_CP04_RP01",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-c55554e21b3833c98705a14d",
@@ -8750,7 +8750,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15137,
+      "defaultTravelSeconds": 7400,
       "gatewayId": "NECGW_NEC_CP03_RP02_NEC_CP04_RP03",
       "homeTileId": "NEC_CP03_RP02",
       "id": "nec-cross-flow-a7e0b2ee0e21221036eb4d44",
@@ -8930,7 +8930,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27437,
+      "defaultTravelSeconds": 14348,
       "gatewayId": "NECGW_NEC_CP00_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-9292fa4c5ec04a4153de99cb",
@@ -8948,7 +8948,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24396,
+      "defaultTravelSeconds": 12292,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-c312d2142ab175122950ba00",
@@ -8957,7 +8957,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19070,
+      "defaultTravelSeconds": 11240,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-c7b1fc931ef7d8ca449a4939",
@@ -8975,7 +8975,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20497,
+      "defaultTravelSeconds": 9203,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-24a2dece33e61dea26a65309",
@@ -8984,7 +8984,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 8494,
+      "defaultTravelSeconds": 5614,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-fa2e893ff6b598ac208897b1",
@@ -8993,7 +8993,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 4383,
+      "defaultTravelSeconds": 2975,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-dfbbb3e44b8c12008d031001",
@@ -9002,7 +9002,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 17631,
+      "defaultTravelSeconds": 8106,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-0c5a28a6366e0f75b378c1a6",
@@ -9011,7 +9011,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5669,
+      "defaultTravelSeconds": 3564,
       "gatewayId": "NECGW_NEC_CP03_RP02_NEC_CP03_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-7c5fbb22cb4640cfc97430a5",
@@ -9029,7 +9029,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22632,
+      "defaultTravelSeconds": 11025,
       "gatewayId": "NECGW_NEC_CP03_RP03_NEC_CP04_RP01",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-07cb14f9257e125fb8f64705",
@@ -9038,7 +9038,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3867,
+      "defaultTravelSeconds": 2568,
       "gatewayId": "NECGW_NEC_CP03_RP03_NEC_CP04_RP03",
       "homeTileId": "NEC_CP03_RP03",
       "id": "nec-cross-flow-1a7391297a770e87d2dbb71b",
@@ -9218,7 +9218,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 1249,
+      "defaultTravelSeconds": 1333,
       "gatewayId": "NECGW_NEC_CP04_RP00_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP00",
       "id": "nec-cross-flow-58c2cda6c7c171136106bf26",
@@ -9398,7 +9398,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 28467,
+      "defaultTravelSeconds": 22375,
       "gatewayId": "NECGW_NEC_CP01_RP00_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-e49bf642b74f490f4e70b897",
@@ -9407,7 +9407,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 22749,
+      "defaultTravelSeconds": 11043,
       "gatewayId": "NECGW_NEC_CP01_RP01_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-ef2623ae5b68c6e691beb112",
@@ -9416,7 +9416,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25187,
+      "defaultTravelSeconds": 16344,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-4ecfb924d105b3a300ed8e2b",
@@ -9434,7 +9434,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15813,
+      "defaultTravelSeconds": 7964,
       "gatewayId": "NECGW_NEC_CP02_RP01_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-c13aeef1ff5cf2acfc1834f2",
@@ -9443,7 +9443,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15859,
+      "defaultTravelSeconds": 7396,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-eee01b72eea6a2efd7c91e8d",
@@ -9452,7 +9452,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27724,
+      "defaultTravelSeconds": 12488,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-4348de4b6d625e1b8f64474d",
@@ -9461,7 +9461,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 5461,
+      "defaultTravelSeconds": 3909,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-193c4a7038bee90c90060bc5",
@@ -9470,7 +9470,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 11432,
+      "defaultTravelSeconds": 5779,
       "gatewayId": "NECGW_NEC_CP03_RP02_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-86d690a76eb3e5b08beba911",
@@ -9479,7 +9479,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 20684,
+      "defaultTravelSeconds": 9688,
       "gatewayId": "NECGW_NEC_CP03_RP03_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-4b9beb3b781b53516462f1c0",
@@ -9488,7 +9488,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 2956,
+      "defaultTravelSeconds": 3125,
       "gatewayId": "NECGW_NEC_CP04_RP00_NEC_CP04_RP01",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-3b4f014844ca7d7f48241ba8",
@@ -9497,7 +9497,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 25078,
+      "defaultTravelSeconds": 12344,
       "gatewayId": "NECGW_NEC_CP04_RP01_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP01",
       "id": "nec-cross-flow-e1cba57f481d3cb97693281b",
@@ -9578,7 +9578,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 62249,
+      "defaultTravelSeconds": 62250,
       "gatewayId": "NECGW_NEC_CM02_RP00_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-c6a8cf4e6a8b6ecdb919fc8c",
@@ -9695,7 +9695,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 27767,
+      "defaultTravelSeconds": 13844,
       "gatewayId": "NECGW_NEC_CP01_RP02_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-d5e84985bed3c5dfa66abe4f",
@@ -9722,7 +9722,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 19288,
+      "defaultTravelSeconds": 8949,
       "gatewayId": "NECGW_NEC_CP02_RP02_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-7cae478ccd5379427c168c81",
@@ -9731,7 +9731,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 13474,
+      "defaultTravelSeconds": 8856,
       "gatewayId": "NECGW_NEC_CP02_RP03_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-2f046865df88d5fc2001d0e7",
@@ -9740,7 +9740,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 24124,
+      "defaultTravelSeconds": 10260,
       "gatewayId": "NECGW_NEC_CP03_RP01_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-4e4d4615a5691df3b08b51d5",
@@ -9749,7 +9749,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 15598,
+      "defaultTravelSeconds": 6517,
       "gatewayId": "NECGW_NEC_CP03_RP02_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-8fb9cff3cab92ecc0f16503c",
@@ -9758,7 +9758,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 3944,
+      "defaultTravelSeconds": 2313,
       "gatewayId": "NECGW_NEC_CP03_RP03_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-508d7972f1405a6c04b0d539",
@@ -9776,7 +9776,7 @@
     },
     {
       "defaultCapacityPerHour": 100000,
-      "defaultTravelSeconds": 26274,
+      "defaultTravelSeconds": 12417,
       "gatewayId": "NECGW_NEC_CP04_RP01_NEC_CP04_RP03",
       "homeTileId": "NEC_CP04_RP03",
       "id": "nec-cross-flow-cd98f3b1c9e5d0d092322552",
@@ -9784,7 +9784,18 @@
       "workTileId": "NEC_CP04_RP01"
     }
   ],
-  "buildHash": "nec-cross-v1-a83b006852d4b9a5694b99a8",
+  "buildHash": "nec-road-v1-7154b5bef22575792cc75437",
+  "drivingModel": {
+    "graphVersion": "generated-roads-v1",
+    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+    "provider": "generated-road-graph",
+    "speedKph": {
+      "highway": 85.0,
+      "major": 50.0,
+      "minor": 30.0
+    }
+  },
   "gateways": [
     {
       "capacityPerHour": 100000,

@@ -1,0 +1,81 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { syncCityScopedMapControllers } from '../src/ui/city-scoped-map-controllers.js';
+
+function fixtureController() {
+  return {
+    attachedMaps: [],
+    detachCalls: 0,
+    attachMap(map) { this.attachedMaps.push(map); },
+    detachMap() { this.detachCalls += 1; },
+  };
+}
+
+test('only attaches world controllers while their own city is active', () => {
+  const controllers = [fixtureController(), fixtureController(), fixtureController()];
+  const ownedMap = { id: 'owned-map' };
+  const foreignMap = { id: 'foreign-map' };
+
+  assert.equal(syncCityScopedMapControllers({
+    map: ownedMap,
+    cityCode: 'NEC_CP00_RP00',
+    cityCodes: ['NEC_CP00_RP00'],
+    controllers,
+  }), true);
+  assert.deepEqual(controllers.map((controller) => controller.attachedMaps), [
+    [ownedMap], [ownedMap], [ownedMap],
+  ]);
+
+  assert.equal(syncCityScopedMapControllers({
+    map: foreignMap,
+    cityCode: 'KCW',
+    cityCodes: ['NEC_CP00_RP00'],
+    controllers,
+  }), false);
+  assert.deepEqual(controllers.map((controller) => controller.attachedMaps), [
+    [ownedMap], [ownedMap], [ownedMap],
+  ], 'foreign maps must not acquire controllers from another Open World mod');
+  assert.deepEqual(controllers.map((controller) => controller.detachCalls), [1, 1, 1]);
+  assert.equal(
+    globalThis.__openWorldCityScopedMapControllersVersion,
+    'city-scoped-map-controllers-v2',
+  );
+});
+
+test('guards MapLibre layer moves before attaching an owned style controller', () => {
+  const calls = [];
+  const map = {
+    getLayer: (id) => id === 'signal-points' ? { id } : undefined,
+    moveLayer(id, beforeId) {
+      calls.push([id, beforeId]);
+      throw new Error(`Cannot move layer "${id}" before non-existing layer "${beforeId}".`);
+    },
+  };
+  const controller = {
+    attachMap(attachedMap) {
+      attachedMap.moveLayer('signal-points', 'signal-points-under');
+    },
+  };
+
+  assert.doesNotThrow(() => syncCityScopedMapControllers({
+    map,
+    cityCode: 'NEC_CP00_RP00',
+    cityCodes: ['NEC_CP00_RP00'],
+    controllers: [controller],
+  }));
+  assert.deepEqual(calls, [], 'controller attachment must not reach an impossible native move');
+});
+
+test('every runnable Open World consumer scopes its map controllers by city', () => {
+  const entries = [
+    new URL('../src/game-entry.js', import.meta.url),
+    new URL('../../../nec-corridor/mod/src/game-entry.js', import.meta.url),
+    new URL('../../../ny-state/mod/src/game-entry.js', import.meta.url),
+    new URL('../../../tokyo-kanagawa/mod/src/game-entry.js', import.meta.url),
+  ];
+  for (const entry of entries) {
+    const source = readFileSync(entry, 'utf8');
+    assert.match(source, /syncCityScopedMapControllers\(\{/, entry.pathname);
+  }
+});

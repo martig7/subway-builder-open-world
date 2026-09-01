@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   createGlobalNetwork,
   createNativeNetworkSnapshot,
-  isLegacyProjectedSnapshot,
   inspectNativeNetworkSnapshot,
 } from '../src/network-projection.js';
 import {
@@ -40,22 +39,6 @@ test('canonical native snapshot carries the complete topology independently of t
   for (const key of SHARED_TRANSIT_STATE_KEYS) assert.deepEqual(snapshot.data[key], network.nativeState[key], key);
   assert.deepEqual(snapshot.data.routes.map(({ id }) => id), ['remote-route']);
   assert.deepEqual(snapshot.data.trains.map(({ id }) => id), ['remote-train']);
-});
-
-test('legacy projected snapshots are migration inputs while complete native snapshots remain authoritative', () => {
-  const network = createGlobalNetwork(topology());
-  const baseline = {
-    baselineState: network.nativeState,
-    structuralHash: 'not-the-current-snapshot',
-  };
-  const stale = {
-    tracks: [], routes: [], trains: [], stations: [], trackGroups: [], signals: [], stNodes: [], stationGroups: [],
-    fareGroups: [], routeFinancials: {}, ownedTrainCount: 0, ownedCarsByType: {},
-  };
-  assert.equal(isLegacyProjectedSnapshot(stale, { baseline, fallbackState: network.nativeState }), true);
-
-  const complete = createNativeNetworkSnapshot({ data: {} }, network);
-  assert.equal(isLegacyProjectedSnapshot(complete, { baseline, fallbackState: network.nativeState }), false);
 });
 
 test('native snapshot composition is failure-atomic because it never mutates either input', () => {

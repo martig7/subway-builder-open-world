@@ -59,14 +59,21 @@ export class HashCityNavigationAdapter {
     }
   }
 
-  navigateTo({ worldId, tileId, freshWorld = false }) {
+  navigateTo({
+    worldId,
+    tileId,
+    freshWorld = false,
+    transitionId = null,
+    from = null,
+  }) {
     if (!this.tileIds.includes(tileId)) throw new Error('Invalid pending tile navigation');
     if (freshWorld !== true && typeof worldId !== 'string') throw new Error('Invalid pending tile navigation');
     const router = this.router ?? findMountedRouter(this.document);
     if (!router) throw new Error('The mounted Subway Builder router is unavailable');
-    this.sessionStorage?.setItem(this.pendingKey, JSON.stringify(
-      freshWorld === true ? { freshWorld: true, tileId } : { worldId, tileId },
-    ));
+    const pending = freshWorld === true ? { freshWorld: true, tileId } : { worldId, tileId };
+    if (typeof transitionId === 'string' && transitionId) pending.transitionId = transitionId;
+    if (this.tileIds.includes(from)) pending.from = from;
+    this.sessionStorage?.setItem(this.pendingKey, JSON.stringify(pending));
     return router.navigate(`/game?city=${tileId}`);
   }
 }

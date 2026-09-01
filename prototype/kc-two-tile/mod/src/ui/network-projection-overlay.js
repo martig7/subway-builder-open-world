@@ -51,12 +51,16 @@ export class NetworkProjectionOverlayController {
 
   attachMap(map) {
     if (this.map === map) return this.refresh();
-    if (this.map) {
-      try { this.map.off('style.load', this.handleStyle); } catch {}
-    }
+    this.detachMap();
     this.map = map;
     map.on('style.load', this.handleStyle);
     this.refresh();
+  }
+
+  detachMap() {
+    if (!this.map) return;
+    try { this.map.off('style.load', this.handleStyle); } catch {}
+    this.map = null;
   }
 
   refresh() {
@@ -80,10 +84,8 @@ export class NetworkProjectionOverlayController {
 
   dispose() {
     this.unsubscribeRuntime?.();
-    if (this.map) {
-      try { this.map.off('style.load', this.handleStyle); } catch {}
-    }
-    this.map = null;
+    this.unsubscribeRuntime = null;
+    this.detachMap();
   }
 }
 

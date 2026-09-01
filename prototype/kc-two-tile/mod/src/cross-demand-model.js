@@ -128,7 +128,9 @@ export class CrossDemandModel {
     const modeField = viewMode === 'workers' ? 'workerModes' : 'residentModes';
     return {
       type: 'FeatureCollection',
-      features: this.points.filter((point) => point[massField] > 0).map((point) => ({
+      features: this.points
+        .filter((point) => point[massField] > 0 && (!selectedId || point.id === selectedId))
+        .map((point) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: point.location },
         properties: {
@@ -138,7 +140,7 @@ export class CrossDemandModel {
           color: modeShareColor(point[modeField]),
           selected: selectedId === point.id,
         },
-      })),
+        })),
     };
   }
 
@@ -181,23 +183,41 @@ export class CrossDemandModel {
       addModes(group.modes, this.#popModes(pop));
       grouped.set(targetIndex, group);
     }
+    const endpointKind = viewMode === 'workers' ? 'home' : 'work';
     return {
       type: 'FeatureCollection',
-      features: Array.from(grouped, ([targetIndex, group]) => ({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: greatCircleCoordinates(point.location, this.points[targetIndex].location) },
-        properties: { kind: 'connection', mass: group.mass, color: modeShareColor(group.modes) },
-      })),
+      features: Array.from(grouped).flatMap(([targetIndex, group]) => {
+        const target = this.points[targetIndex];
+        const color = modeShareColor(group.modes);
+        return [
+          {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: greatCircleCoordinates(point.location, target.location) },
+            properties: { kind: 'connection', mass: group.mass, color },
+          },
+          {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: target.location },
+            properties: {
+              kind: endpointKind, id: target.id, mass: group.mass, color,
+              view: 'per-point-endpoint',
+            },
+          },
+        ];
+      }),
     };
   }
 
-  popSelection(popIndex) {
+  popSelection(popIndex, drivingPath = null) {
     const pop = this.popDetails(popIndex);
     if (!pop) return { type: 'FeatureCollection', features: [] };
+    const coordinates = Array.isArray(drivingPath) && drivingPath.length >= 2
+      ? drivingPath
+      : greatCircleCoordinates(pop.home.location, pop.work.location);
     return {
       type: 'FeatureCollection',
       features: [
-        { type: 'Feature', geometry: { type: 'LineString', coordinates: greatCircleCoordinates(pop.home.location, pop.work.location) }, properties: { kind: 'pop-line', mass: pop.mass, color: '#ff0000' } },
+        { type: 'Feature', geometry: { type: 'LineString', coordinates }, properties: { kind: 'pop-line', mass: pop.mass, color: '#ff0000' } },
         { type: 'Feature', geometry: { type: 'Point', coordinates: pop.home.location }, properties: { kind: 'home', color: '#ffffff' } },
         { type: 'Feature', geometry: { type: 'Point', coordinates: pop.work.location }, properties: { kind: 'work', color: '#ff5959' } },
       ],

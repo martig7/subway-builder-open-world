@@ -8,6 +8,7 @@
  */
 
 export const DETAILED_RENDER_ZOOM = Object.freeze({ min: 10, maxExclusive: 16 });
+export const RENDER_DISTANCE = Object.freeze({ min: 1, default: 3, max: 9 });
 
 const SPATIAL_KEYS = Object.freeze([
   'tracks', 'routes', 'interlines', 'routeGeometry', 'routeGeometries',
@@ -20,6 +21,34 @@ const MOVEMENT_LAYER_RE = /^(?:trains|signals|preview|pop-movements)(?:-|$)/i;
 
 function finite(value) { return Number.isFinite(Number(value)); }
 function number(value) { return Number(value); }
+
+export function normalizeRenderDistance(value) {
+  const numeric = Math.round(Number(value));
+  if (!Number.isFinite(numeric)) return RENDER_DISTANCE.default;
+  return Math.min(RENDER_DISTANCE.max, Math.max(RENDER_DISTANCE.min, numeric));
+}
+
+/**
+ * Odd render distances are complete square windows. Even values are the
+ * deliberately lighter intermediate footprints described by the UI: the
+ * preceding odd square plus a centered strip on each of its four sides.
+ */
+export function tileOffsetWithinRenderDistance(deltaColumn, deltaRow, value) {
+  const distance = normalizeRenderDistance(value);
+  const column = Math.abs(number(deltaColumn));
+  const row = Math.abs(number(deltaRow));
+  if (!Number.isFinite(column) || !Number.isFinite(row)) return false;
+  if (distance % 2 === 1) {
+    const radius = (distance - 1) / 2;
+    return column <= radius && row <= radius;
+  }
+  const innerRadius = distance / 2 - 1;
+  const outerRadius = innerRadius + 1;
+  const sideHalfWidth = Math.max(0, (distance - 4) / 2);
+  return (column <= innerRadius && row <= innerRadius)
+    || (column === outerRadius && row <= sideHalfWidth)
+    || (row === outerRadius && column <= sideHalfWidth);
+}
 
 function boundsOf(value) {
   if (!Array.isArray(value) || value.length < 4) return null;
@@ -102,7 +131,7 @@ function geometryOf(value) {
   return null;
 }
 
-function segmentClip(a, b, bounds) {
+function segmentClipInterval(a, b, bounds) {
   let t0 = 0; let t1 = 1;
   const dx = b[0] - a[0]; const dy = b[1] - a[1];
   const tests = [
@@ -115,6 +144,14 @@ function segmentClip(a, b, bounds) {
     if (p < 0) { if (t > t1) return null; if (t > t0) t0 = t; }
     else { if (t < t0) return null; if (t < t1) t1 = t; }
   }
+  return [t0, t1];
+}
+
+function segmentClip(a, b, bounds) {
+  const interval = segmentClipInterval(a, b, bounds);
+  if (!interval) return null;
+  const [t0, t1] = interval;
+  const dx = b[0] - a[0]; const dy = b[1] - a[1];
   return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy]];
 }
 
@@ -138,6 +175,75 @@ export function clipLineString(coordinates, haloBounds) {
     else { if (current.length >= 2) pieces.push(current); current = [start, end]; }
   }
   if (current.length >= 2) pieces.push(current);
+  return pieces;
+}
+
+/**
+ * Clip a line and one scalar value per vertex against the union of bounds.
+ * Adjacent tile intervals are merged before materializing vertices, preventing
+ * duplicate internal-boundary points while keeping custom Deck attributes
+ * exactly aligned with each emitted path.
+ */
+export function clipLineStringWithValues(coordinates, values, haloBounds) {
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return [];
+  if ((!Array.isArray(values) && !ArrayBuffer.isView(values)) || values.length !== coordinates.length) return [];
+  if (!Array.isArray(haloBounds)) return [];
+  if (!haloBounds.length) return [{
+    coordinates: coordinates.map((point) => [...point]),
+    values: Array.from(values, Number),
+  }];
+  const epsilon = 1e-12;
+  const pieces = [];
+  let current = null;
+  const interpolatePoint = (a, b, t) => [
+    number(a[0]) + t * (number(b[0]) - number(a[0])),
+    number(a[1]) + t * (number(b[1]) - number(a[1])),
+  ];
+  const interpolateValue = (left, right, t) => number(left) + t * (number(right) - number(left));
+  const flush = () => {
+    if (current?.coordinates.length >= 2) pieces.push(current);
+    current = null;
+  };
+
+  for (let index = 1; index < coordinates.length; index += 1) {
+    const a = coordinates[index - 1]; const b = coordinates[index];
+    const leftValue = number(values[index - 1]); const rightValue = number(values[index]);
+    if (!Array.isArray(a) || !Array.isArray(b)
+      || !finite(a[0]) || !finite(a[1]) || !finite(b[0]) || !finite(b[1])
+      || !Number.isFinite(leftValue) || !Number.isFinite(rightValue)) {
+      flush();
+      continue;
+    }
+    const intervals = haloBounds
+      .map((bounds) => segmentClipInterval(a, b, bounds))
+      .filter((interval) => interval && interval[1] - interval[0] > epsilon)
+      .sort((left, right) => left[0] - right[0]);
+    const merged = [];
+    for (const interval of intervals) {
+      const previous = merged.at(-1);
+      if (previous && interval[0] <= previous[1] + epsilon) previous[1] = Math.max(previous[1], interval[1]);
+      else merged.push([...interval]);
+    }
+    if (!merged.length) {
+      flush();
+      continue;
+    }
+    for (const [t0, t1] of merged) {
+      const start = interpolatePoint(a, b, t0);
+      const end = interpolatePoint(a, b, t1);
+      const startValue = interpolateValue(leftValue, rightValue, t0);
+      const endValue = interpolateValue(leftValue, rightValue, t1);
+      if (!current || !samePoint(current.coordinates.at(-1), start)) {
+        flush();
+        current = { coordinates: [start], values: [startValue] };
+      }
+      if (!samePoint(current.coordinates.at(-1), end)) {
+        current.coordinates.push(end);
+        current.values.push(endValue);
+      }
+    }
+  }
+  flush();
   return pieces;
 }
 
@@ -176,7 +282,12 @@ function clippedGeometry(geometry, halo) {
   }
 }
 
-export function createRendererVirtualization({ activeTileId, tileCatalog, haloRadius = 1 } = {}) {
+export function createRendererVirtualization({
+  activeTileId,
+  tileCatalog,
+  renderDistance = RENDER_DISTANCE.default,
+  haloRadius,
+} = {}) {
   const packageEntries = (tileCatalog?.tiles ?? []).map((tile, index) => ({
     tile, index, id: tile?.id, position: tilePosition(tile, index), bounds: tileBounds(tile),
   }));
@@ -201,9 +312,20 @@ export function createRendererVirtualization({ activeTileId, tileCatalog, haloRa
     ?? entries.find((entry) => entry.id === activeTileId)
     ?? entries[0]
     ?? null;
+  const normalizedRenderDistance = normalizeRenderDistance(renderDistance);
+  const includesOffset = Number.isFinite(Number(haloRadius))
+    ? (deltaColumn, deltaRow) => Math.abs(deltaColumn) <= Number(haloRadius)
+      && Math.abs(deltaRow) <= Number(haloRadius)
+    : (deltaColumn, deltaRow) => tileOffsetWithinRenderDistance(
+      deltaColumn,
+      deltaRow,
+      normalizedRenderDistance,
+    );
   const haloEntries = active
-    ? entries.filter((entry) => Math.abs(entry.position[0] - active.position[0]) <= haloRadius
-      && Math.abs(entry.position[1] - active.position[1]) <= haloRadius)
+    ? entries.filter((entry) => includesOffset(
+      entry.position[0] - active.position[0],
+      entry.position[1] - active.position[1],
+    ))
     : entries;
   const halo = haloEntries.map((entry) => entry.bounds).filter(Boolean);
   const haloTileIds = haloEntries.map((entry) => entry.id).filter((id) => id != null);
@@ -246,6 +368,7 @@ export function createRendererVirtualization({ activeTileId, tileCatalog, haloRa
 
   return Object.freeze({
     activeTileId: active?.id ?? activeTileId ?? null,
+    renderDistance: normalizedRenderDistance,
     haloTileIds: Object.freeze([...haloTileIds]),
     tileIds: Object.freeze([...haloTileIds]),
     haloBounds: Object.freeze(halo.map((bounds) => Object.freeze([...bounds]))),
@@ -259,8 +382,20 @@ export function createRendererVirtualization({ activeTileId, tileCatalog, haloRa
   });
 }
 
-export function virtualizeRenderInputs({ activeTileId, tileCatalog, canonical, haloRadius = 1, ...options } = {}) {
-  const virtualization = createRendererVirtualization({ activeTileId, tileCatalog, haloRadius });
+export function virtualizeRenderInputs({
+  activeTileId,
+  tileCatalog,
+  canonical,
+  renderDistance = RENDER_DISTANCE.default,
+  haloRadius,
+  ...options
+} = {}) {
+  const virtualization = createRendererVirtualization({
+    activeTileId,
+    tileCatalog,
+    renderDistance,
+    haloRadius,
+  });
   return { ...virtualization.renderInputs(canonical, options), virtualization };
 }
 
@@ -354,22 +489,107 @@ function markerDomPosition(map, element) {
   return [number(longitudeLatitude.lng), number(longitudeLatitude.lat)];
 }
 
+const STATION_MARKER_MOVEMENT_BATCH_KEY = Symbol.for('open-world.station-marker-movement-batch');
+const STATION_MARKER_MOVEMENT_BATCH_VERSION = 1;
+
 /**
  * Best-effort reversible adapter for native React/MapLibre markers.  The game
  * does not expose its marker registry in the shipped MapLibre build, so the
  * DOM marker elements are also inspected. Their screen-space anchor is
  * converted back to a geographic point with MapLibre's unproject method.
  * Coordinates are cached after the first visible pass because a hidden DOM
- * element has a zero-sized bounding box.
+ * element has a zero-sized bounding box. Native marker movement is dispatched
+ * through one adapter-owned listener per event instead of one listener per
+ * marker; a map-level owner makes that replacement reversible across reloads.
  */
-export function createStationMarkerVisibilityAdapter({ map, virtualization, onApply } = {}) {
+export function createStationMarkerVisibilityAdapter({
+  map,
+  virtualization,
+  movementVisible = true,
+  onApply,
+  measure,
+} = {}) {
+  const nativeMap = map?.getMap?.() ?? map;
   const originals = new Map();
   const positions = new Map();
   const pendingDomElements = new Set();
+  const managedMarkers = new Map();
+  const movingMarkers = new Set();
   let currentVirtualization = virtualization;
+  let currentMovementVisible = movementVisible !== false;
   let scheduled = false;
   let disposed = false;
-  const setVisibility = (element, point) => {
+  let movementListenersAttached = false;
+  let movementReleased = false;
+  let movementBatchOwner = null;
+  function handleMarkerMovement(event) {
+    for (const marker of [...movingMarkers]) {
+      if (marker?._map !== nativeMap) {
+        movingMarkers.delete(marker);
+        managedMarkers.delete(marker);
+        continue;
+      }
+      const update = managedMarkers.get(marker);
+      update?.call?.(marker, event);
+    }
+    syncMovementListeners();
+  }
+  function syncMovementListeners() {
+    const shouldAttach = !movementReleased && currentMovementVisible && movingMarkers.size > 0;
+    if (shouldAttach === movementListenersAttached) return;
+    movementListenersAttached = shouldAttach;
+    const method = shouldAttach ? 'on' : 'off';
+    nativeMap?.[method]?.('move', handleMarkerMovement);
+    nativeMap?.[method]?.('moveend', handleMarkerMovement);
+  }
+  function manageMarkerMovement(marker, visible) {
+    if (movementReleased || !marker || marker._map !== nativeMap || typeof marker._update !== 'function') return;
+    if (!managedMarkers.has(marker)) {
+      const nativeUpdate = marker._update;
+      nativeMap?.off?.('move', nativeUpdate);
+      nativeMap?.off?.('moveend', nativeUpdate);
+      managedMarkers.set(marker, nativeUpdate);
+    }
+    const shouldMove = visible && currentMovementVisible;
+    const wasMoving = movingMarkers.has(marker);
+    if (shouldMove) movingMarkers.add(marker);
+    else movingMarkers.delete(marker);
+    if (shouldMove && !wasMoving) managedMarkers.get(marker)?.call?.(marker);
+    syncMovementListeners();
+  }
+  function releaseMarkerMovement() {
+    if (movementReleased) return;
+    movementReleased = true;
+    movingMarkers.clear();
+    syncMovementListeners();
+    for (const [marker, nativeUpdate] of managedMarkers) {
+      if (marker?._map !== nativeMap) continue;
+      nativeMap?.on?.('move', nativeUpdate);
+      nativeMap?.on?.('moveend', nativeUpdate);
+      nativeUpdate.call?.(marker);
+    }
+    managedMarkers.clear();
+    if (nativeMap?.[STATION_MARKER_MOVEMENT_BATCH_KEY] === movementBatchOwner) {
+      try { delete nativeMap[STATION_MARKER_MOVEMENT_BATCH_KEY]; } catch {}
+    }
+  }
+  nativeMap?.[STATION_MARKER_MOVEMENT_BATCH_KEY]?.release?.();
+  movementBatchOwner = Object.freeze({
+    version: STATION_MARKER_MOVEMENT_BATCH_VERSION,
+    release: releaseMarkerMovement,
+  });
+  if (nativeMap) {
+    try {
+      Object.defineProperty(nativeMap, STATION_MARKER_MOVEMENT_BATCH_KEY, {
+        configurable: true,
+        writable: true,
+        value: movementBatchOwner,
+      });
+    } catch {
+      try { nativeMap[STATION_MARKER_MOVEMENT_BATCH_KEY] = movementBatchOwner; } catch {}
+    }
+  }
+  const setVisibility = (element, point, marker = null) => {
     if (!element || !point || !currentVirtualization) return;
     if (!originals.has(element)) originals.set(element, {
       display: element.style?.display ?? '',
@@ -383,8 +603,9 @@ export function createStationMarkerVisibilityAdapter({ map, virtualization, onAp
       element.style.visibility = visible ? original.visibility : 'hidden';
     }
     if (element.dataset) element.dataset.openWorldSpatialMarker = visible ? 'visible' : 'hidden';
+    if (marker) manageMarkerMovement(marker, visible);
   };
-  const apply = (domElements = null) => {
+  const applyUnmeasured = (domElements = null) => {
     if (disposed) return originals.size;
     scheduled = false;
     const processed = new Set();
@@ -392,7 +613,7 @@ export function createStationMarkerVisibilityAdapter({ map, virtualization, onAp
       const element = marker?.getElement?.(); const position = marker?.getLngLat?.();
       if (!element || !position || !currentVirtualization) continue;
       processed.add(element);
-      setVisibility(element, [number(position.lng), number(position.lat)]);
+      setVisibility(element, [number(position.lng), number(position.lat)], marker);
     }
     for (const element of domElements ?? markerDomCollection(map)) {
       if (processed.has(element)) continue;
@@ -402,6 +623,11 @@ export function createStationMarkerVisibilityAdapter({ map, virtualization, onAp
     onApply?.();
     return originals.size;
   };
+  const apply = (domElements = null) => (typeof measure === 'function'
+    ? measure('marker.adapter.apply', () => applyUnmeasured(domElements), {
+      suppliedDomElements: domElements?.length ?? null,
+    })
+    : applyUnmeasured(domElements));
   const scheduleApply = (elements = []) => {
     for (const element of elements) pendingDomElements.add(element);
     if (scheduled) return;
@@ -433,6 +659,7 @@ export function createStationMarkerVisibilityAdapter({ map, virtualization, onAp
     disposed = true;
     observer?.disconnect?.();
     scheduled = false;
+    releaseMarkerMovement();
     for (const [element, original] of originals) {
       if (element.style) { element.style.display = original.display; element.style.visibility = original.visibility; }
       try { if (element.dataset) delete element.dataset.openWorldSpatialMarker; } catch {}
@@ -454,7 +681,21 @@ export function createStationMarkerVisibilityAdapter({ map, virtualization, onAp
     apply();
     return true;
   };
-  return Object.freeze({ apply, scheduleApply, updateVirtualization, reset });
+  const updateMovementVisibility = (nextVisible) => {
+    if (disposed) return false;
+    const visible = nextVisible !== false;
+    if (visible === currentMovementVisible) return false;
+    currentMovementVisible = visible;
+    apply();
+    return true;
+  };
+  return Object.freeze({
+    apply,
+    scheduleApply,
+    updateVirtualization,
+    updateMovementVisibility,
+    reset,
+  });
 }
 
 export { boundsIntersect, boundsOf, clippedGeometry, geometryOf };

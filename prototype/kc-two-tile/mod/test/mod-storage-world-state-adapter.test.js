@@ -69,151 +69,51 @@ test('one autosave writes one immutable world revision shared by live and checkp
   const live = storage.values.get('world:single-payload-world');
   const index = storage.values.get('world:single-payload-world:save-checkpoints');
   assert.equal(live.kind, 'world-revision-pointer');
-  assert.equal(index.schemaVersion, 3);
+  assert.equal(index.schemaVersion, 4);
   assert.equal(index.entries[0].revisionId, live.revisionId);
   assert.equal((await adapter.load(world.worldId, {
     saveName: 'Autosave', nativeSessionId: 'native-session', nativeTileId: 'KCW',
   })).wallet, 4321);
 });
 
-test('lineage metadata is available from the compact pointer without hydrating assets', async () => {
+test('world revisions never persist native rail topology or projection artifacts', async () => {
   const storage = new RecordingStorage();
-  const adapter = new ModStorageWorldStateAdapter({ storage, now: () => 0 });
-  const world = createWorld({ worldId: 'metadata-world', tileIds: ['KCW', 'KCE'] });
-  world.elapsedSeconds = 3 * 86_400 + 3_600;
-  world.globalNetwork = {
-    nativeState: {
-      routes: [{ id: 'r1' }, { id: 'r2' }],
-      stations: [{ id: 's1' }],
-      trains: [{ id: 't1' }],
-    },
-  };
-
-  await adapter.save(world);
-
-  assert.deepEqual(await adapter.readLineageMetadata('metadata-world'), {
-    worldId: 'metadata-world',
-    day: 4,
-    worldTime: 0,
-    routeCount: 2,
-    stationCount: 1,
-    trainCount: 1,
-    elapsedSeconds: 3 * 86_400 + 3_600,
-    wallet: 0,
-    money: 0,
-    fare: 2.5,
-    savedAt: 0,
-  });
-  assert.deepEqual(storage.reads.at(-1), 'world:metadata-world');
-});
-
-test('revision persistence splits and reuses immutable network, projection, and tile snapshot assets', async () => {
-  const storage = new RecordingStorage();
-  let sequence = 0;
   const adapter = new ModStorageWorldStateAdapter({
     storage,
-    createRevisionId: () => `revision-${++sequence}`,
+    createRevisionId: () => 'topology-free-revision',
   });
-  const world = createWorld({ worldId: 'asset-world', tileIds: ['KCW', 'KCE'] });
+  const world = createWorld({ worldId: 'topology-free-world', tileIds: ['KCW', 'KCE'] });
   world.globalNetwork = {
     schemaVersion: 1, revision: 2, hash: 'network-hash',
-    nativeState: { tracks: [{ id: 'track-1' }], routes: [], stations: [] },
+    nativeState: { tracks: [{ id: 'forbidden-track' }], routes: [{ id: 'forbidden-route' }] },
   };
-  world.tiles.KCW.snapshot = { id: 'west-snapshot', data: { cityCode: 'KCW', local: 'west' } };
-  world.tiles.KCE.snapshot = { id: 'east-snapshot', data: { cityCode: 'KCE', local: 'east' } };
+  world.tiles.KCW.snapshot = { id: 'forbidden-west-snapshot', data: { cityCode: 'KCW' } };
+  world.tiles.KCE.snapshot = { id: 'forbidden-east-snapshot', data: { cityCode: 'KCE' } };
+  world.tiles.KCW.networkProfile = { routeIds: ['simulation-route'] };
   world.activeProjection = {
     schemaVersion: 1, projectionHash: 'projection-hash',
-    baselineState: { tracks: [{ id: 'track-1' }] },
+    baselineState: { tracks: [{ id: 'forbidden-track' }] },
   };
-  world.projectionOverlay = { type: 'FeatureCollection', features: [{ id: 'feature-1' }] };
-
-  await adapter.saveCheckpoint(world, 'Autosave');
-  const firstAssetWrites = storage.writes.filter((key) => key.includes(':asset:'));
-  const revision = storage.values.get('world:asset-world:revision:revision-1');
-  assert.ok(firstAssetWrites.length >= 4);
-  assert.equal(revision.world.globalNetwork.nativeState, undefined);
-  assert.equal(revision.world.tiles.KCW.snapshot, undefined);
-  assert.equal(revision.world.activeProjection.baselineState, undefined);
-  assert.equal(revision.world.projectionOverlay, undefined);
-
-  storage.writes.length = 0;
-  world.elapsedSeconds = 3_600;
-  await adapter.saveCheckpoint(world, 'Autosave 2');
-  assert.deepEqual(storage.writes.filter((key) => key.includes(':asset:')), []);
-  assert.equal((await adapter.load(world.worldId, { saveName: 'Autosave 2' })).tiles.KCE.snapshot.data.local, 'east');
-});
-
-test('revision assets survive snapshot-replacing file storage', async () => {
-  const storage = new SnapshotReplacingStorage();
-  const adapter = new ModStorageWorldStateAdapter({
-    storage,
-    createRevisionId: () => 'revision-file-backed',
-  });
-  const world = createWorld({ worldId: 'file-backed-world', tileIds: ['KCW', 'KCE'] });
-  world.globalNetwork = {
-    schemaVersion: 1,
-    revision: 1,
-    hash: 'network-file-backed',
-    nativeState: { tracks: [{ id: 'track-1' }], routes: [], stations: [] },
-  };
-  world.tiles.KCW.snapshot = { id: 'west-file-backed', data: { cityCode: 'KCW' } };
-  world.tiles.KCE.snapshot = { id: 'east-file-backed', data: { cityCode: 'KCE' } };
-  world.activeProjection = {
-    schemaVersion: 1,
-    projectionHash: 'projection-file-backed',
-    baselineState: { tracks: [{ id: 'track-1' }] },
-  };
-  world.projectionOverlay = { type: 'FeatureCollection', features: [{ id: 'visible-track' }] };
-
-  await adapter.saveCheckpoint(world, 'Autosave');
-
-  const pointer = storage.values.get('world:file-backed-world');
-  const referencedAssets = [
-    pointer.assetRefs.globalNetwork?.key,
-    ...Object.values(pointer.assetRefs.tileSnapshots).map((ref) => ref.key),
-    pointer.assetRefs.projectionBaseline?.key,
-    pointer.assetRefs.projectionOverlay?.key,
-  ].filter(Boolean);
-  assert.equal(referencedAssets.length, 5);
-  assert.deepEqual(
-    referencedAssets.filter((key) => !storage.values.has(key)),
-    [],
-  );
-  assert.equal((await adapter.load(world.worldId, { saveName: 'Autosave' })).worldId, world.worldId);
-});
-
-test('delayed cleanup cannot delete an asset reused by the current A-B-A revision', async () => {
-  const storage = new RecordingStorage();
-  const maintenance = [];
-  let sequence = 0;
-  const adapter = new ModStorageWorldStateAdapter({
-    storage,
-    createRevisionId: () => `revision-${++sequence}`,
-    scheduleMaintenance: (work) => maintenance.push(work),
-  });
-  const world = createWorld({ worldId: 'asset-reuse-world', tileIds: ['KCW', 'KCE'] });
-  const setNetwork = (hash) => {
-    world.globalNetwork = {
-      schemaVersion: 1,
-      revision: sequence + 1,
-      hash,
-      nativeState: { tracks: [{ id: `track-${hash}` }], routes: [], stations: [] },
-    };
+  world.projectionOverlay = { type: 'FeatureCollection', features: [{ id: 'forbidden-feature' }] };
+  world.pendingTransition = {
+    transitionId: 'transition-1', from: 'KCW', to: 'KCE',
+    nativeSnapshot: { data: { tracks: [{ id: 'forbidden-handoff-track' }] } },
   };
 
-  setNetwork('hash-a');
   await adapter.saveCheckpoint(world, 'Autosave');
-  setNetwork('hash-b');
-  await adapter.saveCheckpoint(world, 'Autosave');
-  setNetwork('hash-a');
-  await adapter.saveCheckpoint(world, 'Autosave');
+  const serializedStore = JSON.stringify([...storage.values]);
+  for (const forbidden of [
+    'forbidden-track', 'forbidden-route', 'forbidden-west-snapshot',
+    'forbidden-east-snapshot', 'forbidden-feature', 'forbidden-handoff-track',
+  ]) assert.equal(serializedStore.includes(forbidden), false, forbidden);
 
-  assert.equal(maintenance.length >= 2, true);
-  await maintenance[0]();
-
-  const current = await adapter.load(world.worldId, { saveName: 'Autosave' });
-  assert.equal(current?.globalNetwork?.hash, 'hash-a');
-  assert.equal(current?.globalNetwork?.nativeState?.tracks?.[0]?.id, 'track-hash-a');
+  const loaded = await adapter.load(world.worldId, { saveName: 'Autosave' });
+  assert.equal(loaded.globalNetwork, undefined);
+  assert.equal(loaded.activeProjection, undefined);
+  assert.equal(loaded.projectionOverlay, undefined);
+  assert.equal(loaded.tiles.KCW.snapshot, undefined);
+  assert.deepEqual(loaded.tiles.KCW.networkProfile, { routeIds: ['simulation-route'] });
+  assert.equal(loaded.pendingTransition.nativeSnapshot, undefined);
 });
 
 test('checkpoint pointer commits remain recoverable if the final live pointer write fails', async () => {
@@ -494,7 +394,7 @@ test('hourly settlement journal restores aggregate progress without copying tile
   const restored = await adapter.load('journal-world');
   assert.equal(restored.worldTime, 7);
   assert.equal(restored.wallet, 1_234);
-  assert.equal(restored.tiles.KCW.snapshot.objects.length, 1_000);
+  assert.equal(restored.tiles.KCW.snapshot, undefined);
 });
 
 test('named save load overlays a newer compatible settlement journal', async () => {

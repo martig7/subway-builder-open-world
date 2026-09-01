@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  clipLineStringWithValues,
   createRendererVirtualization,
   createStationMarkerVisibilityAdapter,
+  tileOffsetWithinRenderDistance,
   virtualizeDeckLayers,
   virtualizeGeoJsonData,
   virtualizeRenderInputs,
@@ -24,6 +26,26 @@ test('selects the active tile and its 3x3 halo without mutating the catalog', ()
 
   const edge = createRendererVirtualization({ activeTileId: 'T0', tileCatalog: catalog });
   assert.deepEqual(edge.haloTileIds, ['T0', 'T1', 'T3', 'T4']);
+});
+
+test('maps render distances 1 through 9 to the requested tile footprints', () => {
+  const expectedCounts = [1, 5, 9, 13, 25, 37, 49, 69, 81];
+  for (let distance = 1; distance <= 9; distance += 1) {
+    const offsets = [];
+    for (let row = -4; row <= 4; row += 1) {
+      for (let column = -4; column <= 4; column += 1) {
+        if (tileOffsetWithinRenderDistance(column, row, distance)) offsets.push([column, row]);
+      }
+    }
+    assert.equal(offsets.length, expectedCounts[distance - 1], `distance ${distance}`);
+  }
+  assert.equal(tileOffsetWithinRenderDistance(1, 1, 2), false);
+  assert.equal(tileOffsetWithinRenderDistance(2, 0, 4), true);
+  assert.equal(tileOffsetWithinRenderDistance(2, 1, 4), false);
+  assert.equal(tileOffsetWithinRenderDistance(3, 1, 6), true);
+  assert.equal(tileOffsetWithinRenderDistance(3, 2, 6), false);
+  assert.equal(tileOffsetWithinRenderDistance(4, 2, 8), true);
+  assert.equal(tileOffsetWithinRenderDistance(4, 3, 8), false);
 });
 
 test('uses the complete spatial grid when loadable packages omit empty halo cells', () => {
@@ -67,6 +89,19 @@ test('clips boundary-crossing lines into contiguous segments and avoids closing 
   assert.deepEqual(result.tracks[0].geometry.coordinates, [[0, 0.5], [1, 0.5]]);
   assert.equal(result.previewArtifacts.length, 1);
   assert.deepEqual(canonical, before);
+});
+
+test('clips against adjacent bounds as one path and interpolates per-vertex values', () => {
+  const pieces = clipLineStringWithValues(
+    [[-1, 0.5], [0.5, 0.5], [2, 0.5]],
+    [-10, 5, 20],
+    [[0, 0, 0.5, 1], [0.5, 0, 1, 1]],
+  );
+
+  assert.deepEqual(pieces, [{
+    coordinates: [[0, 0.5], [0.5, 0.5], [1, 0.5]],
+    values: [0, 5, 10],
+  }]);
 });
 
 test('handles null and missing geometry conservatively while filtering known spatial points', () => {
@@ -169,6 +204,122 @@ test('reapplying marker visibility is reversible and does not mutate marker stat
   assert.equal(element.style.display, 'block');
   assert.equal(element.style.visibility, '');
   assert.equal(element.dataset.openWorldSpatialMarker, undefined);
+});
+
+test('native marker movement uses one batched listener while hidden markers stay suspended', () => {
+  const listeners = { move: new Set(), moveend: new Set() };
+  const nativeMap = {
+    _markers: [],
+    on(event, listener) { listeners[event]?.add(listener); },
+    off(event, listener) { listeners[event]?.delete(listener); },
+  };
+  const makeMarker = (lng) => {
+    const element = { style: { display: 'block', visibility: '' }, dataset: {} };
+    const marker = {
+      _map: nativeMap,
+      updates: [],
+      _update(event) { this.updates.push(event?.type ?? 'immediate'); },
+      getElement: () => element,
+      getLngLat: () => ({ lng, lat: 0.5 }),
+    };
+    nativeMap._markers.push(marker);
+    listeners.move.add(marker._update);
+    listeners.moveend.add(marker._update);
+    return marker;
+  };
+  const west = Array.from({ length: 32 }, (_, index) => makeMarker((index + 1) / 40));
+  const east = makeMarker(10.5);
+  const tileCatalog = { tiles: [
+    { id: 'T0', bounds: [0, 0, 1, 1] },
+    { id: 'T1', bounds: [10, 0, 11, 1] },
+  ] };
+  const map = { getMap: () => nativeMap };
+  const adapter = createStationMarkerVisibilityAdapter({
+    map,
+    virtualization: createRendererVirtualization({ activeTileId: 'T0', tileCatalog, haloRadius: 0 }),
+    movementVisible: true,
+  });
+
+  adapter.apply();
+  assert.equal(listeners.move.size, 1);
+  assert.equal(listeners.moveend.size, 1);
+  for (const marker of [...west, east]) marker.updates.length = 0;
+  for (const listener of listeners.move) listener({ type: 'move' });
+  assert.ok(west.every((marker) => marker.updates.length === 1 && marker.updates[0] === 'move'));
+  assert.deepEqual(east.updates, []);
+
+  adapter.updateMovementVisibility(false);
+  assert.equal(listeners.move.size, 0);
+  assert.equal(listeners.moveend.size, 0);
+
+  adapter.updateVirtualization(createRendererVirtualization({
+    activeTileId: 'T1', tileCatalog, haloRadius: 0,
+  }));
+  adapter.updateMovementVisibility(true);
+  assert.equal(listeners.move.size, 1);
+  assert.equal(listeners.moveend.size, 1);
+  for (const marker of [...west, east]) marker.updates.length = 0;
+  for (const listener of listeners.moveend) listener({ type: 'moveend' });
+  assert.ok(west.every((marker) => marker.updates.length === 0));
+  assert.deepEqual(east.updates, ['moveend']);
+
+  adapter.reset();
+  assert.deepEqual(new Set(listeners.move), new Set([...west, east].map((marker) => marker._update)));
+  assert.deepEqual(new Set(listeners.moveend), new Set([...west, east].map((marker) => marker._update)));
+});
+
+test('a hot-reloaded marker adapter replaces the previous batch without restoring per-marker listeners', () => {
+  const listeners = { move: new Set(), moveend: new Set() };
+  const nativeMap = {
+    _markers: [],
+    on(event, listener) { listeners[event]?.add(listener); },
+    off(event, listener) { listeners[event]?.delete(listener); },
+  };
+  const makeMarker = (lng) => {
+    const element = { style: { display: 'block', visibility: '' }, dataset: {} };
+    const marker = {
+      _map: nativeMap,
+      updates: 0,
+      getElement: () => element,
+      getLngLat: () => ({ lng, lat: 0.5 }),
+    };
+    marker._update = () => { marker.updates += 1; };
+    nativeMap._markers.push(marker);
+    listeners.move.add(marker._update);
+    listeners.moveend.add(marker._update);
+    return marker;
+  };
+  makeMarker(0.25);
+  makeMarker(0.75);
+  const map = { getMap: () => nativeMap };
+  const virtualization = createRendererVirtualization({
+    activeTileId: 'T0',
+    tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
+  });
+  const previous = createStationMarkerVisibilityAdapter({ map, virtualization });
+  previous.apply();
+  assert.equal(listeners.move.size, 1);
+
+  const replacement = createStationMarkerVisibilityAdapter({ map, virtualization });
+  replacement.apply();
+  assert.equal(listeners.move.size, 1);
+  assert.equal(listeners.moveend.size, 1);
+
+  const lateMarker = makeMarker(0.5);
+  previous.apply();
+  assert.equal(listeners.move.size, 2);
+  for (const listener of listeners.move) listener({ type: 'move' });
+  assert.equal(lateMarker.updates, 1);
+  replacement.apply();
+  assert.equal(listeners.move.size, 1);
+
+  previous.reset();
+  assert.equal(listeners.move.size, 1);
+  assert.equal(listeners.moveend.size, 1);
+
+  replacement.reset();
+  assert.equal(listeners.move.size, 3);
+  assert.equal(listeners.moveend.size, 3);
 });
 
 test('clips DOM-backed markers when MapLibre exposes no native marker registry', () => {

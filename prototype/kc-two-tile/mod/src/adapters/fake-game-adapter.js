@@ -7,9 +7,10 @@ export class FakeGameAdapter {
   constructor({ version = '1.6.0', failAt = null } = {}) {
     this.version = version; this.failAt = failAt; this.paused = false; this.currentPackage = null;
     this.native = {
-      clock: 0, wallet: 0, transitCost: 2.5, fareGroups: [], camera: { x: 0, y: 0, zoom: 1 }, objects: [], activity: { departures: [], walletDelta: 0 },
+      clock: 0, wallet: 0, gameMode: 'easy', transitCost: 2.5, fareGroups: [], camera: { x: 0, y: 0, zoom: 1 }, objects: [], activity: { departures: [], walletDelta: 0 },
       financialHistory: { entries: [], lastHourTimestamp: 0, currentHourRevenue: 0, currentHourExpenses: 0, currentHourExpenseCategories: {} },
       routeFinancials: { byRoute: {}, lastHourTimestamp: 0, currentHour: {} },
+      bonds: [], hasGoneBankrupt: false, rockefellerPaidOut: false, buildingDemolitionSpendAllTime: 0,
       routeRevenueByRoute: {}, completedCommutes: [],
     };
     this.log = [];
@@ -65,7 +66,7 @@ export class FakeGameAdapter {
   }
   async captureAuthoritativeGlobals() {
     await this.#at('captureAuthoritativeGlobals');
-    return { wallet: this.native.wallet, elapsedSeconds: this.native.clock, farePolicy: { fare: this.native.transitCost, fareGroups: deepCopy(this.native.fareGroups ?? []) }, financialHistory: deepCopy(this.native.financialHistory) };
+    return { wallet: this.native.wallet, elapsedSeconds: this.native.clock, gameMode: this.native.gameMode, farePolicy: { fare: this.native.transitCost, fareGroups: deepCopy(this.native.fareGroups ?? []) }, financialHistory: deepCopy(this.native.financialHistory) };
   }
   queueNativeFinanceAudit(sample) { this.nativeFinanceAudit.push(deepCopy(sample)); }
   consumeNativeFinanceAudit() {
@@ -146,7 +147,12 @@ export class FakeGameAdapter {
   captureCrossTileNetworkProfile(tileId = this.currentPackage?.manifest?.tileId) {
     return deepCopy(this.native.networkProfile ?? { schemaVersion: 1, tileId, signature: `${tileId}:empty`, stations: [], routes: [], activeRouteIds: [], pathfindingRules: {} });
   }
-  async validateSnapshot(snapshot) { await this.#at('validateSnapshot'); if (!snapshot?.objects || !Number.isFinite(snapshot.wallet)) throw new Error('Invalid native snapshot'); }
+  async validateSnapshot(snapshot) {
+    await this.#at('validateSnapshot');
+    if (!snapshot?.objects || ('wallet' in snapshot && !Number.isFinite(snapshot.wallet))) {
+      throw new Error('Invalid native snapshot');
+    }
+  }
   async reconcileActiveResults() { await this.#at('reconcileActiveResults'); const result = deepCopy(this.native.activity); this.native.activity = { departures: [], walletDelta: 0 }; return result; }
   async adoptStaticPackage(pkg, loadedTileId) {
     await this.#at('adoptStaticPackage');
@@ -154,11 +160,33 @@ export class FakeGameAdapter {
     this.currentPackage = deepCopy(pkg);
   }
   async loadStaticPackage(pkg) { await this.#at('loadStaticPackage'); if (!pkg?.manifest) throw new Error('Missing package manifest'); this.currentPackage = deepCopy(pkg); }
-  async restoreSnapshot(snapshot) { await this.#at('restoreSnapshot'); this.native = deepCopy(snapshot); }
+  async restoreSnapshot(snapshot, {
+    preserveNativeFinance = false,
+    authoritativeFinanceSnapshot = null,
+  } = {}) {
+    await this.#at('restoreSnapshot');
+    const financialState = authoritativeFinanceSnapshot?.data
+      ?? authoritativeFinanceSnapshot
+      ?? this.native;
+    const ledger = preserveNativeFinance ? Object.fromEntries([
+      'gameMode', 'wallet', 'money', 'transitCost', 'fareGroups',
+      'financialHistory', 'routeFinancials', 'bonds', 'hasGoneBankrupt',
+      'rockefellerPaidOut', 'buildingDemolitionSpendAllTime',
+    ].flatMap((key) => {
+      const value = financialState?.[key] !== undefined
+        ? financialState[key]
+        : this.native?.[key];
+      return value === undefined ? [] : [[key, deepCopy(value)]];
+    })) : null;
+    this.native = deepCopy(snapshot);
+    if (ledger) Object.assign(this.native, ledger);
+  }
   mergeSharedTransitNetwork(destinationSnapshot, sourceSnapshot) {
     return mergeSharedTransitNetworkState(destinationSnapshot, sourceSnapshot);
   }
-  async setAuthoritativeGlobals({ worldTime, elapsedSeconds = worldTime * 3600, wallet, farePolicy, financialHistory }) { await this.#at('setAuthoritativeGlobals'); this.native.clock = elapsedSeconds; this.native.wallet = wallet; this.native.transitCost = farePolicy?.fare ?? this.native.transitCost; if (financialHistory) this.native.financialHistory = deepCopy(financialHistory); }
+  async setAuthoritativeGameMode(gameMode) { await this.#at('setAuthoritativeGameMode'); if (gameMode == null) return false; this.native.gameMode = gameMode; if (gameMode === 'sandbox') this.native.wallet = Number.MAX_SAFE_INTEGER; return true; }
+  async setAuthoritativeClock(elapsedSeconds) { await this.#at('setAuthoritativeClock'); if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) throw new Error('Invalid authoritative game time'); this.native.clock = Math.round(elapsedSeconds); }
+  async setAuthoritativeGlobals({ worldTime, elapsedSeconds = worldTime * 3600, wallet, gameMode = null, farePolicy, financialHistory }) { await this.#at('setAuthoritativeGlobals'); this.native.clock = elapsedSeconds; await this.setAuthoritativeGameMode(gameMode); this.native.wallet = wallet; this.native.transitCost = farePolicy?.fare ?? this.native.transitCost; if (financialHistory) this.native.financialHistory = deepCopy(financialHistory); }
   async restoreCamera(camera) { await this.#at('restoreCamera'); if (camera) this.native.camera = deepCopy(camera); }
   async verifyLoaded() { await this.#at('verifyLoaded'); if (!this.currentPackage || !this.paused) throw new Error('Game was not quiesced/loaded'); }
   async captureRuntime() { return { native: deepCopy(this.native), package: deepCopy(this.currentPackage), paused: this.paused }; }

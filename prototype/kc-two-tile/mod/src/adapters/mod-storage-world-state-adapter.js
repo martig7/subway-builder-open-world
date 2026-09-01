@@ -1,10 +1,82 @@
 import { deepCopy } from '../world-model.js';
 
 export const SAVE_CHECKPOINT_LIMIT = 10;
-const POINTER_SCHEMA_VERSION = 3;
+const POINTER_SCHEMA_VERSION = 4;
 const REVISION_SCHEMA_VERSION = 1;
 const POINTER_KIND = 'world-revision-pointer';
 const REVISION_KIND = 'world-revision';
+const FINANCE_MODES = new Set(['legacy', 'blind']);
+const FINANCIAL_WORLD_FIELDS = [
+  'wallet',
+  'financialHistory',
+  'backgroundNativeFinance',
+  'crossTileFinancials',
+  'pendingCrossTileAttribution',
+  'settlementAccountingSchemaVersion',
+  'settlementFinanceQuarantine',
+];
+const FINANCIAL_TILE_FIELDS = [
+  'lastSettledHour',
+  'lastRevenueSettledHour',
+  'lastExpenseSettledHour',
+  'financeCursor',
+  'financialCursor',
+  'revenueCursor',
+  'expenseCursor',
+];
+const FINANCIAL_TILE_AGGREGATE_FIELDS = [
+  'revenue',
+  'operatingCost',
+  'expense',
+  'expenses',
+  'cost',
+  'fareRevenue',
+  'pendingNativeRevenue',
+];
+function stripFinanceFromAggregate(aggregate) {
+  if (!aggregate || typeof aggregate !== 'object') return aggregate;
+  const result = { ...aggregate };
+  for (const field of FINANCIAL_TILE_AGGREGATE_FIELDS) delete result[field];
+  return result;
+}
+
+function stripFinanceFromGatewayPosition(position) {
+  if (!position || typeof position !== 'object') return position;
+  const result = { ...position };
+  delete result.fareRevenue;
+  return result;
+}
+
+function stripFinanceFromWorld(world) {
+  if (!world || typeof world !== 'object') return world;
+  for (const field of FINANCIAL_WORLD_FIELDS) delete world[field];
+  for (const entry of Object.values(world.gatewayLedger ?? {})) {
+    if (entry && typeof entry === 'object') delete entry.fareRevenue;
+  }
+  for (const tile of Object.values(world.tiles ?? {})) {
+    if (!tile || typeof tile !== 'object') continue;
+    for (const field of FINANCIAL_TILE_FIELDS) delete tile[field];
+    if ('aggregate' in tile) tile.aggregate = stripFinanceFromAggregate(tile.aggregate);
+  }
+  return world;
+}
+
+/** Native Saves are the sole durable owner of rail topology. */
+function stripNativeTopologyFromWorld(world) {
+  if (!world || typeof world !== 'object') return world;
+  delete world.globalNetwork;
+  delete world.activeProjection;
+  delete world.projectionOverlay;
+  delete world.projectionWarning;
+  if (world.pendingTransition && typeof world.pendingTransition === 'object') {
+    delete world.pendingTransition.nativeSnapshot;
+  }
+  for (const tile of Object.values(world.tiles ?? {})) {
+    if (!tile || typeof tile !== 'object') continue;
+    delete tile.snapshot;
+  }
+  return world;
+}
 
 function defaultRevisionId() {
   return globalThis.crypto?.randomUUID?.()
@@ -19,30 +91,10 @@ function scheduleWhenIdle(work) {
   setTimeout(() => { void work(); }, 0);
 }
 
-function stableHash(value) {
-  const text = JSON.stringify(value ?? null);
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < text.length; index++) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
-
 function isRevisionPointer(value) {
-  return value?.schemaVersion === POINTER_SCHEMA_VERSION
+  return [3, POINTER_SCHEMA_VERSION].includes(value?.schemaVersion)
     && value?.kind === POINTER_KIND
     && typeof value?.revisionId === 'string';
-}
-
-function assetKeys(refs) {
-  if (!refs) return [];
-  return [
-    refs.globalNetwork?.key,
-    ...Object.values(refs.tileSnapshots ?? {}).map((ref) => ref?.key),
-    refs.projectionBaseline?.key,
-    refs.projectionOverlay?.key,
-  ].filter(Boolean);
 }
 
 function normalizedNativeSaveIdentity({ nativeSessionId = null, nativeTileId = null } = {}) {
@@ -91,7 +143,11 @@ function sameNativeSave(entry, saveName, identity) {
     && entry.nativeTileId === identity.nativeTileId;
 }
 
-/** CAS-shaped adapter that accepts either a Map or API `storage.scoped()`. */
+/**
+ * CAS-shaped adapter that accepts either a Map or API `storage.scoped()`.
+ * `financeMode: 'blind'` makes finance absent at this persistence seam;
+ * omitted `financeMode` retains the legacy read/write behavior.
+ */
 export class ModStorageWorldStateAdapter {
   constructor({
     storage = new Map(),
@@ -99,20 +155,24 @@ export class ModStorageWorldStateAdapter {
     diagnostics = () => {},
     createRevisionId = defaultRevisionId,
     scheduleMaintenance = scheduleWhenIdle,
+    financeMode = 'legacy',
   } = {}) {
-    this.storage = storage; this.now = now; this.diagnostics = diagnostics; this.leases = new Map();
+    if (!FINANCE_MODES.has(financeMode)) {
+      throw new Error(`Unsupported world storage finance mode: ${String(financeMode)}`);
+    }
+    this.storage = storage;
+    this.now = now; this.diagnostics = diagnostics; this.leases = new Map();
     this.createRevisionId = createRevisionId;
     this.scheduleMaintenance = scheduleMaintenance;
+    this.financeMode = financeMode;
     this.checkpointIndexes = new Map();
     this.livePointers = new Map();
-    this.knownAssetKeys = new Set();
   }
   #worldKey(worldId) { return `world:${worldId}`; }
   #settlementKey(worldId) { return `world:${worldId}:settlement`; }
   #checkpointIndexKey(worldId) { return `world:${worldId}:save-checkpoints`; }
   #checkpointKey(worldId, checkpointId) { return `world:${worldId}:save-checkpoint:${checkpointId}`; }
   #revisionKey(worldId, revisionId) { return `world:${worldId}:revision:${revisionId}`; }
-  #assetKey(worldId, kind, id) { return `world:${worldId}:asset:${kind}:${encodeURIComponent(id)}`; }
   async #get(key, fallback = null) {
     const value = await this.storage.get(key, fallback);
     return value == null ? fallback : value;
@@ -120,10 +180,26 @@ export class ModStorageWorldStateAdapter {
   async #delete(key) { await this.storage.delete?.(key); }
   #copyFromStorage(value) { return this.storage instanceof Map ? deepCopy(value) : value; }
   #copyToStorage(value) { return this.storage instanceof Map ? deepCopy(value) : value; }
+  #financeBlind() { return this.financeMode === 'blind'; }
+  #worldForStorage(world) {
+    const topologyFree = stripNativeTopologyFromWorld(deepCopy(world));
+    return this.#financeBlind() ? stripFinanceFromWorld(topologyFree) : topologyFree;
+  }
+  #worldFromStorage(world) {
+    if (!world) return world;
+    const topologyFree = stripNativeTopologyFromWorld(world);
+    return this.#financeBlind() ? stripFinanceFromWorld(topologyFree) : topologyFree;
+  }
+
+  #applyLiveJournals(world, pointer, settlement) {
+    const baseRevisionId = pointer?.revisionId ?? null;
+    return this.#applySettlement(world, settlement, baseRevisionId);
+  }
 
   #settlementFromWorld(world) {
     if (!world) return null;
-    const gatewayPositions = Object.fromEntries(Object.entries(world.gatewayLedger ?? {}).map(([id, entry]) => [id, {
+    const sourceWorld = this.#worldForStorage(world);
+    const gatewayPositions = Object.fromEntries(Object.entries(sourceWorld.gatewayLedger ?? {}).map(([id, entry]) => [id, {
       atHome: entry.atHome,
       queuedToWork: entry.queuedToWork,
       toWork: entry.toWork,
@@ -131,29 +207,32 @@ export class ModStorageWorldStateAdapter {
       queuedToHome: entry.queuedToHome,
       toHome: entry.toHome,
       transitTrips: entry.transitTrips,
-      fareRevenue: entry.fareRevenue,
+      ...(!this.#financeBlind() ? { fareRevenue: entry.fareRevenue } : {}),
     }]));
-    const tileClocks = Object.fromEntries(Object.entries(world.tiles ?? {}).map(([id, tile]) => [id, {
+    const tileClocks = Object.fromEntries(Object.entries(sourceWorld.tiles ?? {}).map(([id, tile]) => [id, {
       lastSimulatedTime: tile.lastSimulatedTime,
       aggregate: tile.aggregate,
     }]));
-    return {
+    const settlement = {
       schemaVersion: 2,
-      baseRevisionId: this.livePointers.get(world.worldId)?.revisionId ?? null,
-      worldRevision: world.revision,
-      commuteCatalogBuildHash: world.commuteCatalogBuildHash,
-      worldTime: world.worldTime,
-      elapsedSeconds: world.elapsedSeconds,
-      wallet: world.wallet,
-      financialHistory: world.financialHistory,
-      commuteLastProcessedHour: world.commuteLastProcessedHour,
-      commuteNextActivityHour: world.commuteNextActivityHour,
-      crossTileFinancials: world.crossTileFinancials,
-      pendingCrossTileAttribution: world.pendingCrossTileAttribution,
-      backgroundNativeFinance: world.backgroundNativeFinance,
+      baseRevisionId: this.livePointers.get(sourceWorld.worldId)?.revisionId ?? null,
+      worldRevision: sourceWorld.revision,
+      commuteCatalogBuildHash: sourceWorld.commuteCatalogBuildHash,
+      worldTime: sourceWorld.worldTime,
+      elapsedSeconds: sourceWorld.elapsedSeconds,
+      ...(!this.#financeBlind() ? {
+        wallet: sourceWorld.wallet,
+        financialHistory: sourceWorld.financialHistory,
+        crossTileFinancials: sourceWorld.crossTileFinancials,
+        pendingCrossTileAttribution: sourceWorld.pendingCrossTileAttribution,
+        backgroundNativeFinance: sourceWorld.backgroundNativeFinance,
+      } : {}),
+      commuteLastProcessedHour: sourceWorld.commuteLastProcessedHour,
+      commuteNextActivityHour: sourceWorld.commuteNextActivityHour,
       gatewayPositions,
       tileClocks,
     };
+    return settlement;
   }
 
   #applySettlement(world, settlement, baseRevisionId = null) {
@@ -167,25 +246,31 @@ export class ModStorageWorldStateAdapter {
       || settlement.worldTime < world.worldTime) return world;
     world.worldTime = settlement.worldTime;
     world.elapsedSeconds = settlement.elapsedSeconds;
-    world.wallet = settlement.wallet;
-    world.financialHistory = settlement.financialHistory;
     world.commuteLastProcessedHour = settlement.commuteLastProcessedHour;
     world.commuteNextActivityHour = settlement.commuteNextActivityHour;
-    world.crossTileFinancials = settlement.crossTileFinancials;
-    world.pendingCrossTileAttribution = settlement.pendingCrossTileAttribution;
-    if (settlement.backgroundNativeFinance) world.backgroundNativeFinance = settlement.backgroundNativeFinance;
+    if (!this.#financeBlind()) {
+      world.wallet = settlement.wallet;
+      world.financialHistory = settlement.financialHistory;
+      world.crossTileFinancials = settlement.crossTileFinancials;
+      world.pendingCrossTileAttribution = settlement.pendingCrossTileAttribution;
+      if (settlement.backgroundNativeFinance) world.backgroundNativeFinance = settlement.backgroundNativeFinance;
+    }
     for (const [flowId, position] of Object.entries(settlement.gatewayPositions ?? {})) {
       const entry = world.gatewayLedger?.[flowId];
-      if (entry) Object.assign(entry, position);
+      if (entry) Object.assign(entry, this.#financeBlind()
+        ? stripFinanceFromGatewayPosition(position)
+        : position);
     }
     for (const [tileId, clock] of Object.entries(settlement.tileClocks ?? {})) {
       const tile = world.tiles?.[tileId];
       if (tile) {
         tile.lastSimulatedTime = clock.lastSimulatedTime;
-        tile.aggregate = clock.aggregate;
+        tile.aggregate = this.#financeBlind()
+          ? stripFinanceFromAggregate(clock.aggregate)
+          : clock.aggregate;
       }
     }
-    return world;
+    return this.#worldFromStorage(world);
   }
 
   async #readCheckpointIndex(worldId, fallback = null) {
@@ -195,125 +280,47 @@ export class ModStorageWorldStateAdapter {
     return index;
   }
 
-  #assetRef(worldId, kind, id) {
-    const normalized = String(id);
-    return { kind, id: normalized, key: this.#assetKey(worldId, kind, normalized) };
-  }
-
   #prepareRevision(world) {
+    const sourceWorld = this.#worldForStorage(world);
     const revisionId = this.createRevisionId(world);
     if (typeof revisionId !== 'string' || !revisionId) throw new Error('World revision IDs must be non-empty strings');
-    const refs = { globalNetwork: null, tileSnapshots: {}, projectionBaseline: null, projectionOverlay: null };
-    const assets = [];
-    const core = {
-      ...world,
-      globalNetwork: world.globalNetwork ? { ...world.globalNetwork, nativeState: undefined } : world.globalNetwork,
-      tiles: Object.fromEntries(Object.entries(world.tiles ?? {}).map(([tileId, tile]) => {
-        const snapshot = tile?.snapshot;
-        if (snapshot != null) {
-          const snapshotId = snapshot.id ?? stableHash(snapshot);
-          const ref = this.#assetRef(world.worldId, `tile-${tileId}`, snapshotId);
-          refs.tileSnapshots[tileId] = ref;
-          assets.push({ ref, value: snapshot });
-        }
-        return [tileId, { ...tile, snapshot: undefined }];
-      })),
-      activeProjection: world.activeProjection
-        ? { ...world.activeProjection, baselineState: undefined }
-        : world.activeProjection,
-      projectionOverlay: undefined,
-    };
-    if (world.globalNetwork?.nativeState != null) {
-      const ref = this.#assetRef(
-        world.worldId,
-        'global-network',
-        world.globalNetwork.hash ?? stableHash(world.globalNetwork.nativeState),
-      );
-      refs.globalNetwork = ref;
-      assets.push({ ref, value: world.globalNetwork.nativeState });
-    }
-    if (world.activeProjection?.baselineState != null) {
-      const ref = this.#assetRef(
-        world.worldId,
-        'projection-baseline',
-        world.activeProjection.projectionHash ?? stableHash(world.activeProjection.baselineState),
-      );
-      refs.projectionBaseline = ref;
-      assets.push({ ref, value: world.activeProjection.baselineState });
-    }
-    if (world.projectionOverlay != null) {
-      const ref = this.#assetRef(
-        world.worldId,
-        'projection-overlay',
-        world.activeProjection?.projectionHash ?? stableHash(world.projectionOverlay),
-      );
-      refs.projectionOverlay = ref;
-      assets.push({ ref, value: world.projectionOverlay });
+    const metadata = lineageMetadata(world, this.now());
+    if (this.#financeBlind()) {
+      delete metadata.wallet;
+      delete metadata.money;
     }
     const pointer = {
       schemaVersion: POINTER_SCHEMA_VERSION,
       kind: POINTER_KIND,
-      worldId: world.worldId,
+      worldId: sourceWorld.worldId,
       revisionId,
-      worldRevision: world.revision,
-      elapsedSeconds: world.elapsedSeconds,
-      activeTileId: world.activeTileId,
-      ...lineageMetadata(world, this.now()),
-      assetRefs: refs,
+      worldRevision: sourceWorld.revision,
+      elapsedSeconds: sourceWorld.elapsedSeconds,
+      activeTileId: sourceWorld.activeTileId,
+      ...metadata,
     };
     return {
       pointer,
       revision: {
         schemaVersion: REVISION_SCHEMA_VERSION,
         kind: REVISION_KIND,
-        worldId: world.worldId,
+        worldId: sourceWorld.worldId,
         revisionId,
-        world: core,
-        assetRefs: refs,
+        world: sourceWorld,
       },
-      assets,
     };
-  }
-
-  async #writeRevisionAssets(assets) {
-    const pending = assets.filter(({ ref }) => !this.knownAssetKeys.has(ref.key));
-    // API scoped storage persists one shared JSON document per mutation. Two
-    // concurrent sets can both read the same prior document and leave only the
-    // last writer's key. Preserve immutable-asset reuse, but commit new assets
-    // serially so every mutation starts from the preceding durable result.
-    for (const { ref, value } of pending) {
-      await this.storage.set(ref.key, this.#copyToStorage(value));
-      this.knownAssetKeys.add(ref.key);
-    }
   }
 
   async #hydrateRevision(worldId, revisionId) {
     const revision = this.#copyFromStorage(await this.#get(this.#revisionKey(worldId, revisionId), null));
     if (revision?.schemaVersion !== REVISION_SCHEMA_VERSION || revision?.kind !== REVISION_KIND
       || revision.worldId !== worldId || revision.revisionId !== revisionId || !revision.world) return null;
-    const refs = revision.assetRefs ?? {};
-    const requested = assetKeys(refs);
-    const loaded = await Promise.all(requested.map((key) => this.#get(key, null)));
-    if (loaded.some((value) => value == null)) return null;
-    const assets = new Map(requested.map((key, index) => [key, this.#copyFromStorage(loaded[index])]));
-    for (const key of requested) this.knownAssetKeys.add(key);
-    const world = this.#copyFromStorage(revision.world);
-    if (refs.globalNetwork) {
-      world.globalNetwork = { ...(world.globalNetwork ?? {}), nativeState: assets.get(refs.globalNetwork.key) };
-    }
-    for (const [tileId, ref] of Object.entries(refs.tileSnapshots ?? {})) {
-      if (world.tiles?.[tileId]) world.tiles[tileId].snapshot = assets.get(ref.key);
-    }
-    if (refs.projectionBaseline && world.activeProjection) {
-      world.activeProjection.baselineState = assets.get(refs.projectionBaseline.key);
-    }
-    if (refs.projectionOverlay) world.projectionOverlay = assets.get(refs.projectionOverlay.key);
-    return world;
+    return this.#worldFromStorage(this.#copyFromStorage(revision.world));
   }
 
   async #loadLiveWorld(worldId) {
     const value = this.#copyFromStorage(await this.#get(this.#worldKey(worldId), null));
-    if (!isRevisionPointer(value)) return { world: value, pointer: null };
+    if (!isRevisionPointer(value)) return { world: this.#worldFromStorage(value), pointer: null };
     const world = await this.#hydrateRevision(worldId, value.revisionId);
     if (world) this.livePointers.set(worldId, value);
     return { world, pointer: value };
@@ -324,10 +331,6 @@ export class ModStorageWorldStateAdapter {
       livePointer?.revisionId,
       ...(retainedIndex?.entries ?? []).map((entry) => entry?.revisionId),
     ].filter(Boolean));
-    const retainedAssets = new Set([
-      ...assetKeys(livePointer?.assetRefs),
-      ...(retainedIndex?.entries ?? []).flatMap((entry) => assetKeys(entry?.assetRefs)),
-    ]);
     const obsolete = candidates.filter((candidate) => (
       candidate?.revisionId && !retainedRevisionIds.has(candidate.revisionId)
     ));
@@ -335,18 +338,14 @@ export class ModStorageWorldStateAdapter {
       .filter((candidate) => !candidate?.revisionId && candidate?.checkpointId)
       .map((candidate) => this.#checkpointKey(worldId, candidate.checkpointId));
     const keys = [...new Set([
-      ...obsolete.flatMap((candidate) => [
-        this.#revisionKey(worldId, candidate.revisionId),
-        ...assetKeys(candidate.assetRefs).filter((key) => !retainedAssets.has(key)),
-      ]),
+      ...obsolete.map((candidate) => this.#revisionKey(worldId, candidate.revisionId)),
       ...legacyCheckpointKeys,
     ])];
     if (!keys.length) return;
     const work = async () => {
       // Maintenance is deliberately deferred. Re-read the authoritative
-      // pointers at execution time because an A -> B -> A save sequence can
-      // make a formerly obsolete immutable asset current again while this
-      // cleanup is waiting in the idle queue.
+      // pointers at execution time because a formerly obsolete revision can
+      // become current again while this cleanup is waiting in the idle queue.
       const currentPointer = this.#copyFromStorage(
         await this.#get(this.#worldKey(worldId), null),
       );
@@ -356,10 +355,9 @@ export class ModStorageWorldStateAdapter {
       const protectedKeys = new Set([
         ...(isRevisionPointer(currentPointer) ? [
           this.#revisionKey(worldId, currentPointer.revisionId),
-          ...assetKeys(currentPointer.assetRefs),
         ] : []),
         ...(currentIndex?.entries ?? []).flatMap((entry) => entry?.revisionId
-          ? [this.#revisionKey(worldId, entry.revisionId), ...assetKeys(entry.assetRefs)]
+          ? [this.#revisionKey(worldId, entry.revisionId)]
           : entry?.checkpointId
             ? [this.#checkpointKey(worldId, entry.checkpointId)]
             : []),
@@ -367,13 +365,11 @@ export class ModStorageWorldStateAdapter {
       for (const key of keys) {
         if (protectedKeys.has(key)) continue;
         await this.#delete(key);
-        this.knownAssetKeys.delete(key);
       }
     };
     if (this.storage instanceof Map) {
       for (const key of keys) {
         this.storage.delete(key);
-        this.knownAssetKeys.delete(key);
       }
       return;
     }
@@ -386,6 +382,7 @@ export class ModStorageWorldStateAdapter {
   }
 
   #applyFinanceConfiguration(world, candidate) {
+    if (this.#financeBlind()) return this.#worldFromStorage(world);
     if (!world || ![1, 2].includes(candidate?.schemaVersion)
       || candidate.worldRevision !== world.revision
       || candidate.commuteCatalogBuildHash !== world.commuteCatalogBuildHash) return world;
@@ -441,11 +438,11 @@ export class ModStorageWorldStateAdapter {
         ));
         if (match) {
           diagnose('checkpoint-match-selected', { checkpoint: deepCopy(match) });
-          const checkpoint = match.revisionId
+          const checkpoint = this.#worldFromStorage(match.revisionId
             ? await this.#hydrateRevision(worldId, match.revisionId)
             : this.#copyFromStorage(
               await this.#get(this.#checkpointKey(worldId, match.checkpointId), null),
-            );
+            ));
           const { world: liveWorld, pointer: livePointer } = await this.#loadLiveWorld(worldId);
           const settlement = this.#copyFromStorage(
             await this.#get(this.#settlementKey(worldId), null),
@@ -469,12 +466,16 @@ export class ModStorageWorldStateAdapter {
               diagnose('checkpoint-payload-missing-rejected');
               return null;
             }
-            const fallback = this.#applySettlement(liveWorld, settlement, livePointer?.revisionId ?? null);
+            const fallback = this.#applyLiveJournals(
+              liveWorld,
+              livePointer,
+              settlement,
+            );
             diagnose('checkpoint-fallback-live-selected', {
               revision: fallback?.revision ?? null,
               activeTileId: fallback?.activeTileId ?? null,
             });
-            return fallback;
+            return this.#worldFromStorage(fallback);
           }
           const selected = this.#applyFinanceConfiguration(
             this.#applyFinanceConfiguration(checkpoint, this.#settlementFromWorld(liveWorld)),
@@ -484,7 +485,7 @@ export class ModStorageWorldStateAdapter {
             revision: selected?.revision ?? null,
             activeTileId: selected?.activeTileId ?? null,
           });
-          return selected;
+          return this.#worldFromStorage(selected);
         }
         diagnose('checkpoint-match-missing');
         if (!allowLiveFallback) {
@@ -502,52 +503,18 @@ export class ModStorageWorldStateAdapter {
     }
     const { world, pointer } = await this.#loadLiveWorld(worldId);
     const settlement = this.#copyFromStorage(await this.#get(this.#settlementKey(worldId), null));
-    const selected = this.#applySettlement(world, settlement, pointer?.revisionId ?? null);
+    const selected = this.#applyLiveJournals(world, pointer, settlement);
     diagnose('live-world-load-complete', {
       found: Boolean(selected),
       revision: selected?.revision ?? null,
       activeTileId: selected?.activeTileId ?? null,
       settlementFound: Boolean(settlement),
     });
-    return selected;
-  }
-  /** Read the compact lineage metadata without hydrating its native assets. */
-  async readLineageMetadata(worldId) {
-    if (typeof worldId !== 'string' || !worldId) return null;
-    const value = this.#copyFromStorage(await this.#get(this.#worldKey(worldId), null));
-    if (!value) return null;
-    if (isRevisionPointer(value)) {
-      const metadata = {
-        worldId,
-        day: Number.isFinite(Number(value.day)) ? Number(value.day) : null,
-        worldTime: Number.isFinite(Number(value.worldTime)) ? Number(value.worldTime) : null,
-        routeCount: Number.isFinite(Number(value.routeCount)) ? Number(value.routeCount) : null,
-        stationCount: Number.isFinite(Number(value.stationCount)) ? Number(value.stationCount) : null,
-        trainCount: Number.isFinite(Number(value.trainCount)) ? Number(value.trainCount) : null,
-        elapsedSeconds: Number.isFinite(Number(value.elapsedSeconds)) ? Number(value.elapsedSeconds) : null,
-        wallet: Number.isFinite(Number(value.wallet)) ? Number(value.wallet) : null,
-        money: Number.isFinite(Number(value.money)) ? Number(value.money) : null,
-        fare: Number.isFinite(Number(value.fare)) ? Number(value.fare) : null,
-        savedAt: Number.isFinite(Number(value.savedAt)) ? Number(value.savedAt) : null,
-      };
-      if (metadata.routeCount != null && metadata.stationCount != null && metadata.trainCount != null) return metadata;
-      const revision = await this.#get(this.#revisionKey(worldId, value.revisionId), null);
-      const networkRef = value.assetRefs?.globalNetwork ?? revision?.assetRefs?.globalNetwork;
-      const networkAsset = networkRef?.key ? await this.#get(networkRef.key, null) : null;
-      const network = networkAsset?.data ?? networkAsset;
-      return {
-        ...metadata,
-        routeCount: metadata.routeCount ?? (Array.isArray(network?.routes) ? network.routes.length : null),
-        stationCount: metadata.stationCount ?? (Array.isArray(network?.stations) ? network.stations.length : null),
-        trainCount: metadata.trainCount ?? (Array.isArray(network?.trains) ? network.trains.length : null),
-      };
-    }
-    return { worldId, ...lineageMetadata(value, value.savedAt) };
+    return this.#worldFromStorage(selected);
   }
   async save(world) {
     const prepared = this.#prepareRevision(world);
     const previous = this.#copyFromStorage(await this.#get(this.#worldKey(world.worldId), null));
-    await this.#writeRevisionAssets(prepared.assets);
     await this.storage.set(
       this.#revisionKey(world.worldId, prepared.pointer.revisionId),
       this.#copyToStorage(prepared.revision),
@@ -565,7 +532,7 @@ export class ModStorageWorldStateAdapter {
       prepared.pointer,
     );
   }
-  /** Persist only hourly state; opaque native tile snapshots stay in the base world. */
+  /** Persist only hourly off-tile state. */
   async saveSettlement(world) {
     const settlement = this.#settlementFromWorld(world);
     await this.storage.set(this.#settlementKey(world.worldId), this.#copyToStorage(settlement));
@@ -603,7 +570,6 @@ export class ModStorageWorldStateAdapter {
       worldRevision: world.revision,
       savedAt: this.now(),
       revisionId: prepared.pointer.revisionId,
-      assetRefs: prepared.pointer.assetRefs,
     };
     const replaced = (current.entries ?? []).filter((item) => (
       sameNativeSave(item, saveName, nativeIdentity)
@@ -614,8 +580,6 @@ export class ModStorageWorldStateAdapter {
     retained.push(entry);
     const pruned = retained.splice(0, Math.max(0, retained.length - SAVE_CHECKPOINT_LIMIT));
 
-    await this.#writeRevisionAssets(prepared.assets);
-    finishStage('revisionAssetsWrite');
     await this.storage.set(
       this.#revisionKey(worldId, prepared.pointer.revisionId),
       this.#copyToStorage(prepared.revision),
