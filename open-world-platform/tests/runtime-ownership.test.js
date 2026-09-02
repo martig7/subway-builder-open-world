@@ -117,7 +117,7 @@ function createHost(activeCityCode, { publicCityCode = activeCityCode, currentMa
     utils: {
       getCities: () => cities,
       getCityCode: () => publicCityCode,
-      getMap: () => currentMap,
+      getMap: () => typeof currentMap === 'function' ? currentMap() : currentMap,
       getPathfindingRules: () => ({}),
       loadCityData: async () => ({ points: [], pops: [] }),
       React: { createElement: () => null },
@@ -153,9 +153,10 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     on() {},
     off() {},
   };
+  let mapReads = 0;
   const host = createHost('JP_TOKYO_MAINLAND', {
     publicCityCode: 'NEC_CP00_RP00',
-    currentMap: map,
+    currentMap: () => ++mapReads >= 4 ? map : null,
   });
   const previousCallbacks = globalThis.__subwayBuilder_storeCallbacks__;
   const previousFetch = globalThis.fetch;

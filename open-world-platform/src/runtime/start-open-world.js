@@ -815,6 +815,7 @@ export function startOpenWorld({
           rendererVirtualization: geographicContextController,
         });
         projectionOverlayController = registerNetworkProjectionOverlay({ api, runtime });
+        if (!latestMap) latestMap = api.utils?.getMap?.() ?? null;
         if (latestMap) {
           syncCityScopedMapControllers({
             map: latestMap,
