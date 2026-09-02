@@ -29,7 +29,7 @@ function createHookRegistry() {
   };
 }
 
-function createHost(activeCityCode, { publicCityCode = activeCityCode } = {}) {
+function createHost(activeCityCode, { publicCityCode = activeCityCode, currentMap = null } = {}) {
   const hooks = createHookRegistry();
   const cities = [];
   const state = {
@@ -117,7 +117,7 @@ function createHost(activeCityCode, { publicCityCode = activeCityCode } = {}) {
     utils: {
       getCities: () => cities,
       getCityCode: () => publicCityCode,
-      getMap: () => null,
+      getMap: () => currentMap,
       getPathfindingRules: () => ({}),
       loadCityData: async () => ({ points: [], pops: [] }),
       React: { createElement: () => null },
@@ -144,11 +144,24 @@ function createHost(activeCityCode, { publicCityCode = activeCityCode } = {}) {
 }
 
 test('a 1.7 runtime keeps the live store city when public and delayed lifecycle reports are stale', async () => {
-  const host = createHost('JP_TOKYO_MAINLAND', { publicCityCode: 'NEC_CP00_RP00' });
+  const cameraMoves = [];
+  const map = {
+    getZoom: () => 11,
+    getCenter: () => ({ lng: -75, lat: 40 }),
+    getSource: () => null,
+    jumpTo: (camera) => cameraMoves.push(camera),
+    on() {},
+    off() {},
+  };
+  const host = createHost('JP_TOKYO_MAINLAND', {
+    publicCityCode: 'NEC_CP00_RP00',
+    currentMap: map,
+  });
   const previousCallbacks = globalThis.__subwayBuilder_storeCallbacks__;
   const previousFetch = globalThis.fetch;
   const previousGeneration = globalThis.__tokyoKanagawaGeneration__;
   const previousDiagnostics = globalThis.__tokyoKanagawaDiagnostics__;
+  const previousMapControllerVersion = globalThis.__openWorldCityScopedMapControllersVersion;
   globalThis.__subwayBuilder_storeCallbacks__ = {
     getState: () => host.state,
     setMoney() {},
@@ -178,22 +191,15 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     assert.equal(host.hooks.count('onGameSaved'), 1, 're-entry must attach the owned runtime lifecycle');
     assert.equal(host.hooks.count('onMapReady'), 1, 're-entry must attach map repair to the current tile');
 
-    const cameraMoves = [];
-    const map = {
-      getZoom: () => 11,
-      getCenter: () => ({ lng: -75, lat: 40 }),
-      getSource: () => null,
-      jumpTo: (camera) => cameraMoves.push(camera),
-      on() {},
-      off() {},
-    };
+    await controller.lifecycle.cityLoad('JP_TOKYO_MAINLAND', { authoritative: true });
+    assert.equal(controller.diagnostics.startupMapRefresh.status, 'refreshed');
+    assert.equal(globalThis.__openWorldCityScopedMapControllersVersion, 'city-scoped-map-controllers-v3');
+
     host.hooks.callbacks.get('onMapReady')[0](map);
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.cityCode, 'JP_TOKYO_MAINLAND');
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.status, 'recentered');
     assert.equal(cameraMoves.length, 1, 'camera repair must target the live tile instead of the stale public city');
 
-    await controller.lifecycle.cityLoad('JP_TOKYO_MAINLAND', { authoritative: true });
-    assert.equal(controller.diagnostics.startupMapRefresh.status, 'refreshed');
     await controller.lifecycle.cityLoad('JP_KANAGAWA_MAINLAND', { authoritative: true });
 
     assert.equal(host.state.cityCode, 'JP_TOKYO_MAINLAND');
@@ -214,6 +220,8 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     else globalThis.__tokyoKanagawaGeneration__ = previousGeneration;
     if (previousDiagnostics === undefined) delete globalThis.__tokyoKanagawaDiagnostics__;
     else globalThis.__tokyoKanagawaDiagnostics__ = previousDiagnostics;
+    if (previousMapControllerVersion === undefined) delete globalThis.__openWorldCityScopedMapControllersVersion;
+    else globalThis.__openWorldCityScopedMapControllersVersion = previousMapControllerVersion;
   }
 });
 

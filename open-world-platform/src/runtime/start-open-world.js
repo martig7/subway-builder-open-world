@@ -268,7 +268,7 @@ export function startOpenWorld({
     resolveDataUrl: (path) => resolveRendererDataUrl(path),
     nativeDemandWorkerSource: workerSources.nativeDemandEvaluator ?? null,
   });
-  let latestMap = null;
+  let latestMap = api.utils?.getMap?.() ?? null;
   let crossDemandController = null;
   let projectionOverlayController = null;
   let geographicContextController = null;
@@ -813,9 +813,14 @@ export function startOpenWorld({
           rendererVirtualization: geographicContextController,
         });
         projectionOverlayController = registerNetworkProjectionOverlay({ api, runtime });
-        if (latestMap) crossDemandController.attachMap(latestMap);
-        if (latestMap) projectionOverlayController.attachMap(latestMap);
-        if (latestMap) geographicContextController.attachMap(latestMap);
+        if (latestMap) {
+          syncCityScopedMapControllers({
+            map: latestMap,
+            cityCode: loadedCityCode,
+            cityCodes: registration.cities,
+            controllers: [crossDemandController, projectionOverlayController, geographicContextController],
+          });
+        }
         diagnostics.startupMapRefresh = refreshCityScopedMapArtifacts({
           map: latestMap,
           controller: geographicContextController,
