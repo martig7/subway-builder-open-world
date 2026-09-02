@@ -15,6 +15,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("native PMTiles reader returns an MVT tile", NativePmTilesReader),
     ("release manifest signature is pinned to the self-signed certificate", ReleaseSignatureVerification),
     ("installer downloads, verifies, and atomically installs a ZIP", InstallerDownloadsAndInstalls),
+    ("managed install state records only owned tile packages", ManagedStateRoundTrip),
+    ("tile-server state verifies the owning process", ServerStateRoundTrip),
+    ("tile-server logs rotate within their retention limit", RollingLogRotation),
 };
 
 var failed = 0;
@@ -43,6 +46,9 @@ static Task ManifestValidation()
     Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\server", locations.SupportRoot);
     Equal(@"C:\Users\fixture\AppData\Roaming\metro-maker4\mods\northeast-corridor-open-world", locations.ModRoot);
     Equal(@"C:\Users\fixture\AppData\Roaming\metro-maker4\cities\data", locations.CityDataRoot);
+    Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\NEC Open World.exe", locations.ManagerPath);
+    Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\state", locations.StateRoot);
+    Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\logs", locations.LogRoot);
     return Task.CompletedTask;
 }
 
@@ -162,6 +168,90 @@ static async Task InstallerDownloadsAndInstalls()
         Equal("preserve me", await File.ReadAllTextAsync(Path.Combine(locations.ProductRoot, "manager.txt")));
         if (File.Exists(Path.Combine(locations.CacheRoot, asset.Name)))
             throw new InvalidOperationException("Verified installation cache was not removed after installation.");
+    }
+    finally
+    {
+        Directory.Delete(testRoot, recursive: true);
+    }
+}
+
+static async Task ManagedStateRoundTrip()
+{
+    var testRoot = Path.Combine(Path.GetTempPath(), "open-world-managed-state-tests", Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(testRoot);
+    try
+    {
+        var mod = ManifestFor(destination: ".");
+        var tile = mod.Assets[0] with
+        {
+            Name = "NEC_CP00_RP00.zip",
+            Kind = ReleaseAssetKind.TileData,
+            Destination = "NEC_CP00_RP00"
+        };
+        var manifest = mod with { Assets = [mod.Assets[0], tile, tile with { Name = "NEC_CP00_RP01.zip", Destination = "NEC_CP00_RP01" }] };
+        var path = Path.Combine(testRoot, "install-state.json");
+        var state = ManagedInstallState.Create(manifest);
+        await ManagedInstallState.WriteAsync(path, state);
+        var restored = await ManagedInstallState.ReadAsync(path) ?? throw new InvalidOperationException("Managed state was not restored.");
+        Equal(manifest.Product.ManifestId, restored.ManifestId);
+        Equal(2, restored.TileIds.Count);
+        Equal("NEC_CP00_RP00", restored.TileIds[0]);
+        Equal("NEC_CP00_RP01", restored.TileIds[1]);
+    }
+    finally
+    {
+        Directory.Delete(testRoot, recursive: true);
+    }
+}
+
+static async Task ServerStateRoundTrip()
+{
+    var testRoot = Path.Combine(Path.GetTempPath(), "open-world-server-state-tests", Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(testRoot);
+    try
+    {
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        var executable = process.MainModule?.FileName ?? throw new InvalidOperationException("Current executable path is unavailable.");
+        var path = ServerStateStore.PathFor(testRoot, 8894);
+        var state = new ServerState(
+            1,
+            process.Id,
+            executable,
+            testRoot,
+            new DateTimeOffset(process.StartTime.ToUniversalTime(), TimeSpan.Zero),
+            8894,
+            "native-pmtiles-directory-v4",
+            "0.1.0",
+            "fixture-instance");
+        await ServerStateStore.WriteAsync(path, state);
+        var restored = await ServerStateStore.ReadAsync(path) ?? throw new InvalidOperationException("Server state was not restored.");
+        Equal(state, restored);
+        if (!ServerStateStore.MatchesRunningProcess(restored)) throw new InvalidOperationException("Owning process was not recognized.");
+        if (ServerStateStore.MatchesRunningProcess(restored with { ExecutablePath = Path.Combine(testRoot, "other.exe") }))
+            throw new InvalidOperationException("A different executable was accepted as the owner.");
+        ServerStateStore.DeleteIfOwned(path, "different-instance");
+        if (!File.Exists(path)) throw new InvalidOperationException("A different instance removed the state file.");
+        ServerStateStore.DeleteIfOwned(path, restored.InstanceId);
+        if (File.Exists(path)) throw new InvalidOperationException("The owning instance did not remove its state file.");
+    }
+    finally
+    {
+        Directory.Delete(testRoot, recursive: true);
+    }
+}
+
+static Task RollingLogRotation()
+{
+    var testRoot = Path.Combine(Path.GetTempPath(), "open-world-log-tests", Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(testRoot);
+    try
+    {
+        var path = Path.Combine(testRoot, "server.log");
+        var log = new RollingFileLog(path, maximumBytes: 160, retainedFiles: 2);
+        for (var index = 0; index < 12; index++) log.Write("TEST", $"entry-{index:D2}-with-padding");
+        if (!File.Exists(path) || !File.Exists(path + ".1")) throw new InvalidOperationException("Expected a rotated log file.");
+        if (File.Exists(path + ".3")) throw new InvalidOperationException("Log retention exceeded the configured limit.");
+        return Task.CompletedTask;
     }
     finally
     {

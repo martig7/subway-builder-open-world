@@ -111,6 +111,7 @@ public partial class MainWindow : Window
                 var progress = new Progress<InstallProgress>(UpdateProgress);
                 await new InstallerEngine(client).InstallAsync(manifest, locations, progress, cancellation.Token);
                 InstallManagerCopy();
+                await WindowsIntegration.RegisterInstallationAsync(manifest, locations, cancellation.Token);
                 UpdateProgress(new InstallProgress(InstallStage.StartingServer, "Starting the local tile server", $"127.0.0.1:{manifest.Product.TileServerPort}", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
                 await TileServerController.StartAndVerifyAsync(manifest, locations, cancellation.Token);
                 UpdateProgress(new InstallProgress(InstallStage.Complete, "Northeast Corridor is ready", "All release files and the tile server passed verification.", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
@@ -166,7 +167,7 @@ public partial class MainWindow : Window
         }
         UpdateProgress(new InstallProgress(InstallStage.StartingServer, "Starting the local tile server", $"127.0.0.1:{manifest.Product.TileServerPort}", manifest.Assets.Count, manifest.Assets.Count, total, total));
         await Task.Delay(450, cancellationToken);
-        UpdateProgress(new InstallProgress(InstallStage.Complete, "Interface preview complete", "No files were downloaded or installed.", manifest.Assets.Count, manifest.Assets.Count, total, total));
+        UpdateProgress(new InstallProgress(InstallStage.Complete, "Interface preview complete", string.Empty, manifest.Assets.Count, manifest.Assets.Count, total, total));
     }
 
     private void UpdateProgress(InstallProgress progress)
@@ -220,7 +221,7 @@ public partial class MainWindow : Window
     {
         var currentExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("Setup executable path is unavailable.");
         Directory.CreateDirectory(locations.ProductRoot);
-        var installedManager = Path.Combine(locations.ProductRoot, "NEC Open World.exe");
+        var installedManager = locations.ManagerPath;
         if (!Path.GetFullPath(currentExecutable).Equals(Path.GetFullPath(installedManager), StringComparison.OrdinalIgnoreCase))
             File.Copy(currentExecutable, installedManager, overwrite: true);
     }

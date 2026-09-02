@@ -29,15 +29,16 @@ or install files.
 
 ## Release
 
-The release packager deliberately refuses the current development identity. A
-release build must first use manifest ID `northeast-corridor-open-world`, match
-the requested semantic version, and declare `dependencies.subway-builder`.
+The release command builds the NEC consumer and replaces only its packaged
+manifest identity with `northeast-corridor-open-world`. It also verifies the
+requested semantic version and declares `dependencies.subway-builder`; the
+JavaScript bundle remains the same consumer build used by the development mod.
 
 ```powershell
 ./scripts/Publish-NecWindowsRelease.ps1 `
   -Version 0.1.0 `
   -ReleaseAssetBaseUrl https://github.com/OWNER/REPO/releases/download/v0.1.0 `
-  -ModDist ../../../prototype/nec-corridor/mod/dist `
+  -ModRoot ../../../prototype/nec-corridor/mod `
   -TileRoot ../../../prototype/nec-corridor/generated/mod/tiles `
   -Output ../../../prototype/nec-corridor/generated/release/v0.1.0
 ```

@@ -8,37 +8,125 @@ namespace OpenWorld.Installer;
 
 public partial class App : Application
 {
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        string? backgroundStartLog = null;
         try
         {
             var bundle = ReleaseBundle.Load(e.Args);
-            var window = new MainWindow(bundle.Manifest, bundle.IsPreview);
-            var snapshotPath = ArgumentValue(e.Args, "--snapshot");
-            var progressSnapshot = e.Args.Any(value => value.Equals("--snapshot-progress", StringComparison.OrdinalIgnoreCase));
-            if (snapshotPath is not null)
+            var manifest = ApplyPreviewOverrides(bundle.Manifest, e.Args, bundle.IsPreview);
+            var locations = InstallLocations.Resolve(manifest);
+            var runtime = ResolveRuntime(e.Args, bundle.IsPreview, locations);
+            backgroundStartLog = Path.Combine(runtime.LogRoot, "manager.log");
+
+            if (HasArgument(e.Args, "--uninstall-worker"))
             {
-                window.ContentRendered += async (_, _) =>
-                {
-                    if (progressSnapshot)
-                    {
-                        window.ShowProgressSnapshot();
-                        await Task.Delay(120);
-                        await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-                    }
-                    window.SaveSnapshot(snapshotPath);
-                    window.Close();
-                };
+                if (bundle.IsPreview) throw new InvalidOperationException("Uninstall worker mode is unavailable in a preview build.");
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                var parent = int.Parse(ArgumentValue(e.Args, "--parent-pid") ?? throw new ArgumentException("--parent-pid is required."), System.Globalization.CultureInfo.InvariantCulture);
+                await WindowsIntegration.RunUninstallWorkerAsync(manifest, locations, parent);
+                Shutdown(0);
+                return;
             }
+
+            if (HasArgument(e.Args, "--start-server"))
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                await TileServerController.StartAndVerifyAsync(manifest, runtime, CancellationToken.None);
+                Shutdown(0);
+                return;
+            }
+
+            var managerMode = HasArgument(e.Args, "--manager") ||
+                HasArgument(e.Args, "--manager-preview") ||
+                string.Equals(Path.GetFileNameWithoutExtension(Environment.ProcessPath), "NEC Open World", StringComparison.OrdinalIgnoreCase);
+            Window window;
+            if (managerMode)
+            {
+                var manager = new ManagerWindow(manifest, locations, runtime, bundle.IsPreview);
+                if (HasArgument(e.Args, "--uninstall"))
+                    manager.Loaded += async (_, _) => await manager.RequestUninstallAsync();
+                window = manager;
+            }
+            else
+            {
+                window = new MainWindow(manifest, bundle.IsPreview);
+            }
+            ConfigureSnapshot(window, e.Args);
             window.Show();
         }
         catch (Exception exception)
         {
-            MessageBox.Show(exception.Message, "NEC Open World setup", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (HasArgument(e.Args, "--start-server") && backgroundStartLog is not null)
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(backgroundStartLog)!);
+                    File.AppendAllText(backgroundStartLog, $"{DateTimeOffset.UtcNow:O} [ERROR] Background start failed: {exception.Message}{Environment.NewLine}");
+                }
+                catch (Exception) when (backgroundStartLog is not null) { }
+                Shutdown(1);
+                return;
+            }
+            MessageBox.Show(exception.Message, "Subway Builder Open World", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }
+
+    private static ReleaseManifest ApplyPreviewOverrides(ReleaseManifest manifest, string[] arguments, bool isPreview)
+    {
+        var portText = ArgumentValue(arguments, "--port");
+        if (!isPreview || portText is null) return manifest;
+        if (!int.TryParse(portText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var port) ||
+            port is < 1024 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(arguments), "--port must be between 1024 and 65535.");
+        return manifest with { Product = manifest.Product with { TileServerPort = port } };
+    }
+
+    private static TileServerRuntimePaths ResolveRuntime(string[] arguments, bool isPreview, InstallLocations locations)
+    {
+        var installed = TileServerRuntimePaths.FromLocations(locations);
+        if (!isPreview) return installed;
+        return new TileServerRuntimePaths(
+            FullPathValue(arguments, "--server-exe") ?? installed.ServerExecutable,
+            FullPathValue(arguments, "--data-root") ?? installed.DataRoot,
+            FullPathValue(arguments, "--state-root") ?? installed.StateRoot,
+            FullPathValue(arguments, "--log-root") ?? installed.LogRoot);
+    }
+
+    private static void ConfigureSnapshot(Window window, string[] arguments)
+    {
+        var snapshotPath = ArgumentValue(arguments, "--snapshot");
+        if (snapshotPath is null) return;
+        var progressSnapshot = HasArgument(arguments, "--snapshot-progress");
+        window.ContentRendered += async (_, _) =>
+        {
+            if (window is MainWindow setup)
+            {
+                if (progressSnapshot)
+                {
+                    setup.ShowProgressSnapshot();
+                    await Task.Delay(120);
+                    await setup.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+                }
+                setup.SaveSnapshot(snapshotPath);
+            }
+            else if (window is ManagerWindow manager)
+            {
+                await manager.InitialRefresh.WaitAsync(TimeSpan.FromSeconds(30));
+                await manager.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+                manager.SaveSnapshot(snapshotPath);
+            }
+            window.Close();
+        };
+    }
+
+    private static bool HasArgument(string[] arguments, string name) =>
+        arguments.Any(value => value.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private static string? FullPathValue(string[] arguments, string name) =>
+        ArgumentValue(arguments, name) is { } value ? Path.GetFullPath(value) : null;
 
     private static string? ArgumentValue(string[] arguments, string name)
     {

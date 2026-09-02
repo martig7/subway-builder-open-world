@@ -49,6 +49,8 @@ public sealed record ReleaseManifest(
 
     public long DownloadBytes => Assets.Sum(asset => asset.DownloadBytes);
 
+    public string ToJson() => JsonSerializer.Serialize(this, new JsonSerializerOptions(JsonOptions) { WriteIndented = true }) + Environment.NewLine;
+
     public static ReleaseManifest Parse(string json)
     {
         var manifest = JsonSerializer.Deserialize<ReleaseManifest>(json, JsonOptions)

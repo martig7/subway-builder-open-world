@@ -2,19 +2,39 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     [Parameter(Mandatory = $true)][ValidatePattern('^https://')][string]$ReleaseAssetBaseUrl,
-    [Parameter(Mandatory = $true)][string]$ModDist,
+    [Parameter(Mandatory = $true)][string]$ModRoot,
     [Parameter(Mandatory = $true)][string]$TileRoot,
-    [Parameter(Mandatory = $true)][string]$Output
+    [Parameter(Mandatory = $true)][string]$Output,
+    [ValidatePattern('^https?://')][string]$TimestampServer = 'http://timestamp.digicert.com'
 )
 
 $ErrorActionPreference = 'Stop'
 $nativeRoot = Split-Path -Parent $PSScriptRoot
-$resolvedModDist = [System.IO.Path]::GetFullPath($ModDist)
+$resolvedModRoot = [System.IO.Path]::GetFullPath($ModRoot)
 $resolvedTileRoot = [System.IO.Path]::GetFullPath($TileRoot)
 $resolvedOutput = [System.IO.Path]::GetFullPath($Output)
-if (-not (Test-Path -LiteralPath $resolvedModDist -PathType Container)) { throw "Mod dist directory is missing: $resolvedModDist" }
+if (-not (Test-Path -LiteralPath $resolvedModRoot -PathType Container)) { throw "Mod source directory is missing: $resolvedModRoot" }
 if (-not (Test-Path -LiteralPath $resolvedTileRoot -PathType Container)) { throw "Tile package directory is missing: $resolvedTileRoot" }
 New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
+
+$inferredArtifactsRoot = Split-Path -Parent (Split-Path -Parent $resolvedTileRoot)
+$expectedTileRoot = [System.IO.Path]::GetFullPath((Join-Path $inferredArtifactsRoot 'mod\tiles'))
+$normalizedTileRoot = $resolvedTileRoot.TrimEnd([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar))
+if (-not [string]::Equals($expectedTileRoot, $normalizedTileRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'TileRoot must be the generated mod\tiles directory so the matching consumer artifacts can be selected.'
+}
+$priorNecArtifactsRoot = $env:NEC_ARTIFACTS_ROOT
+Push-Location $resolvedModRoot
+try {
+    $env:NEC_ARTIFACTS_ROOT = $inferredArtifactsRoot
+    npm run build:release -- --version $Version
+    if ($LASTEXITCODE -ne 0) { throw 'NEC release mod build failed.' }
+} finally {
+    if ($null -eq $priorNecArtifactsRoot) { Remove-Item Env:NEC_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
+    else { $env:NEC_ARTIFACTS_ROOT = $priorNecArtifactsRoot }
+    Pop-Location
+}
+$resolvedModDist = Join-Path $resolvedModRoot 'dist'
 
 $certificate = & (Join-Path $PSScriptRoot 'Get-OrCreateSelfSignedCertificate.ps1')
 if (-not $certificate.HasPrivateKey) { throw 'The self-signed release certificate has no private key.' }
@@ -29,7 +49,7 @@ dotnet publish $serverProject -c Release -r win-x64 --self-contained true `
     -o $serverPublish
 if ($LASTEXITCODE -ne 0) { throw 'Tile-server publish failed.' }
 $serverExecutable = Join-Path $serverPublish 'nec-tile-server.exe'
-$serverSignature = Set-AuthenticodeSignature -LiteralPath $serverExecutable -Certificate $certificate -HashAlgorithm SHA256
+$serverSignature = Set-AuthenticodeSignature -LiteralPath $serverExecutable -Certificate $certificate -HashAlgorithm SHA256 -TimestampServer $TimestampServer
 if (-not $serverSignature.SignerCertificate -or $serverSignature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) {
     throw 'The tile-server executable was not signed by the release certificate.'
 }
@@ -70,7 +90,7 @@ dotnet publish $setupProject -c Release -r win-x64 --self-contained true `
     -o $setupPublish
 if ($LASTEXITCODE -ne 0) { throw 'Installer publish failed.' }
 $setupExecutable = Join-Path $setupPublish 'NEC-Open-World-Setup.exe'
-$setupSignature = Set-AuthenticodeSignature -LiteralPath $setupExecutable -Certificate $certificate -HashAlgorithm SHA256
+$setupSignature = Set-AuthenticodeSignature -LiteralPath $setupExecutable -Certificate $certificate -HashAlgorithm SHA256 -TimestampServer $TimestampServer
 if (-not $setupSignature.SignerCertificate -or $setupSignature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) {
     throw 'The setup executable was not signed by the release certificate.'
 }

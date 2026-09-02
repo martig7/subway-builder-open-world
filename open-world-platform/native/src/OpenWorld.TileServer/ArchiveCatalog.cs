@@ -4,7 +4,7 @@ namespace OpenWorld.TileServer;
 
 public sealed class ArchiveCatalog : IAsyncDisposable
 {
-    private static readonly Regex SafeArchiveId = new("^[A-Za-z0-9_-]+$", RegexOptions.CultureInvariant);
+    private static readonly Regex SafeArchiveId = new("^NEC_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$", RegexOptions.CultureInvariant);
     private readonly IReadOnlyDictionary<string, PmTilesArchive> archives;
 
     private ArchiveCatalog(string root, IReadOnlyDictionary<string, PmTilesArchive> archives)

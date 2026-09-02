@@ -8,6 +8,12 @@ public sealed record InstallLocations(
     string CacheRoot,
     string LogRoot)
 {
+    public string ManagerPath => Path.Combine(ProductRoot, "NEC Open World.exe");
+    public string ServerExecutablePath => Path.Combine(SupportRoot, "nec-tile-server.exe");
+    public string StateRoot => Path.Combine(ProductRoot, "state");
+    public string InstallStatePath => Path.Combine(ProductRoot, "install-state.json");
+    public string ReleaseManifestPath => Path.Combine(ProductRoot, "release-manifest.json");
+
     public static InstallLocations Resolve(ReleaseManifest manifest, string? appData = null, string? localAppData = null)
     {
         appData ??= Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -25,7 +31,7 @@ public sealed record InstallLocations(
             Path.Combine(gameRoot, "mods", safeMod),
             Path.Combine(gameRoot, "cities", "data"),
             Path.Combine(localAppData, "metro-maker4", safeProduct, "cache", manifest.Product.Version),
-            Path.Combine(localAppData, "metro-maker4", safeProduct, "logs"));
+            Path.Combine(productRoot, "logs"));
     }
 
     private static string SafeSegment(string value)
