@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
-import { WorldTileRuntime } from '../../../../open-world-platform/src/runtime/world-tile-runtime.js';
+import { crossModeShareContextKey, WorldTileRuntime } from '../../../../open-world-platform/src/runtime/world-tile-runtime.js';
 import { FakeGameAdapter } from '../../../../open-world-platform/src/runtime/adapters/fake-game-adapter.js';
 import { MemoryTilePackageAdapter } from '../../../../open-world-platform/src/runtime/adapters/memory-tile-package-adapter.js';
 import { HttpTilePackageAdapter } from '../../../../open-world-platform/src/runtime/adapters/http-tile-package-adapter.js';
@@ -778,12 +778,13 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
   });
   await runtime.boot('passive-lifecycle-cache', 'KCW');
   runtime.world.crossModeShare = {
-    schemaVersion: 1, day: 1, reason: 'midnight-change', calculatedAtHour: 24,
+    schemaVersion: 2, day: 1, reason: 'midnight-change', calculatedAtHour: 24,
     evaluatedPops: 0, transitViablePops: 0, changedFlows: 0, revision: 1,
+    contextKey: crossModeShareContextKey(runtime.world),
   };
   for (const tileId of runtime.world.tileIds) {
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       source: 'off-tile-estimator',
       evaluatorSchemaVersion: 3,
       contextKey: `${tileId}:context`,
@@ -804,6 +805,39 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
 
   await runtime.recalculateCrossTileModeShare({ reason: 'midnight-change', day: 2 });
   assert.ok(nativeDemandLoads > 0, 'an explicit dirty midnight must still evaluate stale native demand');
+});
+
+test('passive mode-share cache invalidates when fare or timetable context changes', async () => {
+  const runtime = new WorldTileRuntime({
+    game: new FakeGameAdapter(),
+    worldState: new ModStorageWorldStateAdapter(),
+    tilePackages: new MemoryTilePackageAdapter(packages),
+    initialWorld: { activeTileId: 'KCW', wallet: 100, cohorts },
+  });
+  await runtime.boot('passive-context-cache', 'KCW');
+  runtime.world.crossModeShare = {
+    schemaVersion: 2,
+    contextKey: crossModeShareContextKey(runtime.world),
+    revision: 1,
+  };
+  for (const tileId of runtime.world.tileIds) {
+    runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
+      schemaVersion: 4,
+      source: 'off-tile-estimator',
+      evaluatorSchemaVersion: 3,
+      contextKey: `${tileId}:context`,
+      evaluationKey: `${tileId}:cached`,
+      tileId,
+    };
+  }
+  runtime.world.backgroundNativeFinance.networkHash = runtime.world.globalNetwork?.hash ?? null;
+
+  assert.equal((await runtime.recalculateCrossTileModeShare({ reason: 'tile-transition' })).status, 'cached');
+  runtime.world.farePolicy.fare += 1;
+  assert.notEqual((await runtime.recalculateCrossTileModeShare({ reason: 'tile-transition' })).status, 'cached');
+  runtime.world.crossModeShare.contextKey = crossModeShareContextKey(runtime.world);
+  runtime.world.elapsedSeconds += 3_600;
+  assert.notEqual((await runtime.recalculateCrossTileModeShare({ reason: 'save-load' })).status, 'cached');
 });
 
 test('route and fare-group changes recalculate native demand only for tiles served by their routes', async () => {
@@ -2457,7 +2491,8 @@ test('mod reload migrates a remote cached revenue profile without revisiting tha
   await reloaded.boot('remote-finance-profile-migration', 'KCW');
 
   const migrated = reloaded.view().backgroundNativeFinance.tileRevenueProfiles.KCE;
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.commuteModel, 'legacy-round-trip');
   assert.equal(migrated.hourly.filter(({ revenue }) => revenue > 0).length, 24);
   assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + hour.revenue, 0) - 200) < 1e-9);
   assert.equal(game.currentPackage.manifest.tileId, 'KCW');
@@ -5151,6 +5186,48 @@ test('native commute health distinguishes missing paths from rejected transit mo
   assert.equal(health.samples.withoutTransitPath[0].id, 'no-path');
 });
 
+test('native commute health reports both persistent 1.7 direction summaries', () => {
+  const fixture = realSeamFixture();
+  fixture.state.demandData = {
+    points: new Map([['home', { id: 'home' }], ['work', { id: 'work' }]]),
+    popsMap: new Map([['directional', {
+      id: 'directional', residenceId: 'home', jobId: 'work', size: 10,
+      commutes: {
+        homeToWork: { modeChoice: { driving: 3, walking: 0, transit: 7, unknown: 0 } },
+        workToHome: { modeChoice: { driving: 8, walking: 0, transit: 2, unknown: 0 } },
+      },
+      lastCommute: { direction: 'workToHome', transitPaths: [], modeChoice: { driving: 8, walking: 0, transit: 2, unknown: 0 } },
+    }]]),
+  };
+
+  const health = new SubwayBuilderGameAdapter(fixture).nativeCommuteHealth();
+
+  assert.equal(health.directionalPops, 1);
+  assert.equal(health.directionalCompletePops, 1);
+  assert.equal(health.directionalLegs, 2);
+  assert.equal(health.transitPopulation, 7, 'default health remains home-to-work for public API parity');
+  assert.deepEqual(health.modeChoicePopulationByDirection, {
+    homeToWork: { driving: 3, walking: 0, transit: 7, unknown: 0 },
+    workToHome: { driving: 8, walking: 0, transit: 2, unknown: 0 },
+  });
+  assert.equal(health.modeChoiceStatisticsSource, 'private-store-fallback');
+});
+
+test('native commute health prefers the public 1.7 directional statistics endpoint', () => {
+  const fixture = realSeamFixture();
+  fixture.api.gameState.getModeChoiceStats = (direction) => direction === 'homeToWork'
+    ? { driving: 2, walking: 3, transit: 5, unknown: 0 }
+    : { driving: 4, walking: 1, transit: 5, unknown: 0 };
+
+  const health = new SubwayBuilderGameAdapter(fixture).nativeCommuteHealth();
+
+  assert.equal(health.modeChoiceStatisticsSource, 'public-game-state');
+  assert.deepEqual(health.modeChoicePopulationByDirection, {
+    homeToWork: { driving: 2, walking: 3, transit: 5, unknown: 0 },
+    workToHome: { driving: 4, walking: 1, transit: 5, unknown: 0 },
+  });
+});
+
 test('production adapter recalculates stale zero-network commutes after a network restore', async () => {
   const fixture = realSeamFixture();
   const pop = {
@@ -5173,7 +5250,10 @@ test('production adapter recalculates stale zero-network commutes after a networ
   const result = await adapter.refreshNativeCommutes();
 
   assert.equal(result.status, 'recalculated');
-  assert.deepEqual(fixture.calls.at(-1), ['commutes', [{ popId: 'stale-pop', direction: 'homeToWork' }], false]);
+  assert.deepEqual(fixture.calls.at(-1), ['commutes', [
+    { popId: 'stale-pop', direction: 'homeToWork' },
+    { popId: 'stale-pop', direction: 'workToHome' },
+  ], false]);
   assert.equal(adapter.nativeCommuteHealth().transitPopulation, 6);
 });
 
@@ -5259,7 +5339,10 @@ test('native commute refresh does not overwrite the journey used by an active mo
 
   await adapter.refreshNativeCommutes();
 
-  assert.deepEqual(fixture.calls.at(-1), ['commutes', [{ popId: 'idle-pop', direction: 'homeToWork' }]]);
+  assert.deepEqual(fixture.calls.at(-1), ['commutes', [
+    { popId: 'idle-pop', direction: 'homeToWork' },
+    { popId: 'idle-pop', direction: 'workToHome' },
+  ]]);
   assert.doesNotThrow(() => activePop.lastCommute.transitPaths[0].segments);
 });
 
@@ -5289,7 +5372,10 @@ test('native commute refresh recovers an autosaved movement whose journey was ov
   assert.equal(fixture.state.popMovementsMap.size, 0);
   assert.equal(fixture.state.allStationTrainPopMovements.stations.size, 0);
   assert.deepEqual(fixture.state.popMovementGeojson.features, []);
-  assert.deepEqual(fixture.calls.at(-1), ['commutes', [{ popId: pop.id, direction: 'homeToWork' }]]);
+  assert.deepEqual(fixture.calls.at(-1), ['commutes', [
+    { popId: pop.id, direction: 'homeToWork' },
+    { popId: pop.id, direction: 'workToHome' },
+  ]]);
 });
 
 test('production adapter lowers the native transit floor for one-person LODES cohorts', async () => {
@@ -5412,7 +5498,19 @@ test('compacts native snapshots by removing reloadable demand and image payloads
     routeThumbnail: 'data:image/png;base64,large',
     timelapse: { frames: [{ image: 'large' }], nextCaptureDay: 2 },
     data: {
-      routes: [], tracks: [], stations: [], trains: [],
+      routes: [],
+      tracks: [{
+        id: 'track-1', trackType: 'light-rail', curveType: 'modified-euler',
+        curveGeometry: { radius: 250 }, nodes: [{ id: 'curve-node' }],
+        laneDirection: 'forward',
+      }],
+      trackGroups: [{
+        id: 'group-1', trackIds: ['track-1'], trackType: 'light-rail',
+        laneDirections: ['forward', 'reverse', 'forward'],
+      }],
+      stations: [], trains: [],
+      lastLaneDirections: ['forward', 'reverse', 'forward'],
+      trackEditSession: { id: 'edit-1', pausedRouteIds: ['route-1'] },
       compressedDemandData: { huge: true }, savedDemandData: { huge: true },
       popMovementsMap: [1], completedCommutes: [2],
     },
@@ -5425,6 +5523,10 @@ test('compacts native snapshots by removing reloadable demand and image payloads
   assert.equal('compressedDemandData' in compact.data, false);
   assert.equal('savedDemandData' in compact.data, false);
   assert.deepEqual(compact.data.routes, []);
+  assert.deepEqual(compact.data.tracks, snapshot.data.tracks);
+  assert.deepEqual(compact.data.trackGroups, snapshot.data.trackGroups);
+  assert.deepEqual(compact.data.lastLaneDirections, ['forward', 'reverse', 'forward']);
+  assert.deepEqual(compact.data.trackEditSession, snapshot.data.trackEditSession);
 });
 
 test('production adapter uses a lean template checkpoint without running native demand compression', async () => {

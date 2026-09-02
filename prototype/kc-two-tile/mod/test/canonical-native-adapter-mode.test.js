@@ -115,13 +115,13 @@ test('canonical activation deduplicates repeated native interlining for unchange
   testFixture.state.cityCode = 'NY_CP00_RP00';
   testFixture.state.routes = [route];
   testFixture.state.tracks = [track];
-  testFixture.state.interlinedFeatureCollection = { type: 'FeatureCollection', features: [] };
+  testFixture.state.portolanDiagram = null;
+  testFixture.state.portolanProgress = null;
   const nativeRecalculateAllRouteGeojsons = async () => {
     recalculationCalls += 1;
-    testFixture.state.interlinedFeatureCollection = {
-      type: 'FeatureCollection',
-      features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: track.coords } }],
-    };
+    testFixture.state.portolanProgress = { stage: 'starting', pct: 0 };
+    testFixture.state.portolanDiagram = { revision: recalculationCalls, bands: {} };
+    testFixture.state.portolanProgress = null;
   };
   testFixture.state.recalculateAllRouteGeojsons = nativeRecalculateAllRouteGeojsons;
   const adapter = new SubwayBuilderGameAdapter({
@@ -163,6 +163,37 @@ test('canonical activation deduplicates repeated native interlining for unchange
   await afterStoreReplacement;
   assert.equal(recalculationCalls, 3);
   assert.equal(testFixture.native.setTimeConfigCalls, 2, 'the repaired action must be republished');
+});
+
+test('Portolan cache waits for the deferred diagram before accepting a cache hit', async () => {
+  const testFixture = fixture();
+  const route = {
+    id: 'route-a',
+    color: '#f60',
+    stCombos: [{ path: [{ trackId: 'track-a' }] }],
+  };
+  testFixture.state.routes = [route];
+  testFixture.state.tracks = [{
+    id: 'track-a',
+    coords: [[-73.1, 40.7], [-73, 40.8]],
+  }];
+  let recalculationCalls = 0;
+  testFixture.state.recalculateAllRouteGeojsons = async () => {
+    recalculationCalls += 1;
+  };
+  const adapter = new SubwayBuilderGameAdapter({
+    api: { trains: { getTrainTypes: () => [] } },
+    callbacks: testFixture.callbacks,
+  });
+
+  adapter.activateCanonicalNativeNetworkMode();
+  await testFixture.state.recalculateAllRouteGeojsons(testFixture.state.routes);
+  await testFixture.state.recalculateAllRouteGeojsons(testFixture.state.routes);
+  assert.equal(recalculationCalls, 2, 'the previous diagram must not satisfy a deferred Portolan request');
+
+  testFixture.state.portolanDiagram = { bands: {}, completed: true };
+  await testFixture.state.recalculateAllRouteGeojsons(testFixture.state.routes);
+  assert.equal(recalculationCalls, 2, 'the completed deferred diagram should promote the pending signature');
 });
 
 test('canonical interlining excludes routes whose paths reference unusable track geometry', async () => {

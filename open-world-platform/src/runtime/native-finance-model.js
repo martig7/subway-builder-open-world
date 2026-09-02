@@ -2,7 +2,8 @@ import { quoteJourneyFare } from './journey-fare.js';
 
 const HOURS_PER_DAY = 24;
 const NATIVE_ANNUALIZATION = 365;
-const NATIVE_REVENUE_PROFILE_SCHEMA_VERSION = 3;
+const NATIVE_REVENUE_PROFILE_SCHEMA_VERSION = 4;
+const COMMUTE_DIRECTIONS = Object.freeze(['homeToWork', 'workToHome']);
 
 /**
  * Finance ownership is deliberately independent from the topology sidecar.
@@ -172,7 +173,11 @@ export function migrateCachedNativeRevenueProfile(profile) {
     revenueOwnership: candidate.revenueOwnership ?? 'native-active-or-mod-inactive',
   });
   if (profile.schemaVersion !== 2) {
-    return withOwnership(profile);
+    return withOwnership({
+      ...profile,
+      schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION,
+      commuteModel: profile.commuteModel ?? 'legacy-round-trip',
+    });
   }
   const hasDistributedRevenue = profile.hourly.some((hour, index) => ![7, 17].includes(index) && financeHourHasValue(hour));
   if (hasDistributedRevenue) {
@@ -184,6 +189,7 @@ export function migrateCachedNativeRevenueProfile(profile) {
   return withOwnership({
     ...structuredClone(profile),
     schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION,
+    commuteModel: 'legacy-round-trip',
     hourly,
   });
 }
@@ -301,41 +307,66 @@ export function calculateNativeRevenueProfile(pops = [], {
   let dailyRevenue = 0;
   for (const pop of pops) {
     if (String(pop?.id ?? '').startsWith('cross-pop-')) continue;
-    const transitMass = Math.max(0, finite(pop?.lastCommute?.modeChoice?.transit, 0));
-    if (!(transitMass > 0)) continue;
-    const paths = Array.isArray(pop?.lastCommute?.transitPaths) ? pop.lastCommute.transitPaths : [];
-    const path = paths.find((candidate) => finite(candidate?.fareCost, -1) >= 0 && candidate?.segments?.length)
-      ?? paths.find((candidate) => finite(candidate?.fareCost, -1) >= 0);
-    const fare = finite(path?.fareCost, -1);
-    if (!(fare >= 0)) continue;
-    const oneWayRevenue = transitMass * fare * NATIVE_ANNUALIZATION;
-    const routeIds = [...new Set((path?.segments ?? []).map((segment) => segment?.routeId).filter(Boolean))];
-    const quoted = (fareGroups.length || routes.length) ? quoteJourneyFare({
-      segments: path?.segments ?? [], fareGroups, routes, legacyFare,
-      nativeFare: () => fare,
-    }) : null;
-    let fareByRoute = quoted?.revenueByRoute ?? {};
-    if (!Object.keys(fareByRoute).length && routeIds.length) {
-      fareByRoute = Object.fromEntries(routeIds.map((routeId) => [routeId, fare / routeIds.length]));
+    const directional = pop?.commutes && typeof pop.commutes === 'object'
+      ? COMMUTE_DIRECTIONS.flatMap((direction) => (
+        pop.commutes[direction] ? [{ direction, summary: pop.commutes[direction], legacy: false }] : []
+      ))
+      : COMMUTE_DIRECTIONS.map((direction) => ({
+        direction,
+        summary: pop?.lastCommute,
+        legacy: true,
+      }));
+    let popTransitPopulation = 0;
+    for (const { direction, summary, legacy } of directional) {
+      const transitMass = Math.max(0, finite(summary?.modeChoice?.transit, 0));
+      if (!(transitMass > 0)) continue;
+      const summaryPaths = Array.isArray(summary?.transitPaths) ? summary.transitPaths : [];
+      const lastPaths = Array.isArray(pop?.lastCommute?.transitPaths) ? pop.lastCommute.transitPaths : [];
+      const explicitLastDirection = pop?.lastCommute?.direction
+        ?? (pop?.lastCommute?.origin === 'home' ? 'homeToWork'
+          : pop?.lastCommute?.origin === 'work' ? 'workToHome' : null);
+      const directionalCosts = COMMUTE_DIRECTIONS
+        .map((candidate) => finite(pop?.commutes?.[candidate]?.transitCost, NaN))
+        .filter(Number.isFinite);
+      const lastFare = finite(lastPaths.find((candidate) => finite(candidate?.fareCost, -1) >= 0)?.fareCost, NaN);
+      const mayUseLastPath = legacy
+        || explicitLastDirection === direction
+        || (directionalCosts.length > 0
+          && directionalCosts.every((cost) => cost === directionalCosts[0])
+          && lastFare === directionalCosts[0]);
+      const paths = summaryPaths.length ? summaryPaths : mayUseLastPath ? lastPaths : [];
+      const path = paths.find((candidate) => finite(candidate?.fareCost, -1) >= 0 && candidate?.segments?.length)
+        ?? paths.find((candidate) => finite(candidate?.fareCost, -1) >= 0);
+      const fare = finite(summary?.transitCost, finite(path?.fareCost, -1));
+      if (!(fare >= 0)) continue;
+      const oneWayRevenue = transitMass * fare * NATIVE_ANNUALIZATION;
+      const routeIds = [...new Set((path?.segments ?? []).map((segment) => segment?.routeId).filter(Boolean))];
+      const quoted = path && (fareGroups.length || routes.length) ? quoteJourneyFare({
+        segments: path.segments ?? [], fareGroups, routes, legacyFare,
+        nativeFare: () => fare,
+      }) : null;
+      let fareByRoute = quoted?.revenueByRoute ?? {};
+      if (!Object.keys(fareByRoute).length && routeIds.length) {
+        fareByRoute = Object.fromEntries(routeIds.map((routeId) => [routeId, fare / routeIds.length]));
+      }
+      popTransitPopulation = Math.max(popTransitPopulation, transitMass);
+      dailyRevenue += oneWayRevenue;
+      const routeRevenue = Object.fromEntries(Object.entries(fareByRoute)
+        .map(([routeId, routeFare]) => [routeId, transitMass * routeFare * NATIVE_ANNUALIZATION]));
+      addRevenueToDistribution(
+        hourly,
+        departureDistribution(
+          direction === 'homeToWork' ? pop.homeDepartureTime : pop.workDepartureTime,
+          direction === 'homeToWork'
+            ? NATIVE_HOME_DEPARTURE_PROBABILITIES
+            : NATIVE_WORK_DEPARTURE_PROBABILITIES,
+        ),
+        oneWayRevenue,
+        routeRevenue,
+        owned,
+      );
     }
-    transitPopulation += transitMass;
-    dailyRevenue += oneWayRevenue * 2;
-    const routeRevenue = Object.fromEntries(Object.entries(fareByRoute)
-      .map(([routeId, routeFare]) => [routeId, transitMass * routeFare * NATIVE_ANNUALIZATION]));
-    addRevenueToDistribution(
-      hourly,
-      departureDistribution(pop.homeDepartureTime, NATIVE_HOME_DEPARTURE_PROBABILITIES),
-      oneWayRevenue,
-      routeRevenue,
-      owned,
-    );
-    addRevenueToDistribution(
-      hourly,
-      departureDistribution(pop.workDepartureTime, NATIVE_WORK_DEPARTURE_PROBABILITIES),
-      oneWayRevenue,
-      routeRevenue,
-      owned,
-    );
+    transitPopulation += popTransitPopulation;
   }
   const customCrossTileRevenue = hourly.reduce(
     (sum, value) => sum + Math.max(0, finite(value.financeOwnedRevenue, 0)),
@@ -349,6 +380,7 @@ export function calculateNativeRevenueProfile(pops = [], {
     // These fields make the ownership seam explicit without changing the
     // compact hourly cache used by older sidecars.
     revenueOwnership: 'native-active-or-mod-inactive',
+    commuteModel: 'directional-v1',
     customCrossTileRevenue,
     nativeRevenue: Math.max(0, dailyRevenue - customCrossTileRevenue),
     accountingOwnership: createNativeTopologyFinancePolicy(),

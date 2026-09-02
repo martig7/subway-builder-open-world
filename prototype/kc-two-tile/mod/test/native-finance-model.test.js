@@ -26,7 +26,7 @@ test('native revenue profile reuses calculated native transit shares and fares',
     },
   }]);
 
-  assert.equal(profile.schemaVersion, 3);
+  assert.equal(profile.schemaVersion, 4);
   assert.equal(profile.hourly[8].revenue, 2 * 3 * 365);
   assert.equal(profile.hourly[18].revenue, 2 * 3 * 365);
   assert.equal(profile.hourly[8].revenueByRoute.A, 1 * 3 * 365);
@@ -69,7 +69,7 @@ test('cached two-spike revenue profiles migrate without loading remote native de
     hourly: oldHourly,
   });
 
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 4);
   assert.equal(migrated.hourly.filter(({ revenue }) => revenue > 0).length, 24);
   assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + hour.revenue, 0) - 200) < 1e-9);
   assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + (hour.financeOwnedRevenue ?? 0), 0) - 80) < 1e-9);
@@ -90,6 +90,38 @@ test('native revenue profile isolates the owned share of mixed local/global jour
   assert.equal(profile.hourly[7].revenue, 2 * 4 * 365);
   assert.equal(profile.hourly[7].financeOwnedRevenue, 1 * 4 * 365);
   assert.deepEqual(profile.hourly[7].financeOwnedRevenueByRoute, { global: 1 * 4 * 365 });
+});
+
+test('native revenue profile prices 1.7 commute directions independently', () => {
+  const profile = calculateNativeRevenueProfile([{
+    homeDepartureTime: 8 * 3_600,
+    workDepartureTime: 17 * 3_600,
+    commutes: {
+      homeToWork: {
+        modeChoice: { transit: 3 },
+        transitCost: 2,
+        transitPaths: [{ fareCost: 2, segments: [{ routeId: 'outbound' }] }],
+      },
+      workToHome: {
+        modeChoice: { transit: 1 },
+        transitCost: 5,
+        transitPaths: [{ fareCost: 5, segments: [{ routeId: 'return' }] }],
+      },
+    },
+    lastCommute: {
+      direction: 'workToHome',
+      transitPaths: [{ fareCost: 5, segments: [{ routeId: 'return' }] }],
+    },
+  }]);
+
+  assert.equal(profile.schemaVersion, 4);
+  assert.equal(profile.commuteModel, 'directional-v1');
+  assert.equal(profile.hourly[8].revenue, 3 * 2 * 365);
+  assert.deepEqual(profile.hourly[8].revenueByRoute, { outbound: 3 * 2 * 365 });
+  assert.equal(profile.hourly[17].revenue, 1 * 5 * 365);
+  assert.deepEqual(profile.hourly[17].revenueByRoute, { return: 1 * 5 * 365 });
+  assert.equal(profile.dailyRevenue, (3 * 2 + 1 * 5) * 365);
+  assert.equal(profile.transitPopulation, 3);
 });
 
 test('global expense profile compiles route schedules and constructed infrastructure', () => {

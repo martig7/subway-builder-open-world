@@ -77,6 +77,8 @@ const REQUIRED_PORTOLAN_STATE_KEYS = Object.freeze([
   'portolanProgress',
 ]);
 const SUBWAY_BUILDER_1_6_MIN_TRANSIT_CHOICE = 10;
+const NATIVE_COMMUTE_DIRECTIONS = Object.freeze(['homeToWork', 'workToHome']);
+const DIRECTIONAL_COMMUTE_RESTORE_POLICY = 'recalculate-both-directions-v1';
 const CITY_SETTLE_ATTEMPTS = 8;
 const PAUSE_SETTLE_ATTEMPTS = 20;
 const PAUSE_SETTLE_DELAY_MS = 10;
@@ -106,7 +108,7 @@ const CANONICAL_NATIVE_INTERLINING_CACHE = Symbol.for('open-world.canonical-nati
 const CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = Symbol.for('open-world.canonical-native-interlining-cache-version');
 const CANONICAL_NATIVE_INTERLINING_CACHE_BINDING = Symbol.for('open-world.canonical-native-interlining-cache-binding');
 const CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL = Symbol.for('open-world.canonical-native-interlining-cache-original');
-const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 4;
+const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 5;
 const NATIVE_PASS_THROUGH_PLATFORM_PENALTY = 10.1;
 const NATIVE_TURNBACK_WRONG_WAY_PENALTY = 25;
 const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
@@ -321,11 +323,20 @@ function nativeInterliningFingerprint(state, routes) {
       id: track?.id ?? null,
       trackType: track?.trackType ?? null,
       buildType: track?.buildType ?? null,
+      curveType: track?.curveType ?? null,
+      curveGeometry: track?.curveGeometry ?? null,
+      nodes: track?.nodes ?? null,
+      direction: track?.direction ?? null,
+      laneDirection: track?.laneDirection ?? null,
+      reversable: track?.reversable ?? null,
       coords: track?.coords ?? null,
     }));
     const trackGroups = (state?.trackGroups ?? []).map((group) => ({
       id: group?.id ?? null,
       trackIds: group?.trackIds ?? null,
+      trackType: group?.trackType ?? null,
+      trackLanesType: group?.trackLanesType ?? null,
+      laneDirections: group?.laneDirections ?? group?.directions ?? null,
       centerLine: group?.centerLine ?? null,
     }));
     const stations = (state?.stations ?? []).map((station) => ({
@@ -356,7 +367,16 @@ function nativeInterliningFingerprint(state, routes) {
   }
 }
 
+function hasPortolanState(state) {
+  return Boolean(state)
+    && Object.prototype.hasOwnProperty.call(state, 'portolanDiagram')
+    && Object.prototype.hasOwnProperty.call(state, 'portolanProgress');
+}
+
 function hasInterliningResult(state) {
+  if (hasPortolanState(state)) {
+    return state.portolanProgress == null && state.portolanDiagram != null;
+  }
   return Array.isArray(state?.interlinedFeatureCollection?.features);
 }
 
@@ -371,6 +391,33 @@ function advanceNativeInterliningRevision(binding, signature) {
 
 function commitNativeInterliningSignature(binding, signature) {
   binding.cache.signature = signature;
+}
+
+function promoteCompletedPortolanSignature(binding, state) {
+  const signature = binding.cache.awaitingSignature;
+  if (!signature || !hasPortolanState(state) || state.portolanProgress != null) return false;
+  if (state.portolanDiagram === binding.cache.awaitingDiagram) return false;
+  commitNativeInterliningSignature(binding, signature);
+  binding.cache.awaitingSignature = null;
+  binding.cache.awaitingDiagram = null;
+  return true;
+}
+
+function stageNativeInterliningSignature(binding, signature, state, routes, diagramBefore) {
+  if (!hasPortolanState(state)) {
+    commitNativeInterliningSignature(binding, signature);
+    return;
+  }
+  const hasTopology = (routes ?? []).some(routeHasNativeTopology);
+  if (!hasTopology) {
+    commitNativeInterliningSignature(binding, signature);
+    binding.cache.awaitingSignature = null;
+    binding.cache.awaitingDiagram = null;
+    return;
+  }
+  binding.cache.awaitingSignature = signature;
+  binding.cache.awaitingDiagram = diagramBefore;
+  promoteCompletedPortolanSignature(binding, state);
 }
 
 function installCanonicalNativeInterliningCache(adapter, state) {
@@ -400,6 +447,8 @@ function installCanonicalNativeInterliningCache(adapter, state) {
       revisionSignature: null,
       pending: null,
       pendingSignature: null,
+      awaitingSignature: null,
+      awaitingDiagram: null,
     },
   };
   const guarded = function canonicalNativeRecalculateAllRouteGeojsons(...args) {
@@ -410,6 +459,8 @@ function installCanonicalNativeInterliningCache(adapter, state) {
     const signature = nativeInterliningFingerprint(live, routes);
     if (!signature) return original.apply(this, args);
 
+    promoteCompletedPortolanSignature(binding, live);
+
     if (binding.cache.signature === signature && hasInterliningResult(live)) {
       return Promise.resolve({ status: 'cached', signature });
     }
@@ -419,6 +470,7 @@ function installCanonicalNativeInterliningCache(adapter, state) {
 
     const nativeArgs = [...args];
     nativeArgs[0] = nativeInterliningRouteInputs(live, routes);
+    const portolanDiagramBefore = hasPortolanState(live) ? live.portolanDiagram : null;
     advanceNativeInterliningRevision(binding, signature);
     let result;
     try {
@@ -428,14 +480,21 @@ function installCanonicalNativeInterliningCache(adapter, state) {
       throw error;
     }
     if (!result || typeof result.then !== 'function') {
-      commitNativeInterliningSignature(binding, signature);
+      stageNativeInterliningSignature(binding, signature, live, routes, portolanDiagramBefore);
       return result;
     }
 
     const pending = Promise.resolve(result).then(
       (value) => {
         if (binding.cache.pendingSignature === signature) {
-          commitNativeInterliningSignature(binding, signature);
+          const resolvedState = binding.adapter?.callbacks?.getState?.() ?? live;
+          stageNativeInterliningSignature(
+            binding,
+            signature,
+            resolvedState,
+            routes,
+            portolanDiagramBefore,
+          );
           binding.cache.pending = null;
           binding.cache.pendingSignature = null;
         }
@@ -1917,6 +1976,7 @@ export class SubwayBuilderGameAdapter {
       stateMethods: methodsOf(state),
       publicApiMethods: methodsOf(this.api),
       publicCityMethods: methodsOf(this.api?.cities),
+      publicGameStateMethods: methodsOf(this.api?.gameState),
       publicUtilsMethods: methodsOf(this.api?.utils),
       selectedActions: Object.freeze({
         pause: 'setTimeConfig({ paused: true })',
@@ -1927,6 +1987,7 @@ export class SubwayBuilderGameAdapter {
         save: 'generateSave',
         load: 'loadSave',
         interlining: 'recalculateAllRouteGeojsons -> portolanDiagram',
+        directionalCommutes: DIRECTIONAL_COMMUTE_RESTORE_POLICY,
       }),
     });
   }
@@ -3421,7 +3482,16 @@ export class SubwayBuilderGameAdapter {
     let popsWithTransitPaths = 0;
     let populationWithTransitPaths = 0;
     let totalTransitPaths = 0;
+    let directionalPops = 0;
+    let directionalCompletePops = 0;
+    let directionalLegs = 0;
     const modeChoicePopulation = { driving: 0, walking: 0, transit: 0, unknown: 0 };
+    const modeChoicePopulationByDirection = Object.fromEntries(
+      NATIVE_COMMUTE_DIRECTIONS.map((direction) => [
+        direction,
+        { driving: 0, walking: 0, transit: 0, unknown: 0 },
+      ]),
+    );
     const samples = { withTransitPath: [], withoutTransitPath: [] };
     const summarizePop = (pop, paths) => ({
       id: pop.id,
@@ -3456,7 +3526,18 @@ export class SubwayBuilderGameAdapter {
     for (const pop of pops?.values?.() ?? []) {
       population += pop.size ?? 0;
       if (!points?.has?.(pop.residenceId) || !points?.has?.(pop.jobId)) danglingPops++;
-      const mode = pop.lastCommute?.modeChoice;
+      const directionalSummaries = NATIVE_COMMUTE_DIRECTIONS
+        .map((direction) => [direction, pop?.commutes?.[direction]])
+        .filter(([, summary]) => summary?.modeChoice);
+      if (directionalSummaries.length > 0) directionalPops++;
+      if (directionalSummaries.length === NATIVE_COMMUTE_DIRECTIONS.length) directionalCompletePops++;
+      directionalLegs += directionalSummaries.length;
+      for (const [direction, summary] of directionalSummaries) {
+        for (const key of Object.keys(modeChoicePopulation)) {
+          modeChoicePopulationByDirection[direction][key] += summary.modeChoice[key] ?? 0;
+        }
+      }
+      const mode = pop?.commutes?.homeToWork?.modeChoice ?? pop.lastCommute?.modeChoice;
       if (mode) {
         calculatedPops++;
         calculatedPopulation += (mode.driving ?? 0) + (mode.walking ?? 0) + (mode.transit ?? 0);
@@ -3473,6 +3554,23 @@ export class SubwayBuilderGameAdapter {
         }
       }
     }
+    let modeChoiceStatisticsSource = 'private-store-fallback';
+    if (typeof this.api?.gameState?.getModeChoiceStats === 'function') {
+      try {
+        for (const direction of NATIVE_COMMUTE_DIRECTIONS) {
+          const publicStats = this.api.gameState.getModeChoiceStats(direction);
+          if (!publicStats || typeof publicStats !== 'object') throw new Error(`Invalid ${direction} mode-choice statistics`);
+          modeChoicePopulationByDirection[direction] = Object.fromEntries(
+            Object.keys(modeChoicePopulation).map((key) => [key, Number(publicStats[key]) || 0]),
+          );
+        }
+        modeChoiceStatisticsSource = 'public-game-state';
+      } catch {
+        // Keep the private aggregate as a compatibility fallback. Mutation and
+        // per-pop completeness still require the store until the public API
+        // exposes equivalent lifecycle controls.
+      }
+    }
     return {
       cityCode: state.cityCode,
       elapsedSeconds: state.timeConfig?.elapsedSeconds,
@@ -3486,7 +3584,13 @@ export class SubwayBuilderGameAdapter {
       popsWithTransitPaths,
       populationWithTransitPaths,
       totalTransitPaths,
+      directionalPops,
+      directionalCompletePops,
+      directionalLegs,
       modeChoicePopulation,
+      modeChoicePopulationByDirection,
+      modeChoiceStatisticsSource,
+      directionalRestorePolicy: DIRECTIONAL_COMMUTE_RESTORE_POLICY,
       samples,
       activeMovements: state.popMovementsMap?.size ?? 0,
       completedCommutes: state.completedCommutes?.length ?? 0,
@@ -3537,6 +3641,7 @@ export class SubwayBuilderGameAdapter {
     const forceClippedRouteRefresh = this.clippedRouteCommuteRefreshPending === true;
     if (!forceClippedRouteRefresh
       && (before.popsWithTransitPaths > 0 || before.transitPopulation > 0)
+      && before.directionalCompletePops === pops.length
       && !(this.lodesTransitFloorActive && before.transitPopulation === 0)) {
       return { status: 'already-current', popCount: pops.length, before };
     }
@@ -3577,7 +3682,7 @@ export class SubwayBuilderGameAdapter {
       .filter((pop) => typeof pop?.id === 'string'
         && pop.id.length > 0
         && !activePopIds.has(pop.id))
-      .map((pop) => ({ popId: pop.id, direction: 'homeToWork' }));
+      .flatMap((pop) => NATIVE_COMMUTE_DIRECTIONS.map((direction) => ({ popId: pop.id, direction })));
     if (popCommutes.length === 0) {
       return {
         status: 'active-journeys-only', popCount: pops.length, skippedActivePops: activePopIds.size,

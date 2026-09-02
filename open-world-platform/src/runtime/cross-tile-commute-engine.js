@@ -261,6 +261,7 @@ export function applyModeShares(world, totals, {
   transitViablePops = 0,
   popModeChoices = {},
   transitJourneys = new Map(),
+  contextKey = null,
 } = {}) {
   migrateCommuteLedger(world);
   let changedFlows = 0;
@@ -284,7 +285,8 @@ export function applyModeShares(world, totals, {
     Object.entries(popModeChoices).map(([popId, modes]) => [popId, { ...modes }]),
   );
   world.crossModeShare = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    contextKey,
     day,
     reason,
     calculatedAtHour: world.worldTime,

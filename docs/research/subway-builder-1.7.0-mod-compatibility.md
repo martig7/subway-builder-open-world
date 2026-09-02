@@ -35,6 +35,32 @@ The highest-priority work is therefore:
    now sufficient, while keeping guarded private access only for full snapshot
    restore, exact clock/city switching, and canonical-network mutation.
 
+### Port implementation update (2026-09-02)
+
+The shared platform port is implemented on the NEC compatibility branch. It:
+
+- recognizes the deferred `portolanDiagram` lifecycle and clips the 1.7 binary
+  `portolan-ribbons` buffers without misaligning color or offset attributes;
+- recognizes and spatially filters `station-marker-dots`,
+  `station-marker-labels`, and `portolan-station-pills`;
+- restores both `homeToWork` and `workToHome` commute summaries, accounts for
+  each direction independently, and emits both directions for synthetic
+  off-tile demand;
+- uses `gameState.getModeChoiceStats(direction)` for aggregate diagnostics,
+  retaining private state only for per-pop completeness and mutation;
+- versions persistent cross-tile mode share with a compact context key covering
+  demand build, fare policy, network signatures, and timetable hour; and
+- preserves 1.7 curve geometry, editable nodes, track type, lane directions,
+  `lastLaneDirections`, and track-edit session data through snapshots and
+  projections.
+
+The compact-snapshot policy remains deliberate: packaged demand is not copied
+into every tile checkpoint. After a compact restore, the runtime invokes native
+`simulateCommutes` for both directions before compiling finance. Focused and
+full automated tests cover that deterministic rebuild policy. A live smoke test
+after installing the NEC consumer remains necessary for the renderer-private
+Portolan and station-layer shapes.
+
 ## Bundle verification: installed 1.7.0 (2026-09-02)
 
 This section supersedes the earlier “verify against a real 1.7 bundle”
