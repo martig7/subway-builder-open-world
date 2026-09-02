@@ -24,3 +24,34 @@ adapters, not World Definitions.
 `build` fails closed for unresolved source locks and for stages whose real inputs
 have not been materialized. `publish` accepts only a run whose package output and
 validation gates are complete.
+
+## Japan demand and routing workers
+
+The boundary referenced by a World Definition is authoritative for demand
+ownership. Source mesh mass is assigned to one prefecture and any centroid or
+clustered candidate outside that rendered geometry is moved to the nearest
+serialized point it covers. The worker never edits the render geometry and
+records relocated counts, mass, and distances in its report and JSONL progress.
+
+```powershell
+$env:PYTHONPATH = 'src'
+python -m open_world_map_creator.demand.japan_prefecture_queue `
+  --raw-root <estat-od-root> `
+  --boundary-source ..\worlds\japan\geography\prefectures.geojson `
+  --output-root <output-root> `
+  --progress-jsonl <queue-progress.jsonl>
+
+python -m open_world_map_creator.routing `
+  --catalog <tile-catalog.json> `
+  --maps-dir <maps-tiles-root> `
+  --demand-dir <demand-root> `
+  --report-namespace tokyo-kanagawa `
+  --consumer-manifest-id local.tokyo-kanagawa-open-world `
+  --progress-jsonl <routing-progress.jsonl>
+```
+
+Both commands accept arbitrary filesystem locations. The prefecture queue is
+sequential and resumable; by default it processes the 45 prefectures outside the
+dedicated Tokyo/Kanagawa rebuild. Routing uses an input fingerprint so a staged
+resume is discarded automatically when its map, catalog, or demand inputs have
+changed.

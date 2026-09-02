@@ -55,6 +55,34 @@ def directional_concentration(points: list[dict]) -> float:
 
 
 class DemandSiteGeometryTest(unittest.TestCase):
+    def test_all_emitted_demand_uses_the_rendered_boundary(self) -> None:
+        repository_root = ROOT.parents[1]
+        rendered = json.loads(
+            (repository_root / "worlds" / "tokyo-kanagawa" / "geography" / "world-boundary-overlay.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        boundaries = {
+            feature["properties"]["pref_code"]: shape(feature["geometry"])
+            for feature in rendered["features"]
+        }
+        for tile_id, tile in TILES.items():
+            outside = [
+                point["id"]
+                for point in load_demand(tile_id)["points"]
+                if not boundaries[tile["prefCode"]].covers(Point(*point["location"]))
+            ]
+            self.assertEqual(outside, [], f"{tile_id} demand escaped the rendered boundary")
+
+        with gzip.open(GENERATED / "demand" / "world" / "cross_demand.json.gz", "rt", encoding="utf-8") as source:
+            cross = json.load(source)
+        field_index = {field: index for index, field in enumerate(cross["pointFields"])}
+        for row in cross["points"]:
+            tile_id = row[field_index["tileId"]]
+            tile = TILES[tile_id]
+            point = Point(row[field_index["longitude"]], row[field_index["latitude"]])
+            self.assertTrue(boundaries[tile["prefCode"]].covers(point), row[field_index["id"]])
+
     def test_final_sites_are_irregular_and_building_anchored(self) -> None:
         source_mesh = json.loads(
             (ROOT.parent / "japan" / "generated" / "tokyo-kanagawa-test" / "home-mesh-250m.geojson").read_text(

@@ -406,14 +406,37 @@ def enrich_generated_road_driving(
     build_hash_prefix = build_hash_prefix or f"{report_namespace}-road-v1"
     started = time.perf_counter()
     demand = Path(demand_dir)
+    progress("[road-routing] started graph build")
     graph, graph_report = build_road_graph(
         catalog_path, maps_dir, maximum_edge_metres=maximum_edge_metres, progress=progress
     )
     catalog = json.loads(Path(catalog_path).read_text(encoding="utf-8"))
     tile_ids = [str(tile["id"]) for tile in catalog["tiles"] if tile.get("status") == "selected"]
     stage = demand.parent / f".{demand.name}-road-routing-stage"
-    if stage.exists() and not resume:
-        shutil.rmtree(stage)
+    input_fingerprint = {
+        "catalog": _sha256(Path(catalog_path)),
+        "roads": {
+            tile_id: _sha256(Path(maps_dir) / tile_id / "roads.geojson.gz")
+            for tile_id in tile_ids
+        },
+        "nativeDemand": {
+            tile_id: _sha256(demand / "tiles" / tile_id / "demand_data.json.gz")
+            for tile_id in tile_ids
+        },
+        "crossDemand": _sha256(demand / "world" / "cross_demand.json.gz"),
+        "crossCommutes": _sha256(demand / "world" / "cross_commutes.json"),
+    }
+    stage_fingerprint_path = stage / ".routing-inputs.json"
+    if stage.exists():
+        recovered_fingerprint = (
+            json.loads(stage_fingerprint_path.read_text(encoding="utf-8"))
+            if stage_fingerprint_path.is_file()
+            else None
+        )
+        if not resume or recovered_fingerprint != input_fingerprint:
+            progress("[road-routing] discarded stale stage after input fingerprint change")
+            shutil.rmtree(stage)
+    _write_json(stage_fingerprint_path, input_fingerprint)
     route_options = _route_options(
         max_routed_direct_metres=max_routed_direct_metres,
         max_snap_metres=max_snap_metres,
@@ -434,7 +457,11 @@ def enrich_generated_road_driving(
             continue
         payload = _read_gzip_json(source_path)
         points = {str(point["id"]): tuple(map(float, point["location"])) for point in payload["points"]}
-        for pop in payload["pops"]:
+        route_started = time.perf_counter()
+        last_route_progress = route_started
+        route_total = len(payload["pops"])
+        progress(f"[road-routing] native started {tile_index}/{len(tile_ids)} {tile_id} ({route_total})")
+        for pop_index, pop in enumerate(payload["pops"], 1):
             route = graph.route(
                 points[str(pop["residenceId"])],
                 points[str(pop["jobId"])],
@@ -446,6 +473,14 @@ def enrich_generated_road_driving(
             pop["drivingDistance"] = route.metres
             _route_counter(counts, route)
             counts["nativeRoutes"] += 1
+            now = time.perf_counter()
+            if pop_index == route_total or now - last_route_progress >= 15:
+                progress(
+                    f"[road-routing] native progress {tile_index}/{len(tile_ids)} {tile_id} "
+                    f"{pop_index}/{route_total} ({pop_index / max(1, route_total):.1%}, "
+                    f"{now - route_started:.1f}s)"
+                )
+                last_route_progress = now
         _gzip_json(staged_path, payload)
         progress(f"[road-routing] native routes {tile_index}/{len(tile_ids)} {tile_id} ({len(payload['pops'])})")
 
@@ -489,11 +524,15 @@ def enrich_generated_road_driving(
             road_ratios: list[float] = []
             seconds_per_direct_metre: list[float] = []
             sampled_pop_ids: list[str] = []
-            for offset in sample_offsets:
+            for sample_number, offset in enumerate(sample_offsets, 1):
                 pop = cross["pops"][indices[offset]]
                 direct = direct_metres(pop)
                 if direct > max_routed_direct_metres:
                     continue
+                progress(
+                    f"[road-routing] cross sample started {partition_number}/{len(partition_items)} "
+                    f"{cache_key} {sample_number}/{len(sample_offsets)}"
+                )
                 route = graph.route(
                     cross_points[int(pop[pop_fields["homePoint"]])],
                     cross_points[int(pop[pop_fields["workPoint"]])],
@@ -507,6 +546,10 @@ def enrich_generated_road_driving(
                 if route.source == "generated-road-graph":
                     road_ratios.append(route.metres / direct)
                     seconds_per_direct_metre.append(route.seconds / direct)
+                progress(
+                    f"[road-routing] cross sample complete {partition_number}/{len(partition_items)} "
+                    f"{cache_key} {sample_number}/{len(sample_offsets)} {route.source}"
+                )
             if road_ratios:
                 model = {
                     "provider": "generated-road-tile-pair-model",
@@ -638,6 +681,7 @@ def enrich_generated_road_driving(
     }
     _write_json(stage / "reports" / routing_report_name, routing_report)
 
+    stage_fingerprint_path.unlink(missing_ok=True)
     staged_files = sorted(path for path in stage.rglob("*") if path.is_file())
     for staged in staged_files:
         relative = staged.relative_to(stage)

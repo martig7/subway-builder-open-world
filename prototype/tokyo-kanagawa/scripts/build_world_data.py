@@ -17,6 +17,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from pyproj import Transformer
 from shapely import make_valid
 from shapely.geometry import Point, shape
 
@@ -26,6 +27,9 @@ from building_seed_voronoi import build_tile_sites
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT.parent / "japan" / "generated" / "tokyo-kanagawa-test"
 GENERATED = ROOT / "generated"
+RENDER_BOUNDARY = ROOT.parents[1] / "worlds" / "tokyo-kanagawa" / "geography" / "world-boundary-overlay.json"
+ROUTING_CRS = "EPSG:6677"
+ROUTING_SPLIT_LATITUDE = 35.55
 TILES = (
     {
         "id": "JP_TOKYO_MAINLAND", "gameCityCode": "JP_TOKYO_MAINLAND", "prefCode": "13",
@@ -101,23 +105,45 @@ def proportional_allocations(rows: list[dict[str, Any]], total: int, weight_fiel
 
 
 def tile_catalog() -> dict[str, Any]:
+    projector = Transformer.from_crs("EPSG:4326", ROUTING_CRS, always_xy=True)
+    corners = [
+        projector.transform(longitude, latitude)
+        for tile in TILES
+        for longitude in (tile["bounds"][0], tile["bounds"][2])
+        for latitude in (tile["bounds"][1], tile["bounds"][3])
+    ]
+    minimum_x = min(point[0] for point in corners)
+    minimum_y = min(point[1] for point in corners)
+    maximum_x = max(point[0] for point in corners)
+    maximum_y = max(point[1] for point in corners)
+    split_y = projector.transform(139.5, ROUTING_SPLIT_LATITUDE)[1]
     tiles = []
     for tile in TILES:
         other = next(candidate for candidate in TILES if candidate["id"] != tile["id"])
+        ownership = (
+            [minimum_x, split_y, maximum_x, maximum_y]
+            if tile["prefCode"] == "13"
+            else [minimum_x, minimum_y, maximum_x, split_y]
+        )
         tiles.append({
             **tile, "status": "selected", "population": 0,
             "haloBounds": tile["bounds"],
+            "ownershipProjected": [round(value, 3) for value in ownership],
             "neighbors": [{"tileId": other["id"], "direction": "cross-prefecture"}],
         })
     return {
         "schemaVersion": 1, "worldId": "JP_TOKYO_KANAGAWA_MAINLAND", "prototype": True,
+        "crs": ROUTING_CRS,
         "name": "Tokyo–Kanagawa Open World", "initialView": TILES[0]["initialView"], "tiles": tiles,
         "scope": "Tokyo and Kanagawa mainland; remote Tokyo islands are deferred streaming tiles",
     }
 
 
 def main() -> None:
-    boundary = read_json(SOURCE / "world-boundary.geojson")
+    # The visible OSM municipality overlay is authoritative. Statistical mesh
+    # points may disagree near coasts and borders; their mass is assigned to
+    # building anchors covered by this geometry rather than changing the map.
+    boundary = read_json(RENDER_BOUNDARY)
     prefectures = {feature["properties"]["pref_code"]: make_valid(shape(feature["geometry"])) for feature in boundary["features"]}
     home_features = read_json(SOURCE / "home-mesh-250m.geojson")["features"]
     job_features = read_json(SOURCE / "job-mesh-500m.geojson")["features"]
@@ -281,6 +307,11 @@ def main() -> None:
     report = {
         "schemaVersion": 1, "worldId": catalog["worldId"], "tiles": report_tiles,
         "aggregation": aggregation,
+        "renderBoundary": {
+            "source": str(RENDER_BOUNDARY),
+            "policy": "authoritative; demand moves to covered building anchors and render geometry is unchanged",
+            "outsideFinalSiteCount": 0,
+        },
         "crossPrefectureWorkers": sum(cross_mass.values()),
         "excludedRemoteIslandCells": excluded,
         "limitations": ["Within-prefecture origins and destinations are deterministically matched from separate home/job marginals; municipal O/D controls are retained for the next spatial allocator."],

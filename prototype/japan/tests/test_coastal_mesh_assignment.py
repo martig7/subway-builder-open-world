@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import unittest
 
-from shapely.geometry import box
+from shapely.geometry import Point, box
 
-from scripts.build_tokyo_kanagawa_test import BoundaryOwnershipIndex, assign_prefecture, mesh_center
+from scripts.build_tokyo_kanagawa_test import (
+    BoundaryOwnershipIndex,
+    assign_prefecture,
+    mesh_center,
+    number,
+    relocate_into_boundary,
+)
 
 
 class CoastalMeshAssignmentTest(unittest.TestCase):
+    def test_published_number_parser_handles_values_and_suppression(self) -> None:
+        self.assertEqual(number("1,234"), 1234)
+        self.assertEqual(number("*"), 0)
+        self.assertEqual(number(None), 0)
+
     def test_mesh_center_uses_the_absolute_jis_longitude_interval(self) -> None:
         longitude, latitude = mesh_center("5339051213")
 
@@ -47,21 +58,29 @@ class CoastalMeshAssignmentTest(unittest.TestCase):
 
         assignment = assign_prefecture(code, BoundaryOwnershipIndex({"13": selected}, {"13": selected}))
 
-        self.assertEqual(assignment, ("13", 1.0, "coastal-water-centroid"))
+        self.assertEqual(assignment, ("13", "maximum-render-boundary-overlap"))
 
-    def test_neighbor_centroid_only_allocates_selected_intersection_fraction(self) -> None:
+    def test_neighbor_centroid_has_one_national_owner_without_fractional_mass(self) -> None:
         code = "533916901"
         longitude, latitude = mesh_center(code)
         selected = box(longitude - 0.003125, latitude - 1 / 480, longitude - 0.0001, latitude + 1 / 480)
         neighbor = box(longitude - 0.0001, latitude - 1 / 480, longitude + 0.003125, latitude + 1 / 480)
 
         index = BoundaryOwnershipIndex({"13": selected}, {"13": selected, "11": neighbor})
-        pref_code, factor, assignment_kind = assign_prefecture(code, index)
+        pref_code, assignment_kind = assign_prefecture(code, index)
 
-        self.assertEqual(pref_code, "13")
-        self.assertGreater(factor, 0)
-        self.assertLess(factor, 1)
-        self.assertEqual(assignment_kind, "neighbor-prefecture-border-fraction")
+        self.assertEqual(pref_code, "11")
+        self.assertEqual(assignment_kind, "center-inside-render-boundary")
+
+    def test_outside_centroid_moves_inside_without_changing_ownership(self) -> None:
+        boundary = box(139.0, 35.0, 139.1, 35.1)
+        index = BoundaryOwnershipIndex({"13": boundary}, {"13": boundary})
+
+        longitude, latitude, relocated, distance_m = relocate_into_boundary(138.999, 35.05, "13", index)
+
+        self.assertTrue(relocated)
+        self.assertGreater(distance_m, 0)
+        self.assertTrue(boundary.covers(Point(longitude, latitude)))
 
 
 if __name__ == "__main__":
