@@ -14,9 +14,12 @@ function nativeSave(cityCode = 'NEC_A') {
     id: 'save-1',
     name: 'Live game',
     cityCode,
+    cityUid: cityCode,
     gameSessionId: 'world-1',
     metadata: { stations: 1, routes: 1, trains: 1 },
     data: {
+      cityCode,
+      cityUid: cityCode,
       tracks: [{ id: 'track-1' }],
       stations: [{ id: 'station-1' }],
       routes: [{ id: 'route-1' }],
@@ -47,7 +50,13 @@ test('stages a city-bound native recovery save without mutating the live snapsho
   });
 
   assert.equal(source.cityCode, 'NEC_A');
+  assert.equal(source.cityUid, 'NEC_A');
+  assert.equal(source.data.cityCode, 'NEC_A');
+  assert.equal(source.data.cityUid, 'NEC_A');
   assert.equal(pending.cityCode, 'NEC_B');
+  assert.equal(pending.cityUid, 'NEC_B');
+  assert.equal(pending.data.cityCode, 'NEC_B');
+  assert.equal(pending.data.cityUid, 'NEC_B');
   assert.deepEqual(pending.data.routes, [{ id: 'route-1' }]);
   assert.deepEqual(pending.metadata[RECOVERY_METADATA_KEY], {
     schemaVersion: 1,

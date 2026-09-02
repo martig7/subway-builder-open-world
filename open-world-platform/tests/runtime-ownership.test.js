@@ -174,7 +174,7 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     });
 
     assert.equal(controller.status, 'active');
-    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v5');
+    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v6');
     assert.equal(host.hooks.count('onGameSaved'), 1, 're-entry must attach the owned runtime lifecycle');
     assert.equal(host.hooks.count('onMapReady'), 1, 're-entry must attach map repair to the current tile');
 
