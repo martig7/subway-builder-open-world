@@ -24,7 +24,10 @@ import {
 import { relaxMapZoomLimits } from './map-zoom-limits.js';
 import { registerGeographicContextOverlay } from './ui/geographic-context-overlay.js';
 import { registerRenderDistanceToolbar } from './ui/render-distance-panel.js';
-import { syncCityScopedMapControllers } from './ui/city-scoped-map-controllers.js';
+import {
+  refreshCityScopedMapArtifacts,
+  syncCityScopedMapControllers,
+} from './ui/city-scoped-map-controllers.js';
 import {
   WorldIdentityResolver,
   worldIdentityLoadOptions,
@@ -1135,6 +1138,10 @@ export function startOpenWorld({
       ready = true;
       settlementReady = (await recalculateCrossModeShare('tile-transition', api.gameState.getCurrentDay?.() ?? null)) != null;
       navigation.complete(pending);
+      diagnostics.transitionMapRefresh = refreshCityScopedMapArtifacts({
+        map: latestMap,
+        controller: geographicContextController,
+      });
       ensurePanel();
       const finishedAt = Date.now();
       const measured = readPendingPerformance();
