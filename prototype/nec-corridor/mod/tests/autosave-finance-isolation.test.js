@@ -40,6 +40,7 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
     money: 9_876_543,
     transitCost: 2.5,
     fareGroups: [],
+    gameMode: 'easy',
     timeConfig: { elapsedSeconds: 8 * 3_600, paused: false },
     stations: [{ id: 'source-station', coords: [-74, 40.7], stNodeIds: ['source-node'] }],
     stNodes: [{ id: 'source-node', stationId: 'source-station' }],
@@ -64,6 +65,10 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
       openWorldAuthoritativeWorldId: 'autosave-finance-isolation-world',
     },
     demandData: { points: new Map(), popsMap: new Map() },
+    portolanDiagram: null,
+    portolanProgress: null,
+    trackEditSession: null,
+    completedCommutes: [],
     mapViewport: {},
     generateSave() {
       counters.generateSave += 1;
@@ -105,12 +110,31 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
     },
     loadInitialData() {},
     setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
+    setGameMode(gameMode) { state.gameMode = gameMode; },
+    setRoutes(routes) { state.routes = routes; },
+    setTracks({ newTracks = state.tracks, newTrackGroups = state.trackGroups } = {}) {
+      state.tracks = newTracks;
+      state.trackGroups = newTrackGroups;
+    },
+    recalculateAllRouteGeojsons: async () => {},
+    setPreviewRoute(route) { state.previewRoute = route; },
+    batchPreviewRouteUpdates: async () => {},
+    confirmRouteChange() {},
+    handleIncrementGameState: async () => {},
+    simulateCommutes: async () => {},
+    calculatePaths: async () => {},
     setFinancialHistory(value) { state.financialHistory = value; },
     setRouteFinancials(value) { state.routeFinancials = value; },
     addRevenue(amount) {
       state.money += amount;
       state.financialHistory.currentHourRevenue += amount;
     },
+    addExpense(amount) {
+      state.money -= amount;
+      state.financialHistory.currentHourExpenses += amount;
+    },
+    recordRouteFinancials() {},
+    setCompletedCommutes(value) { state.completedCommutes = value; },
   };
   const scopedStorage = memoryStorage();
   const hooks = {};
@@ -220,6 +244,10 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
       },
     });
     assert.equal(globalThis.__necCorridorDiagnostics__?.saveAuthorityVersion, 'native-save-authority-v1');
+    assert.equal(globalThis.__necCorridorDiagnostics__?.capability?.supported, true);
+    assert.equal(globalThis.__necCorridorDiagnostics__?.capability?.inspectedGameVersion, '1.7.0');
+    assert.equal(globalThis.__necCorridorDiagnostics__?.capability?.interliningModel, 'portolan-v1');
+    assert.deepEqual(globalThis.__necCorridorDiagnostics__?.capability?.missing, []);
     assert.deepEqual(counters.unregisteredComponents.slice(0, 2), [
       ['top-bar', 'nec-corridor-world-saves'],
       ['main-menu', 'nec-corridor-world-saves-home'],

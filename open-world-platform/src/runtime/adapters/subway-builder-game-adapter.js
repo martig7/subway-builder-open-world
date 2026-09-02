@@ -29,18 +29,51 @@ import {
 } from '../simulation-performance-diagnostics.js';
 
 /**
- * Subway Builder 1.6.0 integration boundary.
+ * Subway Builder 1.7.0 integration boundary.
  *
  * The public mod API is versioned independently from the game: the inspected
- * 1.6.0 renderer exposes API version 1.0.0.  The unsupported callback global
+ * 1.7.0 renderer exposes API version 1.0.0.  The unsupported callback global
  * contains only setMoney, setTicketCost, and getState; private Zustand actions
  * must be obtained from getState().  Keep every use of that seam in this file.
  */
+const REQUIRED_STATE_ACTION_GROUPS = Object.freeze({
+  snapshotAndCity: Object.freeze([
+    'generateSave',
+    'loadSave',
+    'loadInitialData',
+    'setTimeConfig',
+    'setGameMode',
+  ]),
+  network: Object.freeze([
+    'setRoutes',
+    'setTracks',
+    'recalculateAllRouteGeojsons',
+  ]),
+  routeEditing: Object.freeze([
+    'setPreviewRoute',
+    'batchPreviewRouteUpdates',
+    'confirmRouteChange',
+  ]),
+  simulation: Object.freeze([
+    'handleIncrementGameState',
+    'simulateCommutes',
+    'calculatePaths',
+  ]),
+  finance: Object.freeze([
+    'addRevenue',
+    'addExpense',
+    'recordRouteFinancials',
+    'setRouteFinancials',
+    'setFinancialHistory',
+    'setCompletedCommutes',
+  ]),
+});
 const REQUIRED_STATE_ACTIONS = Object.freeze([
-  'generateSave',
-  'loadSave',
-  'loadInitialData',
-  'setTimeConfig',
+  ...new Set(Object.values(REQUIRED_STATE_ACTION_GROUPS).flat()),
+]);
+const REQUIRED_PORTOLAN_STATE_KEYS = Object.freeze([
+  'portolanDiagram',
+  'portolanProgress',
 ]);
 const SUBWAY_BUILDER_1_6_MIN_TRANSIT_CHOICE = 10;
 const CITY_SETTLE_ATTEMPTS = 8;
@@ -1562,7 +1595,7 @@ export class SubwayBuilderGameAdapter {
     api = globalThis.SubwayBuilderAPI,
     callbacks = globalThis.__subwayBuilder_storeCallbacks__,
     expectedApiVersion = '1.0.0',
-    inspectedGameVersion = '1.6.0',
+    inspectedGameVersion = '1.7.0',
     nativeSaveLifecycle = null,
   } = {}) {
     this.api = api;
@@ -1808,6 +1841,24 @@ export class SubwayBuilderGameAdapter {
       getStateError = String(error.message ?? error);
     }
 
+    const hasStateKey = (name) => Boolean(
+      state && Object.prototype.hasOwnProperty.call(state, name),
+    );
+    const missingStateActionsByGroup = Object.freeze(Object.fromEntries(
+      Object.entries(REQUIRED_STATE_ACTION_GROUPS).map(([group, names]) => [
+        group,
+        Object.freeze(names.filter((name) => typeof state?.[name] !== 'function')),
+      ]),
+    ));
+    const stateFields = Object.freeze({
+      portolanDiagram: hasStateKey('portolanDiagram'),
+      portolanProgress: hasStateKey('portolanProgress'),
+      interlinedFeatureCollection: hasStateKey('interlinedFeatureCollection'),
+      trackEditSession: hasStateKey('trackEditSession'),
+    });
+    const interliningModel = stateFields.portolanDiagram && stateFields.portolanProgress
+      ? 'portolan-v1'
+      : (stateFields.interlinedFeatureCollection ? 'legacy-feature-collection' : 'unavailable');
     const required = {
       callbackGetState: typeof this.callbacks?.getState === 'function',
       callbackSetMoney: typeof this.callbacks?.setMoney === 'function',
@@ -1815,6 +1866,7 @@ export class SubwayBuilderGameAdapter {
       cityDataFiles: typeof this.api?.cities?.setCityDataFiles === 'function',
       currentCityCode: typeof this.api?.utils?.getCityCode === 'function',
       ...Object.fromEntries(REQUIRED_STATE_ACTIONS.map((name) => [name, typeof state?.[name] === 'function'])),
+      ...Object.fromEntries(REQUIRED_PORTOLAN_STATE_KEYS.map((name) => [`state.${name}`, hasStateKey(name)])),
     };
     const missing = Object.entries(required).filter(([, present]) => !present).map(([name]) => name);
     return this.capability = Object.freeze({
@@ -1823,7 +1875,10 @@ export class SubwayBuilderGameAdapter {
       expectedApiVersion: this.expectedApiVersion,
       inspectedGameVersion: this.inspectedGameVersion,
       missing,
+      missingStateActionsByGroup,
       getStateError,
+      interliningModel,
+      stateFields,
       callbackMethods: methodsOf(this.callbacks),
       stateMethods: methodsOf(state),
       publicApiMethods: methodsOf(this.api),
@@ -1836,6 +1891,7 @@ export class SubwayBuilderGameAdapter {
         clock: 'setTimeConfig({ elapsedSeconds })',
         save: 'generateSave',
         load: 'loadSave',
+        interlining: 'recalculateAllRouteGeojsons -> portolanDiagram',
       }),
     });
   }

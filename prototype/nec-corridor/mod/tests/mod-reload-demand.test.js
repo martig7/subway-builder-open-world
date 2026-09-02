@@ -44,6 +44,7 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
     money: 1_000_000,
     transitCost: 2.5,
     fareGroups: [],
+    gameMode: 'easy',
     timeConfig: { elapsedSeconds: 8 * 3_600, paused: false },
     stations,
     stNodes: [{ id: 'home-node' }, { id: 'work-node' }],
@@ -60,6 +61,10 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
       openWorldAuthoritativeWorldId: 'hot-reload-demand-world',
     },
     demandData: { points: new Map(), popsMap: new Map() },
+    portolanDiagram: null,
+    portolanProgress: null,
+    trackEditSession: null,
+    completedCommutes: [],
     mapViewport: {},
     generateSave: () => ({
       name: 'open-world-runtime', cityCode: activeTileId,
@@ -79,12 +84,31 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
     loadSave() {},
     loadInitialData() {},
     setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
+    setGameMode(gameMode) { state.gameMode = gameMode; },
+    setRoutes(value) { state.routes = value; },
+    setTracks({ newTracks = state.tracks, newTrackGroups = state.trackGroups } = {}) {
+      state.tracks = newTracks;
+      state.trackGroups = newTrackGroups;
+    },
+    recalculateAllRouteGeojsons: async () => {},
+    setPreviewRoute(route) { state.previewRoute = route; },
+    batchPreviewRouteUpdates: async () => {},
+    confirmRouteChange() {},
+    handleIncrementGameState: async () => {},
+    simulateCommutes: async () => {},
+    calculatePaths: async () => {},
     setFinancialHistory(value) { state.financialHistory = value; },
     setRouteFinancials(value) { state.routeFinancials = value; },
     addRevenue(amount) {
       state.money += amount;
       state.financialHistory.currentHourRevenue += amount;
     },
+    addExpense(amount) {
+      state.money -= amount;
+      state.financialHistory.currentHourExpenses += amount;
+    },
+    recordRouteFinancials() {},
+    setCompletedCommutes(value) { state.completedCommutes = value; },
   };
   const demand = {
     points: [

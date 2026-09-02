@@ -56,6 +56,9 @@ function createHost(activeCityCode) {
       currentHourExpenseCategories: {},
     },
     demandData: { points: new Map(), popsMap: new Map() },
+    gameMode: 'easy',
+    portolanDiagram: null,
+    portolanProgress: null,
     generateSave() {
       return {
         name: 'ownership-test',
@@ -82,9 +85,25 @@ function createHost(activeCityCode) {
     loadSave() {},
     loadInitialData() {},
     setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
+    setGameMode(gameMode) { state.gameMode = gameMode; },
+    setRoutes(routes) { state.routes = routes; },
+    setTracks({ newTracks = state.tracks, newTrackGroups = state.trackGroups } = {}) {
+      state.tracks = newTracks;
+      state.trackGroups = newTrackGroups;
+    },
+    recalculateAllRouteGeojsons: async () => {},
+    setPreviewRoute() {},
+    batchPreviewRouteUpdates: async () => {},
+    confirmRouteChange() {},
+    handleIncrementGameState: async () => {},
+    simulateCommutes: async () => {},
+    calculatePaths: async () => {},
     setFinancialHistory(value) { state.financialHistory = value; },
     setRouteFinancials(value) { state.routeFinancials = value; },
     addRevenue(amount) { state.money += amount; },
+    addExpense(amount) { state.money -= amount; },
+    recordRouteFinancials() {},
+    setCompletedCommutes() {},
   };
   const api = {
     version: '1.0.0',

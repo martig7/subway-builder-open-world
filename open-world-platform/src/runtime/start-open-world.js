@@ -264,6 +264,7 @@ export function startOpenWorld({
     return entry;
   }
   const capability = game.probe();
+  diagnostics.capability = capability;
   if (!capability.supported) {
     console.error(`${logLabel} Unsupported game/API seam; no mutations performed`, capability);
     api.ui?.showNotification?.(`${definition.identity.name} disabled: incompatible game seam`, 'error');

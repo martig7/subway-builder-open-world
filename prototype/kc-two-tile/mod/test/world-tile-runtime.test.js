@@ -2664,12 +2664,26 @@ function realSeamFixture({ omit = [], publicCityCode = 'KCW' } = {}) {
   const calls = []; const save = { cityCode: 'KCW', viewport: { center: [-94.6, 39] }, data: { routes: [], tracks: [], stations: [], trains: [] } };
   const state = {
     cityCode: 'KCW', money: 50, transitCost: 4, timeConfig: { elapsedSeconds: 0, paused: false },
+    gameMode: 'easy', routes: [], tracks: [], trackGroups: [], stations: [], trains: [], stNodes: [],
+    portolanDiagram: null, portolanProgress: null, trackEditSession: null,
     financialHistory: { entries: [], lastHourTimestamp: 0, currentHourRevenue: 0, currentHourExpenses: 0, currentHourExpenseCategories: {} },
     routeFinancials: { byRoute: {}, lastHourTimestamp: 0, currentHour: {} },
     generateSave: (options) => { calls.push(['save', options]); return structuredClone(save); },
     loadSave: (value) => { calls.push(['load', value]); state.cityCode = value.cityCode; },
     loadInitialData: (cityCode) => { calls.push(['city', cityCode]); state.cityCode = cityCode; },
     setTimeConfig: (patch) => { calls.push(['time', patch]); state.timeConfig = { ...state.timeConfig, ...patch }; },
+    setGameMode: (gameMode) => { calls.push(['game-mode', gameMode]); state.gameMode = gameMode; },
+    setRoutes: (routes) => { state.routes = routes; },
+    setTracks: ({ newTracks = state.tracks, newTrackGroups = state.trackGroups } = {}) => {
+      state.tracks = newTracks; state.trackGroups = newTrackGroups;
+    },
+    recalculateAllRouteGeojsons: async () => {},
+    setPreviewRoute: (route) => { state.previewRoute = route; },
+    batchPreviewRouteUpdates: async () => {},
+    confirmRouteChange: () => {},
+    handleIncrementGameState: async () => {},
+    simulateCommutes: async () => {},
+    calculatePaths: async () => {},
     addRevenue: (amount, isFareRevenue) => {
       calls.push(['revenue', amount, isFareRevenue]); state.money += amount;
       if (isFareRevenue) state.financialHistory.currentHourRevenue += amount;
@@ -2706,7 +2720,7 @@ function realSeamFixture({ omit = [], publicCityCode = 'KCW' } = {}) {
   return { calls, state, api, callbacks: { setMoney: (money) => { calls.push(['money', money]); state.money = money; }, setTicketCost: (fare) => calls.push(['fare', fare]), getState: () => state } };
 }
 
-test('production adapter uses the inspected 1.6.0 getState seam and API 1.0.0 surface', async () => {
+test('production adapter accepts the inspected 1.7.0 Portolan store seam and API 1.0.0 surface', async () => {
   const fixture = realSeamFixture();
   const internalOperations = [];
   fixture.nativeSaveLifecycle = {
@@ -2717,6 +2731,17 @@ test('production adapter uses the inspected 1.6.0 getState seam and API 1.0.0 su
   };
   const adapter = new SubwayBuilderGameAdapter(fixture);
   const report = adapter.probe(); assert.equal(report.supported, true); assert.deepEqual(report.callbackMethods, ['getState', 'setMoney', 'setTicketCost']);
+  assert.equal(report.inspectedGameVersion, '1.7.0');
+  assert.equal(report.interliningModel, 'portolan-v1');
+  assert.deepEqual(report.missingStateActionsByGroup, {
+    snapshotAndCity: [], network: [], routeEditing: [], simulation: [], finance: [],
+  });
+  assert.deepEqual(report.stateFields, {
+    portolanDiagram: true,
+    portolanProgress: true,
+    interlinedFeatureCollection: false,
+    trackEditSession: true,
+  });
   assert.equal(report.selectedActions.staticData, 'loadInitialData'); assert.ok(report.stateMethods.includes('generateSave'));
   await adapter.pause(); const save = await adapter.captureSnapshot(); await adapter.loadStaticPackage({ manifest: { tileId: 'KCE', dataFiles: { demandData: 'demand_data.json' } } }); await adapter.restoreSnapshot({ ...save, cityCode: 'KCE' });
   await adapter.setAuthoritativeGlobals({ worldTime: 8, wallet: 20, farePolicy: { fare: 3 } }); await adapter.resume();
@@ -5320,6 +5345,7 @@ test('production adapter captures the current native balance for a world handoff
   assert.deepEqual(await adapter.captureAuthoritativeGlobals(), {
     wallet: 37,
     elapsedSeconds: 0,
+    gameMode: 'easy',
     farePolicy: { fare: 4, fareGroups: [] },
     financialHistory: fixture.state.financialHistory,
   });
@@ -5333,8 +5359,14 @@ test('production adapter re-reads immutable store state after an in-game mod rel
   liveState = {
     cityCode: 'KCW', money: 1_000_000, timeConfig: { elapsedSeconds: 0, paused: false },
     routes: [], tracks: [], stations: [], trains: [], trackGroups: [], signals: [], stNodes: [],
+    gameMode: 'easy', portolanDiagram: null, portolanProgress: null,
     generateSave: () => ({ data: { routes: [], tracks: [], stations: [], trains: [] } }),
-    loadSave: () => {}, loadInitialData: () => {}, setTimeConfig,
+    loadSave: () => {}, loadInitialData: () => {}, setTimeConfig, setGameMode: () => {},
+    setRoutes: () => {}, setTracks: () => {}, recalculateAllRouteGeojsons: async () => {},
+    setPreviewRoute: () => {}, batchPreviewRouteUpdates: async () => {}, confirmRouteChange: () => {},
+    handleIncrementGameState: async () => {}, simulateCommutes: async () => {}, calculatePaths: async () => {},
+    addRevenue: () => {}, addExpense: () => {}, recordRouteFinancials: () => {},
+    setRouteFinancials: () => {}, setFinancialHistory: () => {}, setCompletedCommutes: () => {},
   };
   const adapter = new SubwayBuilderGameAdapter({
     api: {
@@ -5356,7 +5388,11 @@ test('production adapter re-reads immutable store state after an in-game mod rel
   await adapter.pause();
 
   await assert.doesNotReject(adapter.verifyLoaded());
-  assert.deepEqual(await adapter.captureAuthoritativeGlobals(), { wallet: 37, elapsedSeconds: 0 });
+  assert.deepEqual(await adapter.captureAuthoritativeGlobals(), {
+    wallet: 37,
+    elapsedSeconds: 0,
+    gameMode: 'easy',
+  });
 });
 
 test('compacts native snapshots by removing reloadable demand and image payloads', () => {
@@ -5410,6 +5446,34 @@ test('production adapter refuses mutation when a required state action is missin
   const fixture = realSeamFixture({ omit: ['loadInitialData'] }); const adapter = new SubwayBuilderGameAdapter(fixture);
   assert.equal(adapter.probe().supported, false); assert.ok(adapter.probe().missing.includes('loadInitialData'));
   await assert.rejects(adapter.pause(), /refused mutation/);
+});
+
+test('production adapter refuses a partially compatible 1.7 private action family', async () => {
+  const fixture = realSeamFixture({ omit: ['recalculateAllRouteGeojsons'] });
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+
+  const report = adapter.probe();
+
+  assert.equal(report.supported, false);
+  assert.deepEqual(report.missingStateActionsByGroup.network, ['recalculateAllRouteGeojsons']);
+  assert.ok(report.missing.includes('recalculateAllRouteGeojsons'));
+  await assert.rejects(adapter.pause(), /recalculateAllRouteGeojsons/);
+});
+
+test('production adapter refuses the removed legacy interlining state shape', async () => {
+  const fixture = realSeamFixture({ omit: ['portolanDiagram', 'portolanProgress'] });
+  fixture.state.interlinedFeatureCollection = { type: 'FeatureCollection', features: [] };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+
+  const report = adapter.probe();
+
+  assert.equal(report.supported, false);
+  assert.equal(report.interliningModel, 'legacy-feature-collection');
+  assert.deepEqual(report.missing.filter((name) => name.startsWith('state.')), [
+    'state.portolanDiagram',
+    'state.portolanProgress',
+  ]);
+  await assert.rejects(adapter.pause(), /state\.portolanDiagram,state\.portolanProgress/);
 });
 
 test('production adapter verifies the loaded city through the public city-code API', async () => {
