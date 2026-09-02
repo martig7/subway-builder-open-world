@@ -83,6 +83,7 @@ test('hot reload evaluates and caches commute demand when the public city getter
     }),
     loadSave() {},
     loadInitialData() {},
+    setCityCode(cityCode) { state.cityCode = cityCode; },
     setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
     setGameMode(gameMode) { state.gameMode = gameMode; },
     setRoutes(value) { state.routes = value; },

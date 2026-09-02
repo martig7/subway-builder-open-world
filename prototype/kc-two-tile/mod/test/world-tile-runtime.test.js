@@ -2671,6 +2671,7 @@ function realSeamFixture({ omit = [], publicCityCode = 'KCW' } = {}) {
     generateSave: (options) => { calls.push(['save', options]); return structuredClone(save); },
     loadSave: (value) => { calls.push(['load', value]); state.cityCode = value.cityCode; },
     loadInitialData: (cityCode) => { calls.push(['city', cityCode]); state.cityCode = cityCode; },
+    setCityCode: (cityCode) => { calls.push(['city-code', cityCode]); state.cityCode = cityCode; },
     setTimeConfig: (patch) => { calls.push(['time', patch]); state.timeConfig = { ...state.timeConfig, ...patch }; },
     setGameMode: (gameMode) => { calls.push(['game-mode', gameMode]); state.gameMode = gameMode; },
     setRoutes: (routes) => { state.routes = routes; },
@@ -5370,7 +5371,9 @@ test('production adapter re-reads immutable store state after an in-game mod rel
     routes: [], tracks: [], stations: [], trains: [], trackGroups: [], signals: [], stNodes: [],
     gameMode: 'easy', portolanDiagram: null, portolanProgress: null,
     generateSave: () => ({ data: { routes: [], tracks: [], stations: [], trains: [] } }),
-    loadSave: () => {}, loadInitialData: () => {}, setTimeConfig, setGameMode: () => {},
+    loadSave: () => {}, loadInitialData: () => {},
+    setCityCode: (cityCode) => { liveState = { ...liveState, cityCode }; },
+    setTimeConfig, setGameMode: () => {},
     setRoutes: () => {}, setTracks: () => {}, recalculateAllRouteGeojsons: async () => {},
     setPreviewRoute: () => {}, batchPreviewRouteUpdates: async () => {}, confirmRouteChange: () => {},
     handleIncrementGameState: async () => {}, simulateCommutes: async () => {}, calculatePaths: async () => {},
@@ -5491,6 +5494,21 @@ test('production adapter prefers the live 1.7 store city when the public city ge
   await adapter.adoptStaticPackage({ manifest: { tileId: 'KCW', cityCode: 'KCW' } }, 'KCW');
   await adapter.pause();
   await assert.doesNotReject(adapter.verifyLoaded());
+});
+
+test('authoritative city adoption synchronizes the 1.7 store when both city getters retain the source tile', async () => {
+  const fixture = realSeamFixture({ publicCityCode: 'NEC_CP00_RP00' });
+  fixture.state.cityCode = 'NEC_CP00_RP00';
+  fixture.state.setCityCode = (cityCode) => { fixture.state.cityCode = cityCode; };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+
+  await adapter.adoptStaticPackage({
+    manifest: { tileId: 'NEC_CP03_RP02', cityCode: 'NEC_CP03_RP02' },
+  }, 'NEC_CP03_RP02');
+  await adapter.pause();
+
+  await assert.doesNotReject(adapter.verifyLoaded());
+  assert.equal(fixture.state.cityCode, 'NEC_CP03_RP02');
 });
 
 test('HTTP package adapter preserves game data paths while validating assets against the artifact host', async () => {

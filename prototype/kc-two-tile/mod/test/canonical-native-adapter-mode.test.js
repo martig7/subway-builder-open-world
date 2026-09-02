@@ -43,6 +43,7 @@ function fixture() {
     generateSave() {},
     loadSave() {},
     loadInitialData() {},
+    setCityCode(cityCode) { state.cityCode = cityCode; },
     setGameMode() {},
     setFinancialHistory(value) { state.financialHistory = value; },
     setRouteFinancials(value) { state.routeFinancials = value; },

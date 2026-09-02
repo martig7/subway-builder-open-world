@@ -109,6 +109,7 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
       }
     },
     loadInitialData() {},
+    setCityCode(cityCode) { state.cityCode = cityCode; },
     setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
     setGameMode(gameMode) { state.gameMode = gameMode; },
     setRoutes(routes) { state.routes = routes; },

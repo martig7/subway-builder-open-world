@@ -84,6 +84,7 @@ function createHost(activeCityCode, { publicCityCode = activeCityCode } = {}) {
     },
     loadSave() {},
     loadInitialData() {},
+    setCityCode(cityCode) { state.cityCode = cityCode; },
     setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
     setGameMode(gameMode) { state.gameMode = gameMode; },
     setRoutes(routes) { state.routes = routes; },
@@ -173,7 +174,7 @@ test('a 1.7 runtime starts from the live store city when the public city getter 
     });
 
     assert.equal(controller.status, 'active');
-    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v1');
+    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v2');
     assert.equal(host.hooks.count('onGameSaved'), 1, 're-entry must attach the owned runtime lifecycle');
     assert.equal(host.hooks.count('onMapReady'), 1, 're-entry must attach map repair to the current tile');
 

@@ -41,6 +41,7 @@ const REQUIRED_STATE_ACTION_GROUPS = Object.freeze({
     'generateSave',
     'loadSave',
     'loadInitialData',
+    'setCityCode',
     'setTimeConfig',
     'setGameMode',
   ]),
@@ -124,15 +125,16 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   'buildingDemolitionSpendAllTime',
 ]);
 
-export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v1';
+export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v2';
 
 /**
  * Read the current city from the live Zustand snapshot.
  *
  * Subway Builder 1.7 can retain an old value in the public getCityCode()
  * closure across router-driven city changes. The callback seam returns a new
- * immutable snapshot after each store update, so state.cityCode is the durable
- * source between authoritative onCityLoad events.
+ * immutable snapshot after each store update. The adapter synchronizes the
+ * authoritative onCityLoad destination through setCityCode(), then reads
+ * state.cityCode as the durable source between lifecycle events.
  */
 export function readLiveSubwayBuilderCityCode({
   api = globalThis.SubwayBuilderAPI,
@@ -1915,7 +1917,7 @@ export class SubwayBuilderGameAdapter {
         pause: 'setTimeConfig({ paused: true })',
         resume: 'setTimeConfig({ paused: false })',
         staticData: 'loadInitialData',
-        cityIdentity: 'onCityLoad(cityCode) -> getState().cityCode',
+        cityIdentity: 'onCityLoad(cityCode) -> setCityCode -> getState().cityCode',
         clock: 'setTimeConfig({ elapsedSeconds })',
         save: 'generateSave',
         load: 'loadSave',
@@ -3299,6 +3301,8 @@ export class SubwayBuilderGameAdapter {
     if (!expectedCity || loadedCityCode !== expectedCity) {
       throw new Error(`Loaded city/package mismatch: expected ${expectedCity}, got ${loadedCityCode}`);
     }
+    const state = this.#state();
+    if (state.cityCode !== loadedCityCode) state.setCityCode(loadedCityCode);
     this.currentPackage = pkg;
     this.loadedCityCode = loadedCityCode;
   }
@@ -3313,7 +3317,9 @@ export class SubwayBuilderGameAdapter {
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
     await this.#state().loadInitialData(cityCode);
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
-    this.#state().setTimeConfig({ paused: true });
+    const state = this.#state();
+    if (state.cityCode !== cityCode) state.setCityCode(cityCode);
+    state.setTimeConfig({ paused: true });
     this.currentPackage = pkg;
     this.loadedCityCode = cityCode;
   }
