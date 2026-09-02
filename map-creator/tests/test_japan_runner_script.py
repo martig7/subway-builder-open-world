@@ -4,6 +4,7 @@ import unittest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_queue.ps1"
+DETACHED_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_queue_detached.ps1"
 
 
 class JapanRunnerScriptTests(unittest.TestCase):
@@ -19,6 +20,16 @@ class JapanRunnerScriptTests(unittest.TestCase):
         self.assertLess(retry_all_errors, curl_exit_check)
         self.assertLess(curl_exit_check, publish)
         self.assertIn("--continue-at -", script)
+
+    def test_detached_queue_persists_progress_and_terminal_status(self) -> None:
+        script = DETACHED_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("queue.stdout.log", script)
+        self.assertIn("queue.stderr.log", script)
+        self.assertIn("queue.status.json", script)
+        self.assertIn("queue.pid", script)
+        self.assertIn("Write-QueueStatus -state 'complete' -exitCode 0", script)
+        self.assertIn("Write-QueueStatus -state 'failed' -exitCode 1", script)
 
 
 if __name__ == "__main__":
