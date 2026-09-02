@@ -1,0 +1,25 @@
+from pathlib import Path
+import unittest
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+RUNNER_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_queue.ps1"
+
+
+class JapanRunnerScriptTests(unittest.TestCase):
+    def test_downloads_are_resumable_and_only_published_after_success(self) -> None:
+        script = RUNNER_SCRIPT.read_text(encoding="utf-8")
+
+        partial_assignment = script.index('$partial = "$destination.partial"')
+        retry_all_errors = script.index("--retry-all-errors")
+        curl_exit_check = script.index("if ($LASTEXITCODE -ne 0)")
+        publish = script.index("Move-Item -Force -LiteralPath $partial -Destination $destination")
+
+        self.assertLess(partial_assignment, retry_all_errors)
+        self.assertLess(retry_all_errors, curl_exit_check)
+        self.assertLess(curl_exit_check, publish)
+        self.assertIn("--continue-at -", script)
+
+
+if __name__ == "__main__":
+    unittest.main()

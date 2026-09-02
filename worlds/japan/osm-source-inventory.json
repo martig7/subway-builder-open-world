@@ -1,0 +1,50 @@
+﻿[
+    {
+        "filename":  "hokkaido-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf",
+        "bytes":  188348508,
+        "sha256":  "7c5ff813c45eded2a3d25f6f873a796afe09e4fa6118f6b3bef24b225052a25d"
+    },
+    {
+        "filename":  "tohoku-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/tohoku-latest.osm.pbf",
+        "bytes":  307379781,
+        "sha256":  "dfccbadcc579b0f48a58367bebd95576f0c759ab2fc660a6f0427ee842985711"
+    },
+    {
+        "filename":  "kanto-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf",
+        "bytes":  495329327,
+        "sha256":  "cfcb5f980f8df2c613d5cc0c0391b8736c6f7bf4098198af67b2927e288512b8"
+    },
+    {
+        "filename":  "chubu-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/chubu-latest.osm.pbf",
+        "bytes":  508562647,
+        "sha256":  "7b1d04171acca0447444afdcfc76bcb140a4682626719648833f7df210d9b605"
+    },
+    {
+        "filename":  "kansai-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/kansai-latest.osm.pbf",
+        "bytes":  350497080,
+        "sha256":  "26c1e51cc8c1c857f33d9e4968d741af574114ff55f95981c20120465e8f4bba"
+    },
+    {
+        "filename":  "chugoku-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/chugoku-latest.osm.pbf",
+        "bytes":  234801363,
+        "sha256":  "7797af4ae5c2d2885e30f1625da9714d9b479ab8b50d3d38668b6a2398df6d17"
+    },
+    {
+        "filename":  "shikoku-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf",
+        "bytes":  88833827,
+        "sha256":  "2e29ba3e72bec9216d060858cc58c4c30b30ca2ee26f9fbe1dca198760956801"
+    },
+    {
+        "filename":  "kyushu-latest.osm.pbf",
+        "uri":  "https://download.geofabrik.de/asia/japan/kyushu-latest.osm.pbf",
+        "bytes":  313062917,
+        "sha256":  "f4e8cfd42561fb551ede1223aaca8513996944b793a5ba00c61763836fb13667"
+    }
+]

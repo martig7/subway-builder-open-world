@@ -3,10 +3,12 @@
   "sourceSet": "japan-estat-national-2020-2021",
   "locks": {
     "prefectureBoundaries": "sources/estat-prefecture-boundaries.lock.json",
-    "demandPreparation": "sources/estat-od-preparation.lock.json"
+    "demandPreparation": "sources/estat-od-preparation.lock.json",
+    "osmInventory": "osm-source-inventory.json"
   },
   "osm": {
     "profile": "geofabrik-japan-regional-extracts",
-    "lockStatus": "must-resolve-before-map-build"
+    "lockStatus": "resolved",
+    "sourceCount": 8
   }
 }

@@ -46,8 +46,7 @@ class PipelineTests(unittest.TestCase):
             )
             self.assertEqual(len(world.tile_views), 47)
             self.assertEqual(world.definition["demand"]["adapter"], "estat-japan")
-            self.assertEqual(plans[0].status, "stale")
-            self.assertTrue(all(plan.status == "blocked" for plan in plans[1:]))
+            self.assertTrue(all(plan.status == "stale" for plan in plans))
 
 
 if __name__ == "__main__":
