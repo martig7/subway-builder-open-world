@@ -460,15 +460,23 @@ def enrich_generated_road_driving(
         route_started = time.perf_counter()
         last_route_progress = route_started
         route_total = len(payload["pops"])
+        route_cache: dict[tuple[str, str], RouteResult] = {}
         progress(f"[road-routing] native started {tile_index}/{len(tile_ids)} {tile_id} ({route_total})")
         for pop_index, pop in enumerate(payload["pops"], 1):
-            route = graph.route(
-                points[str(pop["residenceId"])],
-                points[str(pop["jobId"])],
-                fallback_speed_mps=LOCAL_FALLBACK_SPEED_MPS,
-                fallback_circuity=1.0,
-                **route_options,
-            )
+            pair = (str(pop["residenceId"]), str(pop["jobId"]))
+            route = route_cache.get(pair)
+            if route is None:
+                route = graph.route(
+                    points[pair[0]],
+                    points[pair[1]],
+                    fallback_speed_mps=LOCAL_FALLBACK_SPEED_MPS,
+                    fallback_circuity=1.0,
+                    **route_options,
+                )
+                route_cache[pair] = route
+                counts["nativeSearches"] += 1
+            else:
+                counts["reusedNativeRoutes"] += 1
             pop["drivingSeconds"] = route.seconds
             pop["drivingDistance"] = route.metres
             _route_counter(counts, route)
@@ -478,7 +486,7 @@ def enrich_generated_road_driving(
                 progress(
                     f"[road-routing] native progress {tile_index}/{len(tile_ids)} {tile_id} "
                     f"{pop_index}/{route_total} ({pop_index / max(1, route_total):.1%}, "
-                    f"{now - route_started:.1f}s)"
+                    f"{len(route_cache)} unique searches, {now - route_started:.1f}s)"
                 )
                 last_route_progress = now
         _gzip_json(staged_path, payload)
