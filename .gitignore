@@ -13,6 +13,9 @@ prototype/nec-corridor/generated/maps/depot/NE02/ne02-nobuildings.geojson
 # Dependencies and build products
 **/node_modules/
 **/dist/
+**/bin/
+**/obj/
+**/.certs/
 **/__pycache__/
 **/*.py[cod]
 **/.pytest_cache/

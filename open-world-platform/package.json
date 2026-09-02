@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"tests/*.test.js\" \"../prototype/kc-two-tile/mod/test/*.test.js\"",
+    "test:native": "dotnet run --project native/tests/OpenWorld.Native.Tests/OpenWorld.Native.Tests.csproj -c Release",
+    "build:native": "dotnet build native/src/OpenWorld.Installer/OpenWorld.Installer.csproj -c Release && dotnet build native/src/OpenWorld.TileServer/OpenWorld.TileServer.csproj -c Release",
     "validate:worlds": "node cli/ow-mod.mjs validate --all"
   },
   "engines": {
