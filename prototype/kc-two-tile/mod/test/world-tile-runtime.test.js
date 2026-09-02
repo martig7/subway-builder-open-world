@@ -5496,18 +5496,41 @@ test('production adapter prefers the live 1.7 store city when the public city ge
   await assert.doesNotReject(adapter.verifyLoaded());
 });
 
-test('authoritative city adoption synchronizes the 1.7 store when both city getters retain the source tile', async () => {
+test('authoritative city adoption rebinds the 1.7 save city UID before restoring a destination tile', async () => {
   const fixture = realSeamFixture({ publicCityCode: 'NEC_CP00_RP00' });
+  const cityUids = {
+    NEC_CP00_RP00: 'local.nec-corridor-open-world:NEC_CP00_RP00',
+    NEC_CP03_RP02: 'local.nec-corridor-open-world:NEC_CP03_RP02',
+  };
   fixture.state.cityCode = 'NEC_CP00_RP00';
-  fixture.state.setCityCode = (cityCode) => { fixture.state.cityCode = cityCode; };
+  fixture.state.cityUid = cityUids.NEC_CP00_RP00;
+  fixture.state.setCityCode = (cityCode) => {
+    fixture.state.cityCode = cityCode;
+    fixture.state.cityUid = cityUids[cityCode];
+  };
+  let restoredSnapshot;
+  fixture.state.loadSave = (snapshot) => {
+    restoredSnapshot = snapshot;
+    const restoredCity = Object.entries(cityUids)
+      .find(([, cityUid]) => cityUid === (snapshot.cityUid || snapshot.cityCode))?.[0]
+      ?? snapshot.cityCode;
+    fixture.state.setCityCode(restoredCity);
+  };
   const adapter = new SubwayBuilderGameAdapter(fixture);
 
   await adapter.adoptStaticPackage({
     manifest: { tileId: 'NEC_CP03_RP02', cityCode: 'NEC_CP03_RP02' },
   }, 'NEC_CP03_RP02');
+  await adapter.restoreSnapshot({
+    cityCode: 'NEC_CP03_RP02',
+    cityUid: cityUids.NEC_CP00_RP00,
+    data: { routes: [], tracks: [], stations: [], trains: [] },
+  });
   await adapter.pause();
 
   await assert.doesNotReject(adapter.verifyLoaded());
+  assert.equal(restoredSnapshot.cityCode, 'NEC_CP03_RP02');
+  assert.equal(restoredSnapshot.cityUid, cityUids.NEC_CP03_RP02);
   assert.equal(fixture.state.cityCode, 'NEC_CP03_RP02');
 });
 

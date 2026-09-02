@@ -125,7 +125,7 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   'buildingDemolitionSpendAllTime',
 ]);
 
-export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v2';
+export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v3';
 
 /**
  * Read the current city from the live Zustand snapshot.
@@ -1566,12 +1566,17 @@ function validSave(snapshot) {
   );
 }
 
-function bindSnapshotToCity(snapshot, cityCode) {
-  if (!cityCode || snapshot?.cityCode === cityCode) return snapshot;
+function bindSnapshotToCity(snapshot, cityCode, cityUid = cityCode) {
+  if (!cityCode) return snapshot;
+  const boundCityUid = cityUid || cityCode;
+  if (snapshot?.cityCode === cityCode && snapshot?.cityUid === boundCityUid) return snapshot;
   const rebound = structuredClone(snapshot);
   rebound.cityCode = cityCode;
+  rebound.cityUid = boundCityUid;
   if (rebound.data && Object.hasOwn(rebound.data, 'cityCode')) rebound.data.cityCode = cityCode;
+  if (rebound.data && Object.hasOwn(rebound.data, 'cityUid')) rebound.data.cityUid = boundCityUid;
   if (rebound.metadata && Object.hasOwn(rebound.metadata, 'cityCode')) rebound.metadata.cityCode = cityCode;
+  if (rebound.metadata && Object.hasOwn(rebound.metadata, 'cityUid')) rebound.metadata.cityUid = boundCityUid;
   return rebound;
 }
 
@@ -1917,7 +1922,7 @@ export class SubwayBuilderGameAdapter {
         pause: 'setTimeConfig({ paused: true })',
         resume: 'setTimeConfig({ paused: false })',
         staticData: 'loadInitialData',
-        cityIdentity: 'onCityLoad(cityCode) -> setCityCode -> getState().cityCode',
+        cityIdentity: 'onCityLoad(cityCode) -> setCityCode -> bind save cityCode/cityUid -> getState().cityCode',
         clock: 'setTimeConfig({ elapsedSeconds })',
         save: 'generateSave',
         load: 'loadSave',
@@ -2915,6 +2920,7 @@ export class SubwayBuilderGameAdapter {
       return bindSnapshotToCity(
         stampOpenWorldRuntimeSnapshot(compactNativeSnapshot(generated)),
         this.loadedCityCode,
+        state.cityCode === this.loadedCityCode ? state.cityUid : this.loadedCityCode,
       );
     }
 
@@ -2954,7 +2960,7 @@ export class SubwayBuilderGameAdapter {
       },
       viewport: state.mapViewport ?? template.viewport,
       data,
-    }))), this.loadedCityCode);
+    }))), this.loadedCityCode, state.cityCode === this.loadedCityCode ? state.cityUid : this.loadedCityCode);
   }
 
   /** Read live network slices without entering the native generateSave path. */
@@ -3332,6 +3338,9 @@ export class SubwayBuilderGameAdapter {
     await this.validateSnapshot(snapshot);
     const expectedCity = this.currentPackage?.manifest?.cityCode ?? this.currentPackage?.manifest?.tileId ?? this.loadedCityCode;
     const stateBefore = this.#state();
+    const expectedCityUid = stateBefore.cityCode === expectedCity
+      ? stateBefore.cityUid ?? expectedCity
+      : expectedCity;
     const authoritativeFinanceState = authoritativeFinanceSnapshot?.data
       ?? authoritativeFinanceSnapshot
       ?? stateBefore;
@@ -3340,6 +3349,7 @@ export class SubwayBuilderGameAdapter {
         ? preserveNativeFinancialStateInSnapshot(snapshot, authoritativeFinanceState, stateBefore)
         : snapshot,
       expectedCity,
+      expectedCityUid,
     );
     const {
       nativeSnapshot,
