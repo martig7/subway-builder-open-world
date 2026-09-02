@@ -101,6 +101,31 @@ test('dispatch attributes fare and riders to every native route used by the cros
   });
 });
 
+test('small transit shares retain route fare attribution until final settlement rounding', () => {
+  const world = createWorld({ worldId: 'small-share-attribution', tileIds: ['KCW', 'KCE'] });
+  registerCommuteCatalog(world, {
+    buildHash: 'small-share-attribution-v1', gateways: [{ id: 'central', capacityPerHour: 10_000 }],
+    buckets: [{ id: 'flow', homeTileId: 'KCW', workTileId: 'KCE', gatewayId: 'central', mass: 10_000, defaultTravelSeconds: 3600 }],
+  });
+  world.farePolicy.fare = 3;
+  applyModeShares(world, new Map([['KCW|KCE|central', {
+    driving: 9_999, walking: 0, transit: 1, unknown: 0,
+  }]]), {
+    transitJourneys: new Map([['KCW|KCE|central', [{
+      popId: 'small-share-pop', transitMass: 1, totalClockSeconds: 900,
+      fare: 3, revenueByRoute: { route: 3 },
+      stationRoutes: [{ routeId: 'route', stationIds: ['west-home', 'east-work'] }],
+    }]]]),
+  });
+
+  advanceCommutesTo(world, 7);
+
+  const completed = world.pendingCrossTileAttribution.completedCommutes[0];
+  assert.equal(world.crossTileFinancials.pendingNativeRevenue, 1_095);
+  assert.equal(completed.revenueByRoute.route, 1_095);
+  assert.equal(world.pendingCrossTileAttribution.revenueByRoute.route, 1_095);
+});
+
 test('skips inert hours and processes only scheduled commute events', () => {
   const world = createWorld({ worldId: 'event-plan', tileIds: ['KCW', 'KCE'] });
   registerCommuteCatalog(world, catalog);
