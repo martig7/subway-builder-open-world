@@ -16,7 +16,7 @@ function memoryStorage() {
   };
 }
 
-test('hot reload evaluates inactive demand after the runtime snapshot callback', async () => {
+test('hot reload evaluates and caches commute demand when the public city getter is stale', async () => {
   const activeTileId = 'NEC_CM01_RM01';
   const inactiveTile = tileCatalog.tiles.find((tile) => tile.id !== activeTileId);
   assert.ok(inactiveTile);
@@ -136,7 +136,9 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
     map: { setTileURLOverride() {}, setDefaultLayerVisibility() {} },
     utils: {
       getCities: () => [],
-      getCityCode: () => activeTileId,
+      // Subway Builder 1.7 retains the previous tile in this public closure;
+      // the live Zustand snapshot above already names the active tile.
+      getCityCode: () => 'NEC_CP00_RP00',
       getPathfindingRules: () => ({}),
       getMap: () => map,
       loadCityData: async (path) => {
@@ -245,6 +247,11 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
       && event?.phase === 'cross-mode-share'
       && event.status === 'recalculated'
     )), 'hot-reload mode-share recovery must complete');
+    assert.equal(
+      globalThis.__necCorridorDiagnostics__.latestCrossModeShare?.tileId,
+      activeTileId,
+      'commute calculations must bind to the live store tile, not the stale public getter',
+    );
     assert.ok(nativeDemandLoads.some((path) => path.includes(`/${inactiveTile.id}/`)));
     assert.equal(state.money, openingMoney, 'reload must rebuild profiles without changing native finance');
     assert.equal(state.financialHistory.currentHourExpenses, 0);

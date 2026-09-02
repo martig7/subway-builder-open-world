@@ -2737,6 +2737,7 @@ test('production adapter accepts the inspected 1.7.0 Portolan store seam and API
     snapshotAndCity: [], network: [], routeEditing: [], simulation: [], finance: [],
   });
   assert.deepEqual(report.stateFields, {
+    cityCode: true,
     portolanDiagram: true,
     portolanProgress: true,
     interlinedFeatureCollection: false,
@@ -4816,10 +4817,15 @@ test('snapshot restore guards transient layer additions and moves before loadSav
   assert.deepEqual(rawMoves, []);
 });
 
-test('verifyLoaded tolerates the public city code settling just after onCityLoad', async () => {
+test('verifyLoaded tolerates the live store city settling just after onCityLoad', async () => {
   const fixture = realSeamFixture({ publicCityCode: 'NY_CP00_RP00' });
   let cityReads = 0;
-  fixture.api.utils.getCityCode = () => (++cityReads < 2 ? 'NY_CP00_RP00' : 'NY_CP01_RP00');
+  const readState = fixture.callbacks.getState;
+  fixture.callbacks.getState = () => {
+    const state = readState();
+    state.cityCode = ++cityReads < 2 ? 'NY_CP00_RP00' : 'NY_CP01_RP00';
+    return state;
+  };
   const adapter = new SubwayBuilderGameAdapter(fixture);
   await adapter.adoptStaticPackage({
     manifest: { tileId: 'NY_CP01_RP00', cityCode: 'NY_CP01_RP00', dataFiles: {} },
@@ -4832,6 +4838,7 @@ test('verifyLoaded tolerates the public city code settling just after onCityLoad
 
 test('verifyLoaded tolerates the native self-pause settling after the city is already loaded', async () => {
   const fixture = realSeamFixture({ publicCityCode: 'NY_CP00_RP00' });
+  fixture.state.cityCode = 'NY_CP00_RP00';
   const adapter = new SubwayBuilderGameAdapter(fixture);
   await adapter.adoptStaticPackage({
     manifest: { tileId: 'NY_CP00_RP00', cityCode: 'NY_CP00_RP00', dataFiles: {} },
@@ -4845,6 +4852,7 @@ test('verifyLoaded tolerates the native self-pause settling after the city is al
 
 test('verifyLoaded reclaims the transition pause after an early user unpause', async () => {
   const fixture = realSeamFixture({ publicCityCode: 'NY_CP00_RP00' });
+  fixture.state.cityCode = 'NY_CP00_RP00';
   const adapter = new SubwayBuilderGameAdapter(fixture);
   await adapter.adoptStaticPackage({
     manifest: { tileId: 'NY_CP00_RP00', cityCode: 'NY_CP00_RP00', dataFiles: {} },
@@ -4859,6 +4867,7 @@ test('verifyLoaded reclaims the transition pause after an early user unpause', a
 
 test('verifyLoaded keeps reclaiming pause from late load writes until it is stable', async () => {
   const fixture = realSeamFixture({ publicCityCode: 'NY_CP00_RP00' });
+  fixture.state.cityCode = 'NY_CP00_RP00';
   let pauseRequests = 0;
   fixture.state.setTimeConfig = (patch) => {
     fixture.calls.push(['time', patch]);
@@ -5476,12 +5485,12 @@ test('production adapter refuses the removed legacy interlining state shape', as
   await assert.rejects(adapter.pause(), /state\.portolanDiagram,state\.portolanProgress/);
 });
 
-test('production adapter verifies the loaded city through the public city-code API', async () => {
+test('production adapter prefers the live 1.7 store city when the public city getter is stale', async () => {
   const fixture = realSeamFixture({ publicCityCode: 'KCE' });
   const adapter = new SubwayBuilderGameAdapter(fixture);
   await adapter.adoptStaticPackage({ manifest: { tileId: 'KCW', cityCode: 'KCW' } }, 'KCW');
   await adapter.pause();
-  await assert.rejects(adapter.verifyLoaded(), /Loaded city mismatch: expected KCW, got KCE/);
+  await assert.doesNotReject(adapter.verifyLoaded());
 });
 
 test('HTTP package adapter preserves game data paths while validating assets against the artifact host', async () => {

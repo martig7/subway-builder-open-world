@@ -1,5 +1,9 @@
 import { WorldTileRuntime } from './world-tile-runtime.js';
-import { SubwayBuilderGameAdapter } from './adapters/subway-builder-game-adapter.js';
+import {
+  readLiveSubwayBuilderCityCode,
+  SUBWAY_BUILDER_CITY_AUTHORITY_VERSION,
+  SubwayBuilderGameAdapter,
+} from './adapters/subway-builder-game-adapter.js';
 import { ModStorageWorldStateAdapter } from './adapters/mod-storage-world-state-adapter.js';
 import { SerializedStorageAdapter } from './adapters/serialized-storage-adapter.js';
 import {
@@ -43,6 +47,7 @@ export function startOpenWorld({
   artifacts,
   subwayBuilderHost = globalThis.SubwayBuilderAPI,
   workerSources = {},
+  authoritativeCityCode: initialAuthoritativeCityCode = null,
 } = {}) {
   if (!definition?.identity?.worldId || !definition?.runtime?.diagnosticNamespace) {
     throw new Error('startOpenWorld requires a validated World Definition');
@@ -73,8 +78,12 @@ export function startOpenWorld({
     ?? `http://127.0.0.1:${definition.runtime.tileServerPort}`;
   const registration = registerPilotCities(api, { tileBase });
   const dormantRuntimeKey = `__${globalStem}DormantRuntimeV1__`;
+  const startupCityCode = typeof initialAuthoritativeCityCode === 'string'
+    && initialAuthoritativeCityCode
+    ? initialAuthoritativeCityCode
+    : readLiveSubwayBuilderCityCode({ api });
 
-  if (!registration.cities.includes(api.utils.getCityCode?.())) {
+  if (!registration.cities.includes(startupCityCode)) {
     globalThis[dormantRuntimeKey]?.dispose?.();
     const subscriptions = [];
     let dormantController = null;
@@ -85,7 +94,7 @@ export function startOpenWorld({
       }
       if (globalThis[dormantRuntimeKey] === dormantController) delete globalThis[dormantRuntimeKey];
     };
-    const activate = (event, payload, cityCode = api.utils.getCityCode?.()) => {
+    const activate = (event, payload, cityCode = readLiveSubwayBuilderCityCode({ api })) => {
       if (!registration.cities.includes(cityCode)) return null;
       if (!activeController) {
         dispose();
@@ -96,6 +105,7 @@ export function startOpenWorld({
           artifacts,
           subwayBuilderHost: api,
           workerSources,
+          authoritativeCityCode: cityCode,
         });
       }
       if (event === 'game-init') return activeController?.lifecycle?.gameInit?.();
@@ -119,7 +129,7 @@ export function startOpenWorld({
     });
     globalThis[dormantRuntimeKey] = dormantController;
     console.info(`${logLabel} dormant until a registered city becomes active`, {
-      activeCityCode: api.utils.getCityCode?.() ?? null,
+      activeCityCode: startupCityCode,
       cities: registration.cities,
     });
     return dormantController;
@@ -151,6 +161,32 @@ export function startOpenWorld({
   const generation = (Number(globalThis[generationKey]) || 0) + 1;
   globalThis[generationKey] = generation;
   const isCurrent = () => globalThis[generationKey] === generation;
+  let authoritativeCityCode = registration.cities.includes(initialAuthoritativeCityCode)
+    ? initialAuthoritativeCityCode
+    : null;
+  let storeConfirmedAuthoritativeCity = authoritativeCityCode != null
+    && readLiveSubwayBuilderCityCode({ api }) === authoritativeCityCode;
+  let navigation = null;
+  const currentCityCode = (observedCityCode = null) => {
+    const liveCityCode = readLiveSubwayBuilderCityCode({ api });
+    if (typeof observedCityCode === 'string' && observedCityCode) {
+      authoritativeCityCode = observedCityCode;
+      storeConfirmedAuthoritativeCity = liveCityCode === observedCityCode;
+      return observedCityCode;
+    }
+    const pendingCityCode = navigation?.pending?.()?.tileId;
+    if (typeof pendingCityCode === 'string' && pendingCityCode) return pendingCityCode;
+    if (typeof authoritativeCityCode === 'string' && authoritativeCityCode) {
+      if (liveCityCode === authoritativeCityCode) storeConfirmedAuthoritativeCity = true;
+      else if (storeConfirmedAuthoritativeCity && liveCityCode) {
+        // Once Zustand has confirmed an authoritative event, a later store
+        // change is a new lifecycle state even if the public getter is stale.
+        authoritativeCityCode = liveCityCode;
+      }
+      return authoritativeCityCode;
+    }
+    return liveCityCode;
+  };
   const loadTrace = (event, details = {}) => console.log(
     `[DEBUG-${namespace.toUpperCase()}-LOAD-CLASSIFY]`,
     event,
@@ -158,7 +194,7 @@ export function startOpenWorld({
   );
   loadTrace('generation.installed', {
     currentGeneration: globalThis[generationKey],
-    cityCode: api.utils.getCityCode?.() ?? null,
+    cityCode: currentCityCode(),
     saveName: api.gameState.getSaveName?.() ?? null,
     nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
   });
@@ -208,10 +244,10 @@ export function startOpenWorld({
     electron,
     location: globalThis.location,
     captureSnapshot: () => game.captureSnapshot(),
-    getCityCode: () => api.utils.getCityCode?.(),
+    getCityCode: () => currentCityCode(),
   });
   const revenueAccrual = new NativeRevenueAccrual({ adapter: game });
-  const navigation = new HashCityNavigationAdapter({
+  navigation = new HashCityNavigationAdapter({
     tileIds: registration.tileIds,
     pendingKey: PENDING_NAVIGATION_KEY,
   });
@@ -236,6 +272,7 @@ export function startOpenWorld({
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
     generation,
     platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
+    cityAuthorityVersion: SUBWAY_BUILDER_CITY_AUTHORITY_VERSION,
     worldDefinitionHash: artifacts.worldDefinitionHash ?? null,
     saveAuthorityVersion: SAVE_AUTHORITY_VERSION,
     hotReloadDraftCacheVersion: 2,
@@ -386,10 +423,10 @@ export function startOpenWorld({
   let loadedSaveName = null;
   let requestedSessionReload = null;
   let sessionReloadPromise = null;
-  const ownsCurrentCity = (cityCode = api.utils.getCityCode?.()) => registration.cities.includes(cityCode);
+  const ownsCurrentCity = (cityCode = currentCityCode()) => registration.cities.includes(cityCode);
   async function recalculateCrossModeShare(reason, day = null, force = false) {
     if (!ready || !isCurrent()) return null;
-    const loadedCity = api.utils.getCityCode?.();
+    const loadedCity = currentCityCode();
     if (!registration.cities.includes(loadedCity) || runtime.view().activeTileId !== loadedCity) return null;
     const startedAt = performance.now();
     try {
@@ -429,7 +466,7 @@ export function startOpenWorld({
     // failed demand refresh must never stop inactive-tile revenue while the
     // canonical native topology continues charging its expenses.
     if (!ready || !isCurrent()) return null;
-    const loadedCity = api.utils.getCityCode?.();
+    const loadedCity = currentCityCode();
     if (!registration.cities.includes(loadedCity) || runtime.view().activeTileId !== loadedCity) return null;
     try { return await runtime.settleCrossTileCommutes(reason); }
     catch (error) { console.warn(`${logLabel} cross-city settlement failed (${reason})`, error); return null; }
@@ -485,7 +522,7 @@ export function startOpenWorld({
       worldId: identity.worldId,
       nativeSessionId: identity.nativeSessionId ?? api.gameState.getGameSessionId?.() ?? null,
       saveName,
-      cityCode: cityCode ?? api.utils.getCityCode?.() ?? null,
+      cityCode: cityCode ?? currentCityCode(),
     };
     diagnostics.currentWorld = observed;
     return observed;
@@ -810,7 +847,7 @@ export function startOpenWorld({
       current: isCurrent(),
       started,
       ready,
-      cityCode: api.utils.getCityCode?.() ?? null,
+      cityCode: currentCityCode(),
       nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
       pendingNavigation: navigation.pending() ?? null,
     });
@@ -818,7 +855,7 @@ export function startOpenWorld({
       loadTrace('hook.game-loaded.ignored', { reason: 'stale-generation', saveName });
       return;
     }
-    const loadedCityCode = api.utils.getCityCode?.();
+    const loadedCityCode = currentCityCode();
     const pending = navigation.pending();
     const nativeSessionId = api.gameState.getGameSessionId();
     const loadKind = nativeSaveLifecycle.classifyLoad(saveName, {
@@ -887,7 +924,7 @@ export function startOpenWorld({
     // gameSessionId, then emit onGameInit rather than onGameLoaded.
     gameLoadObserved = true;
     loadedSaveName = null;
-    const loadedCityCode = api.utils.getCityCode?.();
+    const loadedCityCode = currentCityCode();
     if (!registration.cities.includes(loadedCityCode)) return;
     const pending = navigation.pendingFor(loadedCityCode);
     if (pending) {
@@ -932,7 +969,7 @@ export function startOpenWorld({
       started,
       ready,
       settlementReady,
-      cityCode: api.utils.getCityCode?.() ?? null,
+      cityCode: currentCityCode(),
       nativeSessionId: api.gameState.getGameSessionId?.() ?? null,
     });
     if (!isCurrent() || typeof saveName !== 'string' || !saveName) {
@@ -958,7 +995,7 @@ export function startOpenWorld({
       capturedAt: Date.now(),
       saveName,
       status: 'observed',
-      tileId: api.utils.getCityCode?.() ?? null,
+      tileId: currentCityCode(),
       nativeSessionId,
       ready,
     };
@@ -981,6 +1018,7 @@ export function startOpenWorld({
 
   async function handleCityLoad(loadedCityCode, { authoritative = false } = {}) {
     if (!isCurrent()) return;
+    currentCityCode(loadedCityCode);
     if (registration.cities.includes(loadedCityCode)) {
       // The native API can swallow an individual override registration error.
       // Rebind synchronously before React recomputes the city map style.
@@ -1101,7 +1139,7 @@ export function startOpenWorld({
 
   async function ensureLifecyclePanel() {
     if (!isCurrent()) return;
-    const loadedCityCode = api.utils.getCityCode?.();
+    const loadedCityCode = currentCityCode();
     if (!registration.cities.includes(loadedCityCode)) return;
     if (!gameLoadObserved) {
       diagnostics.lifecycle = {
@@ -1118,7 +1156,7 @@ export function startOpenWorld({
 
   function repairLoadedMap(map, reason) {
     if (!isCurrent() || latestMap !== map) return;
-    const loadedCityCode = api.utils.getCityCode?.();
+    const loadedCityCode = currentCityCode();
     if (!registration.cities.includes(loadedCityCode)) return;
     refreshPilotCityBindings(api, { tileBase, cityCodes: [loadedCityCode] });
     diagnostics.tileSource = {
@@ -1145,7 +1183,7 @@ export function startOpenWorld({
     if (latestMap && tileSourceStyleHandler) {
       try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
     }
-    const loadedCityCode = api.utils.getCityCode?.();
+    const loadedCityCode = currentCityCode();
     const ownsLoadedCity = syncCityScopedMapControllers({
       map,
       cityCode: loadedCityCode,
@@ -1203,6 +1241,8 @@ export function startOpenWorld({
     ready = false;
     settlementReady = false;
     loadedSaveName = null;
+    authoritativeCityCode = null;
+    storeConfirmedAuthoritativeCity = false;
     if (latestMap && tileSourceStyleHandler) {
       try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
     }

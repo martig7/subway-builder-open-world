@@ -29,7 +29,7 @@ function createHookRegistry() {
   };
 }
 
-function createHost(activeCityCode) {
+function createHost(activeCityCode, { publicCityCode = activeCityCode } = {}) {
   const hooks = createHookRegistry();
   const cities = [];
   const state = {
@@ -115,7 +115,7 @@ function createHost(activeCityCode) {
     },
     utils: {
       getCities: () => cities,
-      getCityCode: () => state.cityCode,
+      getCityCode: () => publicCityCode,
       getMap: () => null,
       getPathfindingRules: () => ({}),
       loadCityData: async () => ({ points: [], pops: [] }),
@@ -141,6 +141,64 @@ function createHost(activeCityCode) {
   };
   return { api, cities, hooks, state };
 }
+
+test('a 1.7 runtime starts from the live store city when the public city getter retained the previous world', async () => {
+  const host = createHost('JP_TOKYO_MAINLAND', { publicCityCode: 'NEC_CP00_RP00' });
+  const previousCallbacks = globalThis.__subwayBuilder_storeCallbacks__;
+  const previousFetch = globalThis.fetch;
+  const previousGeneration = globalThis.__tokyoKanagawaGeneration__;
+  const previousDiagnostics = globalThis.__tokyoKanagawaDiagnostics__;
+  globalThis.__subwayBuilder_storeCallbacks__ = {
+    getState: () => host.state,
+    setMoney() {},
+    setTicketCost() {},
+  };
+  globalThis.fetch = undefined;
+  try {
+    const controller = startOpenWorld({
+      definition,
+      catalogSource,
+      boundaryOverlay,
+      subwayBuilderHost: host.api,
+      artifacts: {
+        commuteCatalog: { buildHash: 'runtime-ownership', buckets: [], gateways: [] },
+        crossDemandGzipBase64: gzipSync(JSON.stringify({
+          schemaVersion: 1,
+          points: [],
+          pops: [],
+          gateways: [],
+          popFields: [],
+        })).toString('base64'),
+      },
+    });
+
+    assert.equal(controller.status, 'active');
+    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v1');
+    assert.equal(host.hooks.count('onGameSaved'), 1, 're-entry must attach the owned runtime lifecycle');
+    assert.equal(host.hooks.count('onMapReady'), 1, 're-entry must attach map repair to the current tile');
+
+    const cameraMoves = [];
+    const map = {
+      getZoom: () => 11,
+      getCenter: () => ({ lng: -75, lat: 40 }),
+      getSource: () => null,
+      jumpTo: (camera) => cameraMoves.push(camera),
+      on() {},
+      off() {},
+    };
+    host.hooks.callbacks.get('onMapReady')[0](map);
+    assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.cityCode, 'JP_TOKYO_MAINLAND');
+    assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.status, 'recentered');
+    assert.equal(cameraMoves.length, 1, 'camera repair must target the live tile instead of the stale public city');
+  } finally {
+    globalThis.__subwayBuilder_storeCallbacks__ = previousCallbacks;
+    globalThis.fetch = previousFetch;
+    if (previousGeneration === undefined) delete globalThis.__tokyoKanagawaGeneration__;
+    else globalThis.__tokyoKanagawaGeneration__ = previousGeneration;
+    if (previousDiagnostics === undefined) delete globalThis.__tokyoKanagawaDiagnostics__;
+    else globalThis.__tokyoKanagawaDiagnostics__ = previousDiagnostics;
+  }
+});
 
 test('a world stays dormant while the active city ID belongs to another registered world', async () => {
   const host = createHost('NEC_CP00_RP00');

@@ -20,6 +20,7 @@ function fixture() {
     setTimeConfig() { native.setTimeConfigCalls += 1; },
   };
   state = {
+    cityCode: 'NY_CP00_RP00',
     gameSessionId: 'session-a',
     gameMode: 'easy',
     routes: [],

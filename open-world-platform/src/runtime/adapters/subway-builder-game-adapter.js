@@ -124,6 +124,32 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   'buildingDemolitionSpendAllTime',
 ]);
 
+export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v1';
+
+/**
+ * Read the current city from the live Zustand snapshot.
+ *
+ * Subway Builder 1.7 can retain an old value in the public getCityCode()
+ * closure across router-driven city changes. The callback seam returns a new
+ * immutable snapshot after each store update, so state.cityCode is the durable
+ * source between authoritative onCityLoad events.
+ */
+export function readLiveSubwayBuilderCityCode({
+  api = globalThis.SubwayBuilderAPI,
+  callbacks = globalThis.__subwayBuilder_storeCallbacks__,
+} = {}) {
+  try {
+    const cityCode = callbacks?.getState?.()?.cityCode;
+    if (typeof cityCode === 'string' && cityCode) return cityCode;
+  } catch {}
+  try {
+    const cityCode = api?.utils?.getCityCode?.();
+    return typeof cityCode === 'string' && cityCode ? cityCode : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeNativeRouteFinancialsEnvelope(value, financialHistory = null) {
   const source = value && typeof value === 'object' && !Array.isArray(value)
     ? structuredClone(value)
@@ -1851,6 +1877,7 @@ export class SubwayBuilderGameAdapter {
       ]),
     ));
     const stateFields = Object.freeze({
+      cityCode: hasStateKey('cityCode'),
       portolanDiagram: hasStateKey('portolanDiagram'),
       portolanProgress: hasStateKey('portolanProgress'),
       interlinedFeatureCollection: hasStateKey('interlinedFeatureCollection'),
@@ -1864,7 +1891,7 @@ export class SubwayBuilderGameAdapter {
       callbackSetMoney: typeof this.callbacks?.setMoney === 'function',
       callbackSetTicketCost: typeof this.callbacks?.setTicketCost === 'function',
       cityDataFiles: typeof this.api?.cities?.setCityDataFiles === 'function',
-      currentCityCode: typeof this.api?.utils?.getCityCode === 'function',
+      'state.cityCode': hasStateKey('cityCode'),
       ...Object.fromEntries(REQUIRED_STATE_ACTIONS.map((name) => [name, typeof state?.[name] === 'function'])),
       ...Object.fromEntries(REQUIRED_PORTOLAN_STATE_KEYS.map((name) => [`state.${name}`, hasStateKey(name)])),
     };
@@ -1888,6 +1915,7 @@ export class SubwayBuilderGameAdapter {
         pause: 'setTimeConfig({ paused: true })',
         resume: 'setTimeConfig({ paused: false })',
         staticData: 'loadInitialData',
+        cityIdentity: 'onCityLoad(cityCode) -> getState().cityCode',
         clock: 'setTimeConfig({ elapsedSeconds })',
         save: 'generateSave',
         load: 'loadSave',
@@ -1905,6 +1933,10 @@ export class SubwayBuilderGameAdapter {
     const state = this.callbacks.getState();
     if (!state) throw new Error('Subway Builder store state is unavailable');
     return state;
+  }
+
+  readLoadedCityCode() {
+    return readLiveSubwayBuilderCityCode({ api: this.api, callbacks: this.callbacks });
   }
 
   async assertSupported() {
@@ -3592,13 +3624,12 @@ export class SubwayBuilderGameAdapter {
   async verifyLoaded() {
     await this.assertSupported();
     const expectedCity = this.currentPackage?.manifest?.cityCode ?? this.currentPackage?.manifest?.tileId;
-    let actualCity = this.api.utils.getCityCode();
+    let actualCity = this.readLoadedCityCode();
     for (let attempt = 1; expectedCity && actualCity !== expectedCity && attempt < CITY_SETTLE_ATTEMPTS; attempt++) {
-      // onCityLoad is dispatched during the router/store handoff; the public
-      // city accessor can remain on the previous city through the current
-      // microtask. Yield without adding a visible transition delay.
+      // onCityLoad is dispatched during the router/store handoff. Yield while
+      // the live Zustand snapshot catches up, without adding visible delay.
       await new Promise((resolve) => setTimeout(resolve, 0));
-      actualCity = this.api.utils.getCityCode();
+      actualCity = this.readLoadedCityCode();
     }
     if (expectedCity && actualCity !== expectedCity) throw new Error(`Loaded city mismatch: expected ${expectedCity}, got ${actualCity}`);
     let stablePausedReads = 0;
