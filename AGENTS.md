@@ -111,6 +111,13 @@ Install scripts replace the exact mod directory and may also replace generated
 city data under `%APPDATA%\metro-maker4\cities\data`. These are external writes;
 resolve the manifest ID and exact target before approving or running them.
 
+An open Subway Builder renderer is compatible with installation. Keep the game
+open when the user is prepared to reload it: stop the verified PMTiles services
+that scan the shared city-data directory, run the installer, restart those
+services, and let the user reload the mod in game. If `EBUSY` remains after the
+verified tile services stop, identify the exact lock owner before taking further
+action.
+
 After installation, prove disk state rather than relying on installer output:
 
 - Inspect the installed manifest/bundle for the selected mod ID.
@@ -122,18 +129,19 @@ After installation, prove disk state rather than relying on installer output:
 ## Handle the PMTiles service safely
 
 The central installer copies the selected Tile Packages and ensures the World’s
-configured local PMTiles service. The server may execute scripts from the
-installed mod directory, which can make Windows reject directory replacement
-with `EBUSY`.
+configured local PMTiles service. Each server scans the shared city-data
+directory, so one World’s service can lock another World’s packages and make
+Windows reject replacement with `EBUSY`.
 
-When the installed NEC directory is locked:
+When an installed consumer or city package is locked:
 
 1. Check the World’s configured `/_health` endpoint and require the
    `X-PMTiles-Server-Version` header.
 2. Identify the owning process by command line. Accept only a process whose
    command references the installed consumer’s `start-tile-server.ps1` or
    `native-pmtiles-server.ps1` and configured port.
-3. Stop that verified process only. The PID file under
+3. Stop every verified PMTiles process that scans the shared city-data directory.
+   The PID file under
    `%LOCALAPPDATA%\metro-maker4\<world-namespace>-pmtiles` may be stale, so a PID
    file alone is insufficient authority to terminate a process.
 4. Run the selected consumer installer again.
