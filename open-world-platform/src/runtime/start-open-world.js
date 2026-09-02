@@ -67,6 +67,66 @@ export function startOpenWorld({
     repairPilotMapCamera,
     repairPilotMapTileSource,
   } = createOpenWorldCityRegistration({ definition, tileCatalog });
+  const api = subwayBuilderHost;
+  if (!api) throw new Error(`${logLabel} SubwayBuilderAPI is unavailable`);
+  const tileBase = globalThis[definition.runtime.tileBaseGlobal]
+    ?? `http://127.0.0.1:${definition.runtime.tileServerPort}`;
+  const registration = registerPilotCities(api, { tileBase });
+  const dormantRuntimeKey = `__${globalStem}DormantRuntimeV1__`;
+
+  if (!registration.cities.includes(api.utils.getCityCode?.())) {
+    globalThis[dormantRuntimeKey]?.dispose?.();
+    const subscriptions = [];
+    let dormantController = null;
+    let activeController = null;
+    const dispose = () => {
+      for (const unsubscribe of subscriptions.splice(0)) {
+        try { unsubscribe?.(); } catch {}
+      }
+      if (globalThis[dormantRuntimeKey] === dormantController) delete globalThis[dormantRuntimeKey];
+    };
+    const activate = (event, payload, cityCode = api.utils.getCityCode?.()) => {
+      if (!registration.cities.includes(cityCode)) return null;
+      if (!activeController) {
+        dispose();
+        activeController = startOpenWorld({
+          definition,
+          catalogSource,
+          boundaryOverlay,
+          artifacts,
+          subwayBuilderHost: api,
+          workerSources,
+        });
+      }
+      if (event === 'game-init') return activeController?.lifecycle?.gameInit?.();
+      if (event === 'game-loaded') return activeController?.lifecycle?.gameLoaded?.(payload);
+      if (event === 'city-load') {
+        return activeController?.lifecycle?.cityLoad?.(cityCode, { authoritative: true });
+      }
+      return activeController;
+    };
+    subscriptions.push(
+      api.hooks.onGameInit?.(() => activate('game-init')),
+      api.hooks.onGameLoaded?.((saveName) => activate('game-loaded', saveName)),
+      api.hooks.onCityLoad?.((cityCode) => activate('city-load', null, cityCode)),
+    );
+    dormantController = Object.freeze({
+      platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
+      definition,
+      registration,
+      status: 'dormant',
+      dispose,
+    });
+    globalThis[dormantRuntimeKey] = dormantController;
+    console.info(`${logLabel} dormant until a registered city becomes active`, {
+      activeCityCode: api.utils.getCityCode?.() ?? null,
+      cities: registration.cities,
+    });
+    return dormantController;
+  }
+
+  globalThis[dormantRuntimeKey]?.dispose?.();
+  delete globalThis[dormantRuntimeKey];
 
   function heapBytes() {
     return Number(globalThis.performance?.memory?.usedJSHeapSize) || null;
@@ -80,8 +140,6 @@ export function startOpenWorld({
     globalThis.sessionStorage?.setItem(PENDING_PERFORMANCE_KEY, JSON.stringify(value));
   }
 
-  const api = subwayBuilderHost;
-  if (!api) throw new Error(`${logLabel} SubwayBuilderAPI is unavailable`);
   for (const staleNamespace of new Set(['nec-corridor', namespace])) {
     api.ui?.unregisterComponent?.('top-bar', `${staleNamespace}-world-saves`);
   }
@@ -143,9 +201,6 @@ export function startOpenWorld({
     fallbackWorldId: namespace,
     canonicalWorldId: CURRENT_CANONICAL_WORLD_ID,
   });
-  const tileBase = globalThis[definition.runtime.tileBaseGlobal]
-    ?? `http://127.0.0.1:${definition.runtime.tileServerPort}`;
-  const registration = registerPilotCities(api, { tileBase });
   const game = new SubwayBuilderGameAdapter({ api, nativeSaveLifecycle });
   const electron = globalThis.window?.electron ?? globalThis.electron;
   const nativeReloadRecovery = installNativeReloadRecoveryGuard({
@@ -330,6 +385,7 @@ export function startOpenWorld({
   let loadedSaveName = null;
   let requestedSessionReload = null;
   let sessionReloadPromise = null;
+  const ownsCurrentCity = (cityCode = api.utils.getCityCode?.()) => registration.cities.includes(cityCode);
   async function recalculateCrossModeShare(reason, day = null, force = false) {
     if (!ready || !isCurrent()) return null;
     const loadedCity = api.utils.getCityCode?.();
@@ -382,14 +438,14 @@ export function startOpenWorld({
     recalculate: (reason, day) => recalculateCrossModeShare(reason, day),
   });
   const serviceChanged = (reason = 'route-service-change') => {
-    if (!ready || !isCurrent()) return;
+    if (!ready || !isCurrent() || !ownsCurrentCity()) return;
     runtime.markDerivedNetworkDirty(reason);
     revenueAccrual.invalidate();
     modeShareInvalidation.markDirty(reason);
   };
   const scheduleChanged = () => serviceChanged('schedule-change');
   const fareChanged = () => {
-    if (!ready || !isCurrent()) return;
+    if (!ready || !isCurrent() || !ownsCurrentCity()) return;
     revenueAccrual.invalidate();
     modeShareInvalidation.markDirty('fare-change');
   };
@@ -747,6 +803,7 @@ export function startOpenWorld({
   }
 
   async function handleGameLoaded(saveName) {
+    if (!ownsCurrentCity()) return;
     loadTrace('hook.game-loaded', {
       saveName,
       current: isCurrent(),
@@ -824,7 +881,7 @@ export function startOpenWorld({
   }
 
   async function handleGameInitialized() {
-    if (!isCurrent()) return;
+    if (!isCurrent() || !ownsCurrentCity()) return;
     // New games call loadInitialData(), which creates a new native
     // gameSessionId, then emit onGameInit rather than onGameLoaded.
     gameLoadObserved = true;
@@ -867,6 +924,7 @@ export function startOpenWorld({
   }
 
   async function handleGameSaved(saveName) {
+    if (!ownsCurrentCity()) return;
     loadTrace('hook.game-saved', {
       saveName,
       current: isCurrent(),
@@ -920,7 +978,7 @@ export function startOpenWorld({
     });
   }
 
-  async function handleCityLoad(loadedCityCode) {
+  async function handleCityLoad(loadedCityCode, { authoritative = false } = {}) {
     if (!isCurrent()) return;
     if (registration.cities.includes(loadedCityCode)) {
       // The native API can swallow an individual override registration error.
@@ -931,6 +989,7 @@ export function startOpenWorld({
       game.restoreNativeCommuteRules();
       return;
     }
+    if (authoritative) gameLoadObserved = true;
     if (!gameLoadObserved) return;
     if (!started) return start(loadedCityCode, api.gameState.getSaveName?.() ?? loadedSaveName);
     // onMapReady/onGameLoaded can start boot before onCityLoad arrives. Do not
@@ -1109,8 +1168,8 @@ export function startOpenWorld({
   });
   api.hooks.onCityLoad(handleCityLoad);
   registerCrossTileClockHooks(api.hooks, {
-    hourChanged: () => { if (isCurrent()) void settleCrossTileCommutes('hourly'); },
-    dayChanged: (day) => { if (isCurrent()) void modeShareInvalidation.flushAtMidnight(day); },
+    hourChanged: () => { if (isCurrent() && ownsCurrentCity()) void settleCrossTileCommutes('hourly'); },
+    dayChanged: (day) => { if (isCurrent() && ownsCurrentCity()) void modeShareInvalidation.flushAtMidnight(day); },
   });
   registerModeShareInvalidationHooks(api.hooks, { scheduleChanged, fareChanged });
   api.hooks.onGameEnd?.(() => {
@@ -1161,6 +1220,12 @@ export function startOpenWorld({
     definition,
     diagnostics,
     registration,
+    status: 'active',
+    lifecycle: Object.freeze({
+      gameInit: handleGameInitialized,
+      gameLoaded: handleGameLoaded,
+      cityLoad: handleCityLoad,
+    }),
     dispose() {
       modeShareInvalidation.cancel();
       disposeSharedTransitObserver();
