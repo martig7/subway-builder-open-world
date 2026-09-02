@@ -1018,6 +1018,36 @@ export function startOpenWorld({
 
   async function handleCityLoad(loadedCityCode, { authoritative = false } = {}) {
     if (!isCurrent()) return;
+    const liveCityCode = readLiveSubwayBuilderCityCode({ api });
+    const currentRuntimeTileId = runtimeTileId();
+    const pendingForLoadedCity = navigation.pendingFor(loadedCityCode);
+    if (
+      started && ready && !pendingForLoadedCity
+      && liveCityCode && currentRuntimeTileId
+      && liveCityCode === currentRuntimeTileId
+      && loadedCityCode !== currentRuntimeTileId
+    ) {
+      const nativeSessionId = api.gameState.getGameSessionId?.() ?? null;
+      const loadTraceId = createAuthoritativeLoadTraceId(
+        'city-load-ignored',
+        loadedCityCode,
+        nativeSessionId,
+      );
+      const ignored = {
+        phase: 'authoritative-load',
+        loadTraceId,
+        segment: 'lifecycle-city-load-ignored',
+        reason: 'event-disagrees-with-live-store-and-runtime',
+        loadedCityCode,
+        liveCityCode,
+        runtimeTileId: currentRuntimeTileId,
+        nativeSessionId,
+      };
+      recordAuthoritativeLoad(ignored);
+      loadTrace('hook.city-load.ignored', ignored);
+      ensurePanel();
+      return;
+    }
     currentCityCode(loadedCityCode);
     if (registration.cities.includes(loadedCityCode)) {
       // The native API can swallow an individual override registration error.
@@ -1036,7 +1066,7 @@ export function startOpenWorld({
     // persisted handoff and clears the navigation token when it succeeds.
     if (!ready && startPromise) await startPromise;
     if (!isCurrent()) return;
-    const pending = navigation.pendingFor(loadedCityCode);
+    const pending = pendingForLoadedCity;
     if (!ready && !pending) return;
     if (!pending) {
       const needsReload = !ready || runtimeTileId() !== loadedCityCode;

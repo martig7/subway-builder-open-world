@@ -125,7 +125,7 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   'buildingDemolitionSpendAllTime',
 ]);
 
-export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v3';
+export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v4';
 
 /**
  * Read the current city from the live Zustand snapshot.

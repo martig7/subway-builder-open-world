@@ -143,7 +143,7 @@ function createHost(activeCityCode, { publicCityCode = activeCityCode } = {}) {
   return { api, cities, hooks, state };
 }
 
-test('a 1.7 runtime starts from the live store city when the public city getter retained the previous world', async () => {
+test('a 1.7 runtime keeps the live store city when public and delayed lifecycle reports are stale', async () => {
   const host = createHost('JP_TOKYO_MAINLAND', { publicCityCode: 'NEC_CP00_RP00' });
   const previousCallbacks = globalThis.__subwayBuilder_storeCallbacks__;
   const previousFetch = globalThis.fetch;
@@ -174,7 +174,7 @@ test('a 1.7 runtime starts from the live store city when the public city getter 
     });
 
     assert.equal(controller.status, 'active');
-    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v3');
+    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v4');
     assert.equal(host.hooks.count('onGameSaved'), 1, 're-entry must attach the owned runtime lifecycle');
     assert.equal(host.hooks.count('onMapReady'), 1, 're-entry must attach map repair to the current tile');
 
@@ -191,6 +191,13 @@ test('a 1.7 runtime starts from the live store city when the public city getter 
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.cityCode, 'JP_TOKYO_MAINLAND');
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.status, 'recentered');
     assert.equal(cameraMoves.length, 1, 'camera repair must target the live tile instead of the stale public city');
+
+    await controller.lifecycle.cityLoad('JP_TOKYO_MAINLAND', { authoritative: true });
+    await controller.lifecycle.cityLoad('JP_KANAGAWA_MAINLAND', { authoritative: true });
+
+    assert.equal(host.state.cityCode, 'JP_TOKYO_MAINLAND');
+    assert.equal(controller.diagnostics.latestAuthoritativeLoad.segment, 'lifecycle-city-load-ignored');
+    assert.equal(controller.diagnostics.latestAuthoritativeLoad.reason, 'event-disagrees-with-live-store-and-runtime');
   } finally {
     globalThis.__subwayBuilder_storeCallbacks__ = previousCallbacks;
     globalThis.fetch = previousFetch;
