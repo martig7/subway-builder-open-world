@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { quoteJourneyFare } from '../src/journey-fare.js';
+import { quoteJourneyFare } from '../../../../open-world-platform/src/runtime/journey-fare.js';
 
 test('matches native cumulative distance fares, rounding, cap, and route attribution', () => {
   const quote = quoteJourneyFare({

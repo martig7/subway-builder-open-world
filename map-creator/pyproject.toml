@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-world-map-creator"
+version = "1.0.0"
+description = "Centralized, resumable map and demand artifact creator for Open World mods"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+routing = ["numpy>=1.26", "pyproj>=3.6", "scipy>=1.12", "shapely>=2.0"]
+japan = ["openpyxl>=3.1", "shapely>=2.0"]
+test = []
+
+[project.scripts]
+ow-map = "open_world_map_creator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

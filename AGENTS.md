@@ -20,15 +20,16 @@ is empty, or identify the exact user-authorized changes that remain.
 ## Start by selecting the runnable mod
 
 Treat source ownership, build ownership, and runtime ownership as separate facts.
-The shared implementation lives under `prototype/kc-two-tile/mod/src`, but the
-game may be running a different consumer bundle. Identify the user's active mod
-before building or installing anything.
+The shared runtime and runnable-mod implementation lives under
+`open-world-platform`; geography and source-specific processing lives under
+`map-creator`; declarative consumer inputs live under `worlds`. The game may be
+running any generated consumer bundle, so identify the user's active mod before
+building or installing anything.
 
 Use these signals together:
 
 | Runnable mod | Source directory | Manifest ID | Runtime signals |
 | --- | --- | --- | --- |
-| Kansas City prototype | `prototype/kc-two-tile/mod` | `local.kc-two-tile-open-world-prototype` | `KCW`, `KCE`, `[KC two-tile]` |
 | New York canary | `prototype/ny-state/mod` | `local.ny-state-six-tile-canary` | `NY_*`, New York canary logs |
 | Northeast Corridor | `prototype/nec-corridor/mod` | `local.nec-corridor-open-world` | `NEC_*`, `[NEC]` |
 | Tokyo–Kanagawa | `prototype/tokyo-kanagawa/mod` | `local.tokyo-kanagawa-open-world` | `JP_*`, Tokyo–Kanagawa logs |
@@ -43,12 +44,22 @@ disk proves availability, not which consumer owns the current city/runtime.
 Completion criterion: name the active manifest ID and the consumer mod directory
 that must produce the runtime bundle.
 
+The Kansas City directory is a regression fixture and historical data-pipeline
+reference, not a runnable consumer. Its tests exercise `open-world-platform`
+directly and must not grow a second runtime implementation.
+
 ## Understand the source-to-bundle graph
 
-`kc-two-tile/mod/src` is the shared implementation hub. New York, NEC, and
-Tokyo–Kanagawa import many modules directly from it, including runtime, adapters,
-projection hooks, and geographic UI. Editing a shared KC source file changes
-those consumers only after each intended consumer is rebuilt.
+`open-world-platform` is the shared implementation hub. New York, NEC, and
+Tokyo–Kanagawa receive runtime behavior, generated entry points, workers,
+packaging, installation, and PMTiles lifecycle from it. Editing the platform
+changes a consumer only after that consumer is rebuilt. World-specific facts
+belong in a validated `worlds/<world>/world.json`; adding a World must not create
+another runtime or builder implementation.
+
+`map-creator` owns the location-independent stage graph, Runner adapters, demand
+adapters, routing, artifact storage, and publication gates. Heavy processing may
+execute through any configured Runner; execution location is not a World fact.
 
 Every mod has an independent `dist/index.js` and independent installed directory.
 Building or installing the KC prototype does not update the NEC, New York, or
@@ -62,8 +73,8 @@ finance, or persistence decisions, also read the relevant file under `docs/adr`.
 
 Use this sequence for any runtime change:
 
-1. Run the tests at the source seam. Shared KC changes normally require the KC
-   suite, plus the active consumer's suite when it has consumer-specific behavior.
+1. Run the tests at the source seam. Platform changes require the
+   `open-world-platform` suite plus the active consumer's behavioral suite.
 2. Build from the active consumer mod directory, not from the directory where the
    imported source happened to live.
 3. Verify the consumer's `dist/index.js` contains a unique marker for the change.
@@ -81,13 +92,9 @@ node scripts/build-mod.mjs
 node scripts/install-mod.mjs
 ```
 
-Package lifecycle behavior differs:
-
-- KC and New York define `postbuild`; `npm run build` also installs. Use
-  `node scripts/build-mod.mjs` when a workspace-only build is intended.
-- NEC and Tokyo separate build and install. Their `npm run build` does not deploy.
-- NEC's build embeds the generated catalog and packages all selected tiles. A
-  source-only KC build cannot stand in for it.
+Build and install are separate for centralized consumers. `npm run build` must
+not deploy. Use `npm run install:mod` where defined or the consumer's
+`scripts/install-mod.mjs` only after resolving the intended external targets.
 
 Completion criterion: tests pass, the selected consumer's `dist/index.js` has the
 marker, and no different mod was installed as a proxy.
@@ -112,29 +119,29 @@ After installation, prove disk state rather than relying on installer output:
 - Confirm the game has reloaded the bundle; a correct file on disk is not proof
   that an existing renderer process is executing it.
 
-## Handle the NEC PMTiles service safely
+## Handle the PMTiles service safely
 
-The NEC installer copies the selected tile packages and ensures a local PMTiles
-service on `127.0.0.1:8799`. The server may execute scripts from the installed
-NEC mod directory, which can make Windows reject directory replacement with
-`EBUSY`.
+The central installer copies the selected Tile Packages and ensures the World’s
+configured local PMTiles service. The server may execute scripts from the
+installed mod directory, which can make Windows reject directory replacement
+with `EBUSY`.
 
 When the installed NEC directory is locked:
 
-1. Check `http://127.0.0.1:8799/_health` and require the
+1. Check the World’s configured `/_health` endpoint and require the
    `X-PMTiles-Server-Version` header.
 2. Identify the owning process by command line. Accept only a process whose
-   command references the installed NEC `start-tile-server.ps1` or
-   `native-pmtiles-server.ps1` and port `8799`.
+   command references the installed consumer’s `start-tile-server.ps1` or
+   `native-pmtiles-server.ps1` and configured port.
 3. Stop that verified process only. The PID file under
-   `%LOCALAPPDATA%\metro-maker4\nec-corridor-pmtiles` may be stale, so a PID file
-   alone is insufficient authority to terminate a process.
-4. Run the NEC installer again.
+   `%LOCALAPPDATA%\metro-maker4\<world-namespace>-pmtiles` may be stale, so a PID
+   file alone is insufficient authority to terminate a process.
+4. Run the selected consumer installer again.
 5. If file and city-data copying succeeds but automatic health checking fails,
    start the installed script with `-Background` and recheck `_health`.
 
-Treat installation as complete only when the installed NEC bundle has the change
-and the PMTiles health endpoint returns HTTP 200 with the expected version.
+Treat installation as complete only when the installed consumer bundle has the
+change and the PMTiles health endpoint returns HTTP 200 with the expected version.
 
 ## Account for hot reload and retained state
 
@@ -167,7 +174,7 @@ A mod change is delivered only when all of the following are true:
 
 - The active runnable mod was identified from its manifest/runtime signals.
 - Shared and consumer-specific tests relevant to the change pass.
-- The active consumer—not merely the shared KC source project—was rebuilt.
+- The active consumer—not merely `open-world-platform`—was rebuilt.
 - The correct installed bundle contains the unique change marker.
 - Required local services are healthy after installation.
 - The game reloaded the bundle and a reset runtime diagnostic demonstrates the

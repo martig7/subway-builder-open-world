@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "worldId": "ny-state-six-tile",
+    "artifactWorldId": "NYS_NYC_SCALE_PROTOTYPE",
+    "manifestId": "local.ny-state-six-tile-canary",
+    "name": "New York Seven-Tile Corridor Performance Canary",
+    "description": "Real-data performance test for seven NYC-sized New York open-world tiles with cross-tile demand.",
+    "version": "0.1.0",
+    "author": "Open World Prototype",
+    "compatibilityLineage": ["ny-state-six-tile", "NYS_NYC_SCALE_PROTOTYPE"]
+  },
+  "tileViews": {
+    "catalog": "geography/tile-views.json",
+    "initialTileId": "NY_CP00_RP00"
+  },
+  "map": {
+    "sourceLock": "sources.lock.json",
+    "profile": "osm-depot-world-v1",
+    "basemapRevision": "world-z0-z9-v2"
+  },
+  "demand": {
+    "adapter": "lodes-us",
+    "definition": "demand.json",
+    "routingProfile": "generated-roads-v1",
+    "nativePopPrefixes": ["native-pop-"],
+    "crossPopPrefixes": ["cross-pop-"]
+  },
+  "runtime": {
+    "storageNamespace": "ny-state-six-tile",
+    "tileServerPort": 8798,
+    "tileBaseGlobal": "NY_STATE_PILOT_TILE_BASE",
+    "diagnosticNamespace": "ny-state-pilot",
+    "healthTile": "NY_CP00_RP00/2/2/2.mvt?v=world-z0-z9-v2",
+    "requiredHostCapabilities": ["native-save-authority-v1", "native-ledger-authority-v1"]
+  },
+  "release": {
+    "platformCompatibility": "^1.0.0",
+    "artifactSelection": "explicit",
+    "artifactLayout": "packaged-tile-directories-v1"
+  }
+}

@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { tileCatalog } from '../src/tile-catalog.js';
+import { startOpenWorld } from '../../../../open-world-platform/src/runtime/start-open-world.js';
+import definition from '../../../../worlds/nec-corridor/world.json' with { type: 'json' };
+import catalogSource from '../../../../worlds/nec-corridor/geography/tile-views.json' with { type: 'json' };
 
 function memoryStorage() {
   const values = new Map();
@@ -179,20 +182,27 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
   console.log = () => {};
   try {
     const openingMoney = state.money;
-    await import(`../src/game-entry.js?mod-reload-demand=${Date.now()}`);
+    startOpenWorld({
+      definition,
+      catalogSource,
+      artifacts: {
+        commuteCatalog: globalThis.__NEC_CROSS_COMMUTE_CATALOG__,
+        crossDemandGzipBase64: globalThis.__NEC_CROSS_DEMAND_GZIP_BASE64__,
+      },
+    });
     assert.equal(typeof hooks.gameLoaded, 'function');
     assert.equal(typeof hooks.mapReady, 'function');
     await hooks.gameLoaded('open-world-runtime');
     hooks.mapReady(map);
     for (let attempt = 0; attempt < 100; attempt++) {
       const evaluated = debugEvents.find(([prefix, event]) => (
-        prefix === '[NEC]'
+        prefix === '[Northeast Corridor Open World]'
         && event?.phase === 'off-tile-native-demand'
         && event.tileId === inactiveTile.id
         && event.dailyRevenue > 0
       ));
       const recalculated = debugEvents.find(([prefix, event]) => (
-        prefix === '[NEC]'
+        prefix === '[Northeast Corridor Open World]'
         && event?.phase === 'cross-mode-share'
         && event.status === 'recalculated'
       ));
@@ -200,14 +210,14 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     const evaluated = debugEvents.find(([prefix, event]) => (
-      prefix === '[NEC]'
+      prefix === '[Northeast Corridor Open World]'
       && event?.phase === 'off-tile-native-demand'
       && event.tileId === inactiveTile.id
       && event.dailyRevenue > 0
     ));
     assert.ok(evaluated, 'hot reload must rebuild a positive inactive-tile revenue profile');
     assert.ok(debugEvents.some(([prefix, event]) => (
-      prefix === '[NEC]'
+      prefix === '[Northeast Corridor Open World]'
       && event?.phase === 'cross-mode-share'
       && event.status === 'recalculated'
     )), 'hot-reload mode-share recovery must complete');

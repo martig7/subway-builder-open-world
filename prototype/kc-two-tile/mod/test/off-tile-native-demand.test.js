@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {
   evaluateOffTileNativeDemand,
   projectOffTileNativeDemandTransferInput,
-} from '../src/off-tile-native-demand.js';
-import { createNetworkProfile } from '../src/cross-tile-mode-choice.js';
+} from '../../../../open-world-platform/src/runtime/off-tile-native-demand.js';
+import { createNetworkProfile } from '../../../../open-world-platform/src/runtime/cross-tile-mode-choice.js';
 
 function fixtureNetwork(serviceCount = 2) {
   return createNetworkProfile({

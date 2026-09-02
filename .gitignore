@@ -29,6 +29,10 @@ prototype/tokyo-kanagawa/generated/prefecture-admin-level4.geojson
 prototype/ny-state/generated/pilot/basemap/
 prototype/ny-state/generated/pilot/tiles/
 map-creator/data/
+map-creator/data/sources/
+map-creator/data/work/
+map-creator/data/artifacts/
+map-creator/data/logs/
 
 # Local routing/database products
 **/*.sqlite

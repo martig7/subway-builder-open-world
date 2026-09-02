@@ -18,7 +18,8 @@ Build the Depot map packages first when their building indexes are absent:
 .\build-tokyo-kanagawa.ps1
 ```
 
-Then run the demand compiler (prefer `richmpc` for the multi-million-building spatial index):
+Then run the demand compiler through a Runner profile with enough memory for the
+multi-million-building spatial index:
 
 ```powershell
 python .\scripts\build_world_data.py

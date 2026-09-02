@@ -7,7 +7,7 @@ import {
   RELOAD_GUARD_KEY,
   installNativeReloadRecoveryGuard,
   stageNativeRecovery,
-} from '../src/native-reload-recovery.js';
+} from '../../../../open-world-platform/src/runtime/native-reload-recovery.js';
 
 function nativeSave(cityCode = 'NEC_A') {
   return {

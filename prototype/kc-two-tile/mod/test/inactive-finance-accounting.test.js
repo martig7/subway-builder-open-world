@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorldTileRuntime } from '../src/world-tile-runtime.js';
-import { FakeGameAdapter } from '../src/adapters/fake-game-adapter.js';
-import { MemoryTilePackageAdapter } from '../src/adapters/memory-tile-package-adapter.js';
-import { ModStorageWorldStateAdapter } from '../src/adapters/mod-storage-world-state-adapter.js';
-import { applyModeShares, registerCommuteCatalog } from '../src/cross-tile-commute-engine.js';
-import { createWorld } from '../src/world-model.js';
+import { WorldTileRuntime } from '../../../../open-world-platform/src/runtime/world-tile-runtime.js';
+import { FakeGameAdapter } from '../../../../open-world-platform/src/runtime/adapters/fake-game-adapter.js';
+import { MemoryTilePackageAdapter } from '../../../../open-world-platform/src/runtime/adapters/memory-tile-package-adapter.js';
+import { ModStorageWorldStateAdapter } from '../../../../open-world-platform/src/runtime/adapters/mod-storage-world-state-adapter.js';
+import { applyModeShares, registerCommuteCatalog } from '../../../../open-world-platform/src/runtime/cross-tile-commute-engine.js';
+import { createWorld } from '../../../../open-world-platform/src/runtime/world-model.js';
 
 test('mode-share conservation accepts harmless floating-point residue', () => {
   const mass = 13_125.5123;

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "consumers": {
+    "nec-corridor": {
+      "manifestId": "local.nec-corridor-open-world",
+      "runtimeWorldId": "nec-corridor-world",
+      "artifactWorldId": "NEC_CORRIDOR_LODES_PROTOTYPE",
+      "initialTileId": "NEC_CP00_RP00",
+      "storageNamespace": "open-world-sidecar-local.nec-corridor-open-world-v1",
+      "tileServerPort": 8799,
+      "basemapRevision": "nec-corridor-z0-z9-v2"
+    },
+    "tokyo-kanagawa": {
+      "manifestId": "local.tokyo-kanagawa-open-world",
+      "runtimeWorldId": "tokyo-kanagawa-world",
+      "artifactWorldId": "JP_TOKYO_KANAGAWA_MAINLAND",
+      "initialTileId": "JP_TOKYO_MAINLAND",
+      "storageNamespace": "tokyo-kanagawa",
+      "tileServerPort": 8800,
+      "basemapRevision": "tokyo-kanagawa-mainland-v2"
+    },
+    "ny-state": {
+      "manifestId": "local.ny-state-six-tile-canary",
+      "runtimeWorldId": "ny-state-six-tile",
+      "artifactWorldId": "NYS_NYC_SCALE_PROTOTYPE",
+      "initialTileId": "NY_CP00_RP00",
+      "storageNamespace": "ny-state-six-tile",
+      "tileServerPort": 8798,
+      "basemapRevision": "world-z0-z9-v2"
+    }
+  }
+}

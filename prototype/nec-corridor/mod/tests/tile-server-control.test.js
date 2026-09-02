@@ -79,6 +79,8 @@ test('requests a verified foreground stop through the installed-server controlle
     'Bypass',
     '-File',
     'workspace/start-tile-server.ps1',
+    '-Port',
+    '8799',
     '-Stop',
     '-ExpectedInstallRoot',
     'C:\\installed\\nec-corridor-open-world',
@@ -87,9 +89,9 @@ test('requests a verified foreground stop through the installed-server controlle
 });
 
 test('stops the tile server before replacing either installed directory', async () => {
-  const source = await readFile(new URL('../scripts/install-mod.mjs', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../../../../open-world-platform/src/installer/install-world-mod.js', import.meta.url), 'utf8');
   const stopIndex = source.indexOf('await stopTileServer(');
-  const replaceModIndex = source.indexOf('await rm(targetPath');
+  const replaceModIndex = source.indexOf('await rm(targets.targetPath');
   const replaceCityIndex = source.indexOf('await rm(cityTargetPath');
 
   assert.ok(stopIndex >= 0, 'installer must request tile-server shutdown');

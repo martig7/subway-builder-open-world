@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
+import { startOpenWorld } from '../../../../open-world-platform/src/runtime/start-open-world.js';
+import definition from '../../../../worlds/tokyo-kanagawa/world.json' with { type: 'json' };
+import catalogSource from '../../../../worlds/tokyo-kanagawa/geography/tile-views.json' with { type: 'json' };
+import boundaryOverlay from '../../../../worlds/tokyo-kanagawa/geography/world-boundary-overlay.json' with { type: 'json' };
 
 function memoryStorage() {
   const values = new Map();
@@ -176,7 +180,15 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
   console.info = () => {};
   console.log = () => {};
   try {
-    await import(`../src/game-entry.js?autosave-finance-isolation=${Date.now()}`);
+    startOpenWorld({
+      definition,
+      catalogSource,
+      boundaryOverlay,
+      artifacts: {
+        commuteCatalog: globalThis.__TOKYO_KANAGAWA_CROSS_COMMUTE_CATALOG__,
+        crossDemandGzipBase64: globalThis.__TOKYO_KANAGAWA_CROSS_DEMAND_GZIP_BASE64__,
+      },
+    });
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__?.saveAuthorityVersion, 'native-save-authority-v1');
     assert.deepEqual(counters.unregisteredComponents.slice(0, 3), [
       ['top-bar', 'nec-corridor-world-saves'],

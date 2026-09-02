@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   boundsPolygon, catalogBounds, fitBoundsView, lonLatToWorld, panView, projectCoordinate, unprojectPoint,
   visibleSlippyGrid, worldToLonLat, zoomViewAt,
-} from '../src/tile-map-model.js';
+} from '../../../../open-world-platform/src/runtime/tile-map-model.js';
 
 const viewport = { width: 344, height: 230 };
 const limits = { minZoom: 8, maxZoom: 15 };

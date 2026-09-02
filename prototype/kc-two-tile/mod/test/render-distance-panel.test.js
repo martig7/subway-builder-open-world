@@ -5,7 +5,7 @@ import {
   RenderDistancePanel,
   registerRenderDistanceToolbar,
   renderDistanceLabel,
-} from '../src/ui/render-distance-panel.js';
+} from '../../../../open-world-platform/src/runtime/ui/render-distance-panel.js';
 
 function findElement(node, type) {
   if (node?.type === type) return node;

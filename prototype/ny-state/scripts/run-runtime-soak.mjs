@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertRuntimeModel, createRuntimeModel, reduceRuntimeModel } from '../runtime/world-runtime-model.js';
-import { WorldTileRuntime } from '../../kc-two-tile/mod/src/world-tile-runtime.js';
-import { FakeGameAdapter } from '../../kc-two-tile/mod/src/adapters/fake-game-adapter.js';
-import { MemoryTilePackageAdapter } from '../../kc-two-tile/mod/src/adapters/memory-tile-package-adapter.js';
-import { ModStorageWorldStateAdapter } from '../../kc-two-tile/mod/src/adapters/mod-storage-world-state-adapter.js';
+import { WorldTileRuntime } from '../../../open-world-platform/src/runtime/world-tile-runtime.js';
+import { FakeGameAdapter } from '../../../open-world-platform/src/runtime/adapters/fake-game-adapter.js';
+import { MemoryTilePackageAdapter } from '../../../open-world-platform/src/runtime/adapters/memory-tile-package-adapter.js';
+import { ModStorageWorldStateAdapter } from '../../../open-world-platform/src/runtime/adapters/mod-storage-world-state-adapter.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = JSON.parse(fs.readFileSync(path.join(root, 'generated/fixtures/runtime-fixtures.json'), 'utf8'));

@@ -1,0 +1,16 @@
+{
+  "name": "open-world-platform",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\" \"../prototype/kc-two-tile/mod/test/*.test.js\"",
+    "validate:worlds": "node cli/ow-mod.mjs validate --all"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

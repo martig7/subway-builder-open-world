@@ -1,0 +1,2458 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-08-25T17:31:41.5175823Z",
+  "purpose": "Inputs for a synthetic building-level OD model. Observed ODs remain municipality-to-municipality; mesh data are allocation constraints.",
+  "observedFlow": {
+    "dataset": "2020 Census Table 6-1: municipality origin/destination, commuting plus schooling",
+    "geography": "Usual-residence municipality to workplace/school municipality",
+    "sourceUrl": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=0&statInfId=000032214472"
+  },
+  "products": [
+    {
+      "id": "census_2020_municipality_od_combined",
+      "title": "2020 Census Table 6-1: municipality origin/destination, commuting plus schooling",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=0&statInfId=000032214472",
+      "file": "2020-census-table-6-1-municipality-od-combined.xlsx"
+    },
+    {
+      "id": "census_2020_250m_origin_marginals",
+      "title": "2020 Census 250m mesh: population movement, employment status, and workplace/schoolplace",
+      "catalogUrl": "https://www.e-stat.go.jp/gis/statmap-search?aggregateUnit=Q&page=1&serveyId=Q002005112020&statsId=T001109&toukeiCode=00200521&toukeiYear=2020&type=1",
+      "statsId": "T001109",
+      "directory": "2020-census-250m-origin-marginals"
+    },
+    {
+      "id": "economic_census_2021_500m_destination_capacity",
+      "title": "2021 Economic Census 500m mesh: establishment and employee counts by industry",
+      "catalogUrl": "https://www.e-stat.go.jp/gis/statmap-search?aggregateUnit=H&datum=2011&page=1&serveyId=H002005112021&statsId=T001162&toukeiCode=00200553&toukeiYear=2021&type=1",
+      "statsId": "T001162",
+      "directory": "2021-economic-census-500m-destination-capacity"
+    }
+  ],
+  "files": [
+    {
+      "productId": "census_2020_municipality_od_combined",
+      "code": "",
+      "file": "2020-census-table-6-1-municipality-od-combined.xlsx",
+      "bytes": 13079538,
+      "sha256": "7e6d7ac449f41e6f583822892d960cf883e2b6248d563e70da5b357d435ffefd",
+      "sourceUrl": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=0&statInfId=000032214472"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3622",
+      "file": "census_2020_250m_origin_marginals-M3622.zip",
+      "bytes": 2288,
+      "sha256": "422187fb99dcd091644d5a9972bb48c42cc328a47d17f78806094e48e086128a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3622&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3623",
+      "file": "census_2020_250m_origin_marginals-M3623.zip",
+      "bytes": 6783,
+      "sha256": "facad5ac7630f3fe7771b31e15124c08927cb8acc4c35aa7342502212e8516a3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3623&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3624",
+      "file": "census_2020_250m_origin_marginals-M3624.zip",
+      "bytes": 25033,
+      "sha256": "2597460a8ce813e6ddb1f75a3babd4a775bffc862cfa50b6476aa5116a67d3ae",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3624&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3653",
+      "file": "census_2020_250m_origin_marginals-M3653.zip",
+      "bytes": 1216,
+      "sha256": "d39f5f7feccd6ba5c3e0196ce7ab2a3649a2c83a00ef0a01b77502ab39152eca",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3653&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3724",
+      "file": "census_2020_250m_origin_marginals-M3724.zip",
+      "bytes": 2086,
+      "sha256": "7d9aae2424baade26a8df002d4a2a215489b98ea96af127a0dfe4d0301596457",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3724&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3725",
+      "file": "census_2020_250m_origin_marginals-M3725.zip",
+      "bytes": 39594,
+      "sha256": "9e7f3201ee629c271aa2c8f0e31acc8d0cd7b3de46c6e325a3321a7de0ed2d64",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3725&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3741",
+      "file": "census_2020_250m_origin_marginals-M3741.zip",
+      "bytes": 1272,
+      "sha256": "9855b4dec016b2ca8c5ec4e7cf2e1a89f5d7b120ce033af329b720469b7d77dd",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3741&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3831",
+      "file": "census_2020_250m_origin_marginals-M3831.zip",
+      "bytes": 5026,
+      "sha256": "97dbdbc5dcf7135b2a9f700be04ba05abd23356f27d3222d408a1f1a655774c3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3831&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3926",
+      "file": "census_2020_250m_origin_marginals-M3926.zip",
+      "bytes": 8857,
+      "sha256": "3644ca69fb9c44a3f2b8208dfc18281e7df246397cdba67bf27c9127115399c3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3926&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3927",
+      "file": "census_2020_250m_origin_marginals-M3927.zip",
+      "bytes": 366111,
+      "sha256": "36defd6d7d340efcc414d6fcde378483eccabe04c20fa5423a7fd32c3c687c3f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3927&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3928",
+      "file": "census_2020_250m_origin_marginals-M3928.zip",
+      "bytes": 16707,
+      "sha256": "8694c566ba36e0af8ba20143df99567d739c960f9744cdd52e3ed0b1e420a86e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3928&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "3942",
+      "file": "census_2020_250m_origin_marginals-M3942.zip",
+      "bytes": 1717,
+      "sha256": "bd74e7203242214e477c5490a87ff1f56bcad6f7ec15369f45a20e355f1401ac",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=3942&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4027",
+      "file": "census_2020_250m_origin_marginals-M4027.zip",
+      "bytes": 23163,
+      "sha256": "6b6f2a7e4f809ad5f0e3ce83942a2bd827a5567b23fa4d2074caf7abb2db6c86",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4027&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4028",
+      "file": "census_2020_250m_origin_marginals-M4028.zip",
+      "bytes": 20336,
+      "sha256": "6f8c67feea54b3a76d2d3c877a237c461fef49f04711f56276a02a0071dce185",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4028&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4042",
+      "file": "census_2020_250m_origin_marginals-M4042.zip",
+      "bytes": 3317,
+      "sha256": "4211b9a78fd8870aaef09f9d02cd63ede0f164ffbb06e5b2c2021f0d76a7f2f7",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4042&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4128",
+      "file": "census_2020_250m_origin_marginals-M4128.zip",
+      "bytes": 37112,
+      "sha256": "b083df57d5bf208c63671c58a427fcc00a2b063f55846ca7423964cd3306b8b8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4128&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4129",
+      "file": "census_2020_250m_origin_marginals-M4129.zip",
+      "bytes": 7251,
+      "sha256": "ba91d40eba86ca15ec1ce1526d757bb04e7b7b927320163b323dbf612fd5091c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4129&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4229",
+      "file": "census_2020_250m_origin_marginals-M4229.zip",
+      "bytes": 50119,
+      "sha256": "1033d91b2f60cc35c5935f359a1d4ababf466ffd77b7095f64439c7d9535b5f0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4229&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4230",
+      "file": "census_2020_250m_origin_marginals-M4230.zip",
+      "bytes": 2952,
+      "sha256": "8222c99cae88345e781834bcf8095916fd77b5ef6f935ae307fd23dd290dc3aa",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4230&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4329",
+      "file": "census_2020_250m_origin_marginals-M4329.zip",
+      "bytes": 1558,
+      "sha256": "1824566f39d96bd2da3690b07492b938870dfc6236e18baa5f8bee803ec93e5e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4329&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4429",
+      "file": "census_2020_250m_origin_marginals-M4429.zip",
+      "bytes": 2478,
+      "sha256": "b24caa99e0400a16969000a061f8cffa84d7cfed982f0f1eb40d3a452c1ce916",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4429&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4530",
+      "file": "census_2020_250m_origin_marginals-M4530.zip",
+      "bytes": 43333,
+      "sha256": "c93183a5172c329f5dfcb9e020b2ca6ac65b77cf27fa6cd0f32ad5ea48fdcf78",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4530&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4531",
+      "file": "census_2020_250m_origin_marginals-M4531.zip",
+      "bytes": 3502,
+      "sha256": "cf636683b521b8afb53f7463f2d477537d9f425ed3342443fafb3b829fea3928",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4531&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4629",
+      "file": "census_2020_250m_origin_marginals-M4629.zip",
+      "bytes": 1633,
+      "sha256": "c2ffc36491a975cf7699ab47f17b97b376b498465247e21ad1fc2909f86e726a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4629&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4630",
+      "file": "census_2020_250m_origin_marginals-M4630.zip",
+      "bytes": 117965,
+      "sha256": "acfaa7f588b80ea7b5f02e0d68ae67f3ceca93d2eda39f8cc4d0dc3b868b132c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4630&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4631",
+      "file": "census_2020_250m_origin_marginals-M4631.zip",
+      "bytes": 17117,
+      "sha256": "3fcd4139215730896ae6b00934877e1ea022c0e15b4fb5852bd9338fe966bcc5",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4631&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4729",
+      "file": "census_2020_250m_origin_marginals-M4729.zip",
+      "bytes": 6734,
+      "sha256": "1a5a448d2599524a2f02fec5ffd6a5effdcf66e6fc1635308509f27a3f15729b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4729&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4730",
+      "file": "census_2020_250m_origin_marginals-M4730.zip",
+      "bytes": 791264,
+      "sha256": "bc6eef8b850332dca6b1bd0a5114da9733fca27b13f1111440af3c1888d8d588",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4730&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4731",
+      "file": "census_2020_250m_origin_marginals-M4731.zip",
+      "bytes": 461945,
+      "sha256": "f3d1fd4bdc7b5c7089cb46bc502821bce6f3c0837e3c6db60a4ea3a53af9c2f5",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4731&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4828",
+      "file": "census_2020_250m_origin_marginals-M4828.zip",
+      "bytes": 11920,
+      "sha256": "9511d8c2e529b4ee55b229b3376cf4f7f76e3b808e18edb6b2c1b265c69e5d70",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4828&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4829",
+      "file": "census_2020_250m_origin_marginals-M4829.zip",
+      "bytes": 16494,
+      "sha256": "d31cea1ca730195832f97ff57e7e8e5b9727afcb4f13dc1c9e98889fec4d69f8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4829&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4830",
+      "file": "census_2020_250m_origin_marginals-M4830.zip",
+      "bytes": 625457,
+      "sha256": "53fe2d41ecc6d3590e29e633ed487acb6718bf93c54cb77cd9483cf4ded5bac9",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4830&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4831",
+      "file": "census_2020_250m_origin_marginals-M4831.zip",
+      "bytes": 298513,
+      "sha256": "fd3cff4ab260ff60fca3384e07ba298808da2ef0486b635afd22c12304c1e17c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4831&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4839",
+      "file": "census_2020_250m_origin_marginals-M4839.zip",
+      "bytes": 1571,
+      "sha256": "64412e1f8b32d30eba060b9d8b8fdeb57a949cabaefc073d7f8129543e7e3119",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4839&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4928",
+      "file": "census_2020_250m_origin_marginals-M4928.zip",
+      "bytes": 30777,
+      "sha256": "145cc57ee379cc6489cd9a4947aaa86ff6c399be2f520075b09fb0f644a6d0a3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4928&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4929",
+      "file": "census_2020_250m_origin_marginals-M4929.zip",
+      "bytes": 575674,
+      "sha256": "cfeecbfab101a088d0c6b198d3726c97d40d715ae872f98c1e4578eef1d5c11b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4929&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4930",
+      "file": "census_2020_250m_origin_marginals-M4930.zip",
+      "bytes": 1561390,
+      "sha256": "820a83ee5465a0266db064bcb5af11f5ae1a1720149b71bf277418472c8fae90",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4930&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4931",
+      "file": "census_2020_250m_origin_marginals-M4931.zip",
+      "bytes": 614714,
+      "sha256": "6ec9691a136e853864708695b50e3a73ed624fc3128175fd89d3b2d6ede54b64",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4931&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4932",
+      "file": "census_2020_250m_origin_marginals-M4932.zip",
+      "bytes": 200849,
+      "sha256": "c0b92bba0417a58fdf58f550d3e66301294b0e9f407867b126afcd82187c9ffa",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4932&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4933",
+      "file": "census_2020_250m_origin_marginals-M4933.zip",
+      "bytes": 39413,
+      "sha256": "ef1f47e696f8caccbebb8da09ff0e295112cbd8b2fbcb0037d260d4ea5a79388",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4933&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4934",
+      "file": "census_2020_250m_origin_marginals-M4934.zip",
+      "bytes": 9418,
+      "sha256": "4bdc5dcb52056be554c7ba6ba0875b639476af995a914079baeb0434bbdc8793",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4934&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "4939",
+      "file": "census_2020_250m_origin_marginals-M4939.zip",
+      "bytes": 10576,
+      "sha256": "81447faeafcd92709268ef4715200e31c75029b6a88ffc73667f56bc4ea90304",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=4939&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5029",
+      "file": "census_2020_250m_origin_marginals-M5029.zip",
+      "bytes": 163955,
+      "sha256": "264d30d3e3c935c5d3018b1006a42ccc4d967ce13447048296a79ba36b57f026",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5029&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5030",
+      "file": "census_2020_250m_origin_marginals-M5030.zip",
+      "bytes": 1582851,
+      "sha256": "9daf19bb6abc270afd716e64ddcc9b3531bc13ac685223ac77d897ea23e2c234",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5030&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5031",
+      "file": "census_2020_250m_origin_marginals-M5031.zip",
+      "bytes": 440043,
+      "sha256": "8b61ded6bb8d25c456b68bc94adf42fa8f3665abdc250fbd4852d5648ba99645",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5031&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5032",
+      "file": "census_2020_250m_origin_marginals-M5032.zip",
+      "bytes": 483544,
+      "sha256": "d0df59eb1fde8618ace58dbc3bb7fa4425a54e359e4fb2357ec720c015af3112",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5032&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5033",
+      "file": "census_2020_250m_origin_marginals-M5033.zip",
+      "bytes": 556263,
+      "sha256": "68f7fe84666b1661af3e336709c5818f7cb4beaad3622937ffc20003b275eeeb",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5033&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5034",
+      "file": "census_2020_250m_origin_marginals-M5034.zip",
+      "bytes": 169067,
+      "sha256": "e2c66857fcefc084468f43838562f333c2c03655deebb14bfa728dc8d3c3837d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5034&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5035",
+      "file": "census_2020_250m_origin_marginals-M5035.zip",
+      "bytes": 237419,
+      "sha256": "db1d57cf40e7209036d33ac6a61b3b115901829613d553673d16b76ef5809701",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5035&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5036",
+      "file": "census_2020_250m_origin_marginals-M5036.zip",
+      "bytes": 33891,
+      "sha256": "8a89194336d7ccdfa6886a753408e6772a9d98477bdbc48addcbb5a81944753e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5036&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5039",
+      "file": "census_2020_250m_origin_marginals-M5039.zip",
+      "bytes": 1620,
+      "sha256": "d71e5364bd5a46d6d0a7b71ca83000666d66fe5394cc6d14f3040abbe3c0b413",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5039&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5129",
+      "file": "census_2020_250m_origin_marginals-M5129.zip",
+      "bytes": 35527,
+      "sha256": "dacc9dfac5e9b32af9e524dffe2414f44827fa3d970ece50ddb10d22c30bdfe3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5129&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5130",
+      "file": "census_2020_250m_origin_marginals-M5130.zip",
+      "bytes": 69374,
+      "sha256": "f26f0491c83c7726d6716c84b4f15d6c283d89688f18da17fc28046fd5be7a98",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5130&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5131",
+      "file": "census_2020_250m_origin_marginals-M5131.zip",
+      "bytes": 557686,
+      "sha256": "572748618141b6456a76341d67f5462c6e9d965f8acaea4ceb9ce61d491628bc",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5131&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5132",
+      "file": "census_2020_250m_origin_marginals-M5132.zip",
+      "bytes": 942118,
+      "sha256": "1f24b2ea9cd1b674d4d6669b7e00a072aa2fa488082d9f2a353d226c6b9213c4",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5132&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5133",
+      "file": "census_2020_250m_origin_marginals-M5133.zip",
+      "bytes": 1349734,
+      "sha256": "550231afd4920ed908481f3128627e6f76767f88938159b94bfffe3a86cde629",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5133&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5134",
+      "file": "census_2020_250m_origin_marginals-M5134.zip",
+      "bytes": 832804,
+      "sha256": "884afa06961dbe11631078df428f324297766d2353fcb8e3138b058b707d3b95",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5134&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5135",
+      "file": "census_2020_250m_origin_marginals-M5135.zip",
+      "bytes": 1648337,
+      "sha256": "5b3d4192bacc514bd7d9e6b9929826318e4088ade3355e79d4734c44223b407a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5135&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5136",
+      "file": "census_2020_250m_origin_marginals-M5136.zip",
+      "bytes": 436226,
+      "sha256": "88b5b52c91d5335743268664165fa1398c8e4f0c30ea0633446351154a62fcf8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5136&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5137",
+      "file": "census_2020_250m_origin_marginals-M5137.zip",
+      "bytes": 45563,
+      "sha256": "0ee6f932d61ea05408bb00421ac4679333c56027803f124b76648fa8413ccb8d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5137&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5138",
+      "file": "census_2020_250m_origin_marginals-M5138.zip",
+      "bytes": 45328,
+      "sha256": "830b927be32476b0b48c8f7102b433be03ce3ad55b441d7b0d143a940fbc0eef",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5138&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5139",
+      "file": "census_2020_250m_origin_marginals-M5139.zip",
+      "bytes": 9863,
+      "sha256": "468eb77fecf7ccfcbeeb25bf78e18ea3e47799eee47ecc4bf04d7bc652ae2c9c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5139&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5229",
+      "file": "census_2020_250m_origin_marginals-M5229.zip",
+      "bytes": 2981,
+      "sha256": "d2f3b68c5ede444ad4ebe74e5be7d34ed2f6c6cc686c52fd15c434695a847426",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5229&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5231",
+      "file": "census_2020_250m_origin_marginals-M5231.zip",
+      "bytes": 39415,
+      "sha256": "a22abf674c8aabe0593ff64d9990e676fe0d6d9dbe418dc49ec9f954006bb873",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5231&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5232",
+      "file": "census_2020_250m_origin_marginals-M5232.zip",
+      "bytes": 382255,
+      "sha256": "683d5beb581a8706b242c8e6f5066844511c09b43086505322ebe3418385b0e3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5232&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5233",
+      "file": "census_2020_250m_origin_marginals-M5233.zip",
+      "bytes": 556849,
+      "sha256": "9371350c254d4915a7d9e5d94df8cf1da2ef956f90226e24a2d7808f4dbd81b4",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5233&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5234",
+      "file": "census_2020_250m_origin_marginals-M5234.zip",
+      "bytes": 1120282,
+      "sha256": "6934d48a650bd91b43a7da660f822e2576470644cd571a0960029542c0e21338",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5234&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5235",
+      "file": "census_2020_250m_origin_marginals-M5235.zip",
+      "bytes": 2352448,
+      "sha256": "3bcaf4a54b2fe3258e1863e83a665ae853adacd9efaf1ba550987c5d51809295",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5235&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5236",
+      "file": "census_2020_250m_origin_marginals-M5236.zip",
+      "bytes": 2222721,
+      "sha256": "1822eb73ad8092f617fb3aff683a5cc731b658c18c9c0416c6042834b46d938f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5236&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5237",
+      "file": "census_2020_250m_origin_marginals-M5237.zip",
+      "bytes": 1826582,
+      "sha256": "d2f6ead9abc3780e757bdec3a100a236010c3fff28349ce71851c5161a15e5a1",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5237&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5238",
+      "file": "census_2020_250m_origin_marginals-M5238.zip",
+      "bytes": 1043632,
+      "sha256": "09513808ee91a9b723a82f0d2c3e9eefa3191c9b8c7ba134aaf7e8233effb25c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5238&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5239",
+      "file": "census_2020_250m_origin_marginals-M5239.zip",
+      "bytes": 612949,
+      "sha256": "4574884ee0066816f1745657ba4e8b80c274bb564528ee014a75d4e1f63fcc16",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5239&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5240",
+      "file": "census_2020_250m_origin_marginals-M5240.zip",
+      "bytes": 149614,
+      "sha256": "64d658f87bd42ab73c6730313d63db79d0851fab923f6757acbc21296f1deaa0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5240&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5332",
+      "file": "census_2020_250m_origin_marginals-M5332.zip",
+      "bytes": 150777,
+      "sha256": "ea20284c51b2c71d7e95e332b4f2e536b21319992a8d18cabacfed9c136960c0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5332&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5333",
+      "file": "census_2020_250m_origin_marginals-M5333.zip",
+      "bytes": 357948,
+      "sha256": "53207816d74794e567ee46e21aa118caa46b88bc1c157aa59bc08d3d83e6e523",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5333&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5334",
+      "file": "census_2020_250m_origin_marginals-M5334.zip",
+      "bytes": 277301,
+      "sha256": "ff3ef1788fc743c587bafe6de149af4b944ae8e0212b9d609ccdf30ed0a5d89f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5334&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5335",
+      "file": "census_2020_250m_origin_marginals-M5335.zip",
+      "bytes": 236769,
+      "sha256": "5c6363737dfffa817f5c52a020c3c661b591086d819532091e98428940c3d77e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5335&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5336",
+      "file": "census_2020_250m_origin_marginals-M5336.zip",
+      "bytes": 1029958,
+      "sha256": "40c9b8193f39263330c03b5227d8e93dbf313cdb7cf3100e4334525f95b3c0a4",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5336&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5337",
+      "file": "census_2020_250m_origin_marginals-M5337.zip",
+      "bytes": 723738,
+      "sha256": "64b9576ed1d40889bb6a61c4c6fa49a2d3929ad4fa44b60f7b2a04428d729d16",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5337&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5338",
+      "file": "census_2020_250m_origin_marginals-M5338.zip",
+      "bytes": 634298,
+      "sha256": "860b00c78c23e52c3c8c304a5613faa151e03b9b42cb5000d5e05a064a24ff6a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5338&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5339",
+      "file": "census_2020_250m_origin_marginals-M5339.zip",
+      "bytes": 4913636,
+      "sha256": "a31d6bc282a898301a6be41711f91f68bc5f2992629113fb89195561539efc1e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5339&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5340",
+      "file": "census_2020_250m_origin_marginals-M5340.zip",
+      "bytes": 1822378,
+      "sha256": "60e0b5537184066eaca2ff6c914c0fe26ab5a9eaca23330dc2d1b220f7e6a904",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5340&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5432",
+      "file": "census_2020_250m_origin_marginals-M5432.zip",
+      "bytes": 2665,
+      "sha256": "639ff3d755ceba0e6a8c941dd679ce347bccb34e02de425bfdf4d5732db4e9d8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5432&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5433",
+      "file": "census_2020_250m_origin_marginals-M5433.zip",
+      "bytes": 25526,
+      "sha256": "29571e677d720545682e3a8046f9816b2ff03371c34418efc3336b24ac5f8a38",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5433&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5435",
+      "file": "census_2020_250m_origin_marginals-M5435.zip",
+      "bytes": 1570,
+      "sha256": "719bcf9a9941332d671d7360194ca94a9809fb984e180e1c8c901ae59c81555e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5435&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5436",
+      "file": "census_2020_250m_origin_marginals-M5436.zip",
+      "bytes": 745042,
+      "sha256": "065e3938cd70519813c923e934de2cbbd1ccc132b0dc29eff924bdcb5a72abb8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5436&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5437",
+      "file": "census_2020_250m_origin_marginals-M5437.zip",
+      "bytes": 545870,
+      "sha256": "c859a832df0cc263ff5c6adc4f031afb94932c2954393dd566f8b79ab9718e59",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5437&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5438",
+      "file": "census_2020_250m_origin_marginals-M5438.zip",
+      "bytes": 981898,
+      "sha256": "8f0708ab277fd18385077599861cd4d474dcffe7dfb02cd462001af8d71ddc57",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5438&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5439",
+      "file": "census_2020_250m_origin_marginals-M5439.zip",
+      "bytes": 2944438,
+      "sha256": "1f7661badcab8af7fb795046322317fef1e2d92cd7594e6d114fa5731793c999",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5439&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5440",
+      "file": "census_2020_250m_origin_marginals-M5440.zip",
+      "bytes": 1398736,
+      "sha256": "bb6970d7c385feb70c43fe9034135256fa0c1676e54bc52a793f433c8fb6906e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5440&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5536",
+      "file": "census_2020_250m_origin_marginals-M5536.zip",
+      "bytes": 279593,
+      "sha256": "86a213c08da2030484f181abafb3deec1fbda3410e59d88d55dd637fbe62fb94",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5536&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5537",
+      "file": "census_2020_250m_origin_marginals-M5537.zip",
+      "bytes": 445758,
+      "sha256": "6725fc070b0b9f9c0e9f3d2c6b7c82d142a76a2be99127fe80c476c785e747ff",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5537&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5538",
+      "file": "census_2020_250m_origin_marginals-M5538.zip",
+      "bytes": 565839,
+      "sha256": "163c84015fe72fdaf70242e6dd5608da68e06c4466748fcb8dc27ebb9d2c4419",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5538&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5539",
+      "file": "census_2020_250m_origin_marginals-M5539.zip",
+      "bytes": 296000,
+      "sha256": "fd940180e5bcdf7607abede01921f17098a9e7d7eebe6fd8b9eb418450488ac6",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5539&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5540",
+      "file": "census_2020_250m_origin_marginals-M5540.zip",
+      "bytes": 856237,
+      "sha256": "f7a8d42e86ff69cf07884cd3f501a208745827a20179798f107480413d5303fc",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5540&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5541",
+      "file": "census_2020_250m_origin_marginals-M5541.zip",
+      "bytes": 6118,
+      "sha256": "d36ded08fe78f2df37529e6db31b6634f0c40e1f9954ce7391375d6b4b4ce000",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5541&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5636",
+      "file": "census_2020_250m_origin_marginals-M5636.zip",
+      "bytes": 15912,
+      "sha256": "b633940a624c23d9202f291721d90679bacd88b71747ad15e65ec07533f91156",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5636&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5637",
+      "file": "census_2020_250m_origin_marginals-M5637.zip",
+      "bytes": 37719,
+      "sha256": "05100923177cecfc52cc11127a5168e96877ffa6bce5f2153e8e15d59691efc9",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5637&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5638",
+      "file": "census_2020_250m_origin_marginals-M5638.zip",
+      "bytes": 447722,
+      "sha256": "8d9a1762b31cb928727adf58234e6f443b9bfe93a527299192e02f3de073b796",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5638&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5639",
+      "file": "census_2020_250m_origin_marginals-M5639.zip",
+      "bytes": 613844,
+      "sha256": "a7a7f67ff1b60fdb5315480868f123fc776558e84fccadd8486c5ab241f6379d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5639&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5640",
+      "file": "census_2020_250m_origin_marginals-M5640.zip",
+      "bytes": 899262,
+      "sha256": "a50e5996750e862debf6d74d75faf3601d8fb708cc0a0b7b1ff512080431428f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5640&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5641",
+      "file": "census_2020_250m_origin_marginals-M5641.zip",
+      "bytes": 9049,
+      "sha256": "2fad91d1f4a897102b400597fbf5dc363b80b3f0b5e92be1ec5502b590d390ac",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5641&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5738",
+      "file": "census_2020_250m_origin_marginals-M5738.zip",
+      "bytes": 43405,
+      "sha256": "1bf4cc87280accdb1321a5dd23b0d4df0d883f427ad97ae3419495ed7466d3d4",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5738&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5739",
+      "file": "census_2020_250m_origin_marginals-M5739.zip",
+      "bytes": 132044,
+      "sha256": "83cf4bdda8828c170b99971dbd5ac72afb02b45312ed9793b189108a36ccd435",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5739&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5740",
+      "file": "census_2020_250m_origin_marginals-M5740.zip",
+      "bytes": 1072024,
+      "sha256": "871ded4449b4c58ded76de674f06ef820854d9d545777f281e9aee40e8469f3b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5740&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5741",
+      "file": "census_2020_250m_origin_marginals-M5741.zip",
+      "bytes": 308180,
+      "sha256": "972f3614774c849afb9a6e43fb7195b4b7f357ad56d4b77138924ce8c42a8aa7",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5741&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5839",
+      "file": "census_2020_250m_origin_marginals-M5839.zip",
+      "bytes": 197593,
+      "sha256": "6e286978c786525fd2801f866cb940bfc84fefa115ea5725a144834205ae5246",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5839&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5840",
+      "file": "census_2020_250m_origin_marginals-M5840.zip",
+      "bytes": 321372,
+      "sha256": "273820520d71a2739f2968cbc042f27adce6e3723eec4697a6894f14b34b409c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5840&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5841",
+      "file": "census_2020_250m_origin_marginals-M5841.zip",
+      "bytes": 701313,
+      "sha256": "b5722f224849ddb35a1cd00dbf5430c35bfce1ab7ae82c91c780d8c7880a1d61",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5841&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5939",
+      "file": "census_2020_250m_origin_marginals-M5939.zip",
+      "bytes": 32187,
+      "sha256": "59c630fe7789ede181e0fa7ec11ac23efbe876c4f211efb1153402104a89541f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5939&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5940",
+      "file": "census_2020_250m_origin_marginals-M5940.zip",
+      "bytes": 444328,
+      "sha256": "805e27f5e650b820c071a63cc3f4b22bc422ba08728df08d79c4e9fafaa7e12c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5940&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5941",
+      "file": "census_2020_250m_origin_marginals-M5941.zip",
+      "bytes": 509644,
+      "sha256": "d91fa39e6b3da96fe189f4685aa70b63cb377d68c25a667037120bb54ffdf83a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5941&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "5942",
+      "file": "census_2020_250m_origin_marginals-M5942.zip",
+      "bytes": 4568,
+      "sha256": "b9bc5c383f5377ed3748d50719814dd19ee6dd658d54fc31ec8e33391af0c4e2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=5942&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6039",
+      "file": "census_2020_250m_origin_marginals-M6039.zip",
+      "bytes": 15397,
+      "sha256": "5343f3a5207582a2fb37ccb4a838381c631db5ea28b13a56f8539dd889e2e7a8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6039&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6040",
+      "file": "census_2020_250m_origin_marginals-M6040.zip",
+      "bytes": 350495,
+      "sha256": "4944ac89796069c20f45ecc81f7e293d284fd66cf5d08b5538686c8ffa3cab8b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6040&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6041",
+      "file": "census_2020_250m_origin_marginals-M6041.zip",
+      "bytes": 432168,
+      "sha256": "d6b313e578e7200e9b1d31dc53586cd3ee4050caf4f9302afd4f31d64c31cb4a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6041&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6139",
+      "file": "census_2020_250m_origin_marginals-M6139.zip",
+      "bytes": 2546,
+      "sha256": "952347d359cdc49c19fe53f43ad7cd6d263c4fd8ef3f8544c93814252724afee",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6139&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6140",
+      "file": "census_2020_250m_origin_marginals-M6140.zip",
+      "bytes": 284096,
+      "sha256": "c289606a5762c1bae1e681760369272af4a745d16d236ce175d84bdf29cbe62f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6140&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6141",
+      "file": "census_2020_250m_origin_marginals-M6141.zip",
+      "bytes": 137097,
+      "sha256": "967b486ec49976abdce03db63e6cd4ca90b4fd6a7b4acea0d442ec2bea7515cc",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6141&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6239",
+      "file": "census_2020_250m_origin_marginals-M6239.zip",
+      "bytes": 2597,
+      "sha256": "e92d074010658a2a224135d34d57b53cdaef6e50e479d9111e55d4ac70540084",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6239&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6240",
+      "file": "census_2020_250m_origin_marginals-M6240.zip",
+      "bytes": 188886,
+      "sha256": "d38fac1c4ec0982cc4fe0f04255e3f871e0f7a8312b1b11a6a44cd3da8311bb6",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6240&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6241",
+      "file": "census_2020_250m_origin_marginals-M6241.zip",
+      "bytes": 20284,
+      "sha256": "47ae5b0b205323a3a85861ad718f4e0ae0584758adf90127bd076cc20332049c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6241&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6243",
+      "file": "census_2020_250m_origin_marginals-M6243.zip",
+      "bytes": 3375,
+      "sha256": "aa7a3e0d2ca219c7450b90728d43946b1cef7e34611cfb24a24a0273beac3797",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6243&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6339",
+      "file": "census_2020_250m_origin_marginals-M6339.zip",
+      "bytes": 20720,
+      "sha256": "383339b001dfa3fb122fcaee376a6b50a2a679272b90a36d5fc84fd4a3ef0204",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6339&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6340",
+      "file": "census_2020_250m_origin_marginals-M6340.zip",
+      "bytes": 114727,
+      "sha256": "9486eddb539547bb9ea9b48830967f9e30f0267dc8219fcec768f0ec45cce2ed",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6340&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6341",
+      "file": "census_2020_250m_origin_marginals-M6341.zip",
+      "bytes": 119804,
+      "sha256": "e7a0b0ed4c6630fa3161afe91243c93124f856aa3c907874d0f9b8227d80d2bf",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6341&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6342",
+      "file": "census_2020_250m_origin_marginals-M6342.zip",
+      "bytes": 78927,
+      "sha256": "ec788dbed24e05122f31776eac5e309ae1c0c53cd4b260c6c113f471c78a1a69",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6342&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6343",
+      "file": "census_2020_250m_origin_marginals-M6343.zip",
+      "bytes": 31491,
+      "sha256": "cc8365e89e0e6b1681ecd59f4197198538f7462a1f66b5f9d0756fa999d56e99",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6343&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6439",
+      "file": "census_2020_250m_origin_marginals-M6439.zip",
+      "bytes": 1699,
+      "sha256": "36a758bb9b039261e8babc0a5257f4981088b2e7a116c72e1cf6242c09bf54ea",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6439&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6440",
+      "file": "census_2020_250m_origin_marginals-M6440.zip",
+      "bytes": 127212,
+      "sha256": "f7023617b1b1095ca2a918b0aa4ec85b8d13c504df61df96401f6d606fe56900",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6440&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6441",
+      "file": "census_2020_250m_origin_marginals-M6441.zip",
+      "bytes": 792275,
+      "sha256": "1682acb3b3878fa340ad7073cde44d613e3354621525a9c283c6a4df62cd5584",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6441&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6442",
+      "file": "census_2020_250m_origin_marginals-M6442.zip",
+      "bytes": 62923,
+      "sha256": "11908d713ce6df138fbc1d64756a7293fed2dbd7de98639ceea6decdeb4476d2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6442&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6443",
+      "file": "census_2020_250m_origin_marginals-M6443.zip",
+      "bytes": 208322,
+      "sha256": "ae8d02ed570744d5b4c5d1738a6a85679fdf5d0637b1f9c33efa63a9b60e5893",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6443&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6444",
+      "file": "census_2020_250m_origin_marginals-M6444.zip",
+      "bytes": 112925,
+      "sha256": "089e523c4dd9f1b3925cda82052186e59a131475c36af860282bffa9acb6cd73",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6444&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6445",
+      "file": "census_2020_250m_origin_marginals-M6445.zip",
+      "bytes": 27873,
+      "sha256": "b44f5513a04fc6a2e341bee3008557563bd5123b33405ecfebc104ca70dd54fd",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6445&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6540",
+      "file": "census_2020_250m_origin_marginals-M6540.zip",
+      "bytes": 2165,
+      "sha256": "014cbf2f5c5d1d68d953fc0d2f377831e903748cbe1070a8d050522544c4c6d1",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6540&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6541",
+      "file": "census_2020_250m_origin_marginals-M6541.zip",
+      "bytes": 118729,
+      "sha256": "05f629dc1d33e4438cacbc4a9f82ab2fdf776821dda67728d4b405bf699ab511",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6541&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6542",
+      "file": "census_2020_250m_origin_marginals-M6542.zip",
+      "bytes": 284072,
+      "sha256": "b83994a5aaf4e0208276b7e4e477d96fb4cd8db8631b0958a13b57d8b3626799",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6542&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6543",
+      "file": "census_2020_250m_origin_marginals-M6543.zip",
+      "bytes": 95040,
+      "sha256": "56e7a96e158851df9c9db54b65c778ad288f368ea52c49af6678d10d426062fd",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6543&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6544",
+      "file": "census_2020_250m_origin_marginals-M6544.zip",
+      "bytes": 120275,
+      "sha256": "e057bf029883bf8e8fc3c3e224d322a4b8dab2c3134c4da61df7cb0fee9337a8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6544&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6545",
+      "file": "census_2020_250m_origin_marginals-M6545.zip",
+      "bytes": 33527,
+      "sha256": "970aeccbbbdd420cb41f800da082226e144a97d1d2e7d56699b4967b1827fe8b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6545&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6641",
+      "file": "census_2020_250m_origin_marginals-M6641.zip",
+      "bytes": 19117,
+      "sha256": "ed28e1cb105d8b2345b2f093c6dd5ad89cbf6f9c8402a64ab949d3c940ab7eb7",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6641&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6642",
+      "file": "census_2020_250m_origin_marginals-M6642.zip",
+      "bytes": 74734,
+      "sha256": "e9eeff8e51a99ceb9a9f3b65d4dcf9c7d8a302c89f5bd179617e84de2be2109d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6642&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6643",
+      "file": "census_2020_250m_origin_marginals-M6643.zip",
+      "bytes": 62713,
+      "sha256": "67ad2c0c5f874185f6f79e137f587084d79ecebe228134fc20cf920301ef1aee",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6643&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6644",
+      "file": "census_2020_250m_origin_marginals-M6644.zip",
+      "bytes": 21183,
+      "sha256": "5b0059f68e078b79b4e44f5f793195181dd2c9252a7933eca8638da7fac274c0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6644&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6645",
+      "file": "census_2020_250m_origin_marginals-M6645.zip",
+      "bytes": 6018,
+      "sha256": "9b343476b501f3f8a84bff15e3145c61560a8533a708b9dce9f2daad01096b26",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6645&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6741",
+      "file": "census_2020_250m_origin_marginals-M6741.zip",
+      "bytes": 28386,
+      "sha256": "e99e7904e6beaf5fc7da954c32fee111a7454bab2050a5d072f85f5b75187629",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6741&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6742",
+      "file": "census_2020_250m_origin_marginals-M6742.zip",
+      "bytes": 25530,
+      "sha256": "f37bca4345b1dd1621cb4c4be32b5c0ff896e507ad9831d19256d00d05d2857f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6742&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6840",
+      "file": "census_2020_250m_origin_marginals-M6840.zip",
+      "bytes": 1811,
+      "sha256": "7ed5c7f2fa6bef0152d04f3fc5868d322f7b2a791a6025db6b983e68ede05399",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6840&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6841",
+      "file": "census_2020_250m_origin_marginals-M6841.zip",
+      "bytes": 23329,
+      "sha256": "21ee77dbf867411bed7978a67591ddda2632eb92de546d1f7431720e6b5f48a0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6841&downloadType=2"
+    },
+    {
+      "productId": "census_2020_250m_origin_marginals",
+      "code": "6842",
+      "file": "census_2020_250m_origin_marginals-M6842.zip",
+      "bytes": 2899,
+      "sha256": "f2cb7c60f0dba1f4093546019d26eec90e69925e47d131282a8b0b36647a7a48",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001109&code=6842&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3622",
+      "file": "economic_census_2021_500m_destination_capacity-M3622.zip",
+      "bytes": 1088,
+      "sha256": "6229e3b21f0d008507264410b821436dc476c18c86d062aa6472cb58e171a2b7",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3622&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3623",
+      "file": "economic_census_2021_500m_destination_capacity-M3623.zip",
+      "bytes": 2731,
+      "sha256": "f99d376135c404e9102c59bf229dc86f6bc79fec44b68da307e69ecb20537a56",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3623&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3624",
+      "file": "economic_census_2021_500m_destination_capacity-M3624.zip",
+      "bytes": 6801,
+      "sha256": "fe03d72776a757eaac4e1703eff176b199127223fa13e4d8ea03588bbd1c6394",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3624&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3653",
+      "file": "economic_census_2021_500m_destination_capacity-M3653.zip",
+      "bytes": 732,
+      "sha256": "7734d5902969c21360f0fc7af69a67209ae41b8345c94d48ff66575ec86947e0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3653&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3724",
+      "file": "economic_census_2021_500m_destination_capacity-M3724.zip",
+      "bytes": 875,
+      "sha256": "22300f45aa7ad96595b92eaef234a7206df64015cf5f215a8e4feae1bc2c0531",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3724&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3725",
+      "file": "economic_census_2021_500m_destination_capacity-M3725.zip",
+      "bytes": 8642,
+      "sha256": "fdcb1c049f89c6f1bbdc8554d89edc37b67e98c2a3322c5fe557ca1b4e99944c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3725&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3741",
+      "file": "economic_census_2021_500m_destination_capacity-M3741.zip",
+      "bytes": 753,
+      "sha256": "12544ed121d92bcdf8c07a9276f6b9395d902070543c3988edb3929136cdbc72",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3741&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3831",
+      "file": "economic_census_2021_500m_destination_capacity-M3831.zip",
+      "bytes": 1452,
+      "sha256": "4feeee4c114b3791cb403361c391fb0cd93300ffc40c7a4cb8b013f89b34a60f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3831&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3926",
+      "file": "economic_census_2021_500m_destination_capacity-M3926.zip",
+      "bytes": 2582,
+      "sha256": "734663d0a26c7c407e4fdefba30dbf935513d9aaa4944338e001278d3d776fcb",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3926&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3927",
+      "file": "economic_census_2021_500m_destination_capacity-M3927.zip",
+      "bytes": 62744,
+      "sha256": "8cf509d47e36d3a89825d2077d769aa6614319e3c38066e59059b3033e8ce0e5",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3927&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3928",
+      "file": "economic_census_2021_500m_destination_capacity-M3928.zip",
+      "bytes": 4030,
+      "sha256": "2fcb8785ef5e8a9f4298c865998fdcf214de89710d877e22b5a3df4d3535c9b6",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3928&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "3942",
+      "file": "economic_census_2021_500m_destination_capacity-M3942.zip",
+      "bytes": 833,
+      "sha256": "5429dd17448eb8b89a6617cabf53c0dedc1efdb138de259b0c3e1b38f5a06cb9",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=3942&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4027",
+      "file": "economic_census_2021_500m_destination_capacity-M4027.zip",
+      "bytes": 4921,
+      "sha256": "4f33fe479895d7c2ffd7ab7bac51d60b3e6eb9771026b53019928d4043ddbcee",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4027&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4028",
+      "file": "economic_census_2021_500m_destination_capacity-M4028.zip",
+      "bytes": 4550,
+      "sha256": "6d9bb8e5dd2e601699d56e4e6702f05e3fce24724cbe3ad1fd24493c210f4414",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4028&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4042",
+      "file": "economic_census_2021_500m_destination_capacity-M4042.zip",
+      "bytes": 1415,
+      "sha256": "c0b6e4b6f358d1f463d69aa6ee4034d16a1a4f1d0f10390cb481504fba908cdf",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4042&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4128",
+      "file": "economic_census_2021_500m_destination_capacity-M4128.zip",
+      "bytes": 6571,
+      "sha256": "38ba8d3a5aa44071cf1f445a439ad1ee25a7f6e87fc7272b3f811d6357901d7c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4128&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4129",
+      "file": "economic_census_2021_500m_destination_capacity-M4129.zip",
+      "bytes": 1987,
+      "sha256": "4bd2f66baa97ce1d5134dbd4388f876b6a6ed32fa277b0139a4836b7bb9167bf",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4129&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4229",
+      "file": "economic_census_2021_500m_destination_capacity-M4229.zip",
+      "bytes": 11320,
+      "sha256": "e711ad0bdccaae7747c39df727d6dcdc8fb68d338e4996cf130488cb79b660b0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4229&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4230",
+      "file": "economic_census_2021_500m_destination_capacity-M4230.zip",
+      "bytes": 1086,
+      "sha256": "91eddc30c61670bf722911e593f303d3e311205aa530bd95be7ac6ddfc9e7b60",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4230&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4329",
+      "file": "economic_census_2021_500m_destination_capacity-M4329.zip",
+      "bytes": 827,
+      "sha256": "8c67076dfe6629bde8355420ce515fd4f56e0a6aeda2884a495a9d352cfa70a9",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4329&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4429",
+      "file": "economic_census_2021_500m_destination_capacity-M4429.zip",
+      "bytes": 1079,
+      "sha256": "4718f6bcf43c212700d59c56690e349e741a6b8ae511338a48be88ae3895ec47",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4429&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4530",
+      "file": "economic_census_2021_500m_destination_capacity-M4530.zip",
+      "bytes": 8012,
+      "sha256": "c41a5cf49d5cd0da54ef54efdbb4f526fde724d5100af5521297a45106c957f9",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4530&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4531",
+      "file": "economic_census_2021_500m_destination_capacity-M4531.zip",
+      "bytes": 999,
+      "sha256": "89c4b5fd160eabed00cdb42e49d8a25d9525f2621d1065f305429bca24696ac2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4531&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4629",
+      "file": "economic_census_2021_500m_destination_capacity-M4629.zip",
+      "bytes": 832,
+      "sha256": "98fa37856cf304c98f73974c73fdeaa791965b7c15c8b3bf1e612d1c24fe17bd",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4629&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4630",
+      "file": "economic_census_2021_500m_destination_capacity-M4630.zip",
+      "bytes": 20018,
+      "sha256": "f32cd8aa7a10e8c647ae73d98bc812b4f5f52e9b1057cf8bb27af9b90ca257ab",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4630&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4631",
+      "file": "economic_census_2021_500m_destination_capacity-M4631.zip",
+      "bytes": 2713,
+      "sha256": "13b103168cc5c8065f7c2c16d0a4627efc79a7211c6d387698006f04d304d72e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4631&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4729",
+      "file": "economic_census_2021_500m_destination_capacity-M4729.zip",
+      "bytes": 2021,
+      "sha256": "17d2fe11463a5c100a10cc21403a4d9e12832cd64047a15365f964cc19d7d9fd",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4729&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4730",
+      "file": "economic_census_2021_500m_destination_capacity-M4730.zip",
+      "bytes": 117333,
+      "sha256": "4ec04f15b5cf8098e5126aff1755f9b9d237a8f6c8579d973693851dce08ff1a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4730&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4731",
+      "file": "economic_census_2021_500m_destination_capacity-M4731.zip",
+      "bytes": 70606,
+      "sha256": "a75599bed686fc701fe10a3f07f9969b7f7b500af9d43af36b90f5989abc7608",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4731&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4828",
+      "file": "economic_census_2021_500m_destination_capacity-M4828.zip",
+      "bytes": 2802,
+      "sha256": "b93a3b95abfb2efa5a672cd6266360af2232fbe058a952d66b1a7d7c0f787b14",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4828&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4829",
+      "file": "economic_census_2021_500m_destination_capacity-M4829.zip",
+      "bytes": 3340,
+      "sha256": "147b84507bad4a65ccafd1b159c0d54ec1cb3d570eb71d8d45bad7173eae5038",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4829&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4830",
+      "file": "economic_census_2021_500m_destination_capacity-M4830.zip",
+      "bytes": 89253,
+      "sha256": "c9f1e4ae66feb0b39d8bb49d0f9aac577f9432aa50109f2f84b5f58bfdf738a3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4830&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4831",
+      "file": "economic_census_2021_500m_destination_capacity-M4831.zip",
+      "bytes": 44428,
+      "sha256": "83519dd531964346d5fd4cd1d3c18f6ee6efbd4774569fdfd1b9d23660b0d43d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4831&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4839",
+      "file": "economic_census_2021_500m_destination_capacity-M4839.zip",
+      "bytes": 845,
+      "sha256": "adb3b39f3a76dd82162616a05f6294a931c57ce8deaf9a9c31e07630e449378f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4839&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4928",
+      "file": "economic_census_2021_500m_destination_capacity-M4928.zip",
+      "bytes": 5814,
+      "sha256": "dc4c4e5600fc43ebd2c8e43275cdb296998ece6d31c1353758dbd6d810c65bec",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4928&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4929",
+      "file": "economic_census_2021_500m_destination_capacity-M4929.zip",
+      "bytes": 84601,
+      "sha256": "db61e1851b088253b7f3e202400fd9bc8af8a662ceb9b0c23c1e3944303fce7e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4929&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4930",
+      "file": "economic_census_2021_500m_destination_capacity-M4930.zip",
+      "bytes": 231506,
+      "sha256": "dd16b1185dbb9cc842eaa7ee5b12f8cd79cec015666b210f9c0e80ea9a2973a2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4930&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4931",
+      "file": "economic_census_2021_500m_destination_capacity-M4931.zip",
+      "bytes": 91457,
+      "sha256": "52420956866b42cc1fd3624c169be91563531cd8a7b0568b7650750a7e9b51c1",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4931&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4932",
+      "file": "economic_census_2021_500m_destination_capacity-M4932.zip",
+      "bytes": 31269,
+      "sha256": "836ed1ddaa3d4185261bb3f74b916b70b899d812e54df71eff2bfe0d3ad4f426",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4932&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4933",
+      "file": "economic_census_2021_500m_destination_capacity-M4933.zip",
+      "bytes": 6416,
+      "sha256": "f1147f2838a6d33bf27179bcda2bd46f8f6073555beaf73e92f425e4335ebfa4",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4933&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4934",
+      "file": "economic_census_2021_500m_destination_capacity-M4934.zip",
+      "bytes": 2510,
+      "sha256": "c1f5bdbdaed8a2401bde24d3b2d7f9b9bf917d1bec4b560d4e7133b6d2b5489a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4934&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "4939",
+      "file": "economic_census_2021_500m_destination_capacity-M4939.zip",
+      "bytes": 2613,
+      "sha256": "53c10367af10a6e12ee227ca325a1505f7ef3bbe7da4276aee9c63008cda4d02",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=4939&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5029",
+      "file": "economic_census_2021_500m_destination_capacity-M5029.zip",
+      "bytes": 26123,
+      "sha256": "f120226f8e9e4fe495d282a0da97f8b8eac85a943524ff4618066b9433ea17c3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5029&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5030",
+      "file": "economic_census_2021_500m_destination_capacity-M5030.zip",
+      "bytes": 244690,
+      "sha256": "7f44155ad18c7770f5861a4dc98c43124dfdda2a58c31945c1e7e8d9ee3f6ead",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5030&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5031",
+      "file": "economic_census_2021_500m_destination_capacity-M5031.zip",
+      "bytes": 64609,
+      "sha256": "f01892ed1d270fecbd056a831c76db83d7fc8c00258d644e1b5f46f7bba5635b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5031&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5032",
+      "file": "economic_census_2021_500m_destination_capacity-M5032.zip",
+      "bytes": 72212,
+      "sha256": "96397e2bb7b1063dc5c879794c0162ba1d806b36d6e619c1a9060ddad13250b7",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5032&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5033",
+      "file": "economic_census_2021_500m_destination_capacity-M5033.zip",
+      "bytes": 83371,
+      "sha256": "bb46f44a5cad4fa19062bc5e88fe11fbd4cf57ad64145073ddf99f2449f031d0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5033&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5034",
+      "file": "economic_census_2021_500m_destination_capacity-M5034.zip",
+      "bytes": 26408,
+      "sha256": "1e488bf560c8ad8f44c2480e268cec218c2a955a4989270f98a7c6d56f79235a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5034&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5035",
+      "file": "economic_census_2021_500m_destination_capacity-M5035.zip",
+      "bytes": 42004,
+      "sha256": "6cb87fffab0dbd3fc9b7395aae6fbcdd6e06fa3a6e47ce8b848d3baede5ddfaa",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5035&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5036",
+      "file": "economic_census_2021_500m_destination_capacity-M5036.zip",
+      "bytes": 6939,
+      "sha256": "71082f671f88708fcb033cb3fa0ee5cf9d787c1edce22ba2e85dbbd0f7fc88c5",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5036&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5039",
+      "file": "economic_census_2021_500m_destination_capacity-M5039.zip",
+      "bytes": 830,
+      "sha256": "d0e900a17a7110af7c97a086738accb305bdb0669137fff74da1730aaa2a45c2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5039&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5129",
+      "file": "economic_census_2021_500m_destination_capacity-M5129.zip",
+      "bytes": 7545,
+      "sha256": "106c0fbac7541c58663f06853bddd269573dc8a9fb9019e9ba3fc555a8c2a0ad",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5129&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5130",
+      "file": "economic_census_2021_500m_destination_capacity-M5130.zip",
+      "bytes": 10707,
+      "sha256": "2c8ea70a354a853d515ab2e29f0c573148082240b1ae4ef21a2c98f59a9d2070",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5130&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5131",
+      "file": "economic_census_2021_500m_destination_capacity-M5131.zip",
+      "bytes": 82452,
+      "sha256": "585801c1ebbd08da58570906c4a6df679eaf446d86712d1227c79a0b43b2da8e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5131&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5132",
+      "file": "economic_census_2021_500m_destination_capacity-M5132.zip",
+      "bytes": 146546,
+      "sha256": "a042f66aabb38427be9ae59ad1ce51e352b9a6e9759ce4845b748f9fce5089dd",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5132&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5133",
+      "file": "economic_census_2021_500m_destination_capacity-M5133.zip",
+      "bytes": 204261,
+      "sha256": "404b971cf0768d0f59d651b303a9aab14de01b820ab79f1170f16de2453bef77",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5133&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5134",
+      "file": "economic_census_2021_500m_destination_capacity-M5134.zip",
+      "bytes": 125999,
+      "sha256": "05ae3aabc650ad68ea421847a6a4632fa535d5e2a45a0886a7b24d8bf912149f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5134&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5135",
+      "file": "economic_census_2021_500m_destination_capacity-M5135.zip",
+      "bytes": 256871,
+      "sha256": "05177b181384af83568eb638514069028295fa9b01de845a71d610dcddaf89cf",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5135&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5136",
+      "file": "economic_census_2021_500m_destination_capacity-M5136.zip",
+      "bytes": 77631,
+      "sha256": "f673ad5c885e2aadb1ba7af2a97f34ffaaaad86916ce5a48e9ea5e24309f5965",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5136&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5137",
+      "file": "economic_census_2021_500m_destination_capacity-M5137.zip",
+      "bytes": 8450,
+      "sha256": "5bee8f1859598a17d9d23b0ad4174a1391d86e2cd4d285d6e51492b8732b6b21",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5137&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5138",
+      "file": "economic_census_2021_500m_destination_capacity-M5138.zip",
+      "bytes": 9333,
+      "sha256": "cb9c4932b35ed7640e7e90cfbd8f2d870ba753e3df4eeadb61ce31cd85d3b02c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5138&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5139",
+      "file": "economic_census_2021_500m_destination_capacity-M5139.zip",
+      "bytes": 3362,
+      "sha256": "b3454949f72a96935a6e863255dcf408fd81565aaeacb5883e2f55bb5cacb7e6",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5139&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5229",
+      "file": "economic_census_2021_500m_destination_capacity-M5229.zip",
+      "bytes": 1140,
+      "sha256": "56c5cbf40828421cab2e5fef214bed30519d9df34207c414280c7905835b94c3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5229&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5231",
+      "file": "economic_census_2021_500m_destination_capacity-M5231.zip",
+      "bytes": 6992,
+      "sha256": "5d2305550ef03d186055dc38f1a3f58ffbd964006ad7e1967b2480a44093cb3f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5231&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5232",
+      "file": "economic_census_2021_500m_destination_capacity-M5232.zip",
+      "bytes": 54563,
+      "sha256": "bee5224baad4e3b62d599e1b73fa1238fcbeb3e30f9667ad4ec99ec0e5ae1940",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5232&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5233",
+      "file": "economic_census_2021_500m_destination_capacity-M5233.zip",
+      "bytes": 75011,
+      "sha256": "b3e0d1b64576632281a1f1dbad2318093afb64e04d9500980b31517a13c53ad8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5233&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5234",
+      "file": "economic_census_2021_500m_destination_capacity-M5234.zip",
+      "bytes": 182129,
+      "sha256": "889782986bf247c3e56c2c56a01a496c2af8da774f9b6c002a73c06496048013",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5234&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5235",
+      "file": "economic_census_2021_500m_destination_capacity-M5235.zip",
+      "bytes": 360431,
+      "sha256": "2b9cb415cd0ec01cd26069fe8f42323e8ea1476be7732195e83bcc514beaed70",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5235&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5236",
+      "file": "economic_census_2021_500m_destination_capacity-M5236.zip",
+      "bytes": 365848,
+      "sha256": "0ed109db3b12236c15cfcc10898c663910991787769a11d921630ef6d3dc50fe",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5236&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5237",
+      "file": "economic_census_2021_500m_destination_capacity-M5237.zip",
+      "bytes": 278604,
+      "sha256": "2b1136967c11f05dc4602fc2db84cdd1656747ee607a661a7cdf9d410b64bdc8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5237&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5238",
+      "file": "economic_census_2021_500m_destination_capacity-M5238.zip",
+      "bytes": 165904,
+      "sha256": "7af0743ea749cf2dbbe6267b8cca825b5d8785b06ad4cf0ff0732fdacdea0cf8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5238&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5239",
+      "file": "economic_census_2021_500m_destination_capacity-M5239.zip",
+      "bytes": 93309,
+      "sha256": "b2a646ef761f796ec9c8ead433982796fbc17d83e0a92768e441bcdf5ad03101",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5239&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5240",
+      "file": "economic_census_2021_500m_destination_capacity-M5240.zip",
+      "bytes": 22385,
+      "sha256": "3f0011a3a8219f1918ffdc48aa47b67aa2b28b1d638f62a673f387c002a22593",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5240&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5332",
+      "file": "economic_census_2021_500m_destination_capacity-M5332.zip",
+      "bytes": 22051,
+      "sha256": "2efa30c8bca089980c17b6c6640b70d180bab672df87f5bdf39bfc18bba77909",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5332&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5333",
+      "file": "economic_census_2021_500m_destination_capacity-M5333.zip",
+      "bytes": 54910,
+      "sha256": "7798bd7c89adb59e1add6ea331015469473df054c198a9ea4e683aacde0752ec",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5333&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5334",
+      "file": "economic_census_2021_500m_destination_capacity-M5334.zip",
+      "bytes": 48540,
+      "sha256": "16a15b8a12dc2c84626e32de575047f80c90ef03ca42d07cfdea50233c0a5e67",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5334&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5335",
+      "file": "economic_census_2021_500m_destination_capacity-M5335.zip",
+      "bytes": 43315,
+      "sha256": "52ec1dca90492a9a124235c9df87557d6035b7b2e49dc4184defb76e934313ba",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5335&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5336",
+      "file": "economic_census_2021_500m_destination_capacity-M5336.zip",
+      "bytes": 167555,
+      "sha256": "f06b860c02618da8db3f63de368c2b8ff42ecd026c1dd7ab757b28ab37d0dd6c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5336&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5337",
+      "file": "economic_census_2021_500m_destination_capacity-M5337.zip",
+      "bytes": 112846,
+      "sha256": "816349f342cd77693bd8a22e7b1dcfb9e4c2ae85e631efd9bc5e55ae0fbc2198",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5337&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5338",
+      "file": "economic_census_2021_500m_destination_capacity-M5338.zip",
+      "bytes": 106709,
+      "sha256": "d8474d56da53f083b71ae704110404056436499e63af6a2e923ca3928e319efb",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5338&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5339",
+      "file": "economic_census_2021_500m_destination_capacity-M5339.zip",
+      "bytes": 696208,
+      "sha256": "56a0865d0bf8e7db273c026fc09f7d9b334dbb3ae166d443871adbc31f151380",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5339&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5340",
+      "file": "economic_census_2021_500m_destination_capacity-M5340.zip",
+      "bytes": 271005,
+      "sha256": "6a3ab107b477af9024f362ad04ca91d022e6d4ad663728faa642edcf9a947fb5",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5340&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5432",
+      "file": "economic_census_2021_500m_destination_capacity-M5432.zip",
+      "bytes": 956,
+      "sha256": "4999efccdc7b6c6ac0051086d45fb3d46e665e5ff4b2d003dae56997f6cc60c0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5432&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5433",
+      "file": "economic_census_2021_500m_destination_capacity-M5433.zip",
+      "bytes": 5594,
+      "sha256": "3c00d5b0d694b12118df1993eb009dde06dea4b157373607a628f4c3259d8b7a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5433&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5435",
+      "file": "economic_census_2021_500m_destination_capacity-M5435.zip",
+      "bytes": 864,
+      "sha256": "d624ede16bed018a0b5ffdba72f9ba1666a25d19a90ebf6f7da8334e51415776",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5435&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5436",
+      "file": "economic_census_2021_500m_destination_capacity-M5436.zip",
+      "bytes": 128706,
+      "sha256": "33999fa8ee89212644733699982c4856646d9384b8664c829b145046a1924c7d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5436&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5437",
+      "file": "economic_census_2021_500m_destination_capacity-M5437.zip",
+      "bytes": 86427,
+      "sha256": "7033a49b88f7fc5d66cb28cdda9db560c737a62e8c5a25d40b1d279f7567c93a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5437&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5438",
+      "file": "economic_census_2021_500m_destination_capacity-M5438.zip",
+      "bytes": 155139,
+      "sha256": "e74b68c19fcf87f956627b6355810a408062ddd85bb70472903a2a70eed32891",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5438&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5439",
+      "file": "economic_census_2021_500m_destination_capacity-M5439.zip",
+      "bytes": 443457,
+      "sha256": "7b48d31ee6f5ce9cffa5fa8aa609c800f3980b7dc549d5e35c2e2e08328e9acf",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5439&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5440",
+      "file": "economic_census_2021_500m_destination_capacity-M5440.zip",
+      "bytes": 198101,
+      "sha256": "451ed956947a46bb12054341dbc59f400c03004eb9a1145a05fa151d87be11e1",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5440&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5536",
+      "file": "economic_census_2021_500m_destination_capacity-M5536.zip",
+      "bytes": 46004,
+      "sha256": "c9a77df8d0ae07f217d296d55dd2e995b0785a902fa83a5b2b720acf10e09732",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5536&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5537",
+      "file": "economic_census_2021_500m_destination_capacity-M5537.zip",
+      "bytes": 74465,
+      "sha256": "8f00a6fa4e99295e57bb0e8220d90e17e85fbaa4feeb9c100bb046c92d6a28ea",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5537&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5538",
+      "file": "economic_census_2021_500m_destination_capacity-M5538.zip",
+      "bytes": 94641,
+      "sha256": "21cbbdda279481fa883c3871cac358af0f37a50fa007f538d4214385f83275a6",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5538&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5539",
+      "file": "economic_census_2021_500m_destination_capacity-M5539.zip",
+      "bytes": 49745,
+      "sha256": "a0bd456558fee8d142feabedda7aec42afa364b71969fc750bd0d7b427d63637",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5539&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5540",
+      "file": "economic_census_2021_500m_destination_capacity-M5540.zip",
+      "bytes": 125475,
+      "sha256": "c84580c8a33cfaa0abba9c4220c67fd3e78a818f7264d23bcfee1a0ea727145f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5540&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5541",
+      "file": "economic_census_2021_500m_destination_capacity-M5541.zip",
+      "bytes": 1942,
+      "sha256": "642a2a2d74cf2cce33f77bdc7a2dfc34636f39962dd3ef8ad8f0b9a9e5b85988",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5541&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5636",
+      "file": "economic_census_2021_500m_destination_capacity-M5636.zip",
+      "bytes": 3011,
+      "sha256": "c6ac8d7294595c193e3efcff158bc6946ca04f74e6fb83cc49397f08364e150e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5636&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5637",
+      "file": "economic_census_2021_500m_destination_capacity-M5637.zip",
+      "bytes": 6960,
+      "sha256": "1fe0779e97a5d49a68a186ee9c59226b96f67c8fd25d1a220ae39f81ac112b50",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5637&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5638",
+      "file": "economic_census_2021_500m_destination_capacity-M5638.zip",
+      "bytes": 75607,
+      "sha256": "d6e994cf426e9501b67cd49108c59f91ac25069bef05354ad86607c37c734054",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5638&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5639",
+      "file": "economic_census_2021_500m_destination_capacity-M5639.zip",
+      "bytes": 99743,
+      "sha256": "6cd9a3afc427ca71f40840b309421fff06ff66a77fb18c7427ff989439ca8d08",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5639&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5640",
+      "file": "economic_census_2021_500m_destination_capacity-M5640.zip",
+      "bytes": 124896,
+      "sha256": "e297cbc76da5c779eb2fd674e32aa947a3b6c8a21e69a17c7687abf0c5a068dc",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5640&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5641",
+      "file": "economic_census_2021_500m_destination_capacity-M5641.zip",
+      "bytes": 2653,
+      "sha256": "a0608a8b74613682b14e3a44cf0ac4c0a410f4617f29144b3116ffbb40e69813",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5641&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5738",
+      "file": "economic_census_2021_500m_destination_capacity-M5738.zip",
+      "bytes": 7634,
+      "sha256": "6eeedc453f90e1578a6fdf1292f8efcdcdb82a959ad059349110b0cd8000acce",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5738&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5739",
+      "file": "economic_census_2021_500m_destination_capacity-M5739.zip",
+      "bytes": 24280,
+      "sha256": "3a10e5e5862b692b23233696b8dacc74671694410bfaff2cd1277f3b80c5dc09",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5739&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5740",
+      "file": "economic_census_2021_500m_destination_capacity-M5740.zip",
+      "bytes": 166554,
+      "sha256": "26382e402aaaec37ede5107ea3461ea4641c5c38bbe22e908ab68f083b589341",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5740&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5741",
+      "file": "economic_census_2021_500m_destination_capacity-M5741.zip",
+      "bytes": 48765,
+      "sha256": "4f065cd97143339c67d13edb1b9dff092671a1b4140af18b6e1ace5607a1f0bb",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5741&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5839",
+      "file": "economic_census_2021_500m_destination_capacity-M5839.zip",
+      "bytes": 34354,
+      "sha256": "48ec59097338b174847547a0e4b7fb745eea528403307e3659e092aaecfba5d3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5839&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5840",
+      "file": "economic_census_2021_500m_destination_capacity-M5840.zip",
+      "bytes": 46290,
+      "sha256": "64d745f830f339bd93cd36ae0da2147f6bc00be46bd5c687cc26d35e3fe034e2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5840&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5841",
+      "file": "economic_census_2021_500m_destination_capacity-M5841.zip",
+      "bytes": 88922,
+      "sha256": "7de135fe6ce57978ff89793b4514d1fdea067c924cb0efd65355a53266a2fdc7",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5841&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5939",
+      "file": "economic_census_2021_500m_destination_capacity-M5939.zip",
+      "bytes": 6420,
+      "sha256": "92f558ec022b1e119dd7b8f1435bd52cb4134cb36ff0cf70757bac8886823061",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5939&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5940",
+      "file": "economic_census_2021_500m_destination_capacity-M5940.zip",
+      "bytes": 67243,
+      "sha256": "96f5f39f8771b3a3a1478f661b41f46240f4532e3ac95483a515d83c84b684d0",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5940&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5941",
+      "file": "economic_census_2021_500m_destination_capacity-M5941.zip",
+      "bytes": 69764,
+      "sha256": "cad2c917529e8b5e06e8b4a8f9fc13091f20cd018b6f2c50db6132a3318fe5f6",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5941&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "5942",
+      "file": "economic_census_2021_500m_destination_capacity-M5942.zip",
+      "bytes": 993,
+      "sha256": "62e360e8f66c97b68b808d5d0f8c63accb88e86fc3639b219e8fa023efaccc4d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=5942&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6039",
+      "file": "economic_census_2021_500m_destination_capacity-M6039.zip",
+      "bytes": 3900,
+      "sha256": "9629204bfb43b89c86516bf628cfaeb8297c2d2e297f7560a6310949e9e28700",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6039&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6040",
+      "file": "economic_census_2021_500m_destination_capacity-M6040.zip",
+      "bytes": 58031,
+      "sha256": "2a497fe7ad20f4ac693c314ace7af75e8d2d87b89b8aa04e40a41ad777fe762a",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6040&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6041",
+      "file": "economic_census_2021_500m_destination_capacity-M6041.zip",
+      "bytes": 63241,
+      "sha256": "0138b09e368739587d7e622919913642743120126856700e2f10836daf9b1f6e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6041&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6139",
+      "file": "economic_census_2021_500m_destination_capacity-M6139.zip",
+      "bytes": 1006,
+      "sha256": "085aa26f8686d067fe72bb8a3d1003d81e5f9cff626bec1379cee13312a4f192",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6139&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6140",
+      "file": "economic_census_2021_500m_destination_capacity-M6140.zip",
+      "bytes": 46993,
+      "sha256": "b5458d0b73fdee70a6127d1bddaa4344ee010da2625b18246899c5c9e945f5bc",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6140&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6141",
+      "file": "economic_census_2021_500m_destination_capacity-M6141.zip",
+      "bytes": 23211,
+      "sha256": "654bafe17f6e376dea082e75abcb0d2a0c59f734e5c09ec858275db164d0028b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6141&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6239",
+      "file": "economic_census_2021_500m_destination_capacity-M6239.zip",
+      "bytes": 968,
+      "sha256": "c09ac39fd5e6426795a907834fbdcc8c1783d8ea456209a75b570cd8194ff744",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6239&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6240",
+      "file": "economic_census_2021_500m_destination_capacity-M6240.zip",
+      "bytes": 32384,
+      "sha256": "70591e8a2b96ec30d7cc0439f407f43c92cca7c040f42b11ecebe9c40e4b518c",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6240&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6241",
+      "file": "economic_census_2021_500m_destination_capacity-M6241.zip",
+      "bytes": 4124,
+      "sha256": "2de61ef79fb70646ecd8a1e9cba10e19d58384fce3b6d69b751cf78147130c46",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6241&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6243",
+      "file": "economic_census_2021_500m_destination_capacity-M6243.zip",
+      "bytes": 1093,
+      "sha256": "4e5641ede7565c712d5cb1d0cb6f5eac70906a4dba3f785c926d199319931045",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6243&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6339",
+      "file": "economic_census_2021_500m_destination_capacity-M6339.zip",
+      "bytes": 3840,
+      "sha256": "30f91dc7c9ae0ede5407267c49c985951fd7b48d16b1853dd34dd0e6f7494748",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6339&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6340",
+      "file": "economic_census_2021_500m_destination_capacity-M6340.zip",
+      "bytes": 20500,
+      "sha256": "7d39bfb15fd93c71e5b634bba81c606655f4d5b5d909d17e44cea44f2575cc15",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6340&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6341",
+      "file": "economic_census_2021_500m_destination_capacity-M6341.zip",
+      "bytes": 22956,
+      "sha256": "b6eba63e6b9195baaa6208f91a13f6bbdcf690890692433a32789f6b0894eb8d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6341&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6342",
+      "file": "economic_census_2021_500m_destination_capacity-M6342.zip",
+      "bytes": 13702,
+      "sha256": "daa82e4fdbf21065b6bafe99e69b15d8f78cd1cdb4d3d03d830dbe4911e8f3be",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6342&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6343",
+      "file": "economic_census_2021_500m_destination_capacity-M6343.zip",
+      "bytes": 6344,
+      "sha256": "ce4531c24f75fbb03c68de4a0f59db1611649bf330e25f03ac9dd957e5211865",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6343&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6439",
+      "file": "economic_census_2021_500m_destination_capacity-M6439.zip",
+      "bytes": 833,
+      "sha256": "2f340a6b9e43968a3f8e0f7f741ac9b20eb84525fa493a1e1b6b2024d075c5c3",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6439&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6440",
+      "file": "economic_census_2021_500m_destination_capacity-M6440.zip",
+      "bytes": 22112,
+      "sha256": "9a9b816001caf353c0ac0f3fa521da249c6f3f1685ad768770b76c39f17e33c2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6440&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6441",
+      "file": "economic_census_2021_500m_destination_capacity-M6441.zip",
+      "bytes": 126690,
+      "sha256": "3176527f9db0edea7933c8463ef2498e3670ac139426c8a2bde3fe5364eea32d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6441&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6442",
+      "file": "economic_census_2021_500m_destination_capacity-M6442.zip",
+      "bytes": 10771,
+      "sha256": "a054143079041d4cf7b9926957bab33c9673be0c92820508b2ac6d540fa6db2e",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6442&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6443",
+      "file": "economic_census_2021_500m_destination_capacity-M6443.zip",
+      "bytes": 33573,
+      "sha256": "bc4f3e22713a80e5d16191d1a6aae25f19a1d5c6b75e1f748a3bcceba2eab8f1",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6443&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6444",
+      "file": "economic_census_2021_500m_destination_capacity-M6444.zip",
+      "bytes": 20747,
+      "sha256": "569f52dbcd937058fbede84b6e3441eb07b6aa890d3861d758a0f4ba629f0505",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6444&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6445",
+      "file": "economic_census_2021_500m_destination_capacity-M6445.zip",
+      "bytes": 5503,
+      "sha256": "7e9af2ff0afcb32931cb73393ddc4b35ec4ad624d5cc0763d31dd5d8f57cbebc",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6445&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6540",
+      "file": "economic_census_2021_500m_destination_capacity-M6540.zip",
+      "bytes": 1007,
+      "sha256": "68799e3990bdcdfb1a7a8def0e254cfcd239188e73eaa10ad2795acdb215cc27",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6540&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6541",
+      "file": "economic_census_2021_500m_destination_capacity-M6541.zip",
+      "bytes": 18534,
+      "sha256": "66099d6e71988f15416841db89a96d09b532f8caab714a22afb814af80f3a078",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6541&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6542",
+      "file": "economic_census_2021_500m_destination_capacity-M6542.zip",
+      "bytes": 42831,
+      "sha256": "032b8c43841575b9ada11414a9be1ef3152aa540058f652f273339293f06a537",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6542&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6543",
+      "file": "economic_census_2021_500m_destination_capacity-M6543.zip",
+      "bytes": 15844,
+      "sha256": "a40ffbd7b27009c63ba0a86ee93f6b5f85c7c60edc4cde25516d44c1d8f9d215",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6543&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6544",
+      "file": "economic_census_2021_500m_destination_capacity-M6544.zip",
+      "bytes": 19664,
+      "sha256": "b5982c403e4ece0db60c0f7a905159cd8c59b3c8798b10852323f0adc49f947b",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6544&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6545",
+      "file": "economic_census_2021_500m_destination_capacity-M6545.zip",
+      "bytes": 6422,
+      "sha256": "37c8fba9db4430140cff3bf7e6289bddf9996106f635c1e2f2f8e4d7de62f2bd",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6545&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6641",
+      "file": "economic_census_2021_500m_destination_capacity-M6641.zip",
+      "bytes": 4040,
+      "sha256": "7fe2a4322ddc8c91d6ee17dffe604babf4d1362bb56be7c76bc026c1c6b3c373",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6641&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6642",
+      "file": "economic_census_2021_500m_destination_capacity-M6642.zip",
+      "bytes": 12044,
+      "sha256": "d8a9a1753068636d5468f3c47b4a0c72a06069c0902d8a1709aa02b30bc8640f",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6642&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6643",
+      "file": "economic_census_2021_500m_destination_capacity-M6643.zip",
+      "bytes": 11442,
+      "sha256": "ef2e2b54492dd700ddd47bab292256b4b594a0de8b2251bb7ee79968e6efcdce",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6643&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6644",
+      "file": "economic_census_2021_500m_destination_capacity-M6644.zip",
+      "bytes": 4437,
+      "sha256": "67a042dce4bc2b2c263fcbba90d9ddc1f6396d64ba7f2a8693e98e93cbc711c2",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6644&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6645",
+      "file": "economic_census_2021_500m_destination_capacity-M6645.zip",
+      "bytes": 1685,
+      "sha256": "c88956ba187282030b2cebd6aaf2c788ca7f7ad1a4c0ee54774bb1ab75e4e8d8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6645&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6741",
+      "file": "economic_census_2021_500m_destination_capacity-M6741.zip",
+      "bytes": 5644,
+      "sha256": "bc0002e5ab69b72dc403ad63bc0b24854bfb4e54d8ba6c2138122432d7f3d763",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6741&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6742",
+      "file": "economic_census_2021_500m_destination_capacity-M6742.zip",
+      "bytes": 5272,
+      "sha256": "28984e3c79204146fe69db5da03c860d290a0663ecdef3589a6ac48be00653c8",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6742&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6840",
+      "file": "economic_census_2021_500m_destination_capacity-M6840.zip",
+      "bytes": 759,
+      "sha256": "1e3cfc3236c7906698d635f14a9bfe4c0ea064f1bff3de10450ed7a1abb4692d",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6840&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6841",
+      "file": "economic_census_2021_500m_destination_capacity-M6841.zip",
+      "bytes": 5130,
+      "sha256": "81021125d83dd056ba4647fb75f58bde34b7b93380e5605db55aba9c96c32f07",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6841&downloadType=2"
+    },
+    {
+      "productId": "economic_census_2021_500m_destination_capacity",
+      "code": "6842",
+      "file": "economic_census_2021_500m_destination_capacity-M6842.zip",
+      "bytes": 1042,
+      "sha256": "dbd8dd26ae54ae76114e1291cab48ecb0da739065115422d7617d45e1f1c5325",
+      "sourceUrl": "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001162&code=6842&downloadType=2"
+    }
+  ]
+}

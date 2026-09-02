@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createNetworkProjectionReconciler, createRouteScheduleReconciler, registerNetworkProjectionHooks } from '../src/network-projection-hooks.js';
+import { createNetworkProjectionReconciler, createRouteScheduleReconciler, registerNetworkProjectionHooks } from '../../../../open-world-platform/src/runtime/network-projection-hooks.js';
 
 test('projection hook registration observes constructed network state but not blueprints', () => {
   const registered = [];

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "worldId": "nec-corridor-world",
+    "artifactWorldId": "NEC_CORRIDOR_LODES_PROTOTYPE",
+    "manifestId": "local.nec-corridor-open-world",
+    "name": "Northeast Corridor Open World",
+    "description": "Real-data 34-tile Northeast Corridor open world built from OSM map data and US LODES demand.",
+    "version": "0.1.0",
+    "author": "Open World Prototype",
+    "compatibilityLineage": ["nec-corridor-world", "NEC_CORRIDOR_LODES_PROTOTYPE"]
+  },
+  "tileViews": {
+    "catalog": "geography/tile-views.json",
+    "initialTileId": "NEC_CP00_RP00"
+  },
+  "map": {
+    "sourceLock": "sources.lock.json",
+    "profile": "osm-depot-world-v1",
+    "basemapRevision": "nec-corridor-z0-z9-v2"
+  },
+  "demand": {
+    "adapter": "lodes-us",
+    "definition": "demand.json",
+    "routingProfile": "generated-roads-v1",
+    "nativePopPrefixes": ["nec-native-pop-"],
+    "crossPopPrefixes": ["nec-cross-pop-"]
+  },
+  "runtime": {
+    "storageNamespace": "open-world-sidecar-local.nec-corridor-open-world-v1",
+    "tileServerPort": 8799,
+    "tileBaseGlobal": "NEC_CORRIDOR_TILE_BASE",
+    "diagnosticNamespace": "nec-corridor",
+    "healthTile": "NEC_CP00_RP00/0/0/0.mvt?v=nec-corridor-z0-z9-v2",
+    "requiredHostCapabilities": ["native-save-authority-v1", "native-ledger-authority-v1"]
+  },
+  "release": {
+    "platformCompatibility": "^1.0.0",
+    "artifactSelection": "explicit",
+    "artifactLayout": "split-map-demand-v1"
+  }
+}

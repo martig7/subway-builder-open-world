@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SubwayBuilderGameAdapter } from '../src/adapters/subway-builder-game-adapter.js';
+import { SubwayBuilderGameAdapter } from '../../../../open-world-platform/src/runtime/adapters/subway-builder-game-adapter.js';
 
 function fixture() {
   const state = {

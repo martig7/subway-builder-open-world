@@ -20,7 +20,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-from openpyxl import load_workbook
 from pyproj import Transformer
 from shapely import make_valid
 from shapely.geometry import Point, box, mapping, shape
@@ -298,6 +297,8 @@ MUNICIPALITY = re.compile(r"^(\d{5})_")
 
 def read_municipality_od() -> list[dict[str, Any]]:
     """Extract observed Tokyo/Kanagawa municipality O/Ds from Census Table 6-1."""
+    from openpyxl import load_workbook
+
     workbook_path = RAW / "2020-census-table-6-1-municipality-od-combined.xlsx"
     sheet = load_workbook(workbook_path, read_only=True, data_only=True).active
     header = next(sheet.iter_rows(min_row=8, max_row=8, values_only=True))

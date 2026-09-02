@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-world.local/contracts/demand-evidence/v1",
+  "title": "Open World Demand Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "adapter", "sourceVintage", "partitions", "observations", "marginals", "odControls", "conservation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "adapter": { "enum": ["lodes-us", "estat-japan"] },
+    "sourceVintage": { "type": "string", "minLength": 1 },
+    "partitions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "observations": { "type": "array", "items": { "$ref": "#/$defs/flow" } },
+    "marginals": { "type": "array", "items": { "$ref": "#/$defs/marginal" } },
+    "odControls": { "type": "array", "items": { "$ref": "#/$defs/flow" } },
+    "conservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputMass", "acceptedMass", "rejectedMass"],
+      "properties": {
+        "inputMass": { "type": "number", "minimum": 0 },
+        "acceptedMass": { "type": "number", "minimum": 0 },
+        "rejectedMass": { "type": "number", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "flow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["home", "work", "mass"],
+      "properties": {
+        "home": { "type": "string", "minLength": 1 },
+        "work": { "type": "string", "minLength": 1 },
+        "mass": { "type": "number", "minimum": 0 }
+      }
+    },
+    "marginal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "location", "mass"],
+      "properties": {
+        "kind": { "enum": ["home", "job"] },
+        "location": { "type": "string", "minLength": 1 },
+        "mass": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

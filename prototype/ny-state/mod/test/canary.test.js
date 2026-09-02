@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import {
   cityDefinitionsFor,
@@ -11,74 +10,6 @@ import {
 } from '../src/city-registration.js';
 import { EmbeddedTilePackageAdapter, resolveRendererDataUrl } from '../src/embedded-tile-package-adapter.js';
 import { PILOT_TILE_IDS, tileCatalog } from '../src/tile-catalog.js';
-import {
-  ensureTileServerReady,
-  tileServerHealthUrl,
-} from '../scripts/tile-server-control.mjs';
-
-test('postbuild starts the required PMTiles service and verifies a real vector tile', async () => {
-  const calls = [];
-  let probe = 0;
-  const result = await ensureTileServerReady({
-    platform: 'win32',
-    starterPath: path.resolve('tools/start-canary-server.ps1'),
-    fetchImpl: async (url) => {
-      calls.push(['fetch', url]);
-      probe += 1;
-      if (probe === 1) throw new TypeError('fetch failed');
-      return new Response(new Uint8Array([0x1a, 2, 3]), {
-        status: 200,
-        headers: {
-          'content-type': 'application/vnd.mapbox-vector-tile',
-          'x-pmtiles-server-version': 'native-pmtiles-directory-v2',
-        },
-      });
-    },
-    spawnSyncImpl: (command, args) => {
-      calls.push(['spawn', command, args]);
-      return { status: 0 };
-    },
-  });
-
-  assert.equal(result.status, 'started');
-  assert.deepEqual(calls[0], ['fetch', tileServerHealthUrl()]);
-  assert.equal(calls[1][0], 'spawn');
-  assert.match(calls[1][1], /powershell/i);
-  assert.ok(calls[1][2].includes(path.resolve('tools/start-canary-server.ps1')));
-  assert.deepEqual(calls[2], ['fetch', tileServerHealthUrl()]);
-});
-
-test('readiness rejects a legacy PMTiles server even when it returns bytes', async () => {
-  let probe = 0;
-  let starts = 0;
-  const result = await ensureTileServerReady({
-    platform: 'win32',
-    starterPath: path.resolve('tools/start-canary-server.ps1'),
-    fetchImpl: async () => {
-      probe += 1;
-      return probe === 1
-        ? new Response(new Uint8Array([0x1a, 2, 3]), {
-          status: 200,
-          headers: { 'content-type': 'application/vnd.mapbox-vector-tile' },
-        })
-        : new Response(new Uint8Array([0x1a, 2, 3]), {
-          status: 200,
-          headers: {
-            'content-type': 'application/vnd.mapbox-vector-tile',
-            'x-pmtiles-server-version': 'native-pmtiles-directory-v2',
-          },
-        });
-    },
-    spawnSyncImpl: () => {
-      starts += 1;
-      return { status: 0 };
-    },
-  });
-
-  assert.equal(result.status, 'started');
-  assert.equal(starts, 1);
-  assert.equal(probe, 2);
-});
 
 test('canary exposes exactly the seven corridor packages', () => {
   assert.equal(tileCatalog.tiles.length, 7);

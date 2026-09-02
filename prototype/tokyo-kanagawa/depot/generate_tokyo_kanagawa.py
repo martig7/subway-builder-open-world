@@ -115,7 +115,7 @@ def _build(tile: dict, index: int, osm_sources: dict[str, Path], by_id: dict[str
         maxzoom=15,
         ncores=8,
         # Tokyo's dense OSM building layer exceeds the NEC-sized 12 GB Node
-        # heap. richmpc exposes roughly 62 GB to Docker, so reserve a 48 GB
+        # heap. On a high-memory Runner, reserve a 48 GB
         # mapshaper heap while keeping room for the other Depot processes.
         RAM=48,
         cleanup_files=True,

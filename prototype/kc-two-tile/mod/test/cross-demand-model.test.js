@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CrossDemandModel, demandPointRadius, modeShareColor } from '../src/cross-demand-model.js';
+import { CrossDemandModel, demandPointRadius, modeShareColor } from '../../../../open-world-platform/src/runtime/cross-demand-model.js';
 
 const data = {
   schemaVersion: 1,

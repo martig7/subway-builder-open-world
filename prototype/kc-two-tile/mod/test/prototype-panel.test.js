@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerPrototypePanel, TileAtlasPanel } from '../src/ui/prototype-panel.js';
+import { registerPrototypePanel as registerPlatformPanel, TileAtlasPanel } from '../../../../open-world-platform/src/runtime/ui/prototype-panel.js';
+import { tileCatalog } from '../../../../open-world-platform/testkit/fixtures/kc-world.js';
+
+const registerPrototypePanel = (options) => registerPlatformPanel({
+  ...options,
+  catalog: tileCatalog,
+  panelId: 'kc-two-tile-switcher',
+});
 
 test('registers a zoomable catalog-driven tile atlas and switches the selected tile', async () => {
   let panel;

@@ -1,0 +1,396 @@
+{
+  "schema_version": "1.0.0",
+  "created_at": "2026-08-16T05:28:23.765692+00:00",
+  "source": {
+    "survey_id": "A002005212020",
+    "survey": "2020 Census",
+    "boundary": "町丁・字等 statistical boundaries",
+    "source_crs": "EPSG:4612",
+    "output_crs": "EPSG:4326"
+  },
+  "prefecture_count": 47,
+  "statistical_unit_count": 232019,
+  "sources": [
+    {
+      "pref_code": "01",
+      "filename": "pref-01.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=01&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "3a656847e7f8f704027d3ecd291825ff4d0b0edb5ce96be8f81ac7ae63bb3823",
+      "bytes": 16136016,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "02",
+      "filename": "pref-02.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=02&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "67b5eee83a3aba75ecfe9820348e64df8ab46d70f0e33fca63efcc66dafa9ae0",
+      "bytes": 7432953,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "03",
+      "filename": "pref-03.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=03&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "40efcc488197fd21e9900fba8c37f9507bd784b2cad7da00e655618a0b4283c2",
+      "bytes": 7851166,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "04",
+      "filename": "pref-04.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=04&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "2164a8ed536f0318b1a64cdd2cbf8444108650ee4fbb0349306ef3091add40a3",
+      "bytes": 8580546,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "05",
+      "filename": "pref-05.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=05&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "f7a015573c461dad81e803a6a0bd9caa026abe475234afb80ff477d131e13b22",
+      "bytes": 6484545,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "06",
+      "filename": "pref-06.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=06&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "48f91d803c875f07db8c5ec6c25efdfd40b8dea8751f2d17d3af3472f7428e9f",
+      "bytes": 7198636,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "07",
+      "filename": "pref-07.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=07&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "c5318084fab977b381954ed6953b4bfa73c8635ff1bd9d3ba6ec030d70d4e148",
+      "bytes": 10368270,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "08",
+      "filename": "pref-08.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=08&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "e0982cb52a79837f42c1bbe8d64881cf3eaf1171bcfefe9e9efcfdcb061d731f",
+      "bytes": 7420478,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "09",
+      "filename": "pref-09.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=09&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "9e3020a360375d86d7f00007a10fad8a8db53a233088fd25bbbb6de205042608",
+      "bytes": 3750173,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "10",
+      "filename": "pref-10.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=10&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "d99903851f66f93668663c61797b9fceb16afdf8afb919bd7c3284987da2a69f",
+      "bytes": 4436982,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "11",
+      "filename": "pref-11.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=11&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "d19dbeef8bccfa93d132a8fcab3d21a8e2c226e3d96613a01d013c241e220a98",
+      "bytes": 5799972,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "12",
+      "filename": "pref-12.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=12&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "51c78a38ae8392d1fef5e8030d2eea90abf94ce4b37872bc3527395967819c4d",
+      "bytes": 10202357,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "13",
+      "filename": "pref-13.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=13&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "0e63cf86074450f248df666788070aeea20c668f9f47020f8e3017cbaabc1d1f",
+      "bytes": 5682172,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "14",
+      "filename": "pref-14.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=14&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "a9965edbbe2eb620e58420a11dee1c9f3123fbcda0aa15d1157217c7c90e0434",
+      "bytes": 5044593,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "15",
+      "filename": "pref-15.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=15&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "77e9cd2bc465fc8a6b3655f503afbba516bb6abb62243cb509b2388ddc60a696",
+      "bytes": 10295767,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "16",
+      "filename": "pref-16.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=16&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "4098f1b8df983e1cbf0d89e6686e5bd5fa248230d452db437a982b942a19014f",
+      "bytes": 3706189,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "17",
+      "filename": "pref-17.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=17&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "b5d4896e8f185be6b67e20bc3e5b970079390f88218fb8d01711e5b89125627c",
+      "bytes": 4723802,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "18",
+      "filename": "pref-18.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=18&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "174a97898a04b06caa1a989adb3909afa2026caf0dcdeb45202a94cd7162e122",
+      "bytes": 4828628,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "19",
+      "filename": "pref-19.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=19&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "21788d4e472a96244188a14442c936cf2ee68c2c14a4154e06a1464d72b6d4bd",
+      "bytes": 2813591,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "20",
+      "filename": "pref-20.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=20&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "ecff9a27170cfa0f22b68ddb5fcdb78bfbc6fef1ae0366916dcc9c9bf9c9ce7e",
+      "bytes": 7395083,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "21",
+      "filename": "pref-21.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=21&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "46ccbfd192d354267e3818fb61e16a2bdf6bfec3e5f6fad399e0a112cf97765b",
+      "bytes": 10401688,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "22",
+      "filename": "pref-22.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=22&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "1295c3052e641f2890e4c80a5fee39944c0a656d448bd71636a734526ae8837e",
+      "bytes": 7660673,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "23",
+      "filename": "pref-23.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=23&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "9e01ed60f5f7b90a7de20c506a24b2d7178fa71bb4b007a3d500c2bc125d1551",
+      "bytes": 9219281,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "24",
+      "filename": "pref-24.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=24&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "526aea69a7905b4899259b845aa6a77974db2301e7af0cc3e731d50fa4bcfa21",
+      "bytes": 7493031,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "25",
+      "filename": "pref-25.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=25&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "befa777f71fafde88b7cbd61b9bce942f4ed0fb71dc92f03b4b3acb49ddf824a",
+      "bytes": 3811730,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "26",
+      "filename": "pref-26.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=26&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "de30f9d725249a9d4d1732d652a9bfc6337cdc998850abb802016063f02d8ded",
+      "bytes": 6978961,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "27",
+      "filename": "pref-27.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=27&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "a3c1590ae8efea1052fae6306619eff122897f698de209a2535cbc93b9e95c77",
+      "bytes": 7181215,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "28",
+      "filename": "pref-28.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=28&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "6e11444b4e1e2715f48169891d86df2b2fb6c98a71ce13be31a2a1fea3663a3f",
+      "bytes": 11510178,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "29",
+      "filename": "pref-29.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=29&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "199ddf6fc427a587e22e8d249fdcedee06033f56aa0b4660aa45faca9559ebf9",
+      "bytes": 3937876,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "30",
+      "filename": "pref-30.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=30&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "13de8b5e4671eb2ab9018549c569deb5110c64b4f0e49e8d12bbe9b3cf87bf18",
+      "bytes": 4720694,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "31",
+      "filename": "pref-31.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=31&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "dde7162113438efdb9f8d063c675ebed7b00c476bcf0b51ddbd14c8d46b1a468",
+      "bytes": 2492495,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "32",
+      "filename": "pref-32.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=32&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "1309aaca2cd243120c0158bd9f5c4d6b6a2976c79c3c273bf038cdb4645f77af",
+      "bytes": 4813402,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "33",
+      "filename": "pref-33.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=33&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "f5cc7d1fa9b047fe0c7f75af108b92a79a1e79a73060d864069cc0a6b8ac1631",
+      "bytes": 7397597,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "34",
+      "filename": "pref-34.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=34&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "37372fa3d6faf31412be93ff810bedaf7e4a6b76c25d0e92f694f7c735d89d9d",
+      "bytes": 9995152,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "35",
+      "filename": "pref-35.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=35&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "c7cae246b995df193e5e099fd233442320a58da72ba18971ad3e397b955e2325",
+      "bytes": 9009317,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "36",
+      "filename": "pref-36.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=36&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "3ee3f29f137b3305b7e2b571631b9ecbcb7a0d26e2210110ed4231ddd3f80d87",
+      "bytes": 2961680,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "37",
+      "filename": "pref-37.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=37&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "9cde905dd5573e0859c5dfe0ab1760567fe99e1c3fa8bdea75a6457fbc1dbe77",
+      "bytes": 3624593,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "38",
+      "filename": "pref-38.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=38&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "2387fabd8b8ca48753790fea100b52035ee7a6fc94ad3142c1aab446b16b771b",
+      "bytes": 6609704,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "39",
+      "filename": "pref-39.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=39&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "4aace71ba1ab9a523edfbfa7f2f43677497cd88aa52326bc597171db4776c087",
+      "bytes": 5475435,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "40",
+      "filename": "pref-40.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=40&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "dbfc474aa7ddc9dd5f3f99e228713642fcddb363efc0037db7543c5de7e64e37",
+      "bytes": 9821403,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "41",
+      "filename": "pref-41.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=41&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "34f0f82120007fc2e42c36211c90cc47c9443c4ac643e6c81f47fbbb11b69433",
+      "bytes": 3734606,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "42",
+      "filename": "pref-42.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=42&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "2884d6a5212027d78044994e1fddf353a2cc4a9e1f9a3a9bce51a999bff5c902",
+      "bytes": 13635595,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "43",
+      "filename": "pref-43.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=43&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "021b8c8d95d4c002ec71580913f3c834f56398bba2d055298857f089fafb2542",
+      "bytes": 7511990,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "44",
+      "filename": "pref-44.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=44&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "d4f996b00acc88e967db73f1c727983c2ee5a6ade34ffddaf0071a0b068794dc",
+      "bytes": 5783383,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "45",
+      "filename": "pref-45.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=45&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "8cf6c635bc4f85ca0e8e64a542cd6eda4ede592c21bcc2afd7dec64854d5c685",
+      "bytes": 4304902,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "46",
+      "filename": "pref-46.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=46&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "c1529c9fea6a947e405932a33a5e3ab2034864332d6589b1254d9c329b06b2c0",
+      "bytes": 8223418,
+      "survey_id": "A002005212020"
+    },
+    {
+      "pref_code": "47",
+      "filename": "pref-47.zip",
+      "url": "https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=47&coordSys=1&format=shape&downloadType=5&datum=2000",
+      "sha256": "39a86255a189b8be4b9007e3d276838461151b8f29fd2f3f05eb451818ede886",
+      "bytes": 4271480,
+      "survey_id": "A002005212020"
+    }
+  ],
+  "output": {
+    "filename": "japan-prefecture-boundaries.geojson",
+    "sha256": "0982a0f483c1e5bd9525cea4fe4166e6fad291ef3c468284a2599bf639da788f",
+    "bytes": 287176943
+  }
+}

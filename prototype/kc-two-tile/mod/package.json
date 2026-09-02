@@ -3,7 +3,6 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "scripts": { "build": "node scripts/build-mod.mjs", "postbuild": "node scripts/install-mod.mjs", "test": "node --test", "benchmark:gateway-cache": "node scripts/benchmark-gateway-cache.mjs", "audit:accounting": "node scripts/offline-accounting-conservation.mjs --hours 25" },
-  "devDependencies": { "esbuild": "^0.25.0" },
+  "scripts": { "test": "node --test", "benchmark:gateway-cache": "node scripts/benchmark-gateway-cache.mjs", "audit:accounting": "node scripts/offline-accounting-conservation.mjs --hours 25" },
   "engines": { "node": ">=20" }
 }

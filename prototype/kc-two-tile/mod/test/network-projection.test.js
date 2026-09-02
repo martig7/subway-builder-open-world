@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NetworkProjection, classifyCrossTileRouteIds, createGlobalNetwork, stripNetworkFromSnapshot } from '../src/network-projection.js';
+import { NetworkProjection, classifyCrossTileRouteIds, createGlobalNetwork, stripNetworkFromSnapshot } from '../../../../open-world-platform/src/runtime/network-projection.js';
 
 const catalog = {
   tiles: Array.from({ length: 4 }, (_, column) => ({

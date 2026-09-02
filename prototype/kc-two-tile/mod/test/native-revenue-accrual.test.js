@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { NativeRevenueAccrual } from '../src/native-revenue-accrual.js';
+import { NativeRevenueAccrual } from '../../../../open-world-platform/src/runtime/native-revenue-accrual.js';
 
 function revenueProfile(tileId, revenue, revenueByRoute = {}) {
   return {

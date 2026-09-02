@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "adapter": "lodes-us",
+  "sourceSet": "ny-lodes8-jt01-2023",
+  "vintage": "LODES8-2023",
+  "jobType": "JT01",
+  "workerColumn": "S000",
+  "cohortPolicy": { "pointMergeDistanceM": 100, "nativeMinimumSize": 50, "maximumSize": 200, "undersizedResidualPolicy": "retain-and-warn" }
+}

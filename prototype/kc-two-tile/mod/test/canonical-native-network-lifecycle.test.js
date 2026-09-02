@@ -4,11 +4,11 @@ import {
   createGlobalNetwork,
   createNativeNetworkSnapshot,
   inspectNativeNetworkSnapshot,
-} from '../src/network-projection.js';
+} from '../../../../open-world-platform/src/runtime/network-projection.js';
 import {
   CANONICAL_NATIVE_NETWORK_MODE,
   SHARED_TRANSIT_STATE_KEYS,
-} from '../src/shared-transit-network.js';
+} from '../../../../open-world-platform/src/runtime/shared-transit-network.js';
 
 function topology() {
   return {

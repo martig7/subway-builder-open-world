@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stabilizeMapLayerMoves } from '../src/map-layer-stability.js';
-import * as mapLayerStability from '../src/map-layer-stability.js';
+import { stabilizeMapLayerMoves } from '../../../../open-world-platform/src/runtime/map-layer-stability.js';
+import * as mapLayerStability from '../../../../open-world-platform/src/runtime/map-layer-stability.js';
 
 function fixtureMap(layerIds, { reportedLayerIds = layerIds } = {}) {
   const layers = new Set(layerIds);

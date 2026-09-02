@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { projectRouteTimings, repairRouteTimingIntegrity } from '../src/route-timing-integrity.js';
+import { projectRouteTimings, repairRouteTimingIntegrity } from '../../../../open-world-platform/src/runtime/route-timing-integrity.js';
 
 test('repairs the captured Empire Line nine-node route from its seven timing anchors', () => {
   const nodes = ['liberty', '42-out', '119-out', 'main-out', 'state', 'main-in', '119-in', '42-in', 'liberty'];

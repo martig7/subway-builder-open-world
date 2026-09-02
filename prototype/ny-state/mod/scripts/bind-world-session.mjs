@@ -1,6 +1,6 @@
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { WORLD_IDENTITY_ALIAS_PREFIX } from '../../../kc-two-tile/mod/src/world-identity.js';
+import { WORLD_IDENTITY_ALIAS_PREFIX } from '../../../../open-world-platform/src/runtime/world-identity.js';
 
 function option(name) {
   const index = process.argv.indexOf(`--${name}`);

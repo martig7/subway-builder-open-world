@@ -1,42 +1,6 @@
-import catalogSource from '../../generated/catalog/nec-tile-catalog.json' with { type: 'json' };
+// Compatibility binding for behavioral tests; runnable entries are generated centrally.
+import { createOpenWorldCatalog } from '../../../../open-world-platform/src/runtime/open-world-catalog.js';
+import definition from '../../../../worlds/nec-corridor/world.json' with { type: 'json' };
+import catalogSource from '../../../../worlds/nec-corridor/geography/tile-views.json' with { type: 'json' };
 
-export const PILOT_TILE_IDS = Object.freeze(
-  catalogSource.tiles
-    .filter((tile) => tile.status === 'selected')
-    .map((tile) => tile.id),
-);
-
-const tiles = catalogSource.tiles
-  .filter((tile) => tile.status === 'selected')
-  .map((tile) => Object.freeze({
-    ...tile,
-    name: `Grid ${tile.column}, ${tile.row}`,
-    cityName: `Northeast Corridor — Grid ${tile.column}, ${tile.row}`,
-    description: `NY-sized Northeast Corridor tile at grid column ${tile.column}, row ${tile.row}`,
-    population: 0,
-    initialViewState: Object.freeze({ ...(tile.initialViewState ?? tile.initialView) }),
-    neighbors: Object.freeze(tile.neighbors ?? []),
-  }));
-
-if (tiles.length !== 34) throw new Error(`NEC catalog must contain 34 selected tiles; found ${tiles.length}`);
-
-export const tileCatalog = Object.freeze({
-  ...catalogSource,
-  id: 'NEC_CORRIDOR_34',
-  name: 'Northeast Corridor 34-tile open world',
-  minZoom: 0.01,
-  maxZoom: 15,
-  basemapMinZoom: 0.01,
-  initialView: Object.freeze({
-    center: [...catalogSource.initialView.center],
-    zoom: catalogSource.initialView.zoom,
-  }),
-  selection: Object.freeze({
-    addressableCount: tiles.length,
-    normalCount: tiles.length,
-    sliverCount: 0,
-  }),
-  tiles: Object.freeze(tiles),
-});
-
-export const tileById = new Map(tiles.map((tile) => [tile.id, tile]));
+export const { PILOT_TILE_IDS, tileCatalog, tileById } = createOpenWorldCatalog({ definition, catalogSource });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findMountedRouter, HashCityNavigationAdapter, PENDING_KEY } from '../src/adapters/hash-city-navigation-adapter.js';
+import { findMountedRouter, HashCityNavigationAdapter, PENDING_KEY } from '../../../../open-world-platform/src/runtime/adapters/hash-city-navigation-adapter.js';
 
 test('persists the world handoff and changes city through the mounted data router', () => {
   const values = new Map();

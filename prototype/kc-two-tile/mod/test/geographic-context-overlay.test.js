@@ -6,7 +6,7 @@ import {
   mapLayerDiagnostic,
   registerGeographicContextOverlay,
   tileBoundaryGeoJson,
-} from '../src/ui/geographic-context-overlay.js';
+} from '../../../../open-world-platform/src/runtime/ui/geographic-context-overlay.js';
 
 function fixtureDeckLayer(id, props = {}) {
   return {

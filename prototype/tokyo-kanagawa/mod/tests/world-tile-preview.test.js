@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { TileMapController, TILE_MAP_VIEWPORT } from '../../../kc-two-tile/mod/src/ui/prototype-panel.js';
-import { boundsPolygon, visibleSlippyGrid } from '../../../kc-two-tile/mod/src/tile-map-model.js';
+import { TileMapController, TILE_MAP_VIEWPORT } from '../../../../open-world-platform/src/runtime/ui/prototype-panel.js';
+import { boundsPolygon, visibleSlippyGrid } from '../../../../open-world-platform/src/runtime/tile-map-model.js';
 import { tileCatalog } from '../src/tile-catalog.js';
 
 function createController() {

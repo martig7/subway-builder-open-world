@@ -36,6 +36,14 @@ _Avoid_: City data, generated tile, mod copy
 An immutable, hash-identified collection of a World's catalog, Tile Packages, world-level demand, and validation reports produced from one World Definition.
 _Avoid_: Generated folder, latest build
 
+**Demand Evidence**:
+Canonical source observations, marginals, and origin-destination controls together with the conservation totals needed to compile a World's game demand.
+_Avoid_: Demand package, game cohorts, source rows
+
+**Build Shard**:
+A resumable processing partition used to construct part of a Tile Package; it has no player-facing identity or save lineage.
+_Avoid_: Tile View, World, prefecture mod
+
 **Native Ledger**:
 The balance and financial history owned exclusively by Subway Builder and carried by Native Saves.
 _Avoid_: Sidecar finance, world finance

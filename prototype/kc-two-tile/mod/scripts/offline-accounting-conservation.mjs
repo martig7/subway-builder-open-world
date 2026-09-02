@@ -3,8 +3,8 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 
-import { backgroundFinanceForHour } from "../src/native-finance-model.js";
-import { quoteJourneyFare } from "../src/journey-fare.js";
+import { backgroundFinanceForHour } from "../../../../open-world-platform/src/runtime/native-finance-model.js";
+import { quoteJourneyFare } from "../../../../open-world-platform/src/runtime/journey-fare.js";
 import { decodeMetroSave } from "./inspect-metro-save.mjs";
 
 const DEFAULT_SAVE_DIRECTORY = "D:\\SubwayBuilder";

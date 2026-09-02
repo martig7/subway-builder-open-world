@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundsPolygon, catalogBounds, fitBoundsView } from '../../../kc-two-tile/mod/src/tile-map-model.js';
+import { boundsPolygon, catalogBounds, fitBoundsView } from '../../../../open-world-platform/src/runtime/tile-map-model.js';
 import { tileCatalog } from '../src/tile-catalog.js';
 
 test('NEC world-tile SVG geometry has finite polygon and label coordinates', () => {

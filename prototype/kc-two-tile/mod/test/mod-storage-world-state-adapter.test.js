@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ModStorageWorldStateAdapter, SAVE_CHECKPOINT_LIMIT } from '../src/adapters/mod-storage-world-state-adapter.js';
-import { createWorld } from '../src/world-model.js';
+import { ModStorageWorldStateAdapter, SAVE_CHECKPOINT_LIMIT } from '../../../../open-world-platform/src/runtime/adapters/mod-storage-world-state-adapter.js';
+import { createWorld } from '../../../../open-world-platform/src/runtime/world-model.js';
 
 class RecordingStorage {
   constructor(entries = []) {

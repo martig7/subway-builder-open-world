@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "sourceSet": "tokyo-kanagawa-mainland-current",
+  "sources": [
+    {
+      "id": "geofabrik-kanto-osm",
+      "filename": "kanto-latest.osm.pbf",
+      "role": "map-and-building-source",
+      "uri": "https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf",
+      "sha256": null,
+      "lockStatus": "legacy-input-needs-hash"
+    },
+    {
+      "id": "estat-tokyo-kanagawa-demand",
+      "role": "home-job-marginals-and-municipality-od",
+      "uri": "../../prototype/japan/generated/tokyo-kanagawa-test",
+      "sha256": null,
+      "lockStatus": "legacy-input-needs-hash"
+    }
+  ]
+}

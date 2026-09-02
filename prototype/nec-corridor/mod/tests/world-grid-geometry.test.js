@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { tileBoundaryGeoJson } from '../../../kc-two-tile/mod/src/ui/geographic-context-overlay.js';
+import { tileBoundaryGeoJson } from '../../../../open-world-platform/src/runtime/ui/geographic-context-overlay.js';
 import { tileCatalog } from '../src/tile-catalog.js';
 
 function adjacentPairs(tiles) {

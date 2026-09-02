@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SubwayBuilderGameAdapter } from '../src/adapters/subway-builder-game-adapter.js';
-import { CANONICAL_NATIVE_NETWORK_MODE } from '../src/shared-transit-network.js';
+import { SubwayBuilderGameAdapter } from '../../../../open-world-platform/src/runtime/adapters/subway-builder-game-adapter.js';
+import { CANONICAL_NATIVE_NETWORK_MODE } from '../../../../open-world-platform/src/runtime/shared-transit-network.js';
 
 function fixture() {
   let state;

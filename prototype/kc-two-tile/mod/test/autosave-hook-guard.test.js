@@ -6,7 +6,7 @@ import {
   OPEN_WORLD_RUNTIME_SAVE_NAME,
   openWorldRuntimeSnapshotProvenance,
   stampOpenWorldRuntimeSnapshot,
-} from '../src/autosave-hook-guard.js';
+} from '../../../../open-world-platform/src/runtime/autosave-hook-guard.js';
 
 test('blocks re-entrant save callbacks caused by captureSnapshot generateSave', () => {
   const guard = createNativeSaveLifecycle();

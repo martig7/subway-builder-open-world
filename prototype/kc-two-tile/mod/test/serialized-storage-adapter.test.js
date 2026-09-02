@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SerializedStorageAdapter } from '../src/adapters/serialized-storage-adapter.js';
+import { SerializedStorageAdapter } from '../../../../open-world-platform/src/runtime/adapters/serialized-storage-adapter.js';
 
 class SnapshotReplacingStorage {
   constructor() { this.values = new Map(); }

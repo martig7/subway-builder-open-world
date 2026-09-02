@@ -1,0 +1,870 @@
+{
+  "schemaVersion": 1,
+  "id": "NYS_CORRIDOR_7",
+  "worldId": "NYS_NYC_SCALE_PROTOTYPE",
+  "name": "New York seven-tile corridor performance canary",
+  "prototype": true,
+  "crs": "EPSG:26918",
+  "minZoom": 5,
+  "maxZoom": 15,
+  "initialView": {
+    "center": [
+      -74.35,
+      42.1
+    ],
+    "zoom": 6.5
+  },
+  "context": [],
+  "grid": {
+    "originX": 553400,
+    "originY": 4483300,
+    "tileWidthM": 77700,
+    "tileHeightM": 97300,
+    "ownershipConvention": "[min_x,max_x) x [min_y,max_y)",
+    "haloM": 2000,
+    "bboxColumns": [
+      -6,
+      2
+    ],
+    "bboxRows": [
+      -1,
+      5
+    ],
+    "bboxCellCount": 63
+  },
+  "selection": {
+    "addressableCount": 7,
+    "normalCount": 7,
+    "sliverCount": 0
+  },
+  "tiles": [
+    {
+      "id": "NY_CP00_RP00",
+      "gameCityCode": "NY_CP00_RP00",
+      "name": "New York City",
+      "cityName": "New York Open World — New York City",
+      "description": "NYC-sized performance pilot tile: New York City",
+      "population": 4081572,
+      "column": 0,
+      "row": 0,
+      "status": "selected",
+      "isNycBaseTile": true,
+      "stateIntersectionKm2": 4119.642755,
+      "ownershipProjected": [
+        553400,
+        4483300,
+        631100,
+        4580600
+      ],
+      "haloProjected": [
+        551400,
+        4481300,
+        633100,
+        4582600
+      ],
+      "bounds": [
+        -74.36980574,
+        40.49005367,
+        -73.43248603,
+        41.37514701
+      ],
+      "initialView": {
+        "longitude": -73.9041908,
+        "latitude": 40.93349796,
+        "zoom": 9,
+        "bearing": 0
+      },
+      "initialViewState": {
+        "zoom": 9,
+        "latitude": 40.93349796,
+        "longitude": -73.9041908,
+        "bearing": 0
+      },
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NY_CP00_RP01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NY_CP01_RP00"
+        }
+      ],
+      "boundary": [
+        [
+          -73.45306094651934,
+          40.49005366648574
+        ],
+        [
+          -73.4324860255007,
+          41.36624187257424
+        ],
+        [
+          -74.36142043065041,
+          41.3751470116748
+        ],
+        [
+          -74.36980573812328,
+          40.498689586118495
+        ],
+        [
+          -73.45306094651934,
+          40.49005366648574
+        ]
+      ]
+    },
+    {
+      "id": "NY_CP01_RP00",
+      "gameCityCode": "NY_CP01_RP00",
+      "name": "Long Island",
+      "cityName": "New York Open World — Long Island",
+      "description": "NYC-sized performance pilot tile: Long Island",
+      "population": 389140,
+      "column": 1,
+      "row": 0,
+      "status": "selected",
+      "isNycBaseTile": false,
+      "stateIntersectionKm2": 2220.947036,
+      "ownershipProjected": [
+        631100,
+        4483300,
+        708800,
+        4580600
+      ],
+      "haloProjected": [
+        629100,
+        4481300,
+        710800,
+        4582600
+      ],
+      "bounds": [
+        -73.45306095,
+        40.47415341,
+        -72.50414422,
+        41.36624187
+      ],
+      "initialView": {
+        "longitude": -72.98163822,
+        "latitude": 40.92103737,
+        "zoom": 9,
+        "bearing": 0
+      },
+      "initialViewState": {
+        "zoom": 9,
+        "latitude": 40.92103737,
+        "longitude": -72.98163822,
+        "bearing": 0
+      },
+      "neighbors": [
+        {
+          "direction": "west",
+          "tileId": "NY_CP00_RP00"
+        }
+      ],
+      "boundary": [
+        [
+          -72.5368797960823,
+          40.474153405451695
+        ],
+        [
+          -72.50414422253851,
+          41.34984611859816
+        ],
+        [
+          -73.4324860255007,
+          41.36624187257424
+        ],
+        [
+          -73.45306094651934,
+          40.49005366648574
+        ],
+        [
+          -72.5368797960823,
+          40.474153405451695
+        ]
+      ]
+    },
+    {
+      "id": "NY_CM01_RP01",
+      "gameCityCode": "NY_CM01_RP01",
+      "name": "Catskills",
+      "cityName": "New York Open World — Catskills",
+      "description": "NYC-sized performance pilot tile: Catskills",
+      "population": 30159,
+      "column": -1,
+      "row": 1,
+      "status": "selected",
+      "isNycBaseTile": false,
+      "stateIntersectionKm2": 6245.813033,
+      "ownershipProjected": [
+        475700,
+        4580600,
+        553400,
+        4677900
+      ],
+      "haloProjected": [
+        473700,
+        4578600,
+        555400,
+        4679900
+      ],
+      "bounds": [
+        -75.29458509,
+        41.37514701,
+        -74.35265605,
+        42.25291758
+      ],
+      "initialView": {
+        "longitude": -74.82481394,
+        "latitude": 41.81501689,
+        "zoom": 9,
+        "bearing": 0
+      },
+      "initialViewState": {
+        "zoom": 9,
+        "latitude": 41.81501689,
+        "longitude": -74.82481394,
+        "bearing": 0
+      },
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NY_CM01_RP02"
+        },
+        {
+          "direction": "east",
+          "tileId": "NY_CP00_RP01"
+        }
+      ],
+      "boundary": [
+        [
+          -74.36142043065041,
+          41.3751470116748
+        ],
+        [
+          -74.35265605465452,
+          42.25146906459063
+        ],
+        [
+          -75.29458508923994,
+          42.25291758477143
+        ],
+        [
+          -75.2905964442446,
+          41.37655191014284
+        ],
+        [
+          -74.36142043065041,
+          41.3751470116748
+        ]
+      ]
+    },
+    {
+      "id": "NY_CP00_RP01",
+      "gameCityCode": "NY_CP00_RP01",
+      "name": "Lower Hudson",
+      "cityName": "New York Open World — Lower Hudson",
+      "description": "NYC-sized performance pilot tile: Lower Hudson",
+      "population": 158447,
+      "column": 0,
+      "row": 1,
+      "status": "selected",
+      "isNycBaseTile": false,
+      "stateIntersectionKm2": 6864.575663,
+      "ownershipProjected": [
+        553400,
+        4580600,
+        631100,
+        4677900
+      ],
+      "haloProjected": [
+        551400,
+        4578600,
+        633100,
+        4679900
+      ],
+      "bounds": [
+        -74.36142043,
+        41.36624187,
+        -73.41098135,
+        42.25146906
+      ],
+      "initialView": {
+        "longitude": -73.88938241,
+        "latitude": 41.80978127,
+        "zoom": 9,
+        "bearing": 0
+      },
+      "initialViewState": {
+        "zoom": 9,
+        "latitude": 41.80978127,
+        "longitude": -73.88938241,
+        "bearing": 0
+      },
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NY_CP00_RP02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NY_CP00_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NY_CM01_RP01"
+        }
+      ],
+      "boundary": [
+        [
+          -73.4324860255007,
+          41.36624187257424
+        ],
+        [
+          -73.4109813494552,
+          42.2422874688255
+        ],
+        [
+          -74.35265605465452,
+          42.25146906459063
+        ],
+        [
+          -74.36142043065041,
+          41.3751470116748
+        ],
+        [
+          -73.4324860255007,
+          41.36624187257424
+        ]
+      ]
+    },
+    {
+      "id": "NY_CM01_RP02",
+      "gameCityCode": "NY_CM01_RP02",
+      "name": "Mohawk Valley",
+      "cityName": "New York Open World — Mohawk Valley",
+      "description": "NYC-sized performance pilot tile: Mohawk Valley",
+      "population": 52344,
+      "column": -1,
+      "row": 2,
+      "status": "selected",
+      "isNycBaseTile": false,
+      "stateIntersectionKm2": 7560.21,
+      "ownershipProjected": [
+        475700,
+        4677900,
+        553400,
+        4775200
+      ],
+      "haloProjected": [
+        473700,
+        4675900,
+        555400,
+        4777200
+      ],
+      "bounds": [
+        -75.29875535,
+        42.25146906,
+        -74.34349264,
+        43.12914858
+      ],
+      "initialView": {
+        "longitude": -74.82237154,
+        "latitude": 42.69132397,
+        "zoom": 9,
+        "bearing": 0
+      },
+      "initialViewState": {
+        "zoom": 9,
+        "latitude": 42.69132397,
+        "longitude": -74.82237154,
+        "bearing": 0
+      },
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NY_CM01_RP03"
+        },
+        {
+          "direction": "east",
+          "tileId": "NY_CP00_RP02"
+        },
+        {
+          "direction": "south",
+          "tileId": "NY_CM01_RP01"
+        }
+      ],
+      "boundary": [
+        [
+          -74.35265605465452,
+          42.25146906459063
+        ],
+        [
+          -74.3434926437689,
+          43.12765522731695
+        ],
+        [
+          -75.29875534568087,
+          43.12914858057401
+        ],
+        [
+          -75.29458508923994,
+          42.25291758477143
+        ],
+        [
+          -74.35265605465452,
+          42.25146906459063
+        ]
+      ]
+    },
+    {
+      "id": "NY_CP00_RP02",
+      "gameCityCode": "NY_CP00_RP02",
+      "name": "Albany / Capital Region",
+      "cityName": "New York Open World — Albany / Capital Region",
+      "description": "NYC-sized performance pilot tile: Albany / Capital Region",
+      "population": 321968,
+      "column": 0,
+      "row": 2,
+      "status": "selected",
+      "isNycBaseTile": false,
+      "stateIntersectionKm2": 7539.03849,
+      "ownershipProjected": [
+        553400,
+        4677900,
+        631100,
+        4775200
+      ],
+      "haloProjected": [
+        551400,
+        4675900,
+        633100,
+        4777200
+      ],
+      "bounds": [
+        -74.35265605,
+        42.24228747,
+        -73.38849798,
+        43.12765523
+      ],
+      "initialView": {
+        "longitude": -73.8739023,
+        "latitude": 42.68592605,
+        "zoom": 9,
+        "bearing": 0
+      },
+      "initialViewState": {
+        "zoom": 9,
+        "latitude": 42.68592605,
+        "longitude": -73.8739023,
+        "bearing": 0
+      },
+      "neighbors": [
+        {
+          "direction": "south",
+          "tileId": "NY_CP00_RP01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NY_CM01_RP02"
+        }
+      ],
+      "boundary": [
+        [
+          -73.4109813494552,
+          42.2422874688255
+        ],
+        [
+          -73.38849798249363,
+          43.11818950214902
+        ],
+        [
+          -74.3434926437689,
+          43.12765522731695
+        ],
+        [
+          -74.35265605465452,
+          42.25146906459063
+        ],
+        [
+          -73.4109813494552,
+          42.2422874688255
+        ]
+      ]
+    },
+    {
+      "id": "NY_CM01_RP03",
+      "gameCityCode": "NY_CM01_RP03",
+      "name": "Adirondacks",
+      "cityName": "New York Open World — Adirondacks",
+      "description": "NYC-sized performance pilot tile: Adirondacks",
+      "population": 2607,
+      "column": -1,
+      "row": 3,
+      "status": "selected",
+      "isNycBaseTile": false,
+      "stateIntersectionKm2": 7560.21,
+      "ownershipProjected": [
+        475700,
+        4775200,
+        553400,
+        4872500
+      ],
+      "haloProjected": [
+        473700,
+        4773200,
+        555400,
+        4874500
+      ],
+      "bounds": [
+        -75.30311701,
+        43.12765523,
+        -74.33390868,
+        44.00524457
+      ],
+      "initialView": {
+        "longitude": -74.81981747,
+        "latitude": 43.56749645,
+        "zoom": 9,
+        "bearing": 0
+      },
+      "initialViewState": {
+        "zoom": 9,
+        "latitude": 43.56749645,
+        "longitude": -74.81981747,
+        "bearing": 0
+      },
+      "neighbors": [
+        {
+          "direction": "south",
+          "tileId": "NY_CM01_RP02"
+        }
+      ],
+      "boundary": [
+        [
+          -74.3434926437689,
+          43.12765522731695
+        ],
+        [
+          -74.33390867656932,
+          44.003705101884066
+        ],
+        [
+          -75.30311700972578,
+          44.00524457347418
+        ],
+        [
+          -75.29875534568087,
+          43.12914858057401
+        ],
+        [
+          -74.3434926437689,
+          43.12765522731695
+        ]
+      ]
+    }
+  ],
+  "basemapMinZoom": 0.01,
+  "spatialTiles": [
+    {
+      "id": "__spatial_-2_0",
+      "column": -2,
+      "row": 0,
+      "status": "normal",
+      "bounds": [
+        -76.2196625,
+        40.49413948,
+        -75.28678032,
+        41.37655191
+      ]
+    },
+    {
+      "id": "__spatial_-2_1",
+      "column": -2,
+      "row": 1,
+      "status": "normal",
+      "bounds": [
+        -76.23639837,
+        41.37045505,
+        -75.29059644,
+        42.25291758
+      ]
+    },
+    {
+      "id": "__spatial_-2_2",
+      "column": -2,
+      "row": 2,
+      "status": "normal",
+      "bounds": [
+        -76.25389605,
+        42.24663143,
+        -75.29458509,
+        43.12914858
+      ]
+    },
+    {
+      "id": "__spatial_-2_3",
+      "column": -2,
+      "row": 3,
+      "status": "normal",
+      "bounds": [
+        -76.27219661,
+        43.12266788,
+        -75.29875535,
+        44.00524457
+      ]
+    },
+    {
+      "id": "__spatial_-2_4",
+      "column": -2,
+      "row": 4,
+      "status": "normal",
+      "bounds": [
+        -76.29134437,
+        43.99856375,
+        -75.30311701,
+        44.88120536
+      ]
+    },
+    {
+      "id": "__spatial_-1_-1",
+      "column": -1,
+      "row": -1,
+      "status": "normal",
+      "bounds": [
+        -75.28678032,
+        39.62209743,
+        -74.36980574,
+        40.50005201
+      ]
+    },
+    {
+      "id": "__spatial_-1_0",
+      "column": -1,
+      "row": 0,
+      "status": "normal",
+      "bounds": [
+        -75.29059644,
+        40.49868959,
+        -74.36142043,
+        41.37655191
+      ]
+    },
+    {
+      "id": "__spatial_-1_1",
+      "column": -1,
+      "row": 1,
+      "status": "normal",
+      "bounds": [
+        -75.29458509,
+        41.37514701,
+        -74.35265605,
+        42.25291758
+      ]
+    },
+    {
+      "id": "__spatial_-1_2",
+      "column": -1,
+      "row": 2,
+      "status": "normal",
+      "bounds": [
+        -75.29875535,
+        42.25146906,
+        -74.34349264,
+        43.12914858
+      ]
+    },
+    {
+      "id": "__spatial_-1_3",
+      "column": -1,
+      "row": 3,
+      "status": "normal",
+      "bounds": [
+        -75.30311701,
+        43.12765523,
+        -74.33390868,
+        44.00524457
+      ]
+    },
+    {
+      "id": "__spatial_-1_4",
+      "column": -1,
+      "row": 4,
+      "status": "normal",
+      "bounds": [
+        -75.30768065,
+        44.0037051,
+        -74.32388093,
+        44.88120536
+      ]
+    },
+    {
+      "id": "__spatial_0_-1",
+      "column": 0,
+      "row": -1,
+      "status": "normal",
+      "bounds": [
+        -74.37783052,
+        39.61372389,
+        -73.45306095,
+        40.49868959
+      ]
+    },
+    {
+      "id": "__spatial_0_0",
+      "column": 0,
+      "row": 0,
+      "status": "normal",
+      "bounds": [
+        -74.36980574,
+        40.49005367,
+        -73.43248603,
+        41.37514701
+      ]
+    },
+    {
+      "id": "__spatial_0_1",
+      "column": 0,
+      "row": 1,
+      "status": "normal",
+      "bounds": [
+        -74.36142043,
+        41.36624187,
+        -73.41098135,
+        42.25146906
+      ]
+    },
+    {
+      "id": "__spatial_0_2",
+      "column": 0,
+      "row": 2,
+      "status": "normal",
+      "bounds": [
+        -74.35265605,
+        42.24228747,
+        -73.38849798,
+        43.12765523
+      ]
+    },
+    {
+      "id": "__spatial_0_3",
+      "column": 0,
+      "row": 3,
+      "status": "normal",
+      "bounds": [
+        -74.34349264,
+        43.1181895,
+        -73.36498318,
+        44.0037051
+      ]
+    },
+    {
+      "id": "__spatial_0_4",
+      "column": 0,
+      "row": 4,
+      "status": "normal",
+      "bounds": [
+        -74.33390868,
+        43.99394711,
+        -73.34038003,
+        44.87961841
+      ]
+    },
+    {
+      "id": "__spatial_1_-1",
+      "column": 1,
+      "row": -1,
+      "status": "normal",
+      "bounds": [
+        -73.47275157,
+        39.59830657,
+        -72.5368798,
+        40.49005367
+      ]
+    },
+    {
+      "id": "__spatial_1_0",
+      "column": 1,
+      "row": 0,
+      "status": "normal",
+      "bounds": [
+        -73.45306095,
+        40.47415341,
+        -72.50414422,
+        41.36624187
+      ]
+    },
+    {
+      "id": "__spatial_1_1",
+      "column": 1,
+      "row": 1,
+      "status": "normal",
+      "bounds": [
+        -73.43248603,
+        41.34984612,
+        -72.46993042,
+        42.24228747
+      ]
+    },
+    {
+      "id": "__spatial_1_2",
+      "column": 1,
+      "row": 2,
+      "status": "normal",
+      "bounds": [
+        -73.41098135,
+        42.22538292,
+        -72.4341607,
+        43.1181895
+      ]
+    },
+    {
+      "id": "__spatial_1_3",
+      "column": 1,
+      "row": 3,
+      "status": "normal",
+      "bounds": [
+        -73.38849798,
+        43.10076206,
+        -72.39675133,
+        43.99394711
+      ]
+    },
+    {
+      "id": "__spatial_2_-1",
+      "column": 2,
+      "row": -1,
+      "status": "normal",
+      "bounds": [
+        -72.56820932,
+        39.57586149,
+        -71.62159484,
+        40.47415341
+      ]
+    },
+    {
+      "id": "__spatial_2_0",
+      "column": 2,
+      "row": 0,
+      "status": "normal",
+      "bounds": [
+        -72.5368798,
+        40.45100565,
+        -71.5767446,
+        41.34984612
+      ]
+    },
+    {
+      "id": "__spatial_2_1",
+      "column": 2,
+      "row": 1,
+      "status": "normal",
+      "bounds": [
+        -72.50414422,
+        41.32597745,
+        -71.52987119,
+        42.22538292
+      ]
+    }
+  ]
+}

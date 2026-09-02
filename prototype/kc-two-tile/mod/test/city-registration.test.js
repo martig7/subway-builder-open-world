@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { CORRIDOR_TILESET, registerPrototypeCities } from '../src/city-registration.js';
+import { createOpenWorldCityRegistration } from '../../../../open-world-platform/src/runtime/open-world-city-registration.js';
+import { definition, tileCatalog } from '../../../../open-world-platform/testkit/fixtures/kc-world.js';
+
+const { registerPilotCities: registerPrototypeCities } = createOpenWorldCityRegistration({ definition, tileCatalog });
 
 
-test('both logical cities use the shared corridor PMTiles endpoint', () => {
+test('both logical cities use definition-derived PMTiles endpoints', () => {
   const cities = [];
   const dataFiles = [];
   const tileOverrides = [];
@@ -27,10 +30,10 @@ test('both logical cities use the shared corridor PMTiles endpoint', () => {
   assert.deepEqual(cities.map(({ code }) => code), ['KCW', 'KCE']);
   assert.ok(cities.every((city) => city.minZoom === 3));
   assert.deepEqual(tileOverrides, [
-    { cityCode: 'KCW', tilesUrl: `http://tiles.test/${CORRIDOR_TILESET}/{z}/{x}/{y}.mvt`, maxZoom: 15 },
-    { cityCode: 'KCE', tilesUrl: `http://tiles.test/${CORRIDOR_TILESET}/{z}/{x}/{y}.mvt`, maxZoom: 15 },
+    { cityCode: 'KCW', tilesUrl: 'http://tiles.test/KCW/{z}/{x}/{y}.mvt?v=kcow-fixture-v1', maxZoom: 15 },
+    { cityCode: 'KCE', tilesUrl: 'http://tiles.test/KCE/{z}/{x}/{y}.mvt?v=kcow-fixture-v1', maxZoom: 15 },
   ]);
-  assert.equal(result.tilesUrl, `http://tiles.test/${CORRIDOR_TILESET}/{z}/{x}/{y}.mvt`);
+  assert.equal(result.tileBase, 'http://tiles.test');
   assert.equal(dataFiles[0].files.buildingsIndex, '/data/KCW/buildings_index.bin.gz');
   assert.equal(dataFiles[1].files.buildingsIndex, '/data/KCE/buildings_index.bin.gz');
   assert.deepEqual(layerVisibility.map(({ cityCode }) => cityCode), ['KCW', 'KCE']);

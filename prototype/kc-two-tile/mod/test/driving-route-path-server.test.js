@@ -4,7 +4,7 @@ import {
   drivingRoutePathFetchGeneration,
   installDrivingRoutePathFetch,
   parseDrivingRoutePathRequest,
-} from '../src/driving-route-path-server.js';
+} from '../../../../open-world-platform/src/runtime/driving-route-path-server.js';
 
 const coordinates = [[-75, 40], [-74.9, 40.1]];
 

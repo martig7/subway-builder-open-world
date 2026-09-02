@@ -5,7 +5,7 @@ import {
   prepareSimulationPerformanceDiagnostics,
   sampleSimulationThroughput,
   SIMULATION_PERF_VERSION,
-} from '../src/simulation-performance-diagnostics.js';
+} from '../../../../open-world-platform/src/runtime/simulation-performance-diagnostics.js';
 
 function fixture() {
   const state = {

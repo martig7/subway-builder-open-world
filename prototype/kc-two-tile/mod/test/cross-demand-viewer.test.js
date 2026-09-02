@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerCrossDemandViewer, transitLegPresentation } from '../src/ui/cross-demand-viewer.js';
-import { createRendererVirtualization } from '../src/ui/renderer-virtualization.js';
+import { registerCrossDemandViewer, transitLegPresentation } from '../../../../open-world-platform/src/runtime/ui/cross-demand-viewer.js';
+import { createRendererVirtualization } from '../../../../open-world-platform/src/runtime/ui/renderer-virtualization.js';
 
 function overlayMap(sources, layers) {
   const sourceById = new Map();

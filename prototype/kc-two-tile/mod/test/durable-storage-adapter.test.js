@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DurableStorageAdapter,
   IndexedDbRecordStore,
-} from '../src/adapters/durable-storage-adapter.js';
+} from '../../../../open-world-platform/src/runtime/adapters/durable-storage-adapter.js';
 
 class MemoryRecordStore {
   constructor() { this.records = new Map(); }

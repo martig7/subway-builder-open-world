@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ModStorageWorldStateAdapter } from '../src/adapters/mod-storage-world-state-adapter.js';
-import { createWorld } from '../src/world-model.js';
+import { ModStorageWorldStateAdapter } from '../../../../open-world-platform/src/runtime/adapters/mod-storage-world-state-adapter.js';
+import { createWorld } from '../../../../open-world-platform/src/runtime/world-model.js';
 
 function addFinanceState(world) {
   world.wallet = 12_345;

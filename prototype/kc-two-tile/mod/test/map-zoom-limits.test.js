@@ -5,7 +5,7 @@ import {
   OPEN_WORLD_MAX_ZOOM,
   OPEN_WORLD_MIN_ZOOM,
   relaxMapZoomLimits,
-} from '../src/map-zoom-limits.js';
+} from '../../../../open-world-platform/src/runtime/map-zoom-limits.js';
 
 test('relaxes the native city camera clamp to the MapLibre camera range', () => {
   let minZoom = 9;

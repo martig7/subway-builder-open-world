@@ -4,7 +4,7 @@ import {
   WorldIdentityResolver,
   WORLD_IDENTITY_ALIAS_PREFIX,
   worldIdentityLoadOptions,
-} from '../src/world-identity.js';
+} from '../../../../open-world-platform/src/runtime/world-identity.js';
 
 test('a destination tile session remains bound to the pending open world', async () => {
   const storage = new Map();

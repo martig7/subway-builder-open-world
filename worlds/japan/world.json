@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "worldId": "japan-world",
+    "artifactWorldId": "JP_NATIONAL_OPEN_WORLD",
+    "manifestId": "local.japan-open-world",
+    "name": "Japan Open World",
+    "description": "One persistent national open world expanded prefecture by prefecture.",
+    "version": "0.1.0",
+    "author": "Open World Prototype",
+    "compatibilityLineage": ["japan-world", "JP_NATIONAL_OPEN_WORLD", "tokyo-kanagawa-world"]
+  },
+  "tileViews": {
+    "catalog": "geography/tile-views.json",
+    "initialTileId": "JP_TOKYO_MAINLAND",
+    "boundaryOverlay": "geography/prefectures.geojson"
+  },
+  "map": {
+    "sourceLock": "sources.lock.json",
+    "profile": "osm-depot-world-v1",
+    "basemapRevision": "japan-national-v1"
+  },
+  "demand": {
+    "adapter": "estat-japan",
+    "definition": "demand.json",
+    "routingProfile": "generated-roads-v1",
+    "nativePopPrefixes": ["jp-national-local-", "jp-tk-local-"],
+    "crossPopPrefixes": ["jp-national-cross-", "jp-tk-cross-"]
+  },
+  "runtime": {
+    "storageNamespace": "open-world-sidecar-local.japan-open-world-v1",
+    "tileServerPort": 8801,
+    "tileBaseGlobal": "JAPAN_OPEN_WORLD_TILE_BASE",
+    "diagnosticNamespace": "japan",
+    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-national-v1",
+    "requiredHostCapabilities": ["native-save-authority-v1", "native-ledger-authority-v1"]
+  },
+  "release": {
+    "platformCompatibility": "^1.0.0",
+    "artifactSelection": "explicit",
+    "artifactLayout": "split-map-demand-v1"
+  }
+}

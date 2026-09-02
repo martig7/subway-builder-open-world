@@ -11,7 +11,7 @@ import {
   nativeComparableFinanceForHour,
   projectNativeBackgroundFinance,
   summarizeNativeFinanceAudit,
-} from '../src/native-finance-model.js';
+} from '../../../../open-world-platform/src/runtime/native-finance-model.js';
 
 test('native revenue profile reuses calculated native transit shares and fares', () => {
   const profile = calculateNativeRevenueProfile([{

@@ -1,6 +1,6 @@
 # Centralized Open-World Platform and Map Creator Plan
 
-Status: plan only. This document does not move source files, regenerate data, build a mod, install a mod, or change any Native Save.
+Status: source centralization implemented. The central platform, Map Creator, World Definitions, generated entry path, NEC/Tokyo/New York builds, and legacy runtime cleanup are complete. Published Artifact Set migration, installation of a selected active consumer, and live-game verification remain release gates.
 
 Purpose: replace the Kansas City proof-of-concept ownership model and the NEC/Tokyo per-world forks with one central open-world implementation. A new World should require a World Definition, geography, pinned source data, and a supported demand Adapter—not a copied runtime, game entry point, installer, tile server, or map pipeline.
 

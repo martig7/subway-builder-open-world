@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks';
-import { calculateCrossTileModeShares, createNetworkProfile } from '../src/cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, createNetworkProfile } from '../../../../open-world-platform/src/runtime/cross-tile-mode-choice.js';
 
 const stationCount = Number(process.env.STATIONS ?? 400);
 const popCount = Number(process.env.POPS ?? 6_125);

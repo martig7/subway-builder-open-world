@@ -9,7 +9,7 @@ import {
   virtualizeDeckLayers,
   virtualizeGeoJsonData,
   virtualizeRenderInputs,
-} from '../src/ui/renderer-virtualization.js';
+} from '../../../../open-world-platform/src/runtime/ui/renderer-virtualization.js';
 
 const catalog = {
   tiles: Array.from({ length: 9 }, (_, index) => ({

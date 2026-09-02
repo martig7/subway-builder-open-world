@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0.0",
+  "sources": [
+    {
+      "id": "census-state-boundary-2024-500k",
+      "filename": "cb_2024_us_state_500k.zip",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_500k.zip",
+      "bytes": 3242450,
+      "sha256": "3e81cbb6cf5f60d9b01ef3e730afa14d61ce5f784252a0b33a696135e71447bc",
+      "role": "grid-selection-boundary"
+    },
+    {
+      "id": "lodes-ny-main-jt01-2023",
+      "filename": "ny_od_main_JT01_2023.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ny/od/ny_od_main_JT01_2023.csv.gz",
+      "bytes": 41054012,
+      "sha256": "3adc9ecd65712f314ee30bd642c99a95027f4107efdf85a3f31d5a78c9a23e58",
+      "decompressedBytes": 430400307,
+      "decompressedSha256": "45c4ee6bfd1e72b960d4ede294b8b64945cb88ca8575d576f5b681d1c6bd9de6",
+      "role": "lodes-main"
+    },
+    {
+      "id": "lodes-ny-aux-jt01-2023",
+      "filename": "ny_od_aux_JT01_2023.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ny/od/ny_od_aux_JT01_2023.csv.gz",
+      "bytes": 5107362,
+      "sha256": "e8493d17da035f7cd70b73fb4b86b4a0e38b9ce80f1df2ab03fae134cbe05fee",
+      "decompressedBytes": 45505366,
+      "decompressedSha256": "867ac50eb3e49112158f8210d3cb3ffbb313c469e64c533d0f90fb9160b1964e",
+      "role": "lodes-aux"
+    },
+    {
+      "id": "lodes-ny-crosswalk-2023",
+      "filename": "ny_xwalk.csv.gz",
+      "url": "https://lehd.ces.census.gov/data/lodes/LODES8/ny/ny_xwalk.csv.gz",
+      "bytes": 5209704,
+      "sha256": "b8041bc3e4b536c861e9b1e4f77e125adc129d772febf932ab16e1fedcfa6259",
+      "decompressedBytes": 143817679,
+      "decompressedSha256": "ffa31ac83f3940f755440a404ade5a70e782ae9c68d6e50f4ced8f3df705a0ed",
+      "role": "lodes-crosswalk"
+    }
+  ]
+}

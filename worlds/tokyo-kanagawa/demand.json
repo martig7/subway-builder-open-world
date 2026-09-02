@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "adapter": "estat-japan",
+  "sourceSet": "tokyo-kanagawa-mainland-current",
+  "prefectureCodes": ["13", "14"],
+  "remoteIslandPolicy": "deferred",
+  "sourceMeshM": 250,
+  "cohortPolicy": {
+    "pointMergeDistanceM": 350,
+    "buildingSourceRadiusM": 750,
+    "candidateGridM": 100,
+    "finalSiteAnchor": "member-building-center"
+  },
+  "crossDemandPolicy": {
+    "ledgerScope": "world",
+    "conserveDirectedPrefecturePairs": true
+  }
+}

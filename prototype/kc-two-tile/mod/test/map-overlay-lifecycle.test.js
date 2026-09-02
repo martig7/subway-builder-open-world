@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerCrossDemandViewer } from '../src/ui/cross-demand-viewer.js';
-import { registerNetworkProjectionOverlay } from '../src/ui/network-projection-overlay.js';
+import { registerCrossDemandViewer } from '../../../../open-world-platform/src/runtime/ui/cross-demand-viewer.js';
+import { registerNetworkProjectionOverlay } from '../../../../open-world-platform/src/runtime/ui/network-projection-overlay.js';
 
 function fixtureMap() {
   const sources = new Map();

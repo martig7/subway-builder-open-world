@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildGeneratedRoadGraph,
   routeGeneratedRoadGraph,
-} from '../src/generated-road-routing.js';
+} from '../../../../open-world-platform/src/runtime/generated-road-routing.js';
 
 const feature = (roadClass, coordinates) => ({
   type: 'Feature', properties: { roadClass }, geometry: { type: 'LineString', coordinates },

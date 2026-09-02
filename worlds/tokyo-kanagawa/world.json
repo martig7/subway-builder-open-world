@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "worldId": "tokyo-kanagawa-world",
+    "artifactWorldId": "JP_TOKYO_KANAGAWA_MAINLAND",
+    "manifestId": "local.tokyo-kanagawa-open-world",
+    "name": "Tokyo–Kanagawa Open World",
+    "description": "Two-prefecture mainland open world built from e-Stat demand and OpenStreetMap data.",
+    "version": "0.1.0",
+    "author": "Open World Prototype",
+    "compatibilityLineage": ["tokyo-kanagawa-world", "JP_TOKYO_KANAGAWA_MAINLAND"]
+  },
+  "tileViews": {
+    "catalog": "geography/tile-views.json",
+    "initialTileId": "JP_TOKYO_MAINLAND",
+    "boundaryOverlay": "geography/world-boundary-overlay.json"
+  },
+  "map": {
+    "sourceLock": "sources.lock.json",
+    "profile": "osm-depot-world-v1",
+    "basemapRevision": "tokyo-kanagawa-mainland-v2"
+  },
+  "demand": {
+    "adapter": "estat-japan",
+    "definition": "demand.json",
+    "routingProfile": "generated-roads-v1",
+    "nativePopPrefixes": ["jp-tk-local-"],
+    "crossPopPrefixes": ["jp-tk-cross-"]
+  },
+  "runtime": {
+    "storageNamespace": "tokyo-kanagawa",
+    "tileServerPort": 8800,
+    "tileBaseGlobal": "TOKYO_KANAGAWA_TILE_BASE",
+    "diagnosticNamespace": "tokyo-kanagawa",
+    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=tokyo-kanagawa-mainland-v2",
+    "requiredHostCapabilities": ["native-save-authority-v1", "native-ledger-authority-v1"]
+  },
+  "release": {
+    "platformCompatibility": "^1.0.0",
+    "artifactSelection": "explicit",
+    "artifactLayout": "split-map-demand-v1"
+  }
+}

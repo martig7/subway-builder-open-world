@@ -6,7 +6,7 @@ import {
   chooseModes,
   createNetworkProfile,
   inspectCrossTileModeChoice,
-} from "../src/cross-tile-mode-choice.js";
+} from "../../../../open-world-platform/src/runtime/cross-tile-mode-choice.js";
 import { decodeMetroSave } from "./inspect-metro-save.mjs";
 
 const SAVE_DIRECTORY = "D:\\SubwayBuilder";

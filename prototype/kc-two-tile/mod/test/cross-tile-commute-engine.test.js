@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWorld } from '../src/world-model.js';
-import { advanceCommutesTo, applyModeShares, assertCommuteLedger, projectCommutesForTile, registerCommuteCatalog } from '../src/cross-tile-commute-engine.js';
+import { createWorld } from '../../../../open-world-platform/src/runtime/world-model.js';
+import { advanceCommutesTo, applyModeShares, assertCommuteLedger, projectCommutesForTile, registerCommuteCatalog } from '../../../../open-world-platform/src/runtime/cross-tile-commute-engine.js';
 
 const catalog = {
   buildHash: 'commute-test-v1',
