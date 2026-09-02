@@ -57,12 +57,13 @@ def build(source: Path) -> tuple[dict, dict]:
             "neighbors": [{"direction": method, "tileId": tile_id(other)} for other, method in sorted(neighbor_models[code])],
             "routingCorridors": [{"kind": method, "tileId": tile_id(other)} for other, method in sorted(neighbor_models[code])],
             "buildShards": [{"id": f"{identifier}_SHARD_{shard + 1:02d}"} for shard in range(len(geometry.geoms) if geometry.geom_type == "MultiPolygon" else 1)],
-            "status": "selected" if code in {"13", "14"} else "planned",
-            "readiness": "ready-compatible-package" if code in {"13", "14"} else "geography-ready",
+            "status": "selected",
+            "readiness": "demand-evidence-ready" if code not in {"13", "14"} else "ready-compatible-package",
         })
     catalog = {
         "schemaVersion": 1,
         "worldId": "JP_NATIONAL_OPEN_WORLD",
+        "crs": "+proj=lcc +lat_1=30 +lat_2=46 +lat_0=38 +lon_0=138 +ellps=GRS80 +units=m +no_defs",
         "name": "Japan Open World",
         "scope": "All 47 prefectures; packages become playable independently",
         "initialView": {"longitude": 139.7671, "latitude": 35.6812, "zoom": 5.2, "bearing": 0},

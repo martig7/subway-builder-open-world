@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "hokkaido": { "filename": "hokkaido-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf" },
+    "tohoku": { "filename": "tohoku-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/tohoku-latest.osm.pbf" },
+    "kanto": { "filename": "kanto-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf" },
+    "chubu": { "filename": "chubu-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/chubu-latest.osm.pbf" },
+    "kansai": { "filename": "kansai-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/kansai-latest.osm.pbf" },
+    "chugoku": { "filename": "chugoku-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/chugoku-latest.osm.pbf" },
+    "shikoku": { "filename": "shikoku-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf" },
+    "kyushu": { "filename": "kyushu-latest.osm.pbf", "uri": "https://download.geofabrik.de/asia/japan/kyushu-latest.osm.pbf" }
+  },
+  "prefectureSources": {
+    "01": ["hokkaido"],
+    "02": ["tohoku", "hokkaido"],
+    "03": ["tohoku"], "04": ["tohoku"], "05": ["tohoku"],
+    "06": ["tohoku", "chubu"], "07": ["tohoku", "kanto", "chubu"],
+    "08": ["kanto", "tohoku"], "09": ["kanto", "tohoku"],
+    "10": ["kanto", "chubu"], "11": ["kanto"], "12": ["kanto"],
+    "13": ["kanto"], "14": ["kanto"],
+    "15": ["chubu", "tohoku"], "16": ["chubu"], "17": ["chubu"],
+    "18": ["chubu", "kansai"], "19": ["chubu", "kanto"],
+    "20": ["chubu", "kanto"], "21": ["chubu", "kansai"],
+    "22": ["chubu", "kanto"], "23": ["chubu", "kansai"],
+    "24": ["kansai", "chubu"], "25": ["kansai", "chubu"],
+    "26": ["kansai"], "27": ["kansai"], "28": ["kansai", "chugoku"],
+    "29": ["kansai"], "30": ["kansai"],
+    "31": ["chugoku", "kansai"], "32": ["chugoku"],
+    "33": ["chugoku", "kansai", "shikoku"], "34": ["chugoku", "shikoku"],
+    "35": ["chugoku", "kyushu"],
+    "36": ["shikoku", "kansai"], "37": ["shikoku", "chugoku"],
+    "38": ["shikoku", "chugoku"], "39": ["shikoku"],
+    "40": ["kyushu", "chugoku"], "41": ["kyushu"], "42": ["kyushu"],
+    "43": ["kyushu"], "44": ["kyushu"], "45": ["kyushu"],
+    "46": ["kyushu"], "47": ["kyushu"]
+  }
+}

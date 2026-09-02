@@ -48,19 +48,16 @@ test('definition validation rejects paths that escape the World directory', () =
   assert.ok(result.errors.some((error) => error.includes('contained relative JSON path')));
 });
 
-test('Japan freezes all 47 prefectures while exposing only ready packages to runtime', async () => {
+test('Japan Open World exposes all 47 prefectures through one consumer', async () => {
   const worldRoot = path.join(root, 'worlds', 'japan');
   const definition = JSON.parse(await readFile(path.join(worldRoot, 'world.json'), 'utf8'));
   assert.deepEqual(validateWorldDefinition(definition).errors, []);
   const catalog = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.catalog), 'utf8'));
   assert.equal(catalog.tiles.length, 47);
   assert.equal(new Set(catalog.tiles.map((tile) => tile.id)).size, 47);
-  assert.deepEqual(catalog.tiles.filter((tile) => tile.status === 'selected').map((tile) => tile.id).sort(), [
-    'JP_KANAGAWA_MAINLAND',
-    'JP_TOKYO_MAINLAND',
-  ]);
+  assert.equal(catalog.tiles.filter((tile) => tile.status === 'selected').length, 47);
   const saitama = catalog.tiles.find((tile) => tile.prefCode === '11');
   assert.equal(saitama.id, 'JP_PREF_11');
-  assert.equal(saitama.readiness, 'geography-ready');
+  assert.equal(saitama.readiness, 'demand-evidence-ready');
   assert.ok(saitama.neighbors.some((neighbor) => neighbor.tileId === 'JP_TOKYO_MAINLAND'));
 });

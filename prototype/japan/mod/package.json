@@ -1,0 +1,12 @@
+{
+  "name": "japan-open-world-mod",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-mod.mjs",
+    "install": "node scripts/install-mod.mjs",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}

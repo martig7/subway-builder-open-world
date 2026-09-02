@@ -6,7 +6,7 @@
     "manifestId": "local.japan-open-world",
     "name": "Japan Open World",
     "description": "One persistent national open world expanded prefecture by prefecture.",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "author": "Open World Prototype",
     "compatibilityLineage": ["japan-world", "JP_NATIONAL_OPEN_WORLD", "tokyo-kanagawa-world"]
   },
@@ -17,6 +17,7 @@
   },
   "map": {
     "sourceLock": "sources.lock.json",
+    "sourceLayout": "map.json",
     "profile": "osm-depot-world-v1",
     "basemapRevision": "japan-national-v1"
   },
