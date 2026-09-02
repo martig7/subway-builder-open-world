@@ -124,10 +124,15 @@ class DemandSiteGeometryTest(unittest.TestCase):
             )
 
     def test_employment_cells_are_covered_by_demand_sites(self) -> None:
+        repository_root = ROOT.parents[1]
         source_root = ROOT.parent / "japan" / "generated" / "tokyo-kanagawa-test"
         boundaries = {
             feature["properties"]["pref_code"]: shape(feature["geometry"])
-            for feature in json.loads((source_root / "world-boundary.geojson").read_text(encoding="utf-8"))["features"]
+            for feature in json.loads(
+                (repository_root / "worlds" / "tokyo-kanagawa" / "geography" / "world-boundary-overlay.json").read_text(
+                    encoding="utf-8"
+                )
+            )["features"]
         }
         job_features = json.loads((source_root / "job-mesh-500m.geojson").read_text(encoding="utf-8"))["features"]
         for tile_id, tile in TILES.items():
@@ -137,11 +142,11 @@ class DemandSiteGeometryTest(unittest.TestCase):
                 for feature in job_features
                 if min_lon <= feature["geometry"]["coordinates"][0] <= max_lon
                 and min_lat <= feature["geometry"]["coordinates"][1] <= max_lat
-                and (
-                    feature["properties"].get("prefCode") == tile["prefCode"]
-                    if feature["properties"].get("prefCode")
-                    else boundaries[tile["prefCode"]].covers(Point(*feature["geometry"]["coordinates"]))
-                )
+                and feature["properties"].get("prefCode") == tile["prefCode"]
+                # Evidence outside the visible geometry is intentionally moved
+                # to an in-boundary building anchor and is covered by the
+                # zero-outside + mass-conservation assertions instead.
+                and boundaries[tile["prefCode"]].covers(Point(*feature["geometry"]["coordinates"]))
             ]
             locations = np.asarray([feature["geometry"]["coordinates"] for feature in rows], dtype=np.float64)
             x_values, y_values = TRANSFORMER.transform(locations[:, 0], locations[:, 1])

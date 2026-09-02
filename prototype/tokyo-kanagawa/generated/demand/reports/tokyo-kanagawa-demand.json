@@ -1,1 +1,86 @@
-{"aggregation":{"algorithm":"NEC deterministic maximal-radius Voronoi merge over building-level fine seeds","buildingIndexCellDegrees":[0.0009],"finalSiteAnchor":"member-building-center","fineSeedSource":"osm-building-index-v1","pointMergeDistanceM":350,"sourceMeshM":250,"unanchoredSiteCount":0},"crossPrefectureWorkers":1787157,"excludedRemoteIslandCells":321,"limitations":["Within-prefecture flows are currently locality-preserving cohorts; municipal O/D controls are retained for the next spatial allocator."],"schemaVersion":1,"tiles":[{"buildingCount":3448213,"buildingIndexCellDegrees":0.0009,"buildingSourceRadiusM":750.0,"candidateGridM":100.0,"cohortCount":39851,"fineSeedCount":95299,"homeSourceCellCount":18930,"inputHomeMass":7143865,"inputJobMass":10561144,"jobSourceCellCount":5670,"localWorkers":6796004,"maximumHomeCellToSiteDistanceM":3099.628,"maximumJobCellToSiteDistanceM":3153.937,"maximumSiteSnapDistanceM":179.655,"mergeRadiusM":350.0,"nearSourceBuildingCount":1421936,"siteCount":6328,"tileId":"JP_TOKYO_MAINLAND","unanchoredSiteCount":0},{"buildingCount":2594143,"buildingIndexCellDegrees":0.0009,"buildingSourceRadiusM":750.0,"candidateGridM":100.0,"cohortCount":20694,"fineSeedCount":102138,"homeSourceCellCount":18846,"inputHomeMass":4247618,"inputJobMass":3564106,"jobSourceCellCount":6205,"localWorkers":2808322,"maximumHomeCellToSiteDistanceM":7252.686,"maximumJobCellToSiteDistanceM":7364.502,"maximumSiteSnapDistanceM":172.94,"mergeRadiusM":350.0,"nearSourceBuildingCount":1410516,"siteCount":6617,"tileId":"JP_KANAGAWA_MAINLAND","unanchoredSiteCount":0}],"worldId":"JP_TOKYO_KANAGAWA_MAINLAND"}
+{
+  "aggregation": {
+    "algorithm": "NEC deterministic maximal-radius Voronoi merge over building-level fine seeds",
+    "buildingIndexCellDegrees": [
+      0.0009
+    ],
+    "drivingModel": {
+      "graphVersion": "generated-roads-v1",
+      "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+      "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+      "provider": "generated-road-graph",
+      "speedKph": {
+        "highway": 85.0,
+        "major": 50.0,
+        "minor": 30.0
+      }
+    },
+    "finalSiteAnchor": "member-building-center",
+    "fineSeedSource": "osm-building-index-v1",
+    "pointMergeDistanceM": 350,
+    "sourceMeshM": 250,
+    "unanchoredSiteCount": 0
+  },
+  "crossPrefectureWorkers": 1787157,
+  "excludedRemoteIslandCells": 321,
+  "limitations": [
+    "Within-prefecture origins and destinations are deterministically matched from separate home/job marginals; municipal O/D controls are retained for the next spatial allocator."
+  ],
+  "renderBoundary": {
+    "outsideFinalSiteCount": 0,
+    "policy": "authoritative; demand moves to covered building anchors and render geometry is unchanged",
+    "sha256": "e75d7f897d57f9aa9c7dafaca8bfbf79321c1e7eb30968e859386a4956db6fc4",
+    "source": "worlds/tokyo-kanagawa/geography/world-boundary-overlay.json"
+  },
+  "roadRouting": {
+    "completed": true,
+    "graphVersion": "generated-roads-v1",
+    "report": "tokyo-kanagawa-road-routing.json"
+  },
+  "schemaVersion": 1,
+  "tiles": [
+    {
+      "buildingCount": 3448213,
+      "buildingIndexCellDegrees": 0.0009,
+      "buildingSourceRadiusM": 750.0,
+      "candidateGridM": 100.0,
+      "cohortCount": 39196,
+      "fineSeedCount": 84253,
+      "homeSourceCellCount": 18930,
+      "inputHomeMass": 7143865,
+      "inputJobMass": 10561144,
+      "jobSourceCellCount": 5670,
+      "localWorkers": 6796004,
+      "maximumHomeCellToSiteDistanceM": 6088.053,
+      "maximumJobCellToSiteDistanceM": 6220.233,
+      "maximumSiteSnapDistanceM": 179.655,
+      "mergeRadiusM": 350.0,
+      "nearSourceBuildingCount": 1263368,
+      "siteCount": 5629,
+      "tileId": "JP_TOKYO_MAINLAND",
+      "unanchoredSiteCount": 0
+    },
+    {
+      "buildingCount": 2594143,
+      "buildingIndexCellDegrees": 0.0009,
+      "buildingSourceRadiusM": 750.0,
+      "candidateGridM": 100.0,
+      "cohortCount": 20679,
+      "fineSeedCount": 101017,
+      "homeSourceCellCount": 18846,
+      "inputHomeMass": 4247618,
+      "inputJobMass": 3564106,
+      "jobSourceCellCount": 6205,
+      "localWorkers": 2808322,
+      "maximumHomeCellToSiteDistanceM": 7252.686,
+      "maximumJobCellToSiteDistanceM": 7364.502,
+      "maximumSiteSnapDistanceM": 172.94,
+      "mergeRadiusM": 350.0,
+      "nearSourceBuildingCount": 1393612,
+      "siteCount": 6604,
+      "tileId": "JP_KANAGAWA_MAINLAND",
+      "unanchoredSiteCount": 0
+    }
+  ],
+  "worldId": "JP_TOKYO_KANAGAWA_MAINLAND"
+}

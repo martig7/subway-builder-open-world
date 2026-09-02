@@ -1,1 +1,36 @@
-{"cityCode":"JP_TOKYO_MAINLAND","dataFiles":{"demandData":"demand_data.json.gz"},"schemaVersion":1,"tileId":"JP_TOKYO_MAINLAND"}
+{
+  "assets": [
+    {
+      "bytes": 1228,
+      "path": "cross_commutes.json",
+      "sha256": "3f5e3164b18537948ee1b87404ed9649c74f468e9fc56ed9303b3d7851ab65bb"
+    },
+    {
+      "bytes": 292293,
+      "path": "cross_demand.json.gz",
+      "sha256": "0a9d9202ff5ae34f8dfe326e06d4cc4304bcad9e90d2e1e985a8d1cab961fe1c"
+    },
+    {
+      "bytes": 957164,
+      "path": "demand_data.json.gz",
+      "sha256": "6a0b1893b4c2eb895edea506dcaa7e62a44571c1db8a0268680925faa3cab6c5"
+    }
+  ],
+  "cityCode": "JP_TOKYO_MAINLAND",
+  "dataFiles": {
+    "demandData": "demand_data.json.gz"
+  },
+  "drivingModel": {
+    "graphVersion": "generated-roads-v1",
+    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+    "provider": "generated-road-graph",
+    "speedKph": {
+      "highway": 85.0,
+      "major": 50.0,
+      "minor": 30.0
+    }
+  },
+  "schemaVersion": 1,
+  "tileId": "JP_TOKYO_MAINLAND"
+}

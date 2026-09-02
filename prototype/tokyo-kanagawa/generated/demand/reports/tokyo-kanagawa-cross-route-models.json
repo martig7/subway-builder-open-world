@@ -1,0 +1,31 @@
+{
+  "graphVersion": "generated-roads-v1",
+  "models": {
+    "JP_KANAGAWA_MAINLAND->JP_TOKYO_MAINLAND": {
+      "distanceRatio": 1.24909776,
+      "provider": "generated-road-tile-pair-model",
+      "roadSamples": 4,
+      "sampledPopIds": [
+        "jp-tk-cross-14-13-00000",
+        "jp-tk-cross-14-13-01799",
+        "jp-tk-cross-14-13-03598",
+        "jp-tk-cross-14-13-05397"
+      ],
+      "secondsPerDirectMetre": 0.0558490254
+    },
+    "JP_TOKYO_MAINLAND->JP_KANAGAWA_MAINLAND": {
+      "distanceRatio": 1.27303928,
+      "provider": "generated-road-tile-pair-model",
+      "roadSamples": 4,
+      "sampledPopIds": [
+        "jp-tk-cross-13-14-00000",
+        "jp-tk-cross-13-14-00435",
+        "jp-tk-cross-13-14-00870",
+        "jp-tk-cross-13-14-01305"
+      ],
+      "secondsPerDirectMetre": 0.0651600858
+    }
+  },
+  "samplesPerTilePair": 4,
+  "schemaVersion": 1
+}

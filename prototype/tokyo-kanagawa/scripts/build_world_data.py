@@ -308,7 +308,8 @@ def main() -> None:
         "schemaVersion": 1, "worldId": catalog["worldId"], "tiles": report_tiles,
         "aggregation": aggregation,
         "renderBoundary": {
-            "source": str(RENDER_BOUNDARY),
+            "source": "worlds/tokyo-kanagawa/geography/world-boundary-overlay.json",
+            "sha256": hashlib.sha256(RENDER_BOUNDARY.read_bytes()).hexdigest(),
             "policy": "authoritative; demand moves to covered building anchors and render geometry is unchanged",
             "outsideFinalSiteCount": 0,
         },

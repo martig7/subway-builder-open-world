@@ -1,1 +1,36 @@
-{"cityCode":"JP_KANAGAWA_MAINLAND","dataFiles":{"demandData":"demand_data.json.gz"},"schemaVersion":1,"tileId":"JP_KANAGAWA_MAINLAND"}
+{
+  "assets": [
+    {
+      "bytes": 1231,
+      "path": "cross_commutes.json",
+      "sha256": "1406ebc562b493a3a2bc24bec59f9fbf4cea219e768f42c3ff5252831a301245"
+    },
+    {
+      "bytes": 292297,
+      "path": "cross_demand.json.gz",
+      "sha256": "84cd7c4911f22fe96f87473178c6c5e60b84db7ebb0fb4a1698269ac41edae26"
+    },
+    {
+      "bytes": 838805,
+      "path": "demand_data.json.gz",
+      "sha256": "19c7750c4104356555477b5efcaf0915b3216711e73eb69163b454af914da19d"
+    }
+  ],
+  "cityCode": "JP_KANAGAWA_MAINLAND",
+  "dataFiles": {
+    "demandData": "demand_data.json.gz"
+  },
+  "drivingModel": {
+    "graphVersion": "generated-roads-v1",
+    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+    "provider": "generated-road-graph",
+    "speedKph": {
+      "highway": 85.0,
+      "major": 50.0,
+      "minor": 30.0
+    }
+  },
+  "schemaVersion": 1,
+  "tileId": "JP_KANAGAWA_MAINLAND"
+}
