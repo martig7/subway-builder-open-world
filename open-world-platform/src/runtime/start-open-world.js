@@ -166,10 +166,12 @@ export function startOpenWorld({
     : null;
   let storeConfirmedAuthoritativeCity = authoritativeCityCode != null
     && readLiveSubwayBuilderCityCode({ api }) === authoritativeCityCode;
+  let rejectUnsignaledStoreCityChanges = false;
   let navigation = null;
   const currentCityCode = (observedCityCode = null) => {
     const liveCityCode = readLiveSubwayBuilderCityCode({ api });
     if (typeof observedCityCode === 'string' && observedCityCode) {
+      rejectUnsignaledStoreCityChanges = false;
       authoritativeCityCode = observedCityCode;
       storeConfirmedAuthoritativeCity = liveCityCode === observedCityCode;
       return observedCityCode;
@@ -178,9 +180,10 @@ export function startOpenWorld({
     if (typeof pendingCityCode === 'string' && pendingCityCode) return pendingCityCode;
     if (typeof authoritativeCityCode === 'string' && authoritativeCityCode) {
       if (liveCityCode === authoritativeCityCode) storeConfirmedAuthoritativeCity = true;
-      else if (storeConfirmedAuthoritativeCity && liveCityCode) {
-        // Once Zustand has confirmed an authoritative event, a later store
-        // change is a new lifecycle state even if the public getter is stale.
+      else if (storeConfirmedAuthoritativeCity && liveCityCode && !rejectUnsignaledStoreCityChanges) {
+        // Once Zustand has confirmed an authoritative event, an unsuppressed
+        // later store change is a new lifecycle state even if the public
+        // getter is stale.
         authoritativeCityCode = liveCityCode;
       }
       return authoritativeCityCode;
@@ -1043,6 +1046,9 @@ export function startOpenWorld({
         runtimeTileId: currentRuntimeTileId,
         nativeSessionId,
       };
+      rejectUnsignaledStoreCityChanges = true;
+      storeConfirmedAuthoritativeCity = false;
+      diagnostics.cityStoreRepair = game.reassertLoadedCityCode(currentRuntimeTileId);
       recordAuthoritativeLoad(ignored);
       loadTrace('hook.city-load.ignored', ignored);
       ensurePanel();
@@ -1188,6 +1194,12 @@ export function startOpenWorld({
     if (!isCurrent() || latestMap !== map) return;
     const loadedCityCode = currentCityCode();
     if (!registration.cities.includes(loadedCityCode)) return;
+    if (rejectUnsignaledStoreCityChanges && runtimeTileId() === loadedCityCode) {
+      diagnostics.cityStoreRepair = {
+        reason,
+        ...game.reassertLoadedCityCode(loadedCityCode),
+      };
+    }
     refreshPilotCityBindings(api, { tileBase, cityCodes: [loadedCityCode] });
     diagnostics.tileSource = {
       reason,
@@ -1273,6 +1285,7 @@ export function startOpenWorld({
     loadedSaveName = null;
     authoritativeCityCode = null;
     storeConfirmedAuthoritativeCity = false;
+    rejectUnsignaledStoreCityChanges = false;
     if (latestMap && tileSourceStyleHandler) {
       try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
     }

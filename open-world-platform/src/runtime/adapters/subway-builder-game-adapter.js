@@ -125,7 +125,7 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   'buildingDemolitionSpendAllTime',
 ]);
 
-export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v4';
+export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v5';
 
 /**
  * Read the current city from the live Zustand snapshot.
@@ -1944,6 +1944,20 @@ export class SubwayBuilderGameAdapter {
 
   readLoadedCityCode() {
     return readLiveSubwayBuilderCityCode({ api: this.api, callbacks: this.callbacks });
+  }
+
+  reassertLoadedCityCode(cityCode) {
+    const stateBefore = this.#state();
+    const previousCityCode = stateBefore.cityCode ?? null;
+    if (!cityCode || previousCityCode === cityCode) {
+      return { status: 'already-current', cityCode: previousCityCode };
+    }
+    stateBefore.setCityCode(cityCode);
+    return {
+      status: 'reasserted',
+      cityCode: this.#state().cityCode ?? null,
+      previousCityCode,
+    };
   }
 
   async assertSupported() {

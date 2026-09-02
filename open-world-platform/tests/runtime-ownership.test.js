@@ -174,7 +174,7 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     });
 
     assert.equal(controller.status, 'active');
-    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v4');
+    assert.equal(controller.diagnostics.cityAuthorityVersion, 'zustand-city-authority-v5');
     assert.equal(host.hooks.count('onGameSaved'), 1, 're-entry must attach the owned runtime lifecycle');
     assert.equal(host.hooks.count('onMapReady'), 1, 're-entry must attach map repair to the current tile');
 
@@ -198,6 +198,14 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     assert.equal(host.state.cityCode, 'JP_TOKYO_MAINLAND');
     assert.equal(controller.diagnostics.latestAuthoritativeLoad.segment, 'lifecycle-city-load-ignored');
     assert.equal(controller.diagnostics.latestAuthoritativeLoad.reason, 'event-disagrees-with-live-store-and-runtime');
+
+    host.state.cityCode = 'JP_KANAGAWA_MAINLAND';
+    host.hooks.callbacks.get('onMapReady')[0](map);
+
+    assert.equal(host.state.cityCode, 'JP_TOKYO_MAINLAND', 'map-ready must reclaim a late naked store write');
+    assert.equal(controller.diagnostics.cityStoreRepair.status, 'reasserted');
+    assert.equal(controller.diagnostics.cityStoreRepair.cityCode, 'JP_TOKYO_MAINLAND');
+    assert.equal(controller.diagnostics.mapCameraRepair.cityCode, 'JP_TOKYO_MAINLAND');
   } finally {
     globalThis.__subwayBuilder_storeCallbacks__ = previousCallbacks;
     globalThis.fetch = previousFetch;
