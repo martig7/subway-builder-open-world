@@ -816,6 +816,10 @@ export function startOpenWorld({
         if (latestMap) crossDemandController.attachMap(latestMap);
         if (latestMap) projectionOverlayController.attachMap(latestMap);
         if (latestMap) geographicContextController.attachMap(latestMap);
+        diagnostics.startupMapRefresh = refreshCityScopedMapArtifacts({
+          map: latestMap,
+          controller: geographicContextController,
+        });
         ensurePanel();
         finishStage('uiSetup');
         diagnostics.startup = {

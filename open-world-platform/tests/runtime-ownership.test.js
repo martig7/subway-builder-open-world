@@ -193,6 +193,7 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     assert.equal(cameraMoves.length, 1, 'camera repair must target the live tile instead of the stale public city');
 
     await controller.lifecycle.cityLoad('JP_TOKYO_MAINLAND', { authoritative: true });
+    assert.equal(controller.diagnostics.startupMapRefresh.status, 'refreshed');
     await controller.lifecycle.cityLoad('JP_KANAGAWA_MAINLAND', { authoritative: true });
 
     assert.equal(host.state.cityCode, 'JP_TOKYO_MAINLAND');
