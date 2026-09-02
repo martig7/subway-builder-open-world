@@ -2,7 +2,8 @@
 
 Research date: 2026-09-02
 Scope: Subway Builder's first-party 1.7.0 changelog and stable modding docs,
-plus read-only inspection of this repository. No game bundle was installed or
+read-only inspection of this repository, and read-only extraction/decompilation
+of the locally installed 1.7.0 application bundle. The game bundle was not
 executed during this research.
 
 ## Outcome
@@ -33,6 +34,168 @@ The highest-priority work is therefore:
 4. Replace Zustand reads/events with documented APIs where the public surface is
    now sufficient, while keeping guarded private access only for full snapshot
    restore, exact clock/city switching, and canonical-network mutation.
+
+## Bundle verification: installed 1.7.0 (2026-09-02)
+
+This section supersedes the earlier “verify against a real 1.7 bundle”
+assumptions where static inspection can answer them. The installed archive is
+`%LOCALAPPDATA%\Programs\Subway Builder\game\resources\app.asar`; its embedded
+`package.json` reports `metro-maker4` version `1.7.0`. The inspected archive and
+renderer chunks are:
+
+| Artifact | Extracted size | SHA-256 |
+| --- | --- | --- |
+| `app.asar` | 260,800,381 bytes | `7B112DD803E0B5CABC3C18A4CD11F33FF120E1864968AA2A93292504647E2A6E` |
+| `dist/renderer/public/index-CM0DI1Ho.js` | 10,629,576 bytes | `99FD5ED94F0C77636F32FE1F21C6165BC6649EA528BEB03BEE7AD87D4B8BD67D` |
+| `dist/renderer/public/GameMain-COH5GUdy.js` | 3,811,866 bytes | `D93B1E157F79E90F52A9448EB488902DDCCDE0608FC8D043000DC729CAF69717` |
+
+Offsets below are approximate zero-based character offsets in the extracted
+UTF-8 text. They are reproducible search anchors, not source-line numbers or
+ASAR payload offsets. Only small surrounding fragments were inspected; no
+substantial game source is reproduced here.
+
+### Confirmed: the required Zustand actions retain their names
+
+The callback-global token `__subwayBuilder_storeCallbacks__` remains present in
+`index-CM0DI1Ho.js` near offset 7,327,103. The store object contains these exact
+action keys and signatures:
+
+| Store action | Approx. text offset | 1.7.0 static signature |
+| --- | ---: | --- |
+| `setRoutes` | 8,417,694 | `(routes, regen = false)` |
+| `setPreviewRoute` | 8,420,121 | `(routeOrNull)`; entering preview pauses time |
+| `discardPreviewRoute` | 8,420,823 | `()`; clears pending station-node edits and recalculates routes |
+| `setTimeConfig` | 8,423,122 | `(patch)` shallow-merges the existing time config |
+| `setTracks` | 8,447,296 | `({newTracks, newTrackGroups, signalsUpdate, regenRoutesWithTrackIDs, regenStations, skipHistory})` |
+| `batchPreviewRouteUpdates` | 8,480,410 | `async ()` |
+| `confirmRouteChange` | 8,485,758 | `(argument)` |
+| `handleIncrementGameState` | 8,501,117 | `async ()` |
+| `loadSave` | 8,527,205 | `(save)`; runs migrations through V4 before loading |
+| `generateSave` | 8,548,434 | `({name})` |
+| `simulateCommutes` | 8,559,822 | `async ({popCommutes, startMovements = false})` |
+| `recalculateAllRouteGeojsons` | 8,562,514 | `async (routes)` |
+| `loadInitialData` | 8,565,594 | `async (cityCode)` |
+
+Therefore no private-action rename migration is indicated for snapshot,
+network, clock, simulation, or route-preview operations. The runtime feature
+probe should still check these signatures/shapes rather than merely their
+presence. In particular, 1.7's `setPreviewRoute` now owns the pause/resume
+transition, and both preview discard and preview entry can initiate an async
+route recalculation. Existing wrappers must preserve that behavior.
+
+### Confirmed break: the old interlining collection and layer contract is gone
+
+`interlinedFeatureCollection` does not occur in either inspected renderer
+chunk. The 1.7 initial store instead contains `portolanDiagram` and
+`portolanProgress` (`index-CM0DI1Ho.js`, near offset 8,389,946; the
+corresponding store initializer begins near offset 8,407,963).
+`recalculateAllRouteGeojsons` still exists, but its interlining branch now calls
+`requestPortolanDiagram()` after updating regular/simplified GeoJSON (offsets
+8,562,514–8,564,200). The request is coalesced and deferred; its implementation
+begins near offset 7,994,763 and charts the then-current store
+routes/stations/tracks, not an `interlinedFeatureCollection` returned from the
+wrapper's route argument.
+
+The new native Deck layer IDs in `GameMain-COH5GUdy.js` are:
+
+- `portolan-ribbons` near offset 3,228,070;
+- `portolan-ribbons-under` immediately after it;
+- `portolan-station-pills` near offset 3,230,090; and
+- `portolan-cats` / `portolan-cat-text` for route bullets and long labels.
+
+The old `interlined-routes` and `interlined-routes-under` IDs do not occur. The
+Portolan ribbon layer consumes binary `positions`, `startIndices`, color
+attributes, and per-vertex offset vectors rather than a GeoJSON feature
+collection with `properties.offset` (`GameMain-COH5GUdy.js`, approximately
+offsets 3,225,118–3,226,500).
+
+This is a required P0 runtime change:
+
+1. Remove `interlinedFeatureCollection` as the cache-hit/result-completion gate.
+   The wrapper can still install because `recalculateAllRouteGeojsons` exists,
+   but the 1.7 cache can never hit while it checks the removed collection.
+2. Do not treat completion of the wrapped recalculation as completion of
+   Portolan charting. Wait for `portolanDiagram`/progress or otherwise invalidate
+   the deferred chart explicitly.
+3. Replace the geographic overlay's `interlined-routes` ID matcher. The existing
+   GeoJSON `properties.offset` clipping path cannot transform the binary ribbon
+   data and needs a Portolan-aware filtering strategy or a clearly diagnosed
+   fallback.
+
+### Confirmed change: normal station markers moved to Deck
+
+The new station renderer builds Deck layers in
+`DeckglStationMarkersLayers`. Its exact layer IDs are
+`station-marker-dots` (`GameMain-COH5GUdy.js`, near offset 3,218,380) and
+`station-marker-labels` (near offset 3,219,755). Portolan interchange pills are the
+separate Deck layer noted above. The literals `.maplibregl-marker`,
+`.mapboxgl-marker`, `_markers`, and `_markerManager` do not occur in either
+game chunk. Route-edit mode still constructs MapLibre `Marker` components, so
+the DOM adapter remains relevant as an edit-mode fallback; it is no longer the
+normal station dot/label path.
+
+Open World's generic Deck virtualizer already clips array-backed objects with a
+`position`, which is structurally compatible with the new dot and label data.
+Compatibility still requires a focused runtime test proving that the wrapper
+sees `station-marker-dots`, `station-marker-labels`, and
+`portolan-station-pills`, plus explicit capability diagnostics for those IDs.
+The old DOM-specific zoom and styling controls cannot govern normal 1.7 station
+markers. The public `STATION_MARKER` constants can replace supported styling
+mutations but still do not expose per-station filtering.
+
+### Confirmed implementation priorities
+
+| Priority | Required update | Bundle evidence |
+| --- | --- | --- |
+| P0 | Replace the `interlinedFeatureCollection` cache/result gate and old GeoJSON-offset cache/filter contract with a Portolan-aware lifecycle. | Old state key and layer IDs are absent; `portolanDiagram`, deferred `requestPortolanDiagram()`, binary ribbons, and `portolan-*` IDs replace them. |
+| P0 | Verify and explicitly recognize normal station Deck layers while retaining the DOM path for route-edit markers. | Normal stations are `station-marker-dots`, `station-marker-labels`, and `portolan-station-pills`; generic array/position clipping appears compatible but needs a live proof. |
+| P0 | Migrate persistent finance/statistics from `lastCommute` to per-direction `commutes`, retaining a legacy warm-up policy. | The bundle contains both `homeToWork` and `workToHome` state paths; the official 1.7 API declares those summaries persistent. |
+| P0 | Decide how tile snapshots preserve or deterministically rebuild 1.7 per-direction commute summaries. | Native save V4 writes them only inside `compressedDemandData` format V2, while `compactNativeSnapshot()` currently deletes that field. |
+| P1 | Preserve `hobby` spline metadata, editable nodes, and lane directions across snapshots, projections, repairs, and restores. | `curveGeometry`, `nodes`, lane-direction construction state, and saved `lastLaneDirections` are present in the 1.7 chunks. |
+| P1 | Version and retest the existing save, clock, simulation, and route-preview wrappers rather than renaming them. | All required action names survive, but preview now pauses/resumes routes and route recalculation is async/deferred. |
+
+### Confirmed new native track/save fields
+
+The bundle confirms that the undocumented track representation changed in the
+areas already identified by the release notes:
+
+- the spline builder emits `curveType: "hobby"`, `curveGeometry`, and editable
+  `nodes` (`index-CM0DI1Ho.js`, offsets 5,189,300–5,190,000);
+- generated/reprojected track objects preserve `curveGeometry` and use the same
+  `hobby` curve type (for example offsets 5,414,300–5,415,200);
+- lane direction choices are carried by the lane/track-group construction
+  representation, while `lastLaneDirections` is explicitly loaded from and
+  written to saves (`index-CM0DI1Ho.js`, offsets 8,540,000 and 8,551,900).
+
+Snapshot and projection code must preserve these unknown native fields
+losslessly. Any path that synthesizes a track or track group from only legacy
+`coords`, `curveType`, and alternating lane assumptions needs a 1.7 fixture and
+an explicit policy before it is considered compatible.
+
+### Confirmed persistence risk: compact snapshots drop the new commute summaries
+
+Native save V4 writes commuter state under `data.compressedDemandData`. Its
+internal format is version 2 and serializes separate `homeToWork` and
+`workToHome` summaries plus `lastCommute`. Open World's
+`compactNativeSnapshot()` intentionally deletes `compressedDemandData`, along
+with the older demand payload fields, because demand was previously treated as
+static tile-package data. In 1.7 that also deletes the newly persistent
+directional mode-choice/time/cost state.
+
+Before release, choose and test an explicit policy: store the minimal summaries
+in an Open World sidecar, or deterministically recompute both legs after tile
+restore. Do not assume the native 1.7 load path can preserve data that the
+snapshot compactor has removed.
+
+### What still requires a live smoke test
+
+Static inspection proves the keys and renderer structures above, but it does
+not prove that the callback global is assigned before the mod probes it, that
+hot reload replaces retained wrappers, or that an Open World save round-trip
+preserves every runtime-only object. Keep the capability snapshot, save/load,
+route-edit, interlining, marker filtering, and selected-consumer tests in the
+verification matrix below. They are now focused behavior tests rather than
+schema-discovery work.
 
 ## Why this is a shared-platform update
 
@@ -170,9 +333,10 @@ may require a reload. [constants API](https://www.subwaybuilder.com/docs/api-ref
 
 These controls do **not** replace Open World's geographic per-tile filtering:
 the public API still exposes no marker registry or per-marker visibility hook.
-The DOM/MapLibre fallback remains necessary for that behavior, but it should
-feature-detect the 1.7 structure and fail visibly rather than silently showing
-off-tile markers.
+The generic Deck filter should handle normal 1.7 station arrays, while the
+DOM/MapLibre fallback remains necessary for route-edit markers. Both paths
+should feature-detect their 1.7 structures and fail visibly rather than
+silently showing off-tile markers.
 
 ### 5. Migrate finance and statistics to the durable per-direction commute model
 
@@ -217,16 +381,21 @@ silently reuse the opposite leg's `lastCommute.transitPaths`.
 The synthetic off-tile population builder also creates only `lastCommute`
 ([off-tile demand](../../open-world-platform/src/runtime/off-tile-native-demand.js#L193)).
 Teach it and the test fixtures to emit optional per-direction `commutes`
-summaries. Audit snapshot compaction against a generated 1.7 save as well, so
-the newly persistent fields are neither discarded nor duplicated into an
+summaries. Static bundle inspection confirms that native save V4 places these
+summaries inside `compressedDemandData` format V2, while Open World's current
+snapshot compactor deletes that entire field. Preserve the minimal summaries in
+a sidecar or deterministically rebuild both legs; test that choice against a
+generated 1.7 save so the fields are neither discarded nor duplicated into an
 oversized sidecar.
 
 ### 6. Custom city registration requires collision testing, not premature renaming
 
 The city docs continue to require a unique uppercase `code`; `minZoom` remains
-optional. The 1.7.0 changelog says minimum zoom is now derived automatically
-from city bounds and that modded cities no longer conflict with future vanilla
-cities, but it does not document collision precedence or a migration rule.
+optional. Static bundle inspection confirms that `registerCity` now attaches
+the registering `modId` and derives a mod-scoped city UID. It skips duplicate
+registration by the same mod and can retain another built-in/modded city with
+the same bare code under a different UID. The public docs still do not promise
+collision precedence as a durable contract.
 [city API](https://www.subwaybuilder.com/docs/api-reference/cities),
 [Official 1.7.0 changelog](https://www.subwaybuilder.com/changelog)
 
