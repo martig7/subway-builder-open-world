@@ -42,6 +42,7 @@ import {
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
 
 export const OPEN_WORLD_PLATFORM_RELEASE = 'open-world-platform-v1';
+export const STARTUP_MAP_RECOVERY_VERSION = 'startup-map-recovery-v1';
 
 export function startOpenWorld({
   definition,
@@ -278,6 +279,7 @@ export function startOpenWorld({
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
     generation,
     platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
+    startupMapRecoveryVersion: STARTUP_MAP_RECOVERY_VERSION,
     cityAuthorityVersion: SUBWAY_BUILDER_CITY_AUTHORITY_VERSION,
     worldDefinitionHash: artifacts.worldDefinitionHash ?? null,
     saveAuthorityVersion: SAVE_AUTHORITY_VERSION,
