@@ -12,7 +12,7 @@ internal static class UpdateChecker
     public static async Task<UpdateResult> CheckAsync(string currentVersion, CancellationToken cancellationToken)
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("NEC-Open-World-Manager/0.1");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Subway-Builder-Open-World-Manager/0.1");
         using var response = await client.GetAsync(LatestRelease, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return new UpdateResult(false, "No public release is available yet.", null);

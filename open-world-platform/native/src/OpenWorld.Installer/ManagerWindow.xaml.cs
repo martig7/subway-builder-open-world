@@ -30,13 +30,15 @@ public partial class ManagerWindow : Window
         this.locations = locations;
         this.runtime = runtime;
         this.isPreview = isPreview;
+        Title = $"{manifest.Product.Name} Manager";
+        ManagerTitleText.Text = $"{manifest.Product.Name} Manager";
         VersionText.Text = $"Version {manifest.Product.Version}";
         AddressText.Text = $"127.0.0.1:{manifest.Product.TileServerPort}";
         ModeText.Text = isPreview ? "Preview mode" : string.Empty;
         StartupCheckBox.IsEnabled = !isPreview;
         RepairButton.IsEnabled = !isPreview;
         UninstallButton.IsEnabled = !isPreview;
-        if (!isPreview) StartupCheckBox.IsChecked = WindowsIntegration.IsStartupEnabled(locations.ManagerPath);
+        if (!isPreview) StartupCheckBox.IsChecked = WindowsIntegration.IsStartupEnabled(manifest, locations.ManagerPath);
         initializingStartup = false;
         Loaded += async (_, _) =>
         {
@@ -165,7 +167,7 @@ public partial class ManagerWindow : Window
         {
             await TileServerController.StopAsync(manifest, runtime, token);
             using var client = new HttpClient();
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("NEC-Open-World-Manager/0.1");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Subway-Builder-Open-World-Manager/0.1");
             var progress = new Progress<InstallProgress>(value => ActivityText.Text = $"{value.Summary}: {value.CurrentItem}".TrimEnd(':', ' '));
             await new InstallerEngine(client).InstallAsync(manifest, locations, progress, token);
             await WindowsIntegration.RegisterInstallationAsync(manifest, locations, token);
@@ -206,7 +208,7 @@ public partial class ManagerWindow : Window
         if (initializingStartup || isPreview) return;
         try
         {
-            WindowsIntegration.SetStartupEnabled(locations.ManagerPath, StartupCheckBox.IsChecked == true);
+            WindowsIntegration.SetStartupEnabled(manifest, locations.ManagerPath, StartupCheckBox.IsChecked == true);
             ActivityText.Text = StartupCheckBox.IsChecked == true ? "Login startup enabled" : "Login startup disabled";
         }
         catch (Exception exception)

@@ -5,14 +5,18 @@ using System.Text.Json.Serialization;
 using OpenWorld.Release;
 
 var options = Options.Parse(args);
+if (Path.GetFileName(options.ManifestName) != options.ManifestName) throw new ArgumentException("--manifest-name must be a file name.");
+if (options.ExpectedTiles <= 0) throw new ArgumentOutOfRangeException(nameof(options.ExpectedTiles));
+if (string.IsNullOrWhiteSpace(options.TilePrefix) || options.TilePrefix.Any(character => !(char.IsAsciiLetterOrDigit(character))))
+    throw new ArgumentException("--tile-prefix must contain only ASCII letters and digits.");
 Directory.CreateDirectory(options.Output);
 
 var sourceManifestPath = Path.Combine(options.ModDist, "manifest.json");
 using var sourceManifest = JsonDocument.Parse(File.ReadAllBytes(sourceManifestPath));
 var sourceId = sourceManifest.RootElement.GetProperty("id").GetString();
 var sourceVersion = sourceManifest.RootElement.GetProperty("version").GetString();
-if (sourceId != "northeast-corridor-open-world")
-    throw new InvalidDataException($"Release mod id must be northeast-corridor-open-world; got {sourceId}.");
+if (sourceId != options.ManifestId)
+    throw new InvalidDataException($"Release mod id must be {options.ManifestId}; got {sourceId}.");
 if (sourceVersion != options.Version)
     throw new InvalidDataException($"Release mod version {sourceVersion} does not match {options.Version}.");
 if (!sourceManifest.RootElement.TryGetProperty("dependencies", out var dependencies) || !dependencies.TryGetProperty("subway-builder", out _))
@@ -20,30 +24,32 @@ if (!sourceManifest.RootElement.TryGetProperty("dependencies", out var dependenc
 
 var assets = new List<ReleaseAsset>();
 var modFiles = new[] { "manifest.json", "index.js", "world-definition.json", "world-definition.sha256" };
-var modArchiveName = $"northeast-corridor-open-world-v{options.Version}.zip";
+var modArchiveName = $"{options.ManifestId}-v{options.Version}.zip";
 var modArchivePath = Path.Combine(options.Output, modArchiveName);
 var modInstalledBytes = CreateArchive(modArchivePath, modFiles.Select(name => (Path.Combine(options.ModDist, name), name)));
 assets.Add(Asset(modArchiveName, ReleaseAssetKind.Mod, modArchivePath, modInstalledBytes, "."));
-File.Copy(sourceManifestPath, Path.Combine(options.Output, "manifest.json"), overwrite: true);
+File.Copy(sourceManifestPath, Path.Combine(options.Output, $"{options.AssetPrefix}-manifest.json"), overwrite: true);
 
-var supportName = $"nec-open-world-support-v{options.Version}.zip";
+var supportName = $"{options.AssetPrefix}-open-world-support-v{options.Version}.zip";
 var supportPath = Path.Combine(options.Output, supportName);
-var supportInstalledBytes = CreateArchive(supportPath, [(options.ServerExecutable, "nec-tile-server.exe")]);
+var supportInstalledBytes = CreateArchive(supportPath, [(options.ServerExecutable, "open-world-tile-server.exe")]);
 assets.Add(Asset(supportName, ReleaseAssetKind.Support, supportPath, supportInstalledBytes, "."));
 
 var tileDirectories = Directory.EnumerateDirectories(options.TileRoot)
     .Where(path => File.Exists(Path.Combine(path, "tiles.pmtiles")))
     .Order(StringComparer.Ordinal)
     .ToArray();
-if (tileDirectories.Length != 34) throw new InvalidDataException($"Expected 34 NEC tile packages; found {tileDirectories.Length}.");
+if (tileDirectories.Length != options.ExpectedTiles) throw new InvalidDataException($"Expected {options.ExpectedTiles} {options.ProductName} tile packages; found {tileDirectories.Length}.");
 
 string[] cityFiles = ["demand_data.json.gz", "buildings_index.bin.gz", "roads.geojson.gz", "runways_taxiways.geojson.gz", "cross_commutes.json", "cross_demand.json.gz", "tiles.pmtiles"];
 foreach (var tileDirectory in tileDirectories)
 {
     var tileId = Path.GetFileName(tileDirectory);
-    if (!tileId.StartsWith("NEC_", StringComparison.Ordinal) || tileId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        throw new InvalidDataException($"Unsafe NEC tile id: {tileId}");
-    var archiveName = $"nec-data-{tileId}-v{options.Version}.zip";
+    if (!tileId.StartsWith(options.TilePrefix + "_", StringComparison.Ordinal) ||
+        tileId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+        tileId.Any(character => !(char.IsAsciiLetterOrDigit(character) || character == '_')))
+        throw new InvalidDataException($"Unsafe {options.ProductName} tile id: {tileId}");
+    var archiveName = $"{options.AssetPrefix}-data-{tileId}-v{options.Version}.zip";
     var archivePath = Path.Combine(options.Output, archiveName);
     var installedBytes = CreateArchive(archivePath, cityFiles.Select(name => (Path.Combine(tileDirectory, name), name)));
     assets.Add(Asset(archiveName, ReleaseAssetKind.TileData, archivePath, installedBytes, tileId));
@@ -53,7 +59,7 @@ var installedTotal = assets.Sum(asset => asset.InstalledBytes);
 var workingBytes = assets.Max(asset => asset.InstalledBytes + asset.DownloadBytes) + 128L * 1024 * 1024;
 var release = new ReleaseManifest(
     1,
-    new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", options.Version, "northeast-corridor-open-world", "Giancarlo Martinelli (gcm)", "Subway Builder 1.6.x", 8799),
+    new ReleaseProduct(options.ProductId, options.ProductName, options.Version, options.ManifestId, "Giancarlo Martinelli (gcm)", "Subway Builder 1.6.x", options.Port),
     new ReleaseSpace(installedTotal, workingBytes, installedTotal + workingBytes),
     assets);
 release.Validate();
@@ -64,7 +70,7 @@ var jsonOptions = new JsonSerializerOptions
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
 };
-var releaseManifestPath = Path.Combine(options.Output, "release-manifest.json");
+var releaseManifestPath = Path.Combine(options.Output, options.ManifestName);
 await File.WriteAllTextAsync(releaseManifestPath, JsonSerializer.Serialize(release, jsonOptions) + Environment.NewLine);
 
 var checksumFiles = Directory.EnumerateFiles(options.Output)
@@ -110,7 +116,21 @@ static string Hash(string path)
     return Convert.ToHexString(SHA256.HashData(input));
 }
 
-internal sealed record Options(string ModDist, string TileRoot, string ServerExecutable, string Output, string BaseUrl, string Version)
+internal sealed record Options(
+    string ModDist,
+    string TileRoot,
+    string ServerExecutable,
+    string Output,
+    string BaseUrl,
+    string Version,
+    string ProductId,
+    string ProductName,
+    string ManifestId,
+    string AssetPrefix,
+    string TilePrefix,
+    int ExpectedTiles,
+    int Port,
+    string ManifestName)
 {
     public static Options Parse(string[] arguments)
     {
@@ -123,6 +143,22 @@ internal sealed record Options(string ModDist, string TileRoot, string ServerExe
         }
         string Required(string name) => values.TryGetValue(name, out var value) ? Path.GetFullPath(value) : throw new ArgumentException($"--{name} is required.");
         string Value(string name) => values.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value) ? value : throw new ArgumentException($"--{name} is required.");
-        return new Options(Required("mod-dist"), Required("tile-root"), Required("server-exe"), Required("output"), Value("base-url"), Value("version"));
+        string Optional(string name, string fallback) => values.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
+        int Integer(string name, int fallback) => int.TryParse(Optional(name, fallback.ToString(System.Globalization.CultureInfo.InvariantCulture)), out var value) ? value : throw new ArgumentException($"--{name} must be an integer.");
+        return new Options(
+            Required("mod-dist"),
+            Required("tile-root"),
+            Required("server-exe"),
+            Required("output"),
+            Value("base-url"),
+            Value("version"),
+            Optional("product-id", "NEC Open World"),
+            Optional("product-name", "Northeast Corridor Open World"),
+            Optional("manifest-id", "northeast-corridor-open-world"),
+            Optional("asset-prefix", "nec"),
+            Optional("tile-prefix", "NEC"),
+            Integer("expected-tiles", 34),
+            Integer("port", 8799),
+            Optional("manifest-name", "release-manifest.json"));
     }
 }

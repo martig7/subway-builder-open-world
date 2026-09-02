@@ -69,6 +69,12 @@ internal static class TileServerController
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
             var archives = json.RootElement.TryGetProperty("archives", out var archiveValue) ? archiveValue.GetInt32() : 0;
             var root = json.RootElement.TryGetProperty("root", out var rootValue) ? rootValue.GetString() : null;
+            var actualTiles = json.RootElement.TryGetProperty("tileIds", out var tilesValue)
+                ? tilesValue.EnumerateArray().Select(value => value.GetString() ?? string.Empty).Order(StringComparer.Ordinal).ToArray()
+                : [];
+            var expectedTiles = TileIds(manifest);
+            if (!actualTiles.SequenceEqual(expectedTiles, StringComparer.Ordinal))
+                return new TileServerStatus(TileServerCondition.Unknown, $"Port {manifest.Product.TileServerPort} is serving a different Open World selection.");
             return new TileServerStatus(TileServerCondition.Running, "Running", archives, build, root);
         }
         catch (HttpRequestException)
@@ -116,9 +122,9 @@ internal static class TileServerController
         if (existing.Condition == TileServerCondition.Running) return;
         if (existing.Condition == TileServerCondition.Unknown) throw new InvalidOperationException(existing.Message);
         if (!File.Exists(runtime.ServerExecutable))
-            throw new FileNotFoundException("The NEC tile-server executable is missing.", runtime.ServerExecutable);
+            throw new FileNotFoundException("The tile-server executable is missing.", runtime.ServerExecutable);
         if (!Directory.Exists(runtime.DataRoot))
-            throw new DirectoryNotFoundException($"The NEC map-data directory is missing: {runtime.DataRoot}");
+            throw new DirectoryNotFoundException($"The map-data directory is missing: {runtime.DataRoot}");
 
         Directory.CreateDirectory(runtime.StateRoot);
         Directory.CreateDirectory(runtime.LogRoot);
@@ -130,19 +136,20 @@ internal static class TileServerController
             "--root", runtime.DataRoot,
             "--port", Port(manifest),
             "--state-root", runtime.StateRoot,
-            "--log-root", runtime.LogRoot);
-        var process = Process.Start(start) ?? throw new InvalidOperationException("The NEC tile server did not start.");
+            "--log-root", runtime.LogRoot,
+            "--tiles", string.Join(',', TileIds(manifest)));
+        var process = Process.Start(start) ?? throw new InvalidOperationException("The tile server did not start.");
 
         for (var attempt = 0; attempt < 60; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (process.HasExited) throw new InvalidOperationException($"The NEC tile server exited with code {process.ExitCode}.");
+            if (process.HasExited) throw new InvalidOperationException($"The tile server exited with code {process.ExitCode}.");
             var status = await GetStatusAsync(manifest, cancellationToken);
             if (status.Condition == TileServerCondition.Running) return;
             if (status.Condition == TileServerCondition.Unknown) throw new InvalidOperationException(status.Message);
             await Task.Delay(250, cancellationToken);
         }
-        throw new InvalidOperationException($"The NEC tile server did not become healthy at {HealthUri(manifest)}.");
+        throw new InvalidOperationException($"The tile server did not become healthy at {HealthUri(manifest)}.");
     }
 
     public static async Task StopAsync(
@@ -152,7 +159,7 @@ internal static class TileServerController
     {
         var status = await GetStatusAsync(manifest, cancellationToken);
         if (status.Condition == TileServerCondition.Stopped) return;
-        if (!File.Exists(runtime.ServerExecutable)) throw new FileNotFoundException("The NEC tile-server executable is missing.", runtime.ServerExecutable);
+        if (!File.Exists(runtime.ServerExecutable)) throw new FileNotFoundException("The tile-server executable is missing.", runtime.ServerExecutable);
 
         var start = NewStartInfo(runtime.ServerExecutable);
         start.RedirectStandardOutput = true;
@@ -221,6 +228,12 @@ internal static class TileServerController
 
     private static string Port(ReleaseManifest manifest) =>
         manifest.Product.TileServerPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string[] TileIds(ReleaseManifest manifest) => manifest.Assets
+        .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
+        .Select(asset => asset.Destination)
+        .Order(StringComparer.Ordinal)
+        .ToArray();
 
     private static Uri HealthUri(ReleaseManifest manifest) =>
         new($"http://127.0.0.1:{manifest.Product.TileServerPort}/_health");

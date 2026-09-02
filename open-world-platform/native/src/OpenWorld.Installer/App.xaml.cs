@@ -15,7 +15,11 @@ public partial class App : Application
         try
         {
             var bundle = ReleaseBundle.Load(e.Args);
-            var manifest = ApplyPreviewOverrides(bundle.Manifest, e.Args, bundle.IsPreview);
+            var managerMode = HasArgument(e.Args, "--manager") ||
+                HasArgument(e.Args, "--manager-preview") ||
+                IsManagerExecutable(Environment.ProcessPath);
+            var manifest = SelectManifest(bundle.Catalog, e.Args, bundle.IsPreview, managerMode || HasArgument(e.Args, "--start-server") || HasArgument(e.Args, "--uninstall-worker"));
+            manifest = ApplyPreviewOverrides(manifest, e.Args, bundle.IsPreview);
             var locations = InstallLocations.Resolve(manifest);
             var runtime = ResolveRuntime(e.Args, bundle.IsPreview, locations);
             backgroundStartLog = Path.Combine(runtime.LogRoot, "manager.log");
@@ -38,9 +42,6 @@ public partial class App : Application
                 return;
             }
 
-            var managerMode = HasArgument(e.Args, "--manager") ||
-                HasArgument(e.Args, "--manager-preview") ||
-                string.Equals(Path.GetFileNameWithoutExtension(Environment.ProcessPath), "NEC Open World", StringComparison.OrdinalIgnoreCase);
             Window window;
             if (managerMode)
             {
@@ -51,7 +52,7 @@ public partial class App : Application
             }
             else
             {
-                window = new MainWindow(manifest, bundle.IsPreview);
+                window = new MainWindow(bundle.Catalog, manifest, bundle.IsPreview);
             }
             ConfigureSnapshot(window, e.Args);
             window.Show();
@@ -72,6 +73,30 @@ public partial class App : Application
             MessageBox.Show(exception.Message, "Subway Builder Open World", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
+    }
+
+    private static ReleaseManifest SelectManifest(ReleaseCatalog catalog, string[] arguments, bool isPreview, bool requireInstalledSelection)
+    {
+        if (ArgumentValue(arguments, "--world") is { } requested) return catalog.Select(requested);
+        if (catalog.Worlds.Count == 1) return catalog.Worlds[0];
+
+        var processDirectory = Path.GetDirectoryName(Environment.ProcessPath);
+        if (processDirectory is not null)
+        {
+            var state = ManagedInstallState.ReadAsync(Path.Combine(processDirectory, "install-state.json")).GetAwaiter().GetResult();
+            if (state is not null) return catalog.Select(state.ManifestId);
+        }
+
+        if (requireInstalledSelection && !isPreview)
+            throw new InvalidOperationException("This manager could not determine which installed world it owns.");
+        return catalog.Worlds[0];
+    }
+
+    private static bool IsManagerExecutable(string? executablePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(executablePath);
+        return string.Equals(name, "Subway Builder Open World", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "NEC Open World", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ReleaseManifest ApplyPreviewOverrides(ReleaseManifest manifest, string[] arguments, bool isPreview)
@@ -135,45 +160,54 @@ public partial class App : Application
     }
 }
 
-internal sealed record ReleaseBundle(ReleaseManifest Manifest, bool IsPreview)
+internal sealed record ReleaseBundle(ReleaseCatalog Catalog, bool IsPreview)
 {
     public static ReleaseBundle Load(string[] arguments)
     {
         var assembly = Assembly.GetExecutingAssembly();
+        using var embeddedCatalog = assembly.GetManifestResourceStream("release-catalog.json");
         using var embeddedManifest = assembly.GetManifestResourceStream("release-manifest.json");
         byte[] manifestBytes;
         byte[] signature;
         byte[] certificateBytes;
-        if (embeddedManifest is not null)
+        var catalogPath = Value(arguments, "--catalog");
+        var legacyManifestPath = Value(arguments, "--manifest");
+        var isCatalog = embeddedCatalog is not null;
+        if (embeddedCatalog is not null || embeddedManifest is not null)
         {
-            manifestBytes = ReadAll(embeddedManifest);
-            using var signatureStream = assembly.GetManifestResourceStream("release-manifest.json.sig")
+            manifestBytes = ReadAll(embeddedCatalog ?? embeddedManifest!);
+            var signatureName = isCatalog ? "release-catalog.json.sig" : "release-manifest.json.sig";
+            using var signatureStream = assembly.GetManifestResourceStream(signatureName)
                 ?? throw new InvalidDataException("The embedded release signature is missing.");
             signature = Convert.FromBase64String(System.Text.Encoding.ASCII.GetString(ReadAll(signatureStream)).Trim());
             using var certificateStream = assembly.GetManifestResourceStream("publisher.cer")
                 ?? throw new InvalidDataException("The embedded publisher certificate is missing.");
             certificateBytes = ReadAll(certificateStream);
         }
-        else if (Value(arguments, "--manifest") is { } manifestPath)
+        else if (catalogPath is not null || legacyManifestPath is not null)
         {
-            var signaturePath = Value(arguments, "--signature") ?? manifestPath + ".sig";
-            var certificatePath = Value(arguments, "--certificate") ?? Path.Combine(Path.GetDirectoryName(manifestPath)!, "publisher.cer");
+            var documentPath = catalogPath ?? legacyManifestPath!;
+            isCatalog = catalogPath is not null;
+            var signaturePath = Value(arguments, "--signature") ?? documentPath + ".sig";
+            var certificatePath = Value(arguments, "--certificate") ?? Path.Combine(Path.GetDirectoryName(documentPath)!, "publisher.cer");
             if (!File.Exists(signaturePath)) throw new InvalidDataException($"Release signature is missing: {signaturePath}");
             if (!File.Exists(certificatePath)) throw new InvalidDataException($"Publisher certificate is missing: {certificatePath}");
-            manifestBytes = File.ReadAllBytes(manifestPath);
+            manifestBytes = File.ReadAllBytes(documentPath);
             signature = Convert.FromBase64String(File.ReadAllText(signaturePath).Trim());
             certificateBytes = File.ReadAllBytes(certificatePath);
         }
         else
         {
-            return new ReleaseBundle(DevelopmentManifest.Create(), true);
+            return new ReleaseBundle(DevelopmentManifest.CreateCatalog(), true);
         }
 
 #pragma warning disable SYSLIB0057
         using var certificate = new X509Certificate2(certificateBytes);
 #pragma warning restore SYSLIB0057
         ReleaseSignature.Verify(manifestBytes, signature, certificate, certificate.Thumbprint);
-        return new ReleaseBundle(ReleaseManifest.Parse(System.Text.Encoding.UTF8.GetString(manifestBytes)), false);
+        var json = System.Text.Encoding.UTF8.GetString(manifestBytes);
+        var catalog = isCatalog ? ReleaseCatalog.Parse(json) : ReleaseCatalog.FromSingle(ReleaseManifest.Parse(json));
+        return new ReleaseBundle(catalog, false);
     }
 
     private static byte[] ReadAll(Stream stream)

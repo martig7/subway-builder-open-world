@@ -8,8 +8,8 @@ public sealed record InstallLocations(
     string CacheRoot,
     string LogRoot)
 {
-    public string ManagerPath => Path.Combine(ProductRoot, "NEC Open World.exe");
-    public string ServerExecutablePath => Path.Combine(SupportRoot, "nec-tile-server.exe");
+    public string ManagerPath => Path.Combine(ProductRoot, "Subway Builder Open World.exe");
+    public string ServerExecutablePath => Path.Combine(SupportRoot, "open-world-tile-server.exe");
     public string StateRoot => Path.Combine(ProductRoot, "state");
     public string InstallStatePath => Path.Combine(ProductRoot, "install-state.json");
     public string ReleaseManifestPath => Path.Combine(ProductRoot, "release-manifest.json");

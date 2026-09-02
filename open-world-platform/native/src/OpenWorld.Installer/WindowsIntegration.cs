@@ -10,9 +10,8 @@ namespace OpenWorld.Installer;
 
 internal static class WindowsIntegration
 {
-    private const string ProductKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\NEC Open World";
+    private const string UninstallRoot = @"Software\Microsoft\Windows\CurrentVersion\Uninstall";
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValue = "NEC Open World Tile Server";
 
     public static async Task RegisterInstallationAsync(
         ReleaseManifest manifest,
@@ -25,14 +24,14 @@ internal static class WindowsIntegration
         await File.WriteAllTextAsync(locations.ReleaseManifestPath, manifest.ToJson(), cancellationToken);
         await ManagedInstallState.WriteAsync(locations.InstallStatePath, ManagedInstallState.Create(manifest), cancellationToken);
 
-        using var key = Registry.CurrentUser.CreateSubKey(ProductKey, writable: true)
+        using var key = Registry.CurrentUser.CreateSubKey(ProductKey(manifest), writable: true)
             ?? throw new InvalidOperationException("Could not create the Windows uninstall registration.");
-        key.SetValue("DisplayName", "Subway Builder Open World");
+        key.SetValue("DisplayName", manifest.Product.Name);
         key.SetValue("DisplayVersion", manifest.Product.Version);
         key.SetValue("Publisher", manifest.Product.Publisher);
         key.SetValue("DisplayIcon", locations.ManagerPath);
         key.SetValue("InstallLocation", locations.ProductRoot);
-        key.SetValue("UninstallString", $"\"{locations.ManagerPath}\" --uninstall");
+        key.SetValue("UninstallString", $"\"{locations.ManagerPath}\" --world \"{manifest.Product.ManifestId}\" --uninstall");
         key.SetValue("NoModify", 1, RegistryValueKind.DWord);
         key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
         key.SetValue("EstimatedSize", checked((int)Math.Min(int.MaxValue, manifest.Space.InstalledBytes / 1024)), RegistryValueKind.DWord);
@@ -63,19 +62,19 @@ internal static class WindowsIntegration
         }
     }
 
-    public static bool IsStartupEnabled(string managerPath)
+    public static bool IsStartupEnabled(ReleaseManifest manifest, string managerPath)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: false);
-        var expected = $"\"{Path.GetFullPath(managerPath)}\" --start-server";
-        return string.Equals(key?.GetValue(RunValue) as string, expected, StringComparison.OrdinalIgnoreCase);
+        var expected = $"\"{Path.GetFullPath(managerPath)}\" --world \"{manifest.Product.ManifestId}\" --start-server";
+        return string.Equals(key?.GetValue(RunValue(manifest)) as string, expected, StringComparison.OrdinalIgnoreCase);
     }
 
-    public static void SetStartupEnabled(string managerPath, bool enabled)
+    public static void SetStartupEnabled(ReleaseManifest manifest, string managerPath, bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey, writable: true)
             ?? throw new InvalidOperationException("Could not update Windows startup settings.");
-        if (enabled) key.SetValue(RunValue, $"\"{Path.GetFullPath(managerPath)}\" --start-server");
-        else key.DeleteValue(RunValue, throwOnMissingValue: false);
+        if (enabled) key.SetValue(RunValue(manifest), $"\"{Path.GetFullPath(managerPath)}\" --world \"{manifest.Product.ManifestId}\" --start-server");
+        else key.DeleteValue(RunValue(manifest), throwOnMissingValue: false);
     }
 
     public static async Task StartUninstallWorkerAsync(
@@ -86,9 +85,9 @@ internal static class WindowsIntegration
     {
         await TileServerController.StopAsync(manifest, runtime, cancellationToken);
         var currentExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("Manager executable path is unavailable.");
-        var workerDirectory = Path.Combine(Path.GetTempPath(), "NEC Open World", Guid.NewGuid().ToString("N"));
+        var workerDirectory = Path.Combine(Path.GetTempPath(), "Subway Builder Open World", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workerDirectory);
-        var worker = Path.Combine(workerDirectory, "NEC-Open-World-Uninstall.exe");
+        var worker = Path.Combine(workerDirectory, "Open-World-Uninstall.exe");
         File.Copy(currentExecutable, worker, overwrite: true);
 
         var start = new ProcessStartInfo
@@ -100,6 +99,8 @@ internal static class WindowsIntegration
         start.ArgumentList.Add("--uninstall-worker");
         start.ArgumentList.Add("--parent-pid");
         start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        start.ArgumentList.Add("--world");
+        start.ArgumentList.Add(manifest.Product.ManifestId);
         Process.Start(start);
     }
 
@@ -116,8 +117,8 @@ internal static class WindowsIntegration
         }
         catch (ArgumentException) { }
 
-        SetStartupEnabled(locations.ManagerPath, enabled: false);
-        Registry.CurrentUser.DeleteSubKeyTree(ProductKey, throwOnMissingSubKey: false);
+        SetStartupEnabled(manifest, locations.ManagerPath, enabled: false);
+        Registry.CurrentUser.DeleteSubKeyTree(ProductKey(manifest), throwOnMissingSubKey: false);
 
         DeleteDirectory(locations.ModRoot);
         foreach (var asset in manifest.Assets.Where(asset => asset.Kind == ReleaseAssetKind.TileData))
@@ -131,6 +132,10 @@ internal static class WindowsIntegration
         var workerPath = Environment.ProcessPath;
         if (workerPath is not null) MoveFileEx(workerPath, null, MoveFileDelayUntilReboot);
     }
+
+    private static string ProductKey(ReleaseManifest manifest) => $@"{UninstallRoot}\Subway Builder Open World.{manifest.Product.ManifestId}";
+
+    private static string RunValue(ReleaseManifest manifest) => $"Subway Builder Open World ({manifest.Product.ManifestId})";
 
     private static void DeleteDirectory(string path, int retries = 1)
     {

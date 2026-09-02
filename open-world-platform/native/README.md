@@ -1,14 +1,15 @@
-# NEC Windows installer and tile server
+# Subway Builder Open World Windows installer and tile server
 
-This directory contains the native Windows release path for the Northeast
-Corridor consumer:
+This directory contains the native Windows release path shared by Open World
+consumers. Setup reads one signed release catalog and lets the user choose which
+World to install.
 
 - `OpenWorld.Installer` is the WPF setup/manager executable.
 - `OpenWorld.TileServer` is the independent loopback PMTiles server executable.
 - `OpenWorld.Release` validates signed release manifests, downloads and verifies
   assets, and installs ZIPs into scoped per-user targets.
 - `OpenWorld.ReleasePackager` produces one flat Railyard mod ZIP, one signed
-  support package, and 34 independently repairable data ZIPs.
+  support package, and independently repairable data ZIPs for a selected World.
 
 The public setup path does not invoke PowerShell. PowerShell is used only by the
 maintainer-side release script to create/reuse a self-signed code-signing
@@ -22,24 +23,26 @@ dotnet run --project tests/OpenWorld.Native.Tests/OpenWorld.Native.Tests.csproj 
 dotnet build src/OpenWorld.Installer/OpenWorld.Installer.csproj -c Release
 ```
 
-Launching the normal development build without a signed release manifest opens
-a non-destructive interface preview. It displays the current measured NEC data
-size and all 34 destination directories, but its progress run does not download
-or install files.
+Launching the normal development build without a signed release catalog opens
+an interface preview containing Northeast Corridor and Tokyo–Kanagawa. Selecting
+a World updates its measured size, destinations, package count, and server port.
 
 ## Release
 
-The release command builds the NEC consumer and replaces only its packaged
-manifest identity with `northeast-corridor-open-world`. It also verifies the
-requested semantic version and declares `dependencies.subway-builder`; the
-JavaScript bundle remains the same consumer build used by the development mod.
+The release command always builds Northeast Corridor and can also include
+Tokyo–Kanagawa. Each release build replaces only its packaged manifest identity,
+verifies the requested semantic version, and declares
+`dependencies.subway-builder`; each JavaScript bundle remains the same consumer
+build used by its development mod.
 
 ```powershell
-./scripts/Publish-NecWindowsRelease.ps1 `
+./scripts/Publish-OpenWorldWindowsRelease.ps1 `
   -Version 0.1.0 `
   -ReleaseAssetBaseUrl https://github.com/OWNER/REPO/releases/download/v0.1.0 `
-  -ModRoot ../../../prototype/nec-corridor/mod `
-  -TileRoot ../../../prototype/nec-corridor/generated/mod/tiles `
+  -NecModRoot ../../../prototype/nec-corridor/mod `
+  -NecTileRoot ../../../prototype/nec-corridor/generated/mod/tiles `
+  -TokyoModRoot ../../../prototype/tokyo-kanagawa/mod `
+  -TokyoTileRoot ../../../prototype/tokyo-kanagawa/generated/mod/tiles `
   -Output ../../../prototype/nec-corridor/generated/release/v0.1.0
 ```
 

@@ -10,8 +10,8 @@ namespace OpenWorld.Installer;
 
 public partial class MainWindow : Window
 {
-    private readonly ReleaseManifest manifest;
-    private readonly InstallLocations locations;
+    private ReleaseManifest manifest;
+    private InstallLocations locations;
     private readonly bool isPreview;
     private readonly Stopwatch transferClock = new();
     private CancellationTokenSource? cancellation;
@@ -19,11 +19,21 @@ public partial class MainWindow : Window
     private TimeSpan lastRateSample;
     private double bytesPerSecond;
 
-    public MainWindow(ReleaseManifest manifest, bool isPreview)
+    public MainWindow(ReleaseCatalog catalog, ReleaseManifest selectedManifest, bool isPreview)
     {
         InitializeComponent();
-        this.manifest = manifest;
+        manifest = selectedManifest;
         this.isPreview = isPreview;
+        locations = InstallLocations.Resolve(manifest);
+        WorldSelector.ItemsSource = catalog.Worlds;
+        WorldSelector.SelectedItem = selectedManifest;
+        PopulateReview();
+    }
+
+    private void WorldSelector_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (WorldSelector.SelectedItem is not ReleaseManifest selected || cancellation is not null) return;
+        manifest = selected;
         locations = InstallLocations.Resolve(manifest);
         PopulateReview();
     }
@@ -70,17 +80,19 @@ public partial class MainWindow : Window
     {
         ReviewView.Visibility = Visibility.Collapsed;
         ProgressView.Visibility = Visibility.Visible;
-        PageTitleText.Text = "Installing Northeast Corridor Open World";
+        PageTitleText.Text = $"Installing {manifest.Product.Name}";
         ReviewButtons.Visibility = Visibility.Collapsed;
         ProgressCancelButton.Visibility = Visibility.Visible;
         ProgressCancelButton.Content = "Cancel";
-        var completed = manifest.DownloadBytes * 21 / 35;
+        var completedAssets = Math.Max(1, manifest.Assets.Count * 3 / 5);
+        var completed = manifest.Assets.Take(completedAssets).Sum(asset => asset.DownloadBytes);
+        var currentAsset = manifest.Assets[Math.Min(completedAssets, manifest.Assets.Count - 1)];
         UpdateProgress(new InstallProgress(
             InstallStage.Downloading,
             "Downloading release files",
-            "nec-data-NEC_CP01_RP01-v0.1.0.zip",
-            21,
-            35,
+            currentAsset.Name,
+            completedAssets,
+            manifest.Assets.Count,
             completed,
             manifest.DownloadBytes));
         RateText.Text = "18.4 MiB/s";
@@ -94,12 +106,13 @@ public partial class MainWindow : Window
         cancellation = new CancellationTokenSource();
         ReviewView.Visibility = Visibility.Collapsed;
         ProgressView.Visibility = Visibility.Visible;
-        PageTitleText.Text = "Installing Northeast Corridor Open World";
+        PageTitleText.Text = $"Installing {manifest.Product.Name}";
         FailureText.Visibility = Visibility.Collapsed;
         ModeText.Text = string.Empty;
         ReviewButtons.Visibility = Visibility.Collapsed;
         ProgressCancelButton.Visibility = Visibility.Visible;
         ProgressCancelButton.Content = "Cancel";
+        WorldSelector.IsEnabled = false;
         transferClock.Restart();
         try
         {
@@ -107,14 +120,14 @@ public partial class MainWindow : Window
             else
             {
                 using var client = new HttpClient();
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("NEC-Open-World-Setup/0.1");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Subway-Builder-Open-World-Setup/0.1");
                 var progress = new Progress<InstallProgress>(UpdateProgress);
                 await new InstallerEngine(client).InstallAsync(manifest, locations, progress, cancellation.Token);
                 InstallManagerCopy();
                 await WindowsIntegration.RegisterInstallationAsync(manifest, locations, cancellation.Token);
                 UpdateProgress(new InstallProgress(InstallStage.StartingServer, "Starting the local tile server", $"127.0.0.1:{manifest.Product.TileServerPort}", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
                 await TileServerController.StartAndVerifyAsync(manifest, locations, cancellation.Token);
-                UpdateProgress(new InstallProgress(InstallStage.Complete, "Northeast Corridor is ready", "All release files and the tile server passed verification.", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
+                UpdateProgress(new InstallProgress(InstallStage.Complete, $"{manifest.Product.Name} is ready", "All release files and the tile server passed verification.", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
             }
             ProgressCancelButton.Content = "Close";
         }
@@ -129,6 +142,7 @@ public partial class MainWindow : Window
             InstallButton.Content = "Retry";
             InstallButton.IsEnabled = true;
             InstallButton.Visibility = Visibility.Visible;
+            WorldSelector.IsEnabled = true;
         }
         catch (Exception exception)
         {
@@ -142,6 +156,7 @@ public partial class MainWindow : Window
             InstallButton.Content = "Retry";
             InstallButton.IsEnabled = true;
             InstallButton.Visibility = Visibility.Visible;
+            WorldSelector.IsEnabled = true;
         }
         finally
         {

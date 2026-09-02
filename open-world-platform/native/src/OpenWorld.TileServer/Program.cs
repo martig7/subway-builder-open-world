@@ -29,17 +29,20 @@ if (command is "status" or "check")
 
 if (command != "serve")
 {
-    Console.Error.WriteLine("Usage: nec-tile-server serve --root PATH [--port 8799] [--state-root PATH] [--log-root PATH] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
+    Console.Error.WriteLine("Usage: open-world-tile-server serve --root PATH [--port 8799] [--state-root PATH] [--log-root PATH] [--tiles ID,ID] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
     return 2;
 }
 
 var root = options.Required("root");
 var logRoot = Path.GetFullPath(options.Optional("log-root") ?? Path.Combine(stateRoot, "logs"));
+var allowedIds = options.Optional("tiles")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
+if (allowedIds is { Count: 0 } || allowedIds?.Any(id => !ArchiveCatalog.IsSafeId(id)) == true)
+    throw new ArgumentException("--tiles must be a comma-separated list of safe tile IDs.");
 Directory.CreateDirectory(stateRoot);
-var log = new RollingFileLog(Path.Combine(logRoot, "nec-tile-server.log"));
+var log = new RollingFileLog(Path.Combine(logRoot, "open-world-tile-server.log"));
 var startedAtUtc = new DateTimeOffset(Process.GetCurrentProcess().StartTime.ToUniversalTime(), TimeSpan.Zero);
 var instanceId = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24));
-await using var catalog = await ArchiveCatalog.OpenAsync(root);
+await using var catalog = await ArchiveCatalog.OpenAsync(root, allowedIds);
 var builder = WebApplication.CreateSlimBuilder();
 builder.Logging.ClearProviders();
 builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, port));
@@ -77,7 +80,7 @@ app.MapMethods("/_health", ["GET", "HEAD"], async context =>
     {
         await JsonSerializer.SerializeAsync(
             context.Response.Body,
-            new HealthResponse("ok", serverVersion, buildVersion, catalog.Count, catalog.Root, Environment.ProcessId, startedAtUtc),
+            new HealthResponse("ok", serverVersion, buildVersion, catalog.Count, catalog.Ids.Order(StringComparer.Ordinal).ToArray(), catalog.Root, Environment.ProcessId, startedAtUtc),
             TileServerJsonContext.Default.HealthResponse,
             context.RequestAborted);
     }
@@ -145,7 +148,7 @@ try
     await app.StartAsync();
     await ServerStateStore.WriteAsync(statePath, state);
     log.Write("INFO", $"Started {serverVersion} build {buildVersion} on 127.0.0.1:{port} with {catalog.Count} archives from {catalog.Root}.");
-    Console.WriteLine($"NEC tile server {serverVersion} build {buildVersion} listening on http://127.0.0.1:{port}/ with {catalog.Count} archives.");
+    Console.WriteLine($"Open World tile server {serverVersion} build {buildVersion} listening on http://127.0.0.1:{port}/ with {catalog.Count} archives.");
     await app.WaitForShutdownAsync();
     return 0;
 }
@@ -164,7 +167,7 @@ async Task<int> PrintStatusAsync(int statusPort)
         var version = Header(response, "X-PMTiles-Server-Version");
         if (!response.IsSuccessStatusCode || version != serverVersion)
         {
-            Console.Error.WriteLine($"Port {statusPort} is not serving the expected NEC tile-server version.");
+            Console.Error.WriteLine($"Port {statusPort} is not serving the expected Open World tile-server version.");
             return 1;
         }
         Console.WriteLine(await response.Content.ReadAsStringAsync());

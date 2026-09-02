@@ -9,6 +9,7 @@ using OpenWorld.TileServer;
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("release manifest validates and resolves scoped install targets", ManifestValidation),
+    ("release catalog selects independently installable worlds", ReleaseCatalogValidation),
     ("release manifest rejects an unsafe destination", UnsafeDestination),
     ("release asset verification checks length and SHA-256", AssetVerification),
     ("byte sizes are shown in binary units", ByteSizeFormatting),
@@ -46,9 +47,32 @@ static Task ManifestValidation()
     Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\server", locations.SupportRoot);
     Equal(@"C:\Users\fixture\AppData\Roaming\metro-maker4\mods\northeast-corridor-open-world", locations.ModRoot);
     Equal(@"C:\Users\fixture\AppData\Roaming\metro-maker4\cities\data", locations.CityDataRoot);
-    Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\NEC Open World.exe", locations.ManagerPath);
+    Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\Subway Builder Open World.exe", locations.ManagerPath);
+    Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\server\open-world-tile-server.exe", locations.ServerExecutablePath);
     Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\state", locations.StateRoot);
     Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\logs", locations.LogRoot);
+    return Task.CompletedTask;
+}
+
+static Task ReleaseCatalogValidation()
+{
+    var nec = ManifestFor(destination: "NEC_CP00_RP00");
+    var tokyo = nec with
+    {
+        Product = nec.Product with
+        {
+            Id = "Tokyo Kanagawa Open World",
+            Name = "Tokyo–Kanagawa Open World",
+            ManifestId = "tokyo-kanagawa-open-world",
+            TileServerPort = 8800
+        },
+        Assets = [nec.Assets[0] with { Name = "tokyo.zip", Destination = "." }]
+    };
+    var catalog = new ReleaseCatalog(1, "0.1.0", [nec, tokyo]);
+    catalog.Validate();
+    var restored = ReleaseCatalog.Parse(catalog.ToJson());
+    Equal("Tokyo–Kanagawa Open World", restored.Select("tokyo-kanagawa-open-world").Product.Name);
+    Throws<InvalidDataException>(() => (catalog with { Worlds = [nec, tokyo with { Product = tokyo.Product with { TileServerPort = 8799 } }] }).Validate());
     return Task.CompletedTask;
 }
 
@@ -86,15 +110,22 @@ static async Task NativePmTilesReader()
     try
     {
         await File.WriteAllBytesAsync(archivePath, MinimalPmTiles());
+        var japanDirectory = Path.Combine(testRoot, "JP_TOKYO_MAINLAND");
+        Directory.CreateDirectory(japanDirectory);
+        await File.WriteAllBytesAsync(Path.Combine(japanDirectory, "tiles.pmtiles"), MinimalPmTiles());
         await using var archive = await PmTilesArchive.OpenAsync(archivePath);
         var tile = await archive.GetTileAsync(0, 0, 0);
         Equal(1, tile?.Length ?? 0);
         Equal((byte)0x1a, tile![0]);
 
         await using var catalog = await ArchiveCatalog.OpenAsync(testRoot);
-        Equal(1, catalog.Count);
+        Equal(2, catalog.Count);
         if (!catalog.TryGet("NEC_TEST", out _)) throw new InvalidOperationException("Expected the test archive in the catalog.");
+        if (!catalog.TryGet("JP_TOKYO_MAINLAND", out _)) throw new InvalidOperationException("Expected the Tokyo archive in the catalog.");
         if (catalog.TryGet("../outside", out _)) throw new InvalidOperationException("Unsafe archive id was accepted.");
+        await using var selected = await ArchiveCatalog.OpenAsync(testRoot, new HashSet<string>(["JP_TOKYO_MAINLAND"], StringComparer.Ordinal));
+        Equal(1, selected.Count);
+        if (selected.TryGet("NEC_TEST", out _)) throw new InvalidOperationException("The allowlist exposed another world's archive.");
     }
     finally
     {

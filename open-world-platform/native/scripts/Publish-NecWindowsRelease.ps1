@@ -2,19 +2,26 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     [Parameter(Mandatory = $true)][ValidatePattern('^https://')][string]$ReleaseAssetBaseUrl,
-    [Parameter(Mandatory = $true)][string]$ModRoot,
-    [Parameter(Mandatory = $true)][string]$TileRoot,
+    [Parameter(Mandatory = $true)][Alias('ModRoot')][string]$NecModRoot,
+    [Parameter(Mandatory = $true)][Alias('TileRoot')][string]$NecTileRoot,
+    [string]$TokyoModRoot,
+    [string]$TokyoTileRoot,
     [Parameter(Mandatory = $true)][string]$Output,
     [ValidatePattern('^https?://')][string]$TimestampServer = 'http://timestamp.digicert.com'
 )
 
 $ErrorActionPreference = 'Stop'
 $nativeRoot = Split-Path -Parent $PSScriptRoot
-$resolvedModRoot = [System.IO.Path]::GetFullPath($ModRoot)
-$resolvedTileRoot = [System.IO.Path]::GetFullPath($TileRoot)
+$resolvedModRoot = [System.IO.Path]::GetFullPath($NecModRoot)
+$resolvedTileRoot = [System.IO.Path]::GetFullPath($NecTileRoot)
 $resolvedOutput = [System.IO.Path]::GetFullPath($Output)
 if (-not (Test-Path -LiteralPath $resolvedModRoot -PathType Container)) { throw "Mod source directory is missing: $resolvedModRoot" }
 if (-not (Test-Path -LiteralPath $resolvedTileRoot -PathType Container)) { throw "Tile package directory is missing: $resolvedTileRoot" }
+if ([string]::IsNullOrWhiteSpace($TokyoModRoot) -ne [string]::IsNullOrWhiteSpace($TokyoTileRoot)) { throw 'TokyoModRoot and TokyoTileRoot must be supplied together.' }
+$resolvedTokyoModRoot = if ($TokyoModRoot) { [System.IO.Path]::GetFullPath($TokyoModRoot) } else { $null }
+$resolvedTokyoTileRoot = if ($TokyoTileRoot) { [System.IO.Path]::GetFullPath($TokyoTileRoot) } else { $null }
+if ($resolvedTokyoModRoot -and -not (Test-Path -LiteralPath $resolvedTokyoModRoot -PathType Container)) { throw "Tokyo mod source directory is missing: $resolvedTokyoModRoot" }
+if ($resolvedTokyoTileRoot -and -not (Test-Path -LiteralPath $resolvedTokyoTileRoot -PathType Container)) { throw "Tokyo tile package directory is missing: $resolvedTokyoTileRoot" }
 New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
 
 $inferredArtifactsRoot = Split-Path -Parent (Split-Path -Parent $resolvedTileRoot)
@@ -36,6 +43,27 @@ try {
 }
 $resolvedModDist = Join-Path $resolvedModRoot 'dist'
 
+if ($resolvedTokyoModRoot) {
+    $tokyoArtifactsRoot = Split-Path -Parent (Split-Path -Parent $resolvedTokyoTileRoot)
+    $expectedTokyoTileRoot = [System.IO.Path]::GetFullPath((Join-Path $tokyoArtifactsRoot 'mod\tiles'))
+    $normalizedTokyoTileRoot = $resolvedTokyoTileRoot.TrimEnd([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar))
+    if (-not [string]::Equals($expectedTokyoTileRoot, $normalizedTokyoTileRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'TokyoTileRoot must be the generated mod\tiles directory.'
+    }
+    $priorTokyoArtifactsRoot = $env:TOKYO_KANAGAWA_ARTIFACTS_ROOT
+    Push-Location $resolvedTokyoModRoot
+    try {
+        $env:TOKYO_KANAGAWA_ARTIFACTS_ROOT = $tokyoArtifactsRoot
+        npm run build:release -- --version $Version
+        if ($LASTEXITCODE -ne 0) { throw 'Tokyo–Kanagawa release mod build failed.' }
+    } finally {
+        if ($null -eq $priorTokyoArtifactsRoot) { Remove-Item Env:TOKYO_KANAGAWA_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
+        else { $env:TOKYO_KANAGAWA_ARTIFACTS_ROOT = $priorTokyoArtifactsRoot }
+        Pop-Location
+    }
+    $resolvedTokyoModDist = Join-Path $resolvedTokyoModRoot 'dist'
+}
+
 $certificate = & (Join-Path $PSScriptRoot 'Get-OrCreateSelfSignedCertificate.ps1')
 if (-not $certificate.HasPrivateKey) { throw 'The self-signed release certificate has no private key.' }
 
@@ -48,7 +76,7 @@ dotnet publish $serverProject -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:PublishTrimmed=true -p:InvariantGlobalization=true `
     -o $serverPublish
 if ($LASTEXITCODE -ne 0) { throw 'Tile-server publish failed.' }
-$serverExecutable = Join-Path $serverPublish 'nec-tile-server.exe'
+$serverExecutable = Join-Path $serverPublish 'open-world-tile-server.exe'
 $serverSignature = Set-AuthenticodeSignature -LiteralPath $serverExecutable -Certificate $certificate -HashAlgorithm SHA256 -TimestampServer $TimestampServer
 if (-not $serverSignature.SignerCertificate -or $serverSignature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) {
     throw 'The tile-server executable was not signed by the release certificate.'
@@ -61,16 +89,40 @@ dotnet run --project $packager -c Release -- `
     --server-exe $serverExecutable `
     --output $resolvedOutput `
     --base-url $ReleaseAssetBaseUrl `
-    --version $Version
+    --version $Version `
+    --manifest-name release-manifest-nec.json
 if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed.' }
 
-$manifestPath = Join-Path $resolvedOutput 'release-manifest.json'
-$signaturePath = "$manifestPath.sig"
+if ($resolvedTokyoModRoot) {
+    dotnet run --project $packager -c Release -- `
+        --mod-dist $resolvedTokyoModDist `
+        --tile-root $resolvedTokyoTileRoot `
+        --server-exe $serverExecutable `
+        --output $resolvedOutput `
+        --base-url $ReleaseAssetBaseUrl `
+        --version $Version `
+        --product-id 'Tokyo Kanagawa Open World' `
+        --product-name 'Tokyo–Kanagawa Open World' `
+        --manifest-id tokyo-kanagawa-open-world `
+        --asset-prefix tokyo-kanagawa `
+        --tile-prefix JP `
+        --expected-tiles 2 `
+        --port 8800 `
+        --manifest-name release-manifest-tokyo-kanagawa.json
+    if ($LASTEXITCODE -ne 0) { throw 'Tokyo–Kanagawa release packaging failed.' }
+}
+
+$worldManifests = @((Get-Content -Raw -LiteralPath (Join-Path $resolvedOutput 'release-manifest-nec.json') | ConvertFrom-Json))
+if ($resolvedTokyoModRoot) { $worldManifests += (Get-Content -Raw -LiteralPath (Join-Path $resolvedOutput 'release-manifest-tokyo-kanagawa.json') | ConvertFrom-Json) }
+$catalogPath = Join-Path $resolvedOutput 'release-catalog.json'
+$releaseCatalog = [ordered]@{ schemaVersion = 1; version = $Version; worlds = $worldManifests }
+[System.IO.File]::WriteAllText($catalogPath, ($releaseCatalog | ConvertTo-Json -Depth 20) + [Environment]::NewLine)
+$signaturePath = "$catalogPath.sig"
 $certificatePath = Join-Path $resolvedOutput 'publisher.cer'
 [void](Export-Certificate -Cert $certificate -FilePath $certificatePath -Force)
 $rsa = $certificate.GetRSAPrivateKey()
 try {
-    $manifestBytes = [System.IO.File]::ReadAllBytes($manifestPath)
+    $manifestBytes = [System.IO.File]::ReadAllBytes($catalogPath)
     $manifestSignature = $rsa.SignData(
         $manifestBytes,
         [System.Security.Cryptography.HashAlgorithmName]::SHA256,
@@ -84,18 +136,18 @@ try {
 $setupProject = Join-Path $nativeRoot 'src\OpenWorld.Installer\OpenWorld.Installer.csproj'
 dotnet publish $setupProject -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    "-p:ReleaseManifestPath=$manifestPath" `
-    "-p:ReleaseSignaturePath=$signaturePath" `
+    "-p:ReleaseCatalogPath=$catalogPath" `
+    "-p:ReleaseCatalogSignaturePath=$signaturePath" `
     "-p:PublisherCertificatePath=$certificatePath" `
     -o $setupPublish
 if ($LASTEXITCODE -ne 0) { throw 'Installer publish failed.' }
-$setupExecutable = Join-Path $setupPublish 'NEC-Open-World-Setup.exe'
+$setupExecutable = Join-Path $setupPublish 'Subway-Builder-Open-World-Setup.exe'
 $setupSignature = Set-AuthenticodeSignature -LiteralPath $setupExecutable -Certificate $certificate -HashAlgorithm SHA256 -TimestampServer $TimestampServer
 if (-not $setupSignature.SignerCertificate -or $setupSignature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) {
     throw 'The setup executable was not signed by the release certificate.'
 }
-Copy-Item -LiteralPath $setupExecutable -Destination (Join-Path $resolvedOutput 'NEC-Open-World-Setup.exe') -Force
-$publishedSetup = Join-Path $resolvedOutput 'NEC-Open-World-Setup.exe'
+Copy-Item -LiteralPath $setupExecutable -Destination (Join-Path $resolvedOutput 'Subway-Builder-Open-World-Setup.exe') -Force
+$publishedSetup = Join-Path $resolvedOutput 'Subway-Builder-Open-World-Setup.exe'
 
 function Format-ReleaseByteSize([long]$Bytes) {
     if ($Bytes -ge 1GB) { return '{0:0.00} GiB' -f ($Bytes / 1GB) }
@@ -104,23 +156,23 @@ function Format-ReleaseByteSize([long]$Bytes) {
     return "$Bytes bytes"
 }
 
-$releaseManifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
-$additionalDownloadBytes = [long](($releaseManifest.assets | Measure-Object -Property downloadBytes -Sum).Sum)
 $setupHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $publishedSetup).Hash.ToLowerInvariant()
+$spaceLines = foreach ($world in $worldManifests) {
+    $downloadBytes = [long](($world.assets | Measure-Object -Property downloadBytes -Sum).Sum)
+    "- $($world.product.name): $(Format-ReleaseByteSize $downloadBytes) download, $(Format-ReleaseByteSize ([long]$world.space.installedBytes)) installed, $(Format-ReleaseByteSize ([long]$world.space.requiredFreeBytes)) free space required"
+}
 $releaseBody = @(
-    "# Northeast Corridor Open World $Version",
+    "# Subway Builder Open World $Version",
     '',
     '## Download',
     '',
-    "Download exactly one file: [NEC-Open-World-Setup.exe]($($ReleaseAssetBaseUrl.TrimEnd('/'))/NEC-Open-World-Setup.exe) ($(Format-ReleaseByteSize (Get-Item -LiteralPath $publishedSetup).Length)).",
+    "Download exactly one file: [Subway-Builder-Open-World-Setup.exe]($($ReleaseAssetBaseUrl.TrimEnd('/'))/Subway-Builder-Open-World-Setup.exe) ($(Format-ReleaseByteSize (Get-Item -LiteralPath $publishedSetup).Length)).",
     '',
-    'The setup app downloads and verifies the mod, the 34 map-data packages, and the separate tile-server executable. Do not download the data ZIPs individually.',
+    'Choose a world in setup. It downloads and verifies only that mod, its map-data packages, and the tile-server executable.',
     '',
     '## Space required',
-    '',
-    "- Additional setup downloads: $(Format-ReleaseByteSize $additionalDownloadBytes)",
-    "- Installed files: $(Format-ReleaseByteSize ([long]$releaseManifest.space.installedBytes))",
-    "- Free space required while installing: $(Format-ReleaseByteSize ([long]$releaseManifest.space.requiredFreeBytes))",
+    ''
+) + $spaceLines + @(
     '',
     'Setup shows every destination directory before it changes files and reports download, verification, installation, and tile-server startup progress.',
     '',
@@ -142,6 +194,6 @@ $checksumLines = Get-ChildItem -LiteralPath $resolvedOutput -File |
     ForEach-Object { "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant(), $_.Name }
 [System.IO.File]::WriteAllLines((Join-Path $resolvedOutput 'SHA256SUMS.txt'), $checksumLines)
 
-Write-Host "Created self-signed NEC release $Version"
+Write-Host "Created self-signed Subway Builder Open World release $Version"
 Write-Host "Certificate thumbprint: $($certificate.Thumbprint)"
 Write-Host "Output: $resolvedOutput"

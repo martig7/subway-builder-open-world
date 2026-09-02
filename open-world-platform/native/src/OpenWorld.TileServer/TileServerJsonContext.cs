@@ -7,6 +7,7 @@ internal sealed record HealthResponse(
     string Version,
     string BuildVersion,
     int Archives,
+    string[] TileIds,
     string Root,
     int ProcessId,
     DateTimeOffset StartedAtUtc);

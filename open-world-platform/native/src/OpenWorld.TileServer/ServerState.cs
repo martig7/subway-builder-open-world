@@ -21,7 +21,7 @@ public static class ServerStateStore
         var root = stateRoot ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "metro-maker4",
-            "nec-corridor-pmtiles");
+            "open-world-pmtiles");
         return Path.GetFullPath(root);
     }
 
