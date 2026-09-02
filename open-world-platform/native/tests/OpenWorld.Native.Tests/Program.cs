@@ -143,7 +143,7 @@ static async Task InstallerDownloadsAndInstalls()
         };
         var manifest = new ReleaseManifest(
             1,
-            new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", "0.1.0", "northeast-corridor-open-world", "Open World Project (self-signed)", ">=1.6.0 <1.7.0", 8799),
+            new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", "0.1.0", "northeast-corridor-open-world", "Giancarlo Martinelli (gcm)", ">=1.6.0 <1.7.0", 8799),
             new ReleaseSpace(payload.Length * 2, zipBytes.Length + payload.Length, payload.Length * 3 + zipBytes.Length),
             [asset, supportAsset]);
         var locations = new InstallLocations(
@@ -200,7 +200,7 @@ static ReleaseManifest ManifestFor(string destination)
 {
     return new ReleaseManifest(
         1,
-        new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", "0.1.0", "northeast-corridor-open-world", "Open World Project (self-signed)", ">=1.6.0 <1.7.0", 8799),
+        new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", "0.1.0", "northeast-corridor-open-world", "Giancarlo Martinelli (gcm)", ">=1.6.0 <1.7.0", 8799),
         new ReleaseSpace(4_000_000_000, 500_000_000, 4_500_000_000),
         [new ReleaseAsset("mod.zip", ReleaseAssetKind.Mod, new Uri("https://github.com/example/releases/download/v0.1.0/mod.zip"), new string('a', 64), 100, 200, destination)]);
 }

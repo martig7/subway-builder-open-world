@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Subject = 'CN=NEC Open World Project',
+    [string]$Subject = 'CN=Giancarlo Martinelli (gcm)',
     [int]$ValidYears = 5
 )
 

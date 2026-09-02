@@ -37,7 +37,7 @@ internal static class DevelopmentManifest
             id)));
         return new ReleaseManifest(
             1,
-            new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", "0.1.0 preview", "northeast-corridor-open-world", "Open World Project — self-signed", "Subway Builder 1.6.x", 8799),
+            new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", "0.1.0", "northeast-corridor-open-world", "Giancarlo Martinelli (gcm)", "Subway Builder 1.6.x", 8799),
             new ReleaseSpace(dataBytes + modBytes, workingBytes, dataBytes + modBytes + workingBytes),
             assets);
     }

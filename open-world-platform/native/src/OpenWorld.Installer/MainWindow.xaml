@@ -18,7 +18,7 @@
                 BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
                 BorderThickness="0,0,0,1">
             <StackPanel Margin="24,15,24,12">
-                <TextBlock x:Name="PageTitleText" Text="Ready to install"
+                <TextBlock x:Name="PageTitleText" Text="Install Subway Builder Open World"
                            FontSize="20" FontWeight="SemiBold"
                            Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
                 <TextBlock x:Name="PageSubtitleText" Margin="0,4,0,0"

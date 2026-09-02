@@ -33,7 +33,7 @@ public partial class MainWindow : Window
         DownloadSizeText.Text = ByteSize.Format(manifest.DownloadBytes);
         InstalledSizeText.Text = ByteSize.Format(manifest.Space.InstalledBytes);
         RequiredSizeText.Text = ByteSize.Format(manifest.Space.RequiredFreeBytes);
-        PageSubtitleText.Text = $"{manifest.Product.Name} {manifest.Product.Version}";
+        PageSubtitleText.Text = $"Version {manifest.Product.Version}";
         ServerAddressText.Text = $"127.0.0.1:{manifest.Product.TileServerPort}";
         ProductPathText.Text = locations.ProductRoot;
         ModPathText.Text = locations.ModRoot;
@@ -48,7 +48,7 @@ public partial class MainWindow : Window
             .ToArray();
         DataDirectoriesHeader.Text = $"View all {destinations.Length} map-data folders";
         DestinationList.ItemsSource = destinations;
-        ModeText.Text = isPreview ? "Preview mode (no file changes)" : string.Empty;
+        ModeText.Text = isPreview ? "Preview mode" : string.Empty;
         InstallButton.Content = isPreview ? "Preview" : "Install";
     }
 

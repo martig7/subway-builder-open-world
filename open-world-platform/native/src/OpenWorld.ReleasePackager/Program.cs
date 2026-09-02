@@ -53,7 +53,7 @@ var installedTotal = assets.Sum(asset => asset.InstalledBytes);
 var workingBytes = assets.Max(asset => asset.InstalledBytes + asset.DownloadBytes) + 128L * 1024 * 1024;
 var release = new ReleaseManifest(
     1,
-    new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", options.Version, "northeast-corridor-open-world", "Open World Project — self-signed", "Subway Builder 1.6.x", 8799),
+    new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", options.Version, "northeast-corridor-open-world", "Giancarlo Martinelli (gcm)", "Subway Builder 1.6.x", 8799),
     new ReleaseSpace(installedTotal, workingBytes, installedTotal + workingBytes),
     assets);
 release.Validate();
