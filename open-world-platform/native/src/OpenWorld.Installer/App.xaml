@@ -2,19 +2,12 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
-        <SolidColorBrush x:Key="RailNavy" Color="#142331" />
-        <SolidColorBrush x:Key="RailSteel" Color="#536B7A" />
-        <SolidColorBrush x:Key="RailPaper" Color="#F3F6F7" />
-        <SolidColorBrush x:Key="SignalAmber" Color="#D99127" />
-        <SolidColorBrush x:Key="VerifiedGreen" Color="#267455" />
-        <SolidColorBrush x:Key="LineBrush" Color="#CBD5DA" />
         <Style TargetType="Button">
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Padding" Value="22,11" />
-            <Setter Property="MinWidth" Value="108" />
-            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="MinWidth" Value="88" />
+            <Setter Property="Padding" Value="14,5" />
         </Style>
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />

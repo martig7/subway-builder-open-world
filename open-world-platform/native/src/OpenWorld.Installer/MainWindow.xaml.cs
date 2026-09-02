@@ -33,11 +33,12 @@ public partial class MainWindow : Window
         DownloadSizeText.Text = ByteSize.Format(manifest.DownloadBytes);
         InstalledSizeText.Text = ByteSize.Format(manifest.Space.InstalledBytes);
         RequiredSizeText.Text = ByteSize.Format(manifest.Space.RequiredFreeBytes);
-        VersionText.Text = $"Version {manifest.Product.Version}";
-        GameVersionText.Text = manifest.Product.GameVersion;
+        PageSubtitleText.Text = $"{manifest.Product.Name} {manifest.Product.Version}";
         ServerAddressText.Text = $"127.0.0.1:{manifest.Product.TileServerPort}";
         ProductPathText.Text = locations.ProductRoot;
         ModPathText.Text = locations.ModRoot;
+        DataRootPathText.Text = locations.CityDataRoot;
+        PublisherText.Text = manifest.Product.Publisher;
 
         var destinations = manifest.Assets
             .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
@@ -45,10 +46,10 @@ public partial class MainWindow : Window
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        DataDirectoriesHeader.Text = $"Map-data directories ({destinations.Length})";
+        DataDirectoriesHeader.Text = $"View all {destinations.Length} map-data folders";
         DestinationList.ItemsSource = destinations;
-        PreviewNotice.Visibility = isPreview ? Visibility.Visible : Visibility.Collapsed;
-        InstallButton.Content = isPreview ? "Preview progress" : "Install";
+        ModeText.Text = isPreview ? "Preview mode (no file changes)" : string.Empty;
+        InstallButton.Content = isPreview ? "Preview" : "Install";
     }
 
     public void SaveSnapshot(string path)
@@ -69,10 +70,10 @@ public partial class MainWindow : Window
     {
         ReviewView.Visibility = Visibility.Collapsed;
         ProgressView.Visibility = Visibility.Visible;
-        SourceButton.Visibility = Visibility.Collapsed;
-        CancelButton.Content = "Cancel";
-        InstallButton.IsEnabled = false;
-        InstallButton.Visibility = Visibility.Collapsed;
+        PageTitleText.Text = "Installing Northeast Corridor Open World";
+        ReviewButtons.Visibility = Visibility.Collapsed;
+        ProgressCancelButton.Visibility = Visibility.Visible;
+        ProgressCancelButton.Content = "Cancel";
         var completed = manifest.DownloadBytes * 21 / 35;
         UpdateProgress(new InstallProgress(
             InstallStage.Downloading,
@@ -93,10 +94,12 @@ public partial class MainWindow : Window
         cancellation = new CancellationTokenSource();
         ReviewView.Visibility = Visibility.Collapsed;
         ProgressView.Visibility = Visibility.Visible;
-        InstallButton.IsEnabled = false;
-        InstallButton.Visibility = Visibility.Collapsed;
-        CancelButton.Content = "Cancel";
-        SourceButton.Visibility = Visibility.Collapsed;
+        PageTitleText.Text = "Installing Northeast Corridor Open World";
+        FailureText.Visibility = Visibility.Collapsed;
+        ModeText.Text = string.Empty;
+        ReviewButtons.Visibility = Visibility.Collapsed;
+        ProgressCancelButton.Visibility = Visibility.Visible;
+        ProgressCancelButton.Content = "Cancel";
         transferClock.Restart();
         try
         {
@@ -112,13 +115,15 @@ public partial class MainWindow : Window
                 await TileServerController.StartAndVerifyAsync(manifest, locations, cancellation.Token);
                 UpdateProgress(new InstallProgress(InstallStage.Complete, "Northeast Corridor is ready", "All release files and the tile server passed verification.", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
             }
-            CancelButton.Content = "Close";
-            InstallButton.Visibility = Visibility.Collapsed;
+            ProgressCancelButton.Content = "Close";
         }
         catch (OperationCanceledException)
         {
+            PageTitleText.Text = "Installation cancelled";
             FailureText.Text = "Installation was cancelled. Any incomplete download remains available so setup can resume later.";
             FailureText.Visibility = Visibility.Visible;
+            ReviewButtons.Visibility = Visibility.Visible;
+            ProgressCancelButton.Visibility = Visibility.Collapsed;
             CancelButton.Content = "Close";
             InstallButton.Content = "Retry";
             InstallButton.IsEnabled = true;
@@ -126,9 +131,12 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
+            PageTitleText.Text = "Installation couldn't complete";
             FailureText.Text = exception.Message;
             FailureText.Visibility = Visibility.Visible;
             ProgressSummaryText.Text = "Setup needs attention";
+            ReviewButtons.Visibility = Visibility.Visible;
+            ProgressCancelButton.Visibility = Visibility.Collapsed;
             CancelButton.Content = "Close";
             InstallButton.Content = "Retry";
             InstallButton.IsEnabled = true;
@@ -180,7 +188,6 @@ public partial class MainWindow : Window
         ProgressItemText.Text = progress.CurrentItem;
         ProgressBytesText.Text = $"{ByteSize.Format(progress.CompletedBytes)} / {ByteSize.Format(progress.TotalBytes)}";
         ProgressCountText.Text = $"{progress.CompletedAssets} / {progress.TotalAssets} files";
-        SetSignals(progress.Stage);
 
         if (progress.Stage == InstallStage.Downloading)
         {
@@ -199,20 +206,10 @@ public partial class MainWindow : Window
         }
         else if (progress.Stage == InstallStage.Complete)
         {
+            PageTitleText.Text = isPreview ? "Preview complete" : "Installation complete";
             RateText.Text = isPreview ? "Interface preview" : "Server verified";
             EtaText.Text = string.Empty;
         }
-    }
-
-    private void SetSignals(InstallStage stage)
-    {
-        var amber = (Brush)FindResource("SignalAmber");
-        var green = (Brush)FindResource("VerifiedGreen");
-        var empty = Brushes.Transparent;
-        ReviewSignal.Background = stage == InstallStage.Preparing ? amber : green;
-        DownloadSignal.Background = stage == InstallStage.Downloading ? amber : stage > InstallStage.Downloading ? green : empty;
-        InstallSignal.Background = stage is InstallStage.Verifying or InstallStage.Installing ? amber : stage > InstallStage.Installing ? green : empty;
-        ReadySignal.Background = stage == InstallStage.StartingServer ? amber : stage == InstallStage.Complete ? green : empty;
     }
 
     private static string FormatDuration(TimeSpan value) => value.TotalMinutes >= 1
@@ -234,8 +231,4 @@ public partial class MainWindow : Window
         else Close();
     }
 
-    private void Source_Click(object sender, RoutedEventArgs e)
-    {
-        Process.Start(new ProcessStartInfo("https://github.com/martig7/subway-builder-open-world") { UseShellExecute = true });
-    }
 }
