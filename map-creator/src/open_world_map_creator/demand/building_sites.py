@@ -281,6 +281,7 @@ def build_tile_sites(
     clip_bounds: list[float],
     boundary: Any,
     *,
+    candidate_boundary: Any | None = None,
     radius_m: float = 350.0,
     source_radius_m: float = 750.0,
     candidate_grid_m: float = 100.0,
@@ -293,7 +294,7 @@ def build_tile_sites(
         job_cells,
         buildings,
         transformer,
-        boundary,
+        candidate_boundary if candidate_boundary is not None else boundary,
         source_radius_m=source_radius_m,
         candidate_grid_m=candidate_grid_m,
     )

@@ -6,17 +6,41 @@ from pathlib import Path
 
 import shapely
 from pyproj import Transformer
-from shapely.geometry import GeometryCollection, mapping, shape
+from shapely.geometry import GeometryCollection, Polygon, mapping, shape
 from shapely.ops import transform
 
 
 COMPATIBLE_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 MANUAL_CORRIDORS = {("01", "02"): "tunnel-or-ferry", ("46", "47"): "ferry-or-air"}
 CATALOG_CRS = "+proj=lcc +lat_1=30 +lat_2=46 +lat_0=38 +lon_0=138 +ellps=GRS80 +units=m +no_defs"
+DEFAULT_MINIMUM_ISLAND_AREA_KM2 = 1.0
+DEFAULT_SEAM_CLOSURE_M = 30.0
+PREFECTURE_NAMES_JA = {
+    "01": "北海道", "02": "青森県", "03": "岩手県", "04": "宮城県", "05": "秋田県",
+    "06": "山形県", "07": "福島県", "08": "茨城県", "09": "栃木県", "10": "群馬県",
+    "11": "埼玉県", "12": "千葉県", "13": "東京都", "14": "神奈川県", "15": "新潟県",
+    "16": "富山県", "17": "石川県", "18": "福井県", "19": "山梨県", "20": "長野県",
+    "21": "岐阜県", "22": "静岡県", "23": "愛知県", "24": "三重県", "25": "滋賀県",
+    "26": "京都府", "27": "大阪府", "28": "兵庫県", "29": "奈良県", "30": "和歌山県",
+    "31": "鳥取県", "32": "島根県", "33": "岡山県", "34": "広島県", "35": "山口県",
+    "36": "徳島県", "37": "香川県", "38": "愛媛県", "39": "高知県", "40": "福岡県",
+    "41": "佐賀県", "42": "長崎県", "43": "熊本県", "44": "大分県", "45": "宮崎県",
+    "46": "鹿児島県", "47": "沖縄県",
+}
 
 
 def tile_id(pref_code: str) -> str:
     return COMPATIBLE_TILE_IDS.get(pref_code, f"JP_PREF_{pref_code}")
+
+
+def _pref_code(feature: dict) -> str:
+    properties = feature["properties"]
+    if properties.get("pref_code") is not None:
+        return str(properties["pref_code"]).zfill(2)
+    identifier = str(properties.get("id", ""))
+    if identifier.startswith("JP") and identifier[2:].isdigit():
+        return identifier[2:].zfill(2)
+    raise ValueError(f"Boundary feature has no prefecture code: {properties}")
 
 
 def _polygonal(geometry):
@@ -30,34 +54,99 @@ def _polygonal(geometry):
     return shapely.union_all(parts)
 
 
-def build_overlay(source: Path, tolerance_m: float) -> dict:
+def _filled_and_filtered(geometry, minimum_area_m2: float):
+    filled = []
+    for part in shapely.get_parts(_polygonal(geometry)):
+        if part.geom_type != "Polygon":
+            continue
+        polygon = Polygon(part.exterior)
+        if polygon.area >= minimum_area_m2:
+            filled.append(polygon)
+    if not filled:
+        raise ValueError("Boundary cleanup removed every polygonal component")
+    return _polygonal(shapely.union_all(filled))
+
+
+def build_overlay(
+    source: Path,
+    tolerance_m: float,
+    minimum_island_area_km2: float = DEFAULT_MINIMUM_ISLAND_AREA_KM2,
+    seam_closure_m: float = DEFAULT_SEAM_CLOSURE_M,
+) -> dict:
     overlay = json.loads(source.read_text(encoding="utf-8"))
-    features = sorted(overlay["features"], key=lambda feature: feature["properties"]["pref_code"])
+    features = sorted(overlay["features"], key=_pref_code)
     forward = Transformer.from_crs("EPSG:4326", "EPSG:6933", always_xy=True).transform
     reverse = Transformer.from_crs("EPSG:6933", "EPSG:4326", always_xy=True).transform
-    occupied_metric = GeometryCollection()
-    occupied_wgs84 = GeometryCollection()
-    output_features = []
+    minimum_area_m2 = minimum_island_area_km2 * 1_000_000
+    detailed_by_code = {}
+    feature_by_code = {}
     for index, feature in enumerate(features, start=1):
-        code = feature["properties"]["pref_code"]
-        print(json.dumps({"stage": "boundary-overlay", "status": "started", "prefCode": code, "index": index, "total": len(features)}), flush=True)
+        code = _pref_code(feature)
+        print(json.dumps({"stage": "boundary-cleanup", "status": "started", "prefCode": code, "index": index, "total": len(features)}), flush=True)
         metric = transform(forward, shape(feature["geometry"]))
-        # Simplify before validity repair so million-vertex source dissolves do
-        # not make GEOS spend minutes inspecting zero-area statistical slivers.
-        detailed = _polygonal(shapely.simplify(metric, tolerance_m, preserve_topology=False))
-        exclusive_metric = _polygonal(detailed.difference(occupied_metric))
+        # A light independent simplification makes validity repair tractable.
+        # The final simplification happens only after the shared coverage has
+        # been built, so this pass cannot become the published seam geometry.
+        reduced = shapely.simplify(metric, max(0.5, tolerance_m / 2), preserve_topology=False)
+        detailed = _filled_and_filtered(reduced, minimum_area_m2)
+        detailed_by_code[code] = detailed
+        feature_by_code[code] = feature
+        print(json.dumps({"stage": "boundary-cleanup", "status": "complete", "prefCode": code, "vertices": int(shapely.get_num_coordinates(detailed))}), flush=True)
+
+    national_land = _filled_and_filtered(
+        shapely.union_all(list(detailed_by_code.values())),
+        minimum_area_m2,
+    )
+    if seam_closure_m > 0:
+        national_land = _filled_and_filtered(
+            shapely.buffer(
+                shapely.buffer(national_land, seam_closure_m / 2, join_style="mitre"),
+                -seam_closure_m / 2,
+                join_style="mitre",
+            ),
+            minimum_area_m2,
+        )
+
+    occupied_metric = GeometryCollection()
+    exclusive_by_code = {}
+    codes = sorted(detailed_by_code)
+    for index, code in enumerate(codes, start=1):
+        print(json.dumps({"stage": "boundary-overlay", "status": "started", "prefCode": code, "index": index, "total": len(features)}), flush=True)
+        exclusive_metric = _polygonal(detailed_by_code[code].difference(occupied_metric))
+        exclusive_by_code[code] = exclusive_metric
         occupied_metric = shapely.union_all([occupied_metric, exclusive_metric])
-        # Projection is non-linear: differently noded shared line segments can
-        # become slightly different chords after inverse projection. Repeat the
-        # ordered subtraction in the serialized CRS so the runtime polygons are
-        # themselves a valid, exactly disjoint coverage.
-        projected_back = _polygonal(transform(reverse, exclusive_metric))
-        exclusive = _polygonal(projected_back.difference(occupied_wgs84))
-        occupied_wgs84 = shapely.union_all([occupied_wgs84, exclusive])
+
+    remainder = national_land.difference(occupied_metric)
+    if not remainder.is_empty:
+        remainder = _polygonal(remainder)
+        for part in shapely.get_parts(remainder):
+            if part.geom_type != "Polygon" or part.is_empty:
+                continue
+            owner = min(codes, key=lambda code: (detailed_by_code[code].distance(part), code))
+            exclusive_by_code[owner] = _polygonal(shapely.union_all([exclusive_by_code[owner], part]))
+
+    simplified = shapely.coverage_simplify(
+        [exclusive_by_code[code] for code in codes],
+        tolerance_m,
+        simplify_boundary=True,
+    )
+    if not shapely.coverage_is_valid(simplified, gap_width=0.01):
+        raise ValueError("Published prefecture boundary coverage is invalid")
+
+    output_features = []
+    for code, exclusive_metric in zip(codes, simplified, strict=True):
+        feature = feature_by_code[code]
+        exclusive = _polygonal(transform(reverse, exclusive_metric))
         properties = {
             **feature["properties"],
+            "pref_code": code,
+            "pref_name_ja": feature["properties"].get("pref_name_ja", PREFECTURE_NAMES_JA[code]),
+            "tile_id": tile_id(code),
             "overlay_simplification_tolerance_m": tolerance_m,
-            "overlay_topology": "ordered-disjoint-coverage",
+            "overlay_topology": "shared-coverage-simplification",
+            "minimum_island_area_km2": minimum_island_area_km2,
+            "inland_water_policy": "filled",
+            "seam_closure_m": seam_closure_m,
         }
         output_features.append({"type": "Feature", "properties": properties, "geometry": mapping(exclusive)})
         print(json.dumps({"stage": "boundary-overlay", "status": "complete", "prefCode": code, "vertices": int(shapely.get_num_coordinates(exclusive))}), flush=True)
@@ -68,8 +157,13 @@ def build_overlay(source: Path, tolerance_m: float) -> dict:
     }
 
 
-def build(source: Path, tolerance_m: float = 10.0) -> tuple[dict, dict]:
-    overlay = build_overlay(source, tolerance_m)
+def build(
+    source: Path,
+    tolerance_m: float = 10.0,
+    minimum_island_area_km2: float = DEFAULT_MINIMUM_ISLAND_AREA_KM2,
+    seam_closure_m: float = DEFAULT_SEAM_CLOSURE_M,
+) -> tuple[dict, dict]:
+    overlay = build_overlay(source, tolerance_m, minimum_island_area_km2, seam_closure_m)
     features = overlay["features"]
     geometries = {feature["properties"]["pref_code"]: shape(feature["geometry"]) for feature in features}
     neighbor_models: dict[str, list[tuple[str, str]]] = {code: [] for code in geometries}
@@ -78,7 +172,8 @@ def build(source: Path, tolerance_m: float = 10.0) -> tuple[dict, dict]:
     for index, left in enumerate(codes):
         for right in codes[index + 1 :]:
             method = MANUAL_CORRIDORS.get((left, right))
-            if method is None and geometries[left].distance(geometries[right]) <= 0.015:
+            shared_boundary = geometries[left].boundary.intersection(geometries[right].boundary).length
+            if method is None and geometries[left].distance(geometries[right]) <= 1e-10 and shared_boundary > 1e-8:
                 method = "land"
             if method:
                 neighbor_models[left].append((right, method))
@@ -136,8 +231,15 @@ def main() -> None:
     parser.add_argument("--catalog", type=Path, required=True)
     parser.add_argument("--overlay", type=Path, required=True)
     parser.add_argument("--overlay-tolerance-m", type=float, default=10.0)
+    parser.add_argument("--minimum-island-area-km2", type=float, default=DEFAULT_MINIMUM_ISLAND_AREA_KM2)
+    parser.add_argument("--seam-closure-m", type=float, default=DEFAULT_SEAM_CLOSURE_M)
     args = parser.parse_args()
-    catalog, overlay = build(args.source, args.overlay_tolerance_m)
+    catalog, overlay = build(
+        args.source,
+        args.overlay_tolerance_m,
+        args.minimum_island_area_km2,
+        args.seam_closure_m,
+    )
     for destination, value in ((args.catalog, catalog), (args.overlay, overlay)):
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")

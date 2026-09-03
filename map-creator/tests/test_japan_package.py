@@ -10,9 +10,11 @@ from pathlib import Path
 
 import shapely
 from shapely.geometry import shape
+from shapely.ops import transform
+from pyproj import Transformer
 
 from open_world_map_creator.demand.building_sites import BINARY_MAGIC, HEADER_SIZE, build_tile_sites
-from open_world_map_creator.demand.package_japan import Site, WeightedPicker, _compile_native, chunk_mass, proportional_allocations, road_estimate, tile_id
+from open_world_map_creator.demand.package_japan import CrossRecord, Site, WeightedPicker, _compile_native, _deferred_source_sites, _partition_source_cells, _promote_same_owner_cross_records, chunk_mass, proportional_allocations, road_estimate, tile_id
 
 
 class JapanPackageTests(unittest.TestCase):
@@ -43,6 +45,49 @@ class JapanPackageTests(unittest.TestCase):
         self.assertEqual(report["nativeMass"], 0)
         self.assertEqual(report["divertedMass"], 500)
 
+    def test_cross_records_are_promoted_when_rendered_endpoints_share_an_owner(self) -> None:
+        home = Site("home", 139.0, 35.0, 10, 0, "13", "11", True)
+        work = Site("work", 139.1, 35.1, 0, 10, "14", "11", True)
+        deferred = Site("sea", 140.0, 36.0, 5, 5, "11", "11", True)
+        records = [
+            CrossRecord("promote", 10, home, work, "13", "14"),
+            CrossRecord("deferred", 5, deferred, deferred, "11", "11"),
+        ]
+        payloads = {"11": {"points": [], "pops": []}}
+        reports = {"11": {"nativeMass": 0, "cohortCount": 0, "divertedMass": 5, "divertedCohortCount": 1}}
+
+        remaining, report = _promote_same_owner_cross_records(
+            payloads, reports, records, {"sea"}
+        )
+
+        self.assertEqual([record.id for record in remaining], ["deferred"])
+        self.assertEqual(report, {"reclassifiedCrossMass": 10, "reclassifiedCrossCohortCount": 1})
+        self.assertEqual(sum(pop["size"] for pop in payloads["11"]["pops"]), 10)
+        self.assertEqual(reports["11"]["nativeMass"], 10)
+
+    def test_source_cells_outside_rendered_land_are_deferred_at_source(self) -> None:
+        rendered_land = shape({
+            "type": "Polygon",
+            "coordinates": [[[139.0, 35.0], [140.0, 35.0], [140.0, 36.0], [139.0, 36.0], [139.0, 35.0]]],
+        })
+        cells = [
+            {"longitude": 139.5, "latitude": 35.5, "commuters": 7},
+            {"longitude": 141.25, "latitude": 37.5, "commuters": 11},
+        ]
+
+        accepted, deferred = _partition_source_cells(cells, rendered_land)
+        sites = _deferred_source_sites(
+            {"id": "JP_PREF_46", "prefCode": "46"},
+            deferred,
+            [{"longitude": 141.25, "latitude": 37.5, "jobs": 13}],
+        )
+
+        self.assertEqual(accepted, [cells[0]])
+        self.assertEqual(deferred, [cells[1]])
+        self.assertEqual([(site.longitude, site.latitude) for site in sites], [(141.25, 37.5)])
+        self.assertEqual((sites[0].home_weight, sites[0].job_weight), (11, 13))
+        self.assertTrue(sites[0].force_cross)
+
     def test_map_source_layout_covers_every_prefecture(self) -> None:
         root = Path(__file__).resolve().parents[2]
         value = json.loads((root / "worlds" / "japan" / "map.json").read_text(encoding="utf-8"))
@@ -62,20 +107,62 @@ class JapanPackageTests(unittest.TestCase):
             )
         )
         geometries = [shape(feature["geometry"]) for feature in value["features"]]
-        vertex_counts = [shapely.get_num_coordinates(geometry) for geometry in geometries]
+        exterior_vertex_counts = [
+            sum(len(part.exterior.coords) for part in shapely.get_parts(geometry))
+            for geometry in geometries
+        ]
 
         self.assertEqual(len(geometries), 47)
         self.assertTrue(all(geometry.is_valid for geometry in geometries))
-        self.assertGreaterEqual(statistics.median(vertex_counts), 1_000)
+        self.assertGreaterEqual(statistics.median(exterior_vertex_counts), 200)
+        self.assertGreaterEqual(sum(exterior_vertex_counts), 10_000)
+        self.assertEqual(
+            sum(len(part.interiors) for geometry in geometries for part in shapely.get_parts(geometry)),
+            0,
+        )
 
-        tree = shapely.STRtree(geometries)
-        intersections = tree.query(geometries, predicate="intersects")
+        projector = Transformer.from_crs("EPSG:4326", "EPSG:6933", always_xy=True).transform
+        projected = [transform(projector, geometry) for geometry in geometries]
+        self.assertFalse(any(
+            part.area < 1_000_000
+            for geometry in projected
+            for part in shapely.get_parts(geometry)
+        ))
+
+        tree = shapely.STRtree(projected)
+        intersections = tree.query(projected, predicate="intersects")
         overlap_area = sum(
-            geometries[left].intersection(geometries[right]).area
+            projected[left].intersection(projected[right]).area
             for left, right in zip(*intersections, strict=True)
             if left < right
         )
-        self.assertLess(overlap_area, 1e-10)
+        self.assertLess(overlap_area, 1.0)
+
+        by_code = {
+            str(feature["properties"]["pref_code"]): projected[index]
+            for index, feature in enumerate(value["features"])
+        }
+        catalog = json.loads(
+            (root / "worlds" / "japan" / "geography" / "tile-views.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        code_by_tile = {str(tile["id"]): str(tile["prefCode"]) for tile in catalog["tiles"]}
+        checked = set()
+        for tile in catalog["tiles"]:
+            for neighbor in tile.get("neighbors", []):
+                if neighbor.get("direction") != "land":
+                    continue
+                pair = tuple(sorted((str(tile["prefCode"]), code_by_tile[str(neighbor["tileId"])])))
+                if pair in checked:
+                    continue
+                checked.add(pair)
+                self.assertLess(by_code[pair[0]].distance(by_code[pair[1]]), 0.01, pair)
+                self.assertGreater(
+                    by_code[pair[0]].boundary.intersection(by_code[pair[1]].boundary).length,
+                    0.01,
+                    pair,
+                )
 
     def test_shared_site_builder_anchors_mesh_mass_to_buildings(self) -> None:
         header = bytearray(HEADER_SIZE)
