@@ -6,11 +6,14 @@ public sealed record InstallLocations(
     string ModRoot,
     string CityDataRoot,
     string CacheRoot,
-    string LogRoot)
+    string LogRoot,
+    string SharedServerRoot)
 {
     public string ManagerPath => Path.Combine(ProductRoot, "Subway Builder Open World.exe");
     public string ServerExecutablePath => Path.Combine(SupportRoot, "open-world-tile-server.exe");
-    public string StateRoot => Path.Combine(ProductRoot, "state");
+    public string StateRoot => Path.Combine(SharedServerRoot, "state");
+    public string ServerLogRoot => Path.Combine(SharedServerRoot, "logs");
+    public string InstalledWorldsRoot => Path.Combine(StateRoot, "worlds");
     public string InstallStatePath => Path.Combine(ProductRoot, "install-state.json");
     public string ReleaseManifestPath => Path.Combine(ProductRoot, "release-manifest.json");
 
@@ -31,7 +34,8 @@ public sealed record InstallLocations(
             Path.Combine(gameRoot, "mods", safeMod),
             Path.Combine(gameRoot, "cities", "data"),
             Path.Combine(localAppData, "metro-maker4", safeProduct, "cache", manifest.Product.Version),
-            Path.Combine(productRoot, "logs"));
+            Path.Combine(productRoot, "logs"),
+            Path.Combine(localAppData, "metro-maker4", "open-world-pmtiles"));
     }
 
     private static string SafeSegment(string value)

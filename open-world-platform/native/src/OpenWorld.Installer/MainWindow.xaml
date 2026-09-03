@@ -127,7 +127,7 @@
                         <TextBlock x:Name="PublisherText" Margin="0,3,0,0" />
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="Local tile server" FontWeight="SemiBold" />
+                        <TextBlock Text="Shared tile server" FontWeight="SemiBold" />
                         <TextBlock x:Name="ServerAddressText" Margin="0,3,0,0" />
                     </StackPanel>
                 </Grid>

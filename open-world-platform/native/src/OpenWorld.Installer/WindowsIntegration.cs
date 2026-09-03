@@ -12,6 +12,7 @@ internal static class WindowsIntegration
 {
     private const string UninstallRoot = @"Software\Microsoft\Windows\CurrentVersion\Uninstall";
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string SharedRunValue = "Subway Builder Open World Tile Server";
 
     public static async Task RegisterInstallationAsync(
         ReleaseManifest manifest,
@@ -23,6 +24,11 @@ internal static class WindowsIntegration
         Directory.CreateDirectory(locations.LogRoot);
         await File.WriteAllTextAsync(locations.ReleaseManifestPath, manifest.ToJson(), cancellationToken);
         await ManagedInstallState.WriteAsync(locations.InstallStatePath, ManagedInstallState.Create(manifest), cancellationToken);
+        await InstalledWorldRegistry.RegisterAsync(
+            locations.InstalledWorldsRoot,
+            InstalledWorldRegistration.Create(manifest, locations),
+            cancellationToken);
+        MigrateLegacyStartupEntries(manifest, locations.ManagerPath);
 
         using var key = Registry.CurrentUser.CreateSubKey(ProductKey(manifest), writable: true)
             ?? throw new InvalidOperationException("Could not create the Windows uninstall registration.");
@@ -65,16 +71,15 @@ internal static class WindowsIntegration
     public static bool IsStartupEnabled(ReleaseManifest manifest, string managerPath)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: false);
-        var expected = $"\"{Path.GetFullPath(managerPath)}\" --world \"{manifest.Product.ManifestId}\" --start-server";
-        return string.Equals(key?.GetValue(RunValue(manifest)) as string, expected, StringComparison.OrdinalIgnoreCase);
+        return key?.GetValue(SharedRunValue) is string value && !string.IsNullOrWhiteSpace(value);
     }
 
     public static void SetStartupEnabled(ReleaseManifest manifest, string managerPath, bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey, writable: true)
             ?? throw new InvalidOperationException("Could not update Windows startup settings.");
-        if (enabled) key.SetValue(RunValue(manifest), $"\"{Path.GetFullPath(managerPath)}\" --world \"{manifest.Product.ManifestId}\" --start-server");
-        else key.DeleteValue(RunValue(manifest), throwOnMissingValue: false);
+        if (enabled) key.SetValue(SharedRunValue, StartupCommand(manifest.Product.ManifestId, managerPath));
+        else key.DeleteValue(SharedRunValue, throwOnMissingValue: false);
     }
 
     public static async Task StartUninstallWorkerAsync(
@@ -83,6 +88,8 @@ internal static class WindowsIntegration
         TileServerRuntimePaths runtime,
         CancellationToken cancellationToken)
     {
+        var status = await TileServerController.GetStatusAsync(manifest, cancellationToken);
+        var restartServer = status.Condition != TileServerCondition.Stopped;
         await TileServerController.StopAsync(manifest, runtime, cancellationToken);
         var currentExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("Manager executable path is unavailable.");
         var workerDirectory = Path.Combine(Path.GetTempPath(), "Subway Builder Open World", Guid.NewGuid().ToString("N"));
@@ -101,13 +108,15 @@ internal static class WindowsIntegration
         start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         start.ArgumentList.Add("--world");
         start.ArgumentList.Add(manifest.Product.ManifestId);
+        if (restartServer) start.ArgumentList.Add("--restart-server");
         Process.Start(start);
     }
 
     public static async Task RunUninstallWorkerAsync(
         ReleaseManifest manifest,
         InstallLocations locations,
-        int parentProcessId)
+        int parentProcessId,
+        bool restartServer)
     {
         try
         {
@@ -117,7 +126,9 @@ internal static class WindowsIntegration
         }
         catch (ArgumentException) { }
 
-        SetStartupEnabled(manifest, locations.ManagerPath, enabled: false);
+        InstalledWorldRegistry.Remove(locations.InstalledWorldsRoot, manifest.Product.ManifestId);
+        var remainingWorlds = await InstalledWorldRegistry.ReadAllAsync(locations.InstalledWorldsRoot);
+        RepairStartupAfterRemoval(manifest, locations.ManagerPath, remainingWorlds);
         Registry.CurrentUser.DeleteSubKeyTree(ProductKey(manifest), throwOnMissingSubKey: false);
 
         DeleteDirectory(locations.ModRoot);
@@ -129,13 +140,59 @@ internal static class WindowsIntegration
         DeleteDirectory(locations.CacheRoot);
         DeleteDirectory(locations.ProductRoot, retries: 20);
 
+        if (restartServer)
+        {
+            var remaining = remainingWorlds.FirstOrDefault(item => File.Exists(item.ManagerPath));
+            if (remaining is not null)
+            {
+                var start = new ProcessStartInfo
+                {
+                    FileName = remaining.ManagerPath,
+                    UseShellExecute = false,
+                    WorkingDirectory = remaining.ProductRoot
+                };
+                start.ArgumentList.Add("--world");
+                start.ArgumentList.Add(remaining.ManifestId);
+                start.ArgumentList.Add("--start-server");
+                Process.Start(start);
+            }
+        }
+
         var workerPath = Environment.ProcessPath;
         if (workerPath is not null) MoveFileEx(workerPath, null, MoveFileDelayUntilReboot);
     }
 
     private static string ProductKey(ReleaseManifest manifest) => $@"{UninstallRoot}\Subway Builder Open World.{manifest.Product.ManifestId}";
 
-    private static string RunValue(ReleaseManifest manifest) => $"Subway Builder Open World ({manifest.Product.ManifestId})";
+    private static string StartupCommand(string manifestId, string managerPath) =>
+        $"\"{Path.GetFullPath(managerPath)}\" --world \"{manifestId}\" --start-server";
+
+    private static void MigrateLegacyStartupEntries(ReleaseManifest manifest, string managerPath)
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(RunKey, writable: true)
+            ?? throw new InvalidOperationException("Could not update Windows startup settings.");
+        var legacyNames = key.GetValueNames()
+            .Where(name => name.StartsWith("Subway Builder Open World (", StringComparison.Ordinal) && name.EndsWith(')'))
+            .ToArray();
+        var wasEnabled = legacyNames.Any(name => key.GetValue(name) is string value && !string.IsNullOrWhiteSpace(value));
+        foreach (var name in legacyNames) key.DeleteValue(name, throwOnMissingValue: false);
+        if (wasEnabled && key.GetValue(SharedRunValue) is null)
+            key.SetValue(SharedRunValue, StartupCommand(manifest.Product.ManifestId, managerPath));
+    }
+
+    private static void RepairStartupAfterRemoval(
+        ReleaseManifest removedManifest,
+        string removedManagerPath,
+        IReadOnlyList<InstalledWorldRegistration> remainingWorlds)
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(RunKey, writable: true)
+            ?? throw new InvalidOperationException("Could not update Windows startup settings.");
+        var current = key.GetValue(SharedRunValue) as string;
+        if (!string.Equals(current, StartupCommand(removedManifest.Product.ManifestId, removedManagerPath), StringComparison.OrdinalIgnoreCase)) return;
+        var replacement = remainingWorlds.FirstOrDefault(item => File.Exists(item.ManagerPath));
+        if (replacement is null) key.DeleteValue(SharedRunValue, throwOnMissingValue: false);
+        else key.SetValue(SharedRunValue, StartupCommand(replacement.ManifestId, replacement.ManagerPath));
+    }
 
     private static void DeleteDirectory(string path, int retries = 1)
     {

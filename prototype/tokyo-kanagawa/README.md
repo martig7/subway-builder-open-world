@@ -1,6 +1,6 @@
 # Tokyo–Kanagawa open world mod
 
-This is a separate two-city Subway Builder mod, adapted from the NEC package contract. It has its own mod ID, save lineage, PMTiles server port (`8800`), and city packages:
+This is a separate two-city Subway Builder mod, adapted from the NEC package contract. It has its own mod ID and save lineage while sharing the Open World PMTiles server on port `8799`. Its city packages are:
 
 - `JP_TOKYO_MAINLAND`
 - `JP_KANAGAWA_MAINLAND`

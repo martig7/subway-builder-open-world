@@ -78,7 +78,7 @@
                     <Button x:Name="RepairButton" Content="Repair" Click="Repair_Click" />
                     <Button x:Name="UpdatesButton" Grid.Column="1" Content="Check for updates" Click="Updates_Click" Margin="8,0,0,0" />
                     <Button x:Name="UninstallButton" Grid.Column="2" Content="Uninstall" Click="Uninstall_Click" Margin="8,0,0,0" />
-                    <CheckBox x:Name="StartupCheckBox" Grid.Column="3" Content="Start tile server when I sign in"
+                    <CheckBox x:Name="StartupCheckBox" Grid.Column="3" Content="Start shared tile server when I sign in"
                               Checked="Startup_Changed" Unchecked="Startup_Changed"
                               VerticalAlignment="Center" HorizontalAlignment="Right" />
                 </Grid>

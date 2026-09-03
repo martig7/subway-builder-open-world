@@ -6,7 +6,7 @@ import { tileServerHealthUrl } from '../scripts/tile-server-control.mjs';
 test('Tokyo–Kanagawa readiness probes a tile that exists in the clipped archive', () => {
   assert.equal(
     tileServerHealthUrl(),
-    'http://127.0.0.1:8800/JP_TOKYO_MAINLAND/8/227/100.mvt?v=tokyo-kanagawa-mainland-v2',
+    'http://127.0.0.1:8799/JP_TOKYO_MAINLAND/8/227/100.mvt?v=tokyo-kanagawa-mainland-v2',
   );
 });
 

@@ -29,7 +29,7 @@ public partial class App : Application
                 if (bundle.IsPreview) throw new InvalidOperationException("Uninstall worker mode is unavailable in a preview build.");
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 var parent = int.Parse(ArgumentValue(e.Args, "--parent-pid") ?? throw new ArgumentException("--parent-pid is required."), System.Globalization.CultureInfo.InvariantCulture);
-                await WindowsIntegration.RunUninstallWorkerAsync(manifest, locations, parent);
+                await WindowsIntegration.RunUninstallWorkerAsync(manifest, locations, parent, HasArgument(e.Args, "--restart-server"));
                 Shutdown(0);
                 return;
             }

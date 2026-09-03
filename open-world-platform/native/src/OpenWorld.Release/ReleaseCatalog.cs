@@ -51,7 +51,16 @@ public sealed record ReleaseCatalog(
         }
         RequireUnique(world => world.Product.Id, "installation id");
         RequireUnique(world => world.Product.ManifestId, "mod manifest id");
-        RequireUnique(world => world.Product.TileServerPort.ToString(System.Globalization.CultureInfo.InvariantCulture), "tile-server port");
+        if (Worlds.Select(world => world.Product.TileServerPort).Distinct().Count() != 1)
+            throw new InvalidDataException("All worlds in a release must use one shared tile-server port.");
+        var duplicateTile = Worlds
+            .SelectMany(world => world.Assets
+                .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
+                .Select(asset => (world.Product.ManifestId, TileId: asset.Destination)))
+            .GroupBy(item => item.TileId, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateTile is not null)
+            throw new InvalidDataException($"Duplicate tile-data destination across worlds: {duplicateTile.Key}");
     }
 
     private void RequireUnique(Func<ReleaseManifest, string> selector, string label)

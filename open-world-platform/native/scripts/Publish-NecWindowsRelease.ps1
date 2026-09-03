@@ -107,7 +107,7 @@ if ($resolvedTokyoModRoot) {
         --asset-prefix tokyo-kanagawa `
         --tile-prefix JP `
         --expected-tiles 2 `
-        --port 8800 `
+        --port 8799 `
         --manifest-name release-manifest-tokyo-kanagawa.json
     if ($LASTEXITCODE -ne 0) { throw 'Tokyo–Kanagawa release packaging failed.' }
 }

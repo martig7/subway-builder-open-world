@@ -81,6 +81,7 @@ public partial class ManagerWindow : Window
         StatusIndicator.Fill = currentStatus.Condition switch
         {
             TileServerCondition.Running => new SolidColorBrush(Color.FromRgb(16, 124, 16)),
+            TileServerCondition.ReconfigurationRequired => new SolidColorBrush(Color.FromRgb(202, 80, 16)),
             TileServerCondition.Unknown => new SolidColorBrush(Color.FromRgb(196, 43, 28)),
             _ => new SolidColorBrush(Color.FromRgb(122, 122, 122))
         };
@@ -128,9 +129,9 @@ public partial class ManagerWindow : Window
     private void UpdateButtonState()
     {
         var installedServer = File.Exists(runtime.ServerExecutable);
-        StartButton.IsEnabled = !busy && installedServer && currentStatus.Condition == TileServerCondition.Stopped;
-        StopButton.IsEnabled = !busy && installedServer && currentStatus.Condition == TileServerCondition.Running;
-        RestartButton.IsEnabled = !busy && installedServer && currentStatus.Condition == TileServerCondition.Running;
+        StartButton.IsEnabled = !busy && installedServer && currentStatus.Condition is TileServerCondition.Stopped or TileServerCondition.ReconfigurationRequired;
+        StopButton.IsEnabled = !busy && installedServer && currentStatus.Condition is TileServerCondition.Running or TileServerCondition.ReconfigurationRequired;
+        RestartButton.IsEnabled = !busy && installedServer && currentStatus.Condition is TileServerCondition.Running or TileServerCondition.ReconfigurationRequired;
         VerifyButton.IsEnabled = !busy && Directory.Exists(runtime.DataRoot);
         LogsButton.IsEnabled = !busy;
         RepairButton.IsEnabled = !busy && !isPreview;

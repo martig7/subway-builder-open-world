@@ -122,6 +122,7 @@ public partial class MainWindow : Window
                 using var client = new HttpClient();
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Subway-Builder-Open-World-Setup/0.1");
                 var progress = new Progress<InstallProgress>(UpdateProgress);
+                await TileServerController.StopAsync(manifest, TileServerRuntimePaths.FromLocations(locations), cancellation.Token);
                 await new InstallerEngine(client).InstallAsync(manifest, locations, progress, cancellation.Token);
                 InstallManagerCopy();
                 await WindowsIntegration.RegisterInstallationAsync(manifest, locations, cancellation.Token);

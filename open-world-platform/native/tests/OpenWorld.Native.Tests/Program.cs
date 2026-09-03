@@ -17,6 +17,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("release manifest signature is pinned to the self-signed certificate", ReleaseSignatureVerification),
     ("installer downloads, verifies, and atomically installs a ZIP", InstallerDownloadsAndInstalls),
     ("managed install state records only owned tile packages", ManagedStateRoundTrip),
+    ("installed worlds combine into one shared tile-server registration", InstalledWorldRegistryRoundTrip),
     ("tile-server state verifies the owning process", ServerStateRoundTrip),
     ("tile-server logs rotate within their retention limit", RollingLogRotation),
 };
@@ -49,14 +50,20 @@ static Task ManifestValidation()
     Equal(@"C:\Users\fixture\AppData\Roaming\metro-maker4\cities\data", locations.CityDataRoot);
     Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\Subway Builder Open World.exe", locations.ManagerPath);
     Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\server\open-world-tile-server.exe", locations.ServerExecutablePath);
-    Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\state", locations.StateRoot);
+    Equal(@"C:\Users\fixture\AppData\Local\metro-maker4\open-world-pmtiles\state", locations.StateRoot);
+    Equal(@"C:\Users\fixture\AppData\Local\metro-maker4\open-world-pmtiles\logs", locations.ServerLogRoot);
+    Equal(@"C:\Users\fixture\AppData\Local\metro-maker4\open-world-pmtiles\state\worlds", locations.InstalledWorldsRoot);
     Equal(@"C:\Users\fixture\AppData\Local\Programs\NEC Open World\logs", locations.LogRoot);
     return Task.CompletedTask;
 }
 
 static Task ReleaseCatalogValidation()
 {
-    var nec = ManifestFor(destination: "NEC_CP00_RP00");
+    var necBase = ManifestFor(destination: ".");
+    var nec = necBase with
+    {
+        Assets = [necBase.Assets[0], necBase.Assets[0] with { Name = "nec-tile.zip", Kind = ReleaseAssetKind.TileData, Destination = "NEC_CP00_RP00" }]
+    };
     var tokyo = nec with
     {
         Product = nec.Product with
@@ -64,15 +71,16 @@ static Task ReleaseCatalogValidation()
             Id = "Tokyo Kanagawa Open World",
             Name = "Tokyo–Kanagawa Open World",
             ManifestId = "tokyo-kanagawa-open-world",
-            TileServerPort = 8800
+            TileServerPort = 8799
         },
-        Assets = [nec.Assets[0] with { Name = "tokyo.zip", Destination = "." }]
+        Assets = [nec.Assets[0] with { Name = "tokyo.zip", Destination = "." }, nec.Assets[1] with { Name = "tokyo-tile.zip", Destination = "JP_TOKYO_MAINLAND" }]
     };
     var catalog = new ReleaseCatalog(1, "0.1.0", [nec, tokyo]);
     catalog.Validate();
     var restored = ReleaseCatalog.Parse(catalog.ToJson());
     Equal("Tokyo–Kanagawa Open World", restored.Select("tokyo-kanagawa-open-world").Product.Name);
-    Throws<InvalidDataException>(() => (catalog with { Worlds = [nec, tokyo with { Product = tokyo.Product with { TileServerPort = 8799 } }] }).Validate());
+    Throws<InvalidDataException>(() => (catalog with { Worlds = [nec, tokyo with { Product = tokyo.Product with { TileServerPort = 8800 } }] }).Validate());
+    Throws<InvalidDataException>(() => (catalog with { Worlds = [nec, tokyo with { Assets = [tokyo.Assets[0], tokyo.Assets[1] with { Destination = "NEC_CP00_RP00" }] }] }).Validate());
     return Task.CompletedTask;
 }
 
@@ -189,7 +197,8 @@ static async Task InstallerDownloadsAndInstalls()
             Path.Combine(testRoot, "game", "mods", "nec"),
             Path.Combine(testRoot, "game", "cities", "data"),
             Path.Combine(testRoot, "cache"),
-            Path.Combine(testRoot, "logs"));
+            Path.Combine(testRoot, "logs"),
+            Path.Combine(testRoot, "shared-server"));
         Directory.CreateDirectory(locations.ProductRoot);
         await File.WriteAllTextAsync(Path.Combine(locations.ProductRoot, "manager.txt"), "preserve me");
         using var client = new HttpClient(new StaticHandler(zipBytes));
@@ -228,6 +237,46 @@ static async Task ManagedStateRoundTrip()
         Equal(2, restored.TileIds.Count);
         Equal("NEC_CP00_RP00", restored.TileIds[0]);
         Equal("NEC_CP00_RP01", restored.TileIds[1]);
+    }
+    finally
+    {
+        Directory.Delete(testRoot, recursive: true);
+    }
+}
+
+static async Task InstalledWorldRegistryRoundTrip()
+{
+    var testRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "open-world-installed-world-tests", Guid.NewGuid().ToString("N")));
+    var registryRoot = Path.Combine(testRoot, "state", "worlds");
+    Directory.CreateDirectory(testRoot);
+    try
+    {
+        var nec = new InstalledWorldRegistration(
+            1,
+            "northeast-corridor-open-world",
+            "0.1.0",
+            8799,
+            Path.Combine(testRoot, "nec"),
+            Path.Combine(testRoot, "nec", "manager.exe"),
+            Path.Combine(testRoot, "nec", "server.exe"),
+            Path.Combine(testRoot, "data"),
+            ["NEC_CP00_RP00"]);
+        var tokyo = nec with
+        {
+            ManifestId = "tokyo-kanagawa-open-world",
+            ProductRoot = Path.Combine(testRoot, "tokyo"),
+            ManagerPath = Path.Combine(testRoot, "tokyo", "manager.exe"),
+            ServerExecutablePath = Path.Combine(testRoot, "tokyo", "server.exe"),
+            TileIds = ["JP_TOKYO_MAINLAND", "JP_KANAGAWA_MAINLAND"]
+        };
+        await InstalledWorldRegistry.RegisterAsync(registryRoot, nec);
+        await InstalledWorldRegistry.RegisterAsync(registryRoot, tokyo);
+        var restored = await InstalledWorldRegistry.ReadAllAsync(registryRoot);
+        Equal(2, restored.Count);
+        Equal(3, restored.SelectMany(item => item.TileIds).Count());
+        await ThrowsAsync<InvalidDataException>(() => InstalledWorldRegistry.RegisterAsync(registryRoot, tokyo with { TileServerPort = 8800 }));
+        InstalledWorldRegistry.Remove(registryRoot, nec.ManifestId);
+        Equal(1, (await InstalledWorldRegistry.ReadAllAsync(registryRoot)).Count);
     }
     finally
     {

@@ -11,6 +11,7 @@ internal enum TileServerCondition
 {
     Stopped,
     Running,
+    ReconfigurationRequired,
     Unknown
 }
 
@@ -19,7 +20,8 @@ internal sealed record TileServerStatus(
     string Message,
     int ArchiveCount = 0,
     string? BuildVersion = null,
-    string? DataRoot = null);
+    string? DataRoot = null,
+    IReadOnlyList<string>? TileIds = null);
 
 internal sealed record DataVerificationResult(int VerifiedPackages, int ExpectedPackages, string Message);
 
@@ -33,7 +35,7 @@ internal sealed record TileServerRuntimePaths(
         locations.ServerExecutablePath,
         locations.CityDataRoot,
         locations.StateRoot,
-        locations.LogRoot);
+        locations.ServerLogRoot);
 }
 
 internal static class TileServerController
@@ -73,9 +75,9 @@ internal static class TileServerController
                 ? tilesValue.EnumerateArray().Select(value => value.GetString() ?? string.Empty).Order(StringComparer.Ordinal).ToArray()
                 : [];
             var expectedTiles = TileIds(manifest);
-            if (!actualTiles.SequenceEqual(expectedTiles, StringComparer.Ordinal))
-                return new TileServerStatus(TileServerCondition.Unknown, $"Port {manifest.Product.TileServerPort} is serving a different Open World selection.");
-            return new TileServerStatus(TileServerCondition.Running, "Running", archives, build, root);
+            if (!expectedTiles.All(actualTiles.Contains))
+                return new TileServerStatus(TileServerCondition.ReconfigurationRequired, "Restart required to add this world", archives, build, root, actualTiles);
+            return new TileServerStatus(TileServerCondition.Running, "Running", archives, build, root, actualTiles);
         }
         catch (HttpRequestException)
         {
@@ -118,9 +120,14 @@ internal static class TileServerController
         TileServerRuntimePaths runtime,
         CancellationToken cancellationToken)
     {
+        var desiredTiles = await DesiredTileIdsAsync(manifest, runtime, cancellationToken);
         var existing = await GetStatusAsync(manifest, cancellationToken);
-        if (existing.Condition == TileServerCondition.Running) return;
+        if (existing.Condition == TileServerCondition.Running &&
+            existing.TileIds is not null &&
+            existing.TileIds.SequenceEqual(desiredTiles, StringComparer.Ordinal)) return;
         if (existing.Condition == TileServerCondition.Unknown) throw new InvalidOperationException(existing.Message);
+        if (existing.Condition is TileServerCondition.Running or TileServerCondition.ReconfigurationRequired)
+            await StopAsync(manifest, runtime, cancellationToken);
         if (!File.Exists(runtime.ServerExecutable))
             throw new FileNotFoundException("The tile-server executable is missing.", runtime.ServerExecutable);
         if (!Directory.Exists(runtime.DataRoot))
@@ -137,7 +144,7 @@ internal static class TileServerController
             "--port", Port(manifest),
             "--state-root", runtime.StateRoot,
             "--log-root", runtime.LogRoot,
-            "--tiles", string.Join(',', TileIds(manifest)));
+            "--tiles", string.Join(',', desiredTiles));
         var process = Process.Start(start) ?? throw new InvalidOperationException("The tile server did not start.");
 
         for (var attempt = 0; attempt < 60; attempt++)
@@ -145,7 +152,9 @@ internal static class TileServerController
             cancellationToken.ThrowIfCancellationRequested();
             if (process.HasExited) throw new InvalidOperationException($"The tile server exited with code {process.ExitCode}.");
             var status = await GetStatusAsync(manifest, cancellationToken);
-            if (status.Condition == TileServerCondition.Running) return;
+            if (status.Condition == TileServerCondition.Running &&
+                status.TileIds is not null &&
+                status.TileIds.SequenceEqual(desiredTiles, StringComparer.Ordinal)) return;
             if (status.Condition == TileServerCondition.Unknown) throw new InvalidOperationException(status.Message);
             await Task.Delay(250, cancellationToken);
         }
@@ -159,9 +168,10 @@ internal static class TileServerController
     {
         var status = await GetStatusAsync(manifest, cancellationToken);
         if (status.Condition == TileServerCondition.Stopped) return;
-        if (!File.Exists(runtime.ServerExecutable)) throw new FileNotFoundException("The tile-server executable is missing.", runtime.ServerExecutable);
+        if (status.Condition == TileServerCondition.Unknown) throw new InvalidOperationException(status.Message);
+        var controlExecutable = ResolveControlExecutable(manifest, runtime);
 
-        var start = NewStartInfo(runtime.ServerExecutable);
+        var start = NewStartInfo(controlExecutable);
         start.RedirectStandardOutput = true;
         start.RedirectStandardError = true;
         AddArguments(start, "stop", "--port", Port(manifest), "--state-root", runtime.StateRoot);
@@ -234,6 +244,30 @@ internal static class TileServerController
         .Select(asset => asset.Destination)
         .Order(StringComparer.Ordinal)
         .ToArray();
+
+    private static async Task<string[]> DesiredTileIdsAsync(
+        ReleaseManifest manifest,
+        TileServerRuntimePaths runtime,
+        CancellationToken cancellationToken)
+    {
+        var registrations = await InstalledWorldRegistry.ReadAllAsync(Path.Combine(runtime.StateRoot, "worlds"), cancellationToken);
+        var desired = registrations.SelectMany(item => item.TileIds).Concat(TileIds(manifest)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (registrations.Any(item => item.TileServerPort != manifest.Product.TileServerPort))
+            throw new InvalidDataException("Installed worlds do not use one shared tile-server port.");
+        return desired;
+    }
+
+    private static string ResolveControlExecutable(ReleaseManifest manifest, TileServerRuntimePaths runtime)
+    {
+        if (File.Exists(runtime.ServerExecutable)) return runtime.ServerExecutable;
+        var statePath = Path.Combine(runtime.StateRoot, $"server-{manifest.Product.TileServerPort}.json");
+        if (!File.Exists(statePath)) throw new FileNotFoundException("The tile-server executable is missing.", runtime.ServerExecutable);
+        using var state = JsonDocument.Parse(File.ReadAllBytes(statePath));
+        var executable = state.RootElement.TryGetProperty("executablePath", out var value) ? value.GetString() : null;
+        if (string.IsNullOrWhiteSpace(executable) || !Path.IsPathFullyQualified(executable) || !File.Exists(executable))
+            throw new FileNotFoundException("The running tile-server executable could not be located.", executable);
+        return Path.GetFullPath(executable);
+    }
 
     private static Uri HealthUri(ReleaseManifest manifest) =>
         new($"http://127.0.0.1:{manifest.Product.TileServerPort}/_health");

@@ -61,7 +61,7 @@ internal static class DevelopmentManifest
             id);
         return new ReleaseManifest(
             1,
-            new ReleaseProduct("Tokyo Kanagawa Open World", "Tokyo–Kanagawa Open World", "0.1.0", "tokyo-kanagawa-open-world", "Giancarlo Martinelli (gcm)", "Subway Builder 1.6.x", 8800),
+            new ReleaseProduct("Tokyo Kanagawa Open World", "Tokyo–Kanagawa Open World", "0.1.0", "tokyo-kanagawa-open-world", "Giancarlo Martinelli (gcm)", "Subway Builder 1.6.x", 8799),
             new ReleaseSpace(dataBytes + modBytes, workingBytes, dataBytes + modBytes + workingBytes),
             [
                 new("tokyo-kanagawa-open-world-v0.1.0.zip", ReleaseAssetKind.Mod, new Uri("https://example.invalid/tokyo-kanagawa-mod.zip"), new string('0', 64), modBytes, modBytes, "."),

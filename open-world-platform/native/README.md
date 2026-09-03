@@ -4,6 +4,12 @@ This directory contains the native Windows release path shared by Open World
 consumers. Setup reads one signed release catalog and lets the user choose which
 World to install.
 
+Installed Worlds register their tile packages with one per-user PMTiles service
+on port `8799`. Starting, repairing, or installing a World restarts that verified
+service with the union of every registered World's tile IDs. Uninstalling one
+World removes only its registration and packages, then hands the service to a
+remaining installed manager when it was already running.
+
 - `OpenWorld.Installer` is the WPF setup/manager executable.
 - `OpenWorld.TileServer` is the independent loopback PMTiles server executable.
 - `OpenWorld.Release` validates signed release manifests, downloads and verifies

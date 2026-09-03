@@ -29,7 +29,7 @@
   },
   "runtime": {
     "storageNamespace": "open-world-sidecar-local.japan-open-world-v1",
-    "tileServerPort": 8801,
+    "tileServerPort": 8799,
     "tileBaseGlobal": "JAPAN_OPEN_WORLD_TILE_BASE",
     "diagnosticNamespace": "japan",
     "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-national-v1",
