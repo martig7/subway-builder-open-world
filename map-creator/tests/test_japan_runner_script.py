@@ -5,6 +5,8 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_queue.ps1"
 DETACHED_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_queue_detached.ps1"
+ROUTING_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_routing_detached.ps1"
+ROUTING_START_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "start_japan_routing.ps1"
 
 
 class JapanRunnerScriptTests(unittest.TestCase):
@@ -30,6 +32,19 @@ class JapanRunnerScriptTests(unittest.TestCase):
         self.assertIn("queue.pid", script)
         self.assertIn("Write-QueueStatus -state 'complete' -exitCode 0", script)
         self.assertIn("Write-QueueStatus -state 'failed' -exitCode 1", script)
+
+    def test_detached_routing_persists_progress_and_terminal_status(self) -> None:
+        script = ROUTING_SCRIPT.read_text(encoding="utf-8")
+        starter = ROUTING_START_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("routing-progress.jsonl", script)
+        self.assertIn("routing.stdout.log", script)
+        self.assertIn("routing.stderr.log", script)
+        self.assertIn("routing.status.json", script)
+        self.assertIn("routing.pid", script)
+        self.assertIn("Write-RoutingStatus -state 'complete' -exitCode 0", script)
+        self.assertIn("Write-RoutingStatus -state 'failed' -exitCode 1", script)
+        self.assertIn("-WindowStyle Hidden", starter)
 
 
 if __name__ == "__main__":
