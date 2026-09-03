@@ -14,7 +14,7 @@ COMPATIBLE_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 MANUAL_CORRIDORS = {("01", "02"): "tunnel-or-ferry", ("46", "47"): "ferry-or-air"}
 CATALOG_CRS = "+proj=lcc +lat_1=30 +lat_2=46 +lat_0=38 +lon_0=138 +ellps=GRS80 +units=m +no_defs"
 DEFAULT_MINIMUM_ISLAND_AREA_KM2 = 1.0
-DEFAULT_SEAM_CLOSURE_M = 30.0
+DEFAULT_SEAM_CLOSURE_M = 0.0
 PREFECTURE_NAMES_JA = {
     "01": "北海道", "02": "青森県", "03": "岩手県", "04": "宮城県", "05": "秋田県",
     "06": "山形県", "07": "福島県", "08": "茨城県", "09": "栃木県", "10": "群馬県",
@@ -119,31 +119,137 @@ def build_overlay(
     remainder = national_land.difference(occupied_metric)
     if not remainder.is_empty:
         remainder = _polygonal(remainder)
-        for part in shapely.get_parts(remainder):
-            if part.geom_type != "Polygon" or part.is_empty:
-                continue
-            owner = min(codes, key=lambda code: (detailed_by_code[code].distance(part), code))
-            exclusive_by_code[owner] = _polygonal(shapely.union_all([exclusive_by_code[owner], part]))
+        detailed_geometries = [detailed_by_code[code] for code in codes]
+        detailed_tree = shapely.STRtree(detailed_geometries)
+        remainder_by_owner = {code: [] for code in codes}
+        remainder_parts = [
+            part
+            for part in shapely.get_parts(remainder)
+            if part.geom_type == "Polygon" and not part.is_empty
+        ]
+        print(json.dumps({
+            "stage": "boundary-remainder",
+            "status": "started",
+            "partCount": len(remainder_parts),
+        }), flush=True)
+        representative_points = shapely.point_on_surface(remainder_parts)
+        part_indexes, tree_indexes = detailed_tree.query_nearest(
+            representative_points,
+            all_matches=True,
+        )
+        owner_index_by_part = {}
+        for part_index, tree_index in zip(part_indexes, tree_indexes, strict=True):
+            part_number = int(part_index)
+            owner_index_by_part[part_number] = min(
+                int(tree_index),
+                owner_index_by_part.get(part_number, int(tree_index)),
+            )
+        if len(owner_index_by_part) != len(remainder_parts):
+            raise ValueError("Every national remainder part must have a nearest prefecture")
+        for part_index, part in enumerate(remainder_parts):
+            owner = codes[owner_index_by_part[part_index]]
+            remainder_by_owner[owner].append(part)
+        for code, parts in remainder_by_owner.items():
+            if parts:
+                exclusive_by_code[code] = _polygonal(
+                    shapely.union_all([exclusive_by_code[code], *parts])
+                )
+        print(json.dumps({
+            "stage": "boundary-remainder",
+            "status": "complete",
+            "partCount": len(remainder_parts),
+            "ownerCount": sum(bool(parts) for parts in remainder_by_owner.values()),
+        }), flush=True)
 
-    simplified = shapely.coverage_simplify(
-        [exclusive_by_code[code] for code in codes],
-        tolerance_m,
-        simplify_boundary=True,
-    )
-    if not shapely.coverage_is_valid(simplified, gap_width=0.01):
-        raise ValueError("Published prefecture boundary coverage is invalid")
+    print(json.dumps({
+        "stage": "boundary-final-cleanup",
+        "status": "started",
+        "prefectureCount": len(codes),
+    }), flush=True)
+    final_occupied = GeometryCollection()
+    final_by_code = {}
+    for code in codes:
+        cleaned = _filled_and_filtered(exclusive_by_code[code], minimum_area_m2)
+        exclusive = _polygonal(cleaned.difference(final_occupied))
+        kept_parts = [
+            part
+            for part in shapely.get_parts(exclusive)
+            if part.geom_type == "Polygon" and part.area >= minimum_area_m2
+        ]
+        if not kept_parts:
+            raise ValueError(f"Final boundary cleanup removed prefecture {code}")
+        exclusive = _polygonal(shapely.union_all(kept_parts))
+        final_by_code[code] = exclusive
+        final_occupied = shapely.union_all([final_occupied, exclusive])
+    exclusive_by_code = final_by_code
+    print(json.dumps({
+        "stage": "boundary-final-cleanup",
+        "status": "complete",
+        "prefectureCount": len(codes),
+    }), flush=True)
+
+    coverage_input = [exclusive_by_code[code] for code in codes]
+    coverage_valid = shapely.coverage_is_valid(coverage_input, gap_width=0.0)
+    topology_method = "shared-coverage-simplification"
+    if not coverage_valid:
+        invalid_edges = shapely.coverage_invalid_edges(
+            coverage_input,
+            gap_width=0.0,
+        )
+        invalid_edge_count = sum(not edge.is_empty for edge in invalid_edges)
+        simplified = coverage_input
+        topology_method = "exclusive-coverage-pre-simplified"
+        print(json.dumps({
+            "stage": "coverage-simplification",
+            "status": "skipped-invalid-input",
+            "prefectureCount": len(codes),
+            "invalidEdgeCount": invalid_edge_count,
+        }), flush=True)
+    else:
+        print(json.dumps({
+            "stage": "coverage-simplification",
+            "status": "started",
+            "prefectureCount": len(codes),
+            "toleranceM": tolerance_m,
+        }), flush=True)
+        candidate = shapely.coverage_simplify(
+            coverage_input,
+            tolerance_m,
+            simplify_boundary=True,
+        )
+        if shapely.coverage_is_valid(candidate, gap_width=0.0):
+            simplified = candidate
+            print(json.dumps({
+                "stage": "coverage-simplification",
+                "status": "complete",
+                "prefectureCount": len(codes),
+                "vertices": int(sum(shapely.get_num_coordinates(item) for item in simplified)),
+            }), flush=True)
+        else:
+            simplified = coverage_input
+            topology_method = "exclusive-coverage-pre-simplified"
+            print(json.dumps({
+                "stage": "coverage-simplification",
+                "status": "reverted-invalid-output",
+                "prefectureCount": len(codes),
+            }), flush=True)
 
     output_features = []
+    published_occupied = GeometryCollection()
     for code, exclusive_metric in zip(codes, simplified, strict=True):
         feature = feature_by_code[code]
-        exclusive = _polygonal(transform(reverse, exclusive_metric))
+        exclusive = transform(reverse, exclusive_metric)
+        if not exclusive.is_valid:
+            exclusive = _polygonal(exclusive)
+        exclusive = _polygonal(exclusive.difference(published_occupied))
+        published_occupied = shapely.union_all([published_occupied, exclusive])
         properties = {
             **feature["properties"],
             "pref_code": code,
             "pref_name_ja": feature["properties"].get("pref_name_ja", PREFECTURE_NAMES_JA[code]),
             "tile_id": tile_id(code),
             "overlay_simplification_tolerance_m": tolerance_m,
-            "overlay_topology": "shared-coverage-simplification",
+            "overlay_topology": topology_method,
             "minimum_island_area_km2": minimum_island_area_km2,
             "inland_water_policy": "filled",
             "seam_closure_m": seam_closure_m,

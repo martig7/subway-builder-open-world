@@ -16,19 +16,26 @@ The source packages use JGD2000 / EPSG:4612. Geometry validity, dissolve, and ar
 
 Publish the canonical 47-prefecture coverage as the runtime overlay and rebuild
 the Tile View catalog through the centralized map creator. The publisher fills
-inland-water rings, removes islands below 1 km², closes sub-30 m seam defects,
+inland-water rings, removes islands below 1 km², preserves the shared source seams,
 and applies one topology-preserving 10 m coverage simplification so neighboring
-prefectures retain the same shared arc:
+prefectures retain detailed exclusive arcs without applying a global coastline
+close:
 
 ```powershell
 python map-creator\scripts\build_japan_world_catalog.py `
-  --source worlds\japan\sources\prefecture-boundaries.geojson `
+  --source map-creator\data\sources\japan\boundaries\japan-prefecture-boundaries.geojson `
   --catalog worlds\japan\geography\tile-views.json `
   --overlay worlds\japan\geography\prefectures.geojson `
   --overlay-tolerance-m 10 `
   --minimum-island-area-km2 1 `
-  --seam-closure-m 30
+  --seam-closure-m 0
 ```
+
+The ownership source above is the detailed e-Stat dissolve produced by
+`build_prefecture_boundaries.py`; keep it and its manifest in the centralized,
+Git-ignored `map-creator/data/sources/japan/boundaries` store. The smaller
+`worlds/japan/sources/prefecture-boundaries.geojson` file is a coverage reference
+only and must not be used to assign demand or publish runtime seams.
 
 ## Japan Open World consumer
 

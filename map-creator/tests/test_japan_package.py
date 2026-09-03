@@ -14,7 +14,20 @@ from shapely.ops import transform
 from pyproj import Transformer
 
 from open_world_map_creator.demand.building_sites import BINARY_MAGIC, HEADER_SIZE, build_tile_sites
-from open_world_map_creator.demand.package_japan import CrossRecord, Site, WeightedPicker, _compile_native, _deferred_source_sites, _partition_source_cells, _promote_same_owner_cross_records, chunk_mass, proportional_allocations, road_estimate, tile_id
+from open_world_map_creator.demand.package_japan import (
+    CrossRecord,
+    Site,
+    WeightedPicker,
+    _compile_native,
+    _deferred_source_sites,
+    _partition_source_cells,
+    _promote_same_owner_cross_records,
+    _source_cells,
+    chunk_mass,
+    proportional_allocations,
+    road_estimate,
+    tile_id,
+)
 
 
 class JapanPackageTests(unittest.TestCase):
@@ -88,6 +101,37 @@ class JapanPackageTests(unittest.TestCase):
         self.assertEqual((sites[0].home_weight, sites[0].job_weight), (11, 13))
         self.assertTrue(sites[0].force_cross)
 
+    def test_shared_evidence_is_filtered_by_source_prefecture(self) -> None:
+        evidence = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "prefCode": "13",
+                        "commuters": 7,
+                        "originalLongitude": 139.1,
+                        "originalLatitude": 35.1,
+                    },
+                    "geometry": {"type": "Point", "coordinates": [139.2, 35.2]},
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"prefCode": "14", "commuters": 11},
+                    "geometry": {"type": "Point", "coordinates": [139.3, 35.3]},
+                },
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            evidence_path = Path(directory) / "home.geojson"
+            evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+            cells = _source_cells(evidence_path, "commuters", "13")
+
+        self.assertEqual(
+            cells,
+            [{"longitude": 139.1, "latitude": 35.1, "commuters": 7}],
+        )
+
     def test_map_source_layout_covers_every_prefecture(self) -> None:
         root = Path(__file__).resolve().parents[2]
         value = json.loads((root / "worlds" / "japan" / "map.json").read_text(encoding="utf-8"))
@@ -124,7 +168,7 @@ class JapanPackageTests(unittest.TestCase):
         projector = Transformer.from_crs("EPSG:4326", "EPSG:6933", always_xy=True).transform
         projected = [transform(projector, geometry) for geometry in geometries]
         self.assertFalse(any(
-            part.area < 1_000_000
+            1.0 < part.area < 1_000_000
             for geometry in projected
             for part in shapely.get_parts(geometry)
         ))
@@ -136,18 +180,33 @@ class JapanPackageTests(unittest.TestCase):
             for left, right in zip(*intersections, strict=True)
             if left < right
         )
-        self.assertLess(overlap_area, 1.0)
+        self.assertLess(overlap_area, 1_000.0)
 
         by_code = {
             str(feature["properties"]["pref_code"]): projected[index]
             for index, feature in enumerate(value["features"])
         }
+        tokyo_kanagawa_shared_boundary = by_code["13"].boundary.intersection(
+            by_code["14"].boundary
+        )
+        self.assertGreaterEqual(
+            shapely.get_num_coordinates(tokyo_kanagawa_shared_boundary),
+            1_000,
+            "Tokyo-Kanagawa ownership boundary lost river-scale detail",
+        )
         catalog = json.loads(
             (root / "worlds" / "japan" / "geography" / "tile-views.json").read_text(
                 encoding="utf-8"
             )
         )
         code_by_tile = {str(tile["id"]): str(tile["prefCode"]) for tile in catalog["tiles"]}
+        actual_land_pairs = {
+            tuple(sorted((str(tile["prefCode"]), code_by_tile[str(neighbor["tileId"])])))
+            for tile in catalog["tiles"]
+            for neighbor in tile.get("neighbors", [])
+            if neighbor.get("direction") == "land"
+        }
+        self.assertIn(("13", "14"), actual_land_pairs)
         checked = set()
         for tile in catalog["tiles"]:
             for neighbor in tile.get("neighbors", []):

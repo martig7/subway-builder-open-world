@@ -5,11 +5,12 @@
   "prefectureCount": 47,
   "inputSha256": "c93b238ec0d89a32df5e02a19ba7fe13c9cf3344b1cdc0a20778322b5c3dcbef",
   "sha256": "65c2ce0166c0b1d0abf220421bb2c9eb3b2e5a61f51807ae7effc768ba5c0939",
-  "purpose": "Canonical shared-seam and coastline geometry for the Japan Open World runtime boundary overlay",
+  "purpose": "Compact coverage reference only; not authoritative for runtime ownership, demand assignment, or shared-edge publication",
+  "authoritativeOwnershipSource": "estat-prefecture-boundaries.lock.json",
   "cleanupPolicy": {
     "fillInlandWater": true,
     "minimumIslandAreaKm2": 1.0,
-    "seamClosureM": 30.0,
+    "seamClosureM": 0.0,
     "topologyPreservingSimplificationM": 10.0
   }
 }

@@ -2,10 +2,11 @@
 """Compile the 47-prefecture Japan demand evidence into one runtime ledger.
 
 This module consumes geography-specific evidence, each Tile Package's building
-index, and the World catalog. Tokyo and Kanagawa retain their already compatible
-sites; every other prefecture applies the same building-center placement used by
-that reference World. Road enrichment is a separate, resumable stage and
-replaces the deterministic geometric estimates written here.
+index, and the World catalog. Every prefecture uses the same boundary-aware
+building-center placement. Source cells outside their owning prefecture remain
+at their evidence coordinate and are emitted as cross-tile demand. Road
+enrichment is a separate, resumable stage and replaces the deterministic
+geometric estimates written here.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from .building_sites import build_tile_sites
 from .estat_japan_prefecture import load_prefecture_boundary
 
 
-COMPILER_VERSION = "estat-japan-national-package-v3-boundary-reconciliation"
+COMPILER_VERSION = "estat-japan-national-package-v4-boundary-owned-sites"
 SPECIAL_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 
 
@@ -171,26 +172,16 @@ def road_estimate(home: Site, work: Site) -> tuple[int, int]:
     return max(60, round(distance / 13.4)), distance
 
 
-def _compatible_sites(demand_root: Path, pref_code: str) -> list[Site]:
-    value = read_gzip_json(demand_root / "tiles" / tile_id(pref_code) / "demand_data.json.gz")
-    return [
-        Site(
-            id=str(point["id"]),
-            longitude=float(point["location"][0]),
-            latitude=float(point["location"][1]),
-            home_weight=int(point.get("residents", 0)),
-            job_weight=int(point.get("jobs", 0)),
-            source_pref=pref_code,
-            owner_pref=pref_code,
-        )
-        for point in value["points"]
-    ]
-
-
-def _source_cells(path: Path, value_field: str) -> list[dict[str, Any]]:
+def _source_cells(
+    path: Path,
+    value_field: str,
+    pref_code: str | None = None,
+) -> list[dict[str, Any]]:
     rows = []
     for feature in read_json(path)["features"]:
         properties = feature["properties"]
+        if pref_code is not None and str(properties.get("prefCode", "")) != pref_code:
+            continue
         longitude, latitude = feature["geometry"]["coordinates"]
         rows.append({
             "longitude": float(properties.get("originalLongitude", longitude)),
@@ -250,15 +241,19 @@ def _building_sites(
     maps_root: Path,
     tile: dict[str, Any],
     boundary: Any,
-    candidate_boundary: Any,
     policy: dict[str, Any],
 ) -> tuple[list[Site], dict[str, Any]]:
     tile_name = str(tile["id"])
-    home_cells = _source_cells(evidence_dir / "home-mesh-250m.geojson", "commuters")
-    job_cells = _source_cells(evidence_dir / "job-mesh-500m.geojson", "jobs")
+    pref_code = str(tile["prefCode"])
+    home_cells = _source_cells(
+        evidence_dir / "home-mesh-250m.geojson", "commuters", pref_code
+    )
+    job_cells = _source_cells(
+        evidence_dir / "job-mesh-500m.geojson", "jobs", pref_code
+    )
 
-    accepted_home, deferred_home = _partition_source_cells(home_cells, candidate_boundary)
-    accepted_jobs, deferred_jobs = _partition_source_cells(job_cells, candidate_boundary)
+    accepted_home, deferred_home = _partition_source_cells(home_cells, boundary)
+    accepted_jobs, deferred_jobs = _partition_source_cells(job_cells, boundary)
     sites, report = build_tile_sites(
         tile_name,
         accepted_home,
@@ -266,7 +261,7 @@ def _building_sites(
         maps_root / tile_name / "buildings_index.bin.gz",
         [float(value) for value in tile["bounds"]],
         boundary,
-        candidate_boundary=candidate_boundary,
+        candidate_boundary=boundary,
         radius_m=float(policy["pointMergeDistanceM"]),
         source_radius_m=float(policy["buildingSourceRadiusM"]),
         candidate_grid_m=float(policy["candidateGridM"]),
@@ -442,7 +437,6 @@ def compile_japan(
     world_root: Path,
     evidence_root: Path,
     compatible_evidence: Path,
-    compatible_demand_root: Path,
     maps_root: Path,
     output_root: Path,
     progress_path: Path | None = None,
@@ -455,42 +449,37 @@ def compile_japan(
         raise ValueError("Japan catalog must contain prefecture codes 01..47 in order")
     progress.emit("load", "started", prefectureCount=len(codes))
     _, boundaries, boundary_index, _ = load_prefecture_boundary(set(codes), world_root / "geography" / "prefectures.geojson")
-    rendered_land = shapely.union_all(list(boundaries.values()))
     sites_by_pref: dict[str, list[Site]] = {}
     site_geometry_reports: dict[str, dict[str, Any]] = {}
     ownership_audit: dict[str, dict[str, Any]] = {}
     deferred_site_ids: set[str] = set()
     catalog_by_pref = {str(tile["prefCode"]): tile for tile in catalog["tiles"]}
     for pref_code in codes:
-        if pref_code in SPECIAL_TILE_IDS:
-            sites = _compatible_sites(compatible_demand_root, pref_code)
-            geometry_report = {
-                "siteCount": len(sites),
-                "fineSeedSource": "compatible-building-sites",
-                "unanchoredSiteCount": 0,
-            }
-        else:
-            progress.emit(
-                "building-sites",
-                "started",
-                prefCode=pref_code,
-                tileId=tile_id(pref_code),
-            )
-            sites, geometry_report = _building_sites(
-                evidence_root / tile_id(pref_code),
-                maps_root,
-                catalog_by_pref[pref_code],
-                boundaries[pref_code],
-                rendered_land,
-                demand_policy,
-            )
-            progress.emit(
-                "building-sites",
-                "complete",
-                prefCode=pref_code,
-                tileId=tile_id(pref_code),
-                **geometry_report,
-            )
+        progress.emit(
+            "building-sites",
+            "started",
+            prefCode=pref_code,
+            tileId=tile_id(pref_code),
+        )
+        evidence_dir = (
+            compatible_evidence
+            if pref_code in SPECIAL_TILE_IDS
+            else evidence_root / tile_id(pref_code)
+        )
+        sites, geometry_report = _building_sites(
+            evidence_dir,
+            maps_root,
+            catalog_by_pref[pref_code],
+            boundaries[pref_code],
+            demand_policy,
+        )
+        progress.emit(
+            "building-sites",
+            "complete",
+            prefCode=pref_code,
+            tileId=tile_id(pref_code),
+            **geometry_report,
+        )
         site_geometry_reports[pref_code] = geometry_report
         if not sites:
             raise ValueError(f"No sites for prefecture {pref_code}")
@@ -655,7 +644,6 @@ def main() -> None:
     parser.add_argument("--world-root", type=Path, default=repository_root / "worlds" / "japan")
     parser.add_argument("--evidence-root", type=Path, default=repository_root / "map-creator" / "data" / "artifacts" / "japan-prefecture-demand-v2")
     parser.add_argument("--compatible-evidence", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "tokyo-kanagawa-test")
-    parser.add_argument("--compatible-demand-root", type=Path, default=repository_root / "prototype" / "tokyo-kanagawa" / "generated" / "demand")
     parser.add_argument("--maps-root", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "maps" / "tiles")
     parser.add_argument("--output-root", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "demand")
     parser.add_argument("--progress-jsonl", type=Path)
@@ -664,7 +652,6 @@ def main() -> None:
         world_root=args.world_root,
         evidence_root=args.evidence_root,
         compatible_evidence=args.compatible_evidence,
-        compatible_demand_root=args.compatible_demand_root,
         maps_root=args.maps_root,
         output_root=args.output_root,
         progress_path=args.progress_jsonl,
