@@ -206,6 +206,55 @@ test('keeps runtime.view out of tile pointer handling while tracking active-tile
   );
 });
 
+test('rebuilds renderer virtualization when the active tile changes while the map style is unavailable', () => {
+  const map = fixtureMap();
+  let styleLoaded = true;
+  map.isStyleLoaded = () => styleLoaded;
+  let activeTileId = 'A';
+  let runtimeListener = null;
+  const runtime = {
+    getActiveTileId: () => activeTileId,
+    subscribe(listener) {
+      runtimeListener = listener;
+      return () => { runtimeListener = null; };
+    },
+  };
+  const distantCatalog = {
+    tiles: [
+      { id: 'A', column: 0, row: 0, bounds: [0, 0, 1, 1] },
+      { id: 'B', column: 6, row: 6, bounds: [6, 6, 7, 7] },
+    ],
+  };
+  const controller = registerGeographicContextOverlay({
+    runtime,
+    tileCatalog: distantCatalog,
+    renderDistance: 1,
+  });
+  controller.attachMap(map);
+
+  styleLoaded = false;
+  activeTileId = 'B';
+  runtimeListener({ type: 'projection-changed', tileId: 'B' }, { activeTileId: 'B' });
+  map.__deck.setProps({
+    layers: [fixtureDeckLayer('demand-points', {
+      data: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [6.5, 6.5] },
+        properties: { id: 'b-demand' },
+      }],
+    })],
+  });
+
+  styleLoaded = true;
+  map.listeners.get('styledata')();
+
+  assert.equal(controller.activeTileId(), 'B');
+  assert.equal(globalThis.__openWorldToolboxRenderVirtualization.activeTileId, 'B');
+  assert.equal(map.__deck.props.layers[0].props.data.length, 1);
+  assert.equal(map.__deck.props.layers[0].props.data[0].properties.id, 'b-demand');
+  controller.dispose();
+});
+
 test('keeps tiled geography on the unified basemap and adds lightweight context sources', () => {
   const map = fixtureMap();
   const controller = registerGeographicContextOverlay({

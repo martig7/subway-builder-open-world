@@ -46,7 +46,8 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 10;
+const MOVEMENT_DECK_GUARD_VERSION = 11;
+const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
 const VOLATILE_RAIL_LAYER_ID_RE = /^(?:interlined-routes|portolan-ribbons)(?:-under)?$/i;
@@ -2735,12 +2736,9 @@ export class GeographicContextOverlayController {
 
   refresh() {
     return mapMovePerfMeasure('overlay.refresh.total', () => {
+      this.syncRendererVirtualizationAuthority();
       if (!mapStyleLoaded(this.map)) return;
       ensureStationMarkerStyle();
-      this.rendererVirtualization = mapMovePerfMeasure(
-        'overlay.create-virtualization',
-        () => this.createRendererVirtualization(),
-      );
       globalThis.__openWorldToolboxRenderMap = this.map;
       globalThis.__openWorldToolboxRenderVirtualization = this.rendererVirtualization;
       ensureMapMovePerfProbes();
@@ -2949,12 +2947,35 @@ export class GeographicContextOverlayController {
     });
   }
 
+  syncRendererVirtualizationAuthority({ force = false } = {}) {
+    const activeTileId = this.activeTileId();
+    if (
+      force
+      || !this.rendererVirtualization
+      || this.rendererVirtualization.activeTileId !== activeTileId
+      || this.rendererVirtualization.renderDistance !== this.renderDistance
+    ) {
+      this.rendererVirtualization = mapMovePerfMeasure(
+        'overlay.create-virtualization',
+        () => this.createRendererVirtualization(),
+      );
+    }
+    if (this.map) {
+      globalThis.__openWorldToolboxRenderMap = this.map;
+      globalThis.__openWorldToolboxRenderVirtualization = this.rendererVirtualization;
+      globalThis.__openWorldRendererVirtualizationAuthorityVersion = (
+        RENDERER_VIRTUALIZATION_AUTHORITY_VERSION
+      );
+    }
+    return this.rendererVirtualization;
+  }
+
   getDeckRendererVirtualization() {
-    return this.rendererVirtualization ?? this.createRendererVirtualization();
+    return this.syncRendererVirtualizationAuthority();
   }
 
   getRendererVirtualization() {
-    return this.createRendererVirtualization();
+    return this.syncRendererVirtualizationAuthority();
   }
 
   releaseMovementDeckVisibilityGuard() {
