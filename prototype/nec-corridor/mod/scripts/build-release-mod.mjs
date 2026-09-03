@@ -21,7 +21,7 @@ if (manifest.version !== requestedVersion) {
 
 manifest.id = 'northeast-corridor-open-world';
 manifest.author = { name: 'Giancarlo Martinelli (gcm)' };
-manifest.dependencies = { 'subway-builder': '>=1.6.0 <1.7.0' };
+manifest.dependencies = { 'subway-builder': '>=1.7.0 <1.8.0' };
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
 console.log(`Prepared Railyard release manifest ${manifest.id} v${manifest.version}`);

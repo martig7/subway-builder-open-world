@@ -59,7 +59,7 @@ var installedTotal = assets.Sum(asset => asset.InstalledBytes);
 var workingBytes = assets.Max(asset => asset.InstalledBytes + asset.DownloadBytes) + 128L * 1024 * 1024;
 var release = new ReleaseManifest(
     1,
-    new ReleaseProduct(options.ProductId, options.ProductName, options.Version, options.ManifestId, "Giancarlo Martinelli (gcm)", "Subway Builder 1.6.x", options.Port),
+    new ReleaseProduct(options.ProductId, options.ProductName, options.Version, options.ManifestId, "Giancarlo Martinelli (gcm)", "Subway Builder 1.7.x", options.Port),
     new ReleaseSpace(installedTotal, workingBytes, installedTotal + workingBytes),
     assets);
 release.Validate();
