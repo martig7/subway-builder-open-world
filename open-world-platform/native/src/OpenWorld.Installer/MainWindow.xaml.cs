@@ -13,17 +13,19 @@ public partial class MainWindow : Window
     private ReleaseManifest manifest;
     private InstallLocations locations;
     private readonly bool isPreview;
+    private readonly string? assetRoot;
     private readonly Stopwatch transferClock = new();
     private CancellationTokenSource? cancellation;
     private long lastBytes;
     private TimeSpan lastRateSample;
     private double bytesPerSecond;
 
-    public MainWindow(ReleaseCatalog catalog, ReleaseManifest selectedManifest, bool isPreview)
+    public MainWindow(ReleaseCatalog catalog, ReleaseManifest selectedManifest, bool isPreview, string? assetRoot = null)
     {
         InitializeComponent();
         manifest = selectedManifest;
         this.isPreview = isPreview;
+        this.assetRoot = assetRoot;
         locations = InstallLocations.Resolve(manifest);
         WorldSelector.ItemsSource = catalog.Worlds;
         WorldSelector.SelectedItem = selectedManifest;
@@ -123,7 +125,7 @@ public partial class MainWindow : Window
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Subway-Builder-Open-World-Setup/0.1");
                 var progress = new Progress<InstallProgress>(UpdateProgress);
                 await TileServerController.StopAsync(manifest, TileServerRuntimePaths.FromLocations(locations), cancellation.Token);
-                await new InstallerEngine(client).InstallAsync(manifest, locations, progress, cancellation.Token);
+                await new InstallerEngine(client, assetRoot).InstallAsync(manifest, locations, progress, cancellation.Token);
                 InstallManagerCopy();
                 await WindowsIntegration.RegisterInstallationAsync(manifest, locations, cancellation.Token);
                 UpdateProgress(new InstallProgress(InstallStage.StartingServer, "Starting the local tile server", $"127.0.0.1:{manifest.Product.TileServerPort}", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));

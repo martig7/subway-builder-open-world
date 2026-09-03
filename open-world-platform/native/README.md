@@ -33,6 +33,12 @@ Launching the normal development build without a signed release catalog opens
 an interface preview containing Northeast Corridor and Tokyo–Kanagawa. Selecting
 a World updates its measured size, destinations, package count, and server port.
 
+To exercise a signed setup build without uploading its packaged assets, keep the
+setup executable and generated assets together and open setup normally. It uses
+the containing folder when every catalog asset is present. `--asset-root
+<release-folder>` can select a different folder. Setup still enforces every size
+and SHA-256 value from the signed release catalog.
+
 ## Release
 
 The release command always builds Northeast Corridor and can also include

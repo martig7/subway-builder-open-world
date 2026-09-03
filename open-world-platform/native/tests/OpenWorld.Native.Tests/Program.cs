@@ -16,6 +16,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("native PMTiles reader returns an MVT tile", NativePmTilesReader),
     ("release manifest signature is pinned to the self-signed certificate", ReleaseSignatureVerification),
     ("installer downloads, verifies, and atomically installs a ZIP", InstallerDownloadsAndInstalls),
+    ("installer copies and verifies assets from a local release folder", InstallerCopiesLocalAssets),
     ("managed install state records only owned tile packages", ManagedStateRoundTrip),
     ("installed worlds combine into one shared tile-server registration", InstalledWorldRegistryRoundTrip),
     ("tile-server state verifies the owning process", ServerStateRoundTrip),
@@ -215,6 +216,53 @@ static async Task InstallerDownloadsAndInstalls()
     }
 }
 
+static async Task InstallerCopiesLocalAssets()
+{
+    var testRoot = Path.Combine(Path.GetTempPath(), "open-world-local-assets-tests", Guid.NewGuid().ToString("N"));
+    var assetRoot = Path.Combine(testRoot, "release");
+    Directory.CreateDirectory(assetRoot);
+    try
+    {
+        var payload = Encoding.UTF8.GetBytes("local Railyard mod payload");
+        var archivePath = Path.Combine(assetRoot, "mod.zip");
+        using (var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+        {
+            var entry = zip.CreateEntry("index.js", CompressionLevel.NoCompression);
+            await using var entryStream = entry.Open();
+            await entryStream.WriteAsync(payload);
+        }
+        var archiveBytes = await File.ReadAllBytesAsync(archivePath);
+        var asset = new ReleaseAsset(
+            "mod.zip",
+            ReleaseAssetKind.Mod,
+            new Uri("https://release.invalid/mod.zip"),
+            Convert.ToHexString(SHA256.HashData(archiveBytes)),
+            archiveBytes.Length,
+            payload.Length,
+            ".");
+        var manifest = new ReleaseManifest(
+            1,
+            new ReleaseProduct("NEC Open World", "Northeast Corridor Open World", "0.1.0", "northeast-corridor-open-world", "Giancarlo Martinelli (gcm)", ">=1.6.0 <1.7.0", 8799),
+            new ReleaseSpace(payload.Length, archiveBytes.Length + payload.Length, archiveBytes.Length + payload.Length * 2),
+            [asset]);
+        var locations = new InstallLocations(
+            Path.Combine(testRoot, "program"),
+            Path.Combine(testRoot, "program", "server"),
+            Path.Combine(testRoot, "game", "mods", "nec"),
+            Path.Combine(testRoot, "game", "cities", "data"),
+            Path.Combine(testRoot, "cache"),
+            Path.Combine(testRoot, "logs"),
+            Path.Combine(testRoot, "shared-server"));
+        using var client = new HttpClient(new UnexpectedRequestHandler());
+        await new InstallerEngine(client, assetRoot).InstallAsync(manifest, locations);
+        Equal("local Railyard mod payload", await File.ReadAllTextAsync(Path.Combine(locations.ModRoot, "index.js")));
+    }
+    finally
+    {
+        Directory.Delete(testRoot, recursive: true);
+    }
+}
+
 static async Task ManagedStateRoundTrip()
 {
     var testRoot = Path.Combine(Path.GetTempPath(), "open-world-managed-state-tests", Guid.NewGuid().ToString("N"));
@@ -403,4 +451,10 @@ sealed class StaticHandler(byte[] bytes) : HttpMessageHandler
             Content = new ByteArrayContent(bytes)
         });
     }
+}
+
+sealed class UnexpectedRequestHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException($"Unexpected HTTP request for local release asset: {request.RequestUri}");
 }

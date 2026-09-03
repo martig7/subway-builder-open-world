@@ -120,7 +120,7 @@ $releaseCatalog = [ordered]@{ schemaVersion = 1; version = $Version; worlds = $w
 $signaturePath = "$catalogPath.sig"
 $certificatePath = Join-Path $resolvedOutput 'publisher.cer'
 [void](Export-Certificate -Cert $certificate -FilePath $certificatePath -Force)
-$rsa = $certificate.GetRSAPrivateKey()
+$rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($certificate)
 try {
     $manifestBytes = [System.IO.File]::ReadAllBytes($catalogPath)
     $manifestSignature = $rsa.SignData(

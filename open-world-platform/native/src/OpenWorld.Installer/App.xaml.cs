@@ -15,6 +15,7 @@ public partial class App : Application
         try
         {
             var bundle = ReleaseBundle.Load(e.Args);
+            var assetRoot = ResolveAssetRoot(bundle, e.Args);
             var managerMode = HasArgument(e.Args, "--manager") ||
                 HasArgument(e.Args, "--manager-preview") ||
                 IsManagerExecutable(Environment.ProcessPath);
@@ -52,7 +53,7 @@ public partial class App : Application
             }
             else
             {
-                window = new MainWindow(bundle.Catalog, manifest, bundle.IsPreview);
+                window = new MainWindow(bundle.Catalog, manifest, bundle.IsPreview, assetRoot);
             }
             ConfigureSnapshot(window, e.Args);
             window.Show();
@@ -118,6 +119,28 @@ public partial class App : Application
             FullPathValue(arguments, "--data-root") ?? installed.DataRoot,
             FullPathValue(arguments, "--state-root") ?? installed.StateRoot,
             FullPathValue(arguments, "--log-root") ?? installed.LogRoot);
+    }
+
+    private static string? ResolveAssetRoot(ReleaseBundle bundle, string[] arguments)
+    {
+        var explicitRoot = FullPathValue(arguments, "--asset-root");
+        if (explicitRoot is not null)
+        {
+            if (!Directory.Exists(explicitRoot))
+                throw new DirectoryNotFoundException($"Local release asset folder is missing: {explicitRoot}");
+            return explicitRoot;
+        }
+        if (bundle.IsPreview) return null;
+
+        var executableDirectory = Path.GetDirectoryName(Environment.ProcessPath);
+        if (executableDirectory is null) return null;
+        return bundle.Catalog.Worlds
+            .SelectMany(world => world.Assets)
+            .Select(asset => asset.Name)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .All(name => File.Exists(Path.Combine(executableDirectory, name)))
+                ? executableDirectory
+                : null;
     }
 
     private static void ConfigureSnapshot(Window window, string[] arguments)

@@ -4,8 +4,12 @@ using System.Net.Http.Headers;
 
 namespace OpenWorld.Release;
 
-public sealed class InstallerEngine(HttpClient httpClient)
+public sealed class InstallerEngine(HttpClient httpClient, string? assetRoot = null)
 {
+    private readonly string? localAssetRoot = assetRoot is null
+        ? null
+        : Path.GetFullPath(assetRoot);
+
     public async Task InstallAsync(
         ReleaseManifest manifest,
         InstallLocations locations,
@@ -86,6 +90,14 @@ public sealed class InstallerEngine(HttpClient httpClient)
             partialLength = 0;
         }
 
+        if (localAssetRoot is not null)
+        {
+            var sourcePath = ResolveLocalAsset(asset.Name);
+            await CopyLocalAssetAsync(sourcePath, partialPath, partialLength, priorBytes, asset, report, cancellationToken);
+            File.Move(partialPath, finalPath, overwrite: true);
+            return;
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Get, asset.Download);
         if (partialLength > 0) request.Headers.Range = new RangeHeaderValue(partialLength, null);
         using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -113,6 +125,48 @@ public sealed class InstallerEngine(HttpClient httpClient)
             await output.FlushAsync(cancellationToken);
         }
         File.Move(partialPath, finalPath, overwrite: true);
+    }
+
+    private string ResolveLocalAsset(string assetName)
+    {
+        var root = localAssetRoot!.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var path = Path.GetFullPath(Path.Combine(root, assetName));
+        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Local release asset escapes its source folder: {assetName}");
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Local release asset is missing: {assetName}", path);
+        return path;
+    }
+
+    private static async Task CopyLocalAssetAsync(
+        string sourcePath,
+        string partialPath,
+        long partialLength,
+        long priorBytes,
+        ReleaseAsset asset,
+        Action<InstallStage, string, string, long?> report,
+        CancellationToken cancellationToken)
+    {
+        await using var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (partialLength > input.Length)
+        {
+            File.Delete(partialPath);
+            partialLength = 0;
+        }
+        input.Position = partialLength;
+        var mode = partialLength > 0 ? FileMode.Append : FileMode.Create;
+        await using var output = new FileStream(partialPath, mode, FileAccess.Write, FileShare.None, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var buffer = new byte[128 * 1024];
+        long copied = partialLength;
+        while (true)
+        {
+            var read = await input.ReadAsync(buffer, cancellationToken);
+            if (read == 0) break;
+            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            copied += read;
+            report(InstallStage.Downloading, "Copying local release files", asset.Name, priorBytes + copied);
+        }
+        await output.FlushAsync(cancellationToken);
     }
 
     private static string ResolveTarget(ReleaseAsset asset, InstallLocations locations)
