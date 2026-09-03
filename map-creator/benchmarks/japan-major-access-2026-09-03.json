@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "exact-major-road-access-portal-overlay",
+  "decision": "not-enabled",
+  "reason": "Nationwide query throughput regressed; production routing remains on full-graph A*.",
+  "sampleSelection": {
+    "prefectures": 47,
+    "samplesPerPrefecture": 10,
+    "sampleCount": 470
+  },
+  "correctness": {
+    "mismatchCount": 0
+  },
+  "timing": {
+    "baselineSeconds": 143.43729,
+    "hierarchySeconds": 150.406427,
+    "querySpeedup": 0.9537,
+    "baselineMedianMilliseconds": 137.6031,
+    "hierarchyMedianMilliseconds": 135.867,
+    "baselineP95Milliseconds": 1181.7622,
+    "hierarchyP95Milliseconds": 1263.0423,
+    "hierarchyBuildSeconds": 72.015
+  },
+  "graph": {
+    "nodes": 25178210,
+    "directedEdges": 55832912,
+    "contractedNodes": 4287523,
+    "coreNodes": 20890687,
+    "contractedPartitionCount": 203178,
+    "promotedPartitionCount": 16807,
+    "portalReferences": 379159,
+    "shortcutDirectedEdges": 1029488,
+    "maximumPartitionNodes": 512,
+    "maximumPartitionPortals": 12
+  }
+}

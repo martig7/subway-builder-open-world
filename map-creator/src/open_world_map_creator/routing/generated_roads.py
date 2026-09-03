@@ -92,6 +92,15 @@ class RouteResult:
 
 
 @dataclass
+class MajorRoadHierarchy:
+    core_nodes: np.ndarray
+    component_by_node: np.ndarray
+    portals_by_component: tuple[np.ndarray, ...]
+    shortcut_neighbors: dict[int, list[tuple[int, float, float]]]
+    report: dict[str, Any]
+
+
+@dataclass
 class RoadGraph:
     coordinates: np.ndarray
     indptr: np.ndarray
@@ -100,11 +109,17 @@ class RoadGraph:
     metres: np.ndarray
     components: np.ndarray
     transformer: Transformer
+    major_nodes: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         self._tree = cKDTree(self.coordinates)
         self._best_seconds = np.full(len(self.coordinates), np.inf, dtype=np.float64)
         self._best_metres = np.zeros(len(self.coordinates), dtype=np.float64)
+        if self.major_nodes is not None:
+            self.major_nodes = np.asarray(self.major_nodes, dtype=np.bool_)
+            if len(self.major_nodes) != len(self.coordinates):
+                raise ValueError("major-road node mask length does not match graph nodes")
+        self._hierarchy: MajorRoadHierarchy | None = None
 
     @property
     def node_count(self) -> int:
@@ -155,6 +170,268 @@ class RoadGraph:
         best_seconds[np.asarray(touched, dtype=np.int64)] = np.inf
         return result
 
+    def _local_dijkstra(
+        self,
+        component: int,
+        start: int,
+        targets: set[int],
+    ) -> dict[int, tuple[float, float]]:
+        hierarchy = self._hierarchy
+        if hierarchy is None:
+            raise RuntimeError("major-road hierarchy is not prepared")
+        portals = set(map(int, hierarchy.portals_by_component[component]))
+        best_seconds: dict[int, float] = {start: 0.0}
+        best_metres: dict[int, float] = {start: 0.0}
+        queue: list[tuple[float, float, int]] = [(0.0, 0.0, start)]
+        remaining = set(targets)
+        results: dict[int, tuple[float, float]] = {}
+        while queue and remaining:
+            elapsed, elapsed_metres, node = heapq.heappop(queue)
+            if elapsed != best_seconds.get(node) or elapsed_metres != best_metres.get(node):
+                continue
+            if node in remaining:
+                results[node] = (elapsed, elapsed_metres)
+                remaining.remove(node)
+                if not remaining:
+                    break
+            node_is_core = bool(hierarchy.core_nodes[node])
+            for offset in range(int(self.indptr[node]), int(self.indptr[node + 1])):
+                neighbor = int(self.indices[offset])
+                if node_is_core:
+                    allowed = hierarchy.component_by_node[neighbor] == component
+                else:
+                    allowed = (
+                        hierarchy.component_by_node[neighbor] == component
+                        or neighbor in portals
+                    )
+                if not allowed:
+                    continue
+                candidate = elapsed + float(self.seconds[offset])
+                candidate_metres = elapsed_metres + float(self.metres[offset])
+                known = best_seconds.get(neighbor, math.inf)
+                known_metres = best_metres.get(neighbor, math.inf)
+                if candidate < known or (candidate == known and candidate_metres < known_metres):
+                    best_seconds[neighbor] = candidate
+                    best_metres[neighbor] = candidate_metres
+                    heapq.heappush(queue, (candidate, candidate_metres, neighbor))
+        return results
+
+    def prepare_major_road_hierarchy(
+        self,
+        *,
+        maximum_partition_nodes: int = 512,
+        maximum_partition_portals: int = 12,
+        progress: Any | None = None,
+    ) -> dict[str, Any]:
+        """Contract bounded minor-road partitions without changing shortest paths."""
+        started = time.perf_counter()
+        emit = progress or (lambda _: None)
+        emit("[road-routing] major-access hierarchy started")
+        node_count = self.node_count
+        if self.major_nodes is None:
+            raise RuntimeError("graph was built without major-road classification")
+        original_core = np.asarray(self.major_nodes, dtype=np.bool_)
+        minor_nodes = np.flatnonzero(~original_core)
+        component_by_node = np.full(node_count, -1, dtype=np.int32)
+        if len(minor_nodes) == 0:
+            report = {
+                "contractedPartitionCount": 0,
+                "promotedPartitionCount": 0,
+                "contractedNodes": 0,
+                "coreNodes": node_count,
+                "portalReferences": 0,
+                "shortcutDirectedEdges": 0,
+                "buildSeconds": round(time.perf_counter() - started, 3),
+            }
+            self._hierarchy = MajorRoadHierarchy(
+                original_core.copy(), component_by_node, (), {}, report
+            )
+            emit("[road-routing] major-access hierarchy complete (no minor partitions)")
+            return report
+
+        topology = csr_matrix(
+            (np.ones(len(self.indices), dtype=np.int8), self.indices, self.indptr),
+            shape=(node_count, node_count),
+        )
+        minor_topology = topology[minor_nodes][:, minor_nodes]
+        partition_count, minor_labels = connected_components(
+            minor_topology, directed=False, return_labels=True
+        )
+        component_by_node[minor_nodes] = minor_labels.astype(np.int32, copy=False)
+        partition_sizes = np.bincount(minor_labels, minlength=partition_count)
+        portal_sets: list[set[int]] = [set() for _ in range(partition_count)]
+        for core_node in np.flatnonzero(original_core):
+            start_offset = int(self.indptr[core_node])
+            end_offset = int(self.indptr[core_node + 1])
+            neighbor_partitions = component_by_node[self.indices[start_offset:end_offset]]
+            for partition in np.unique(neighbor_partitions[neighbor_partitions >= 0]):
+                portal_sets[int(partition)].add(int(core_node))
+
+        promoted = np.asarray([
+            int(partition_sizes[index]) > maximum_partition_nodes
+            or len(portal_sets[index]) > maximum_partition_portals
+            for index in range(partition_count)
+        ], dtype=np.bool_)
+        core_nodes = original_core.copy()
+        if np.any(promoted):
+            promoted_minor = promoted[minor_labels]
+            core_nodes[minor_nodes[promoted_minor]] = True
+
+        contracted_labels = np.flatnonzero(~promoted)
+        dense_label = np.full(partition_count, -1, dtype=np.int32)
+        dense_label[contracted_labels] = np.arange(len(contracted_labels), dtype=np.int32)
+        contracted_component_by_node = np.full(node_count, -1, dtype=np.int32)
+        retained_minor = ~promoted[minor_labels]
+        contracted_component_by_node[minor_nodes[retained_minor]] = dense_label[minor_labels[retained_minor]]
+        portals_by_component = tuple(
+            np.asarray(sorted(portal_sets[int(label)]), dtype=np.int64)
+            for label in contracted_labels
+        )
+        hierarchy = MajorRoadHierarchy(
+            core_nodes=core_nodes,
+            component_by_node=contracted_component_by_node,
+            portals_by_component=portals_by_component,
+            shortcut_neighbors={},
+            report={},
+        )
+        self._hierarchy = hierarchy
+
+        shortcut_neighbors: dict[int, list[tuple[int, float, float]]] = {}
+        last_progress = time.perf_counter()
+        for partition, portals in enumerate(portals_by_component):
+            portal_ids = list(map(int, portals))
+            if len(portal_ids) >= 2:
+                for portal_index, portal in enumerate(portal_ids[:-1]):
+                    targets = set(portal_ids[portal_index + 1 :])
+                    routes = self._local_dijkstra(partition, portal, targets)
+                    for target, (route_seconds, route_metres) in routes.items():
+                        shortcut_neighbors.setdefault(portal, []).append(
+                            (target, route_seconds, route_metres)
+                        )
+                        shortcut_neighbors.setdefault(target, []).append(
+                            (portal, route_seconds, route_metres)
+                        )
+            now = time.perf_counter()
+            if now - last_progress >= 15:
+                emit(
+                    f"[road-routing] major-access hierarchy {partition + 1}/"
+                    f"{len(portals_by_component)} partitions"
+                )
+                last_progress = now
+        hierarchy.shortcut_neighbors = shortcut_neighbors
+        report = {
+            "contractedPartitionCount": len(contracted_labels),
+            "promotedPartitionCount": int(np.count_nonzero(promoted)),
+            "contractedNodes": int(np.count_nonzero(~core_nodes)),
+            "coreNodes": int(np.count_nonzero(core_nodes)),
+            "portalReferences": sum(len(portals) for portals in portals_by_component),
+            "shortcutDirectedEdges": sum(len(edges) for edges in shortcut_neighbors.values()),
+            "maximumPartitionNodes": maximum_partition_nodes,
+            "maximumPartitionPortals": maximum_partition_portals,
+            "buildSeconds": round(time.perf_counter() - started, 3),
+        }
+        hierarchy.report = report
+        emit(
+            "[road-routing] major-access hierarchy complete "
+            f"({report['contractedPartitionCount']} partitions, "
+            f"{report['contractedNodes']} contracted nodes, "
+            f"{report['shortcutDirectedEdges']} directed shortcuts, "
+            f"{report['buildSeconds']:.1f}s)"
+        )
+        return report
+
+    def _hierarchical_astar(self, start: int, destination: int) -> tuple[float, float] | None:
+        hierarchy = self._hierarchy
+        if hierarchy is None:
+            return self._astar(start, destination)
+        if start == destination:
+            return 0.0, 0.0
+        if self.components[start] != self.components[destination]:
+            return None
+
+        start_component = int(hierarchy.component_by_node[start])
+        destination_component = int(hierarchy.component_by_node[destination])
+        direct: tuple[float, float] | None = None
+        if start_component >= 0 and start_component == destination_component:
+            direct = self._local_dijkstra(start_component, start, {destination}).get(destination)
+
+        if hierarchy.core_nodes[start]:
+            starts = {start: (0.0, 0.0)}
+        elif start_component >= 0:
+            starts = self._local_dijkstra(
+                start_component,
+                start,
+                set(map(int, hierarchy.portals_by_component[start_component])),
+            )
+        else:
+            starts = {}
+        if hierarchy.core_nodes[destination]:
+            destinations = {destination: (0.0, 0.0)}
+        elif destination_component >= 0:
+            destinations = self._local_dijkstra(
+                destination_component,
+                destination,
+                set(map(int, hierarchy.portals_by_component[destination_component])),
+            )
+        else:
+            destinations = {}
+        if not starts or not destinations:
+            return direct
+
+        destination_xy = self.coordinates[destination]
+        best_seconds = self._best_seconds
+        best_metres = self._best_metres
+        touched: list[int] = []
+        queue: list[tuple[float, float, int]] = []
+        for node, (elapsed, elapsed_metres) in starts.items():
+            if elapsed < best_seconds[node] or (
+                elapsed == best_seconds[node] and elapsed_metres < best_metres[node]
+            ):
+                if not math.isfinite(best_seconds[node]):
+                    touched.append(node)
+                best_seconds[node] = elapsed
+                best_metres[node] = elapsed_metres
+                heuristic = math.dist(self.coordinates[node], destination_xy) / MAX_SPEED_MPS
+                heapq.heappush(queue, (elapsed + heuristic, elapsed, node))
+
+        result = direct
+        while queue:
+            estimate, elapsed, node = heapq.heappop(queue)
+            if elapsed != best_seconds[node]:
+                continue
+            if result is not None and estimate > result[0]:
+                break
+            destination_leg = destinations.get(node)
+            if destination_leg is not None:
+                candidate = (
+                    elapsed + destination_leg[0],
+                    best_metres[node] + destination_leg[1],
+                )
+                if result is None or candidate < result:
+                    result = candidate
+
+            def relax(neighbor: int, edge_seconds: float, edge_metres: float) -> None:
+                candidate = elapsed + edge_seconds
+                candidate_metres = best_metres[node] + edge_metres
+                if candidate < best_seconds[neighbor] or (
+                    candidate == best_seconds[neighbor] and candidate_metres < best_metres[neighbor]
+                ):
+                    if not math.isfinite(best_seconds[neighbor]):
+                        touched.append(neighbor)
+                    best_seconds[neighbor] = candidate
+                    best_metres[neighbor] = candidate_metres
+                    heuristic = math.dist(self.coordinates[neighbor], destination_xy) / MAX_SPEED_MPS
+                    heapq.heappush(queue, (candidate + heuristic, candidate, neighbor))
+
+            for offset in range(int(self.indptr[node]), int(self.indptr[node + 1])):
+                neighbor = int(self.indices[offset])
+                if hierarchy.core_nodes[neighbor]:
+                    relax(neighbor, float(self.seconds[offset]), float(self.metres[offset]))
+            for neighbor, edge_seconds, edge_metres in hierarchy.shortcut_neighbors.get(node, ()):
+                relax(neighbor, edge_seconds, edge_metres)
+        best_seconds[np.asarray(touched, dtype=np.int64)] = np.inf
+        return result
+
     def route(
         self,
         origin: tuple[float, float],
@@ -185,7 +462,7 @@ class RoadGraph:
         snap_total = float(snap_distances[0] + snap_distances[1])
         if max(snap_distances) > max_snap_metres:
             return fallback("geometric-snap-too-far")
-        road = self._astar(int(snapped[0]), int(snapped[1]))
+        road = self._hierarchical_astar(int(snapped[0]), int(snapped[1]))
         if road is None:
             return fallback("geometric-disconnected")
         seconds = road[0] + snap_total / SPEED_MPS["minor"]
@@ -236,6 +513,7 @@ def build_road_graph(
     maps_dir: str | Path,
     *,
     maximum_edge_metres: float = DEFAULT_MAX_EDGE_METRES,
+    prepare_major_access_hierarchy: bool = False,
     progress: Any = print,
 ) -> tuple[RoadGraph, dict[str, Any]]:
     started = time.perf_counter()
@@ -270,6 +548,7 @@ def build_road_graph(
 
     node_ids: dict[int, int] = {}
     node_coordinates: list[tuple[float, float]] = []
+    node_is_major: list[bool] | None = [] if prepare_major_access_hierarchy else None
     edge_left: list[int] = []
     edge_right: list[int] = []
     edge_seconds: list[float] = []
@@ -282,6 +561,8 @@ def build_road_graph(
         result = len(node_coordinates)
         node_ids[key] = result
         node_coordinates.append((float(coordinate[0]), float(coordinate[1])))
+        if node_is_major is not None:
+            node_is_major.append(False)
         return result
 
     for tile_index, tile in enumerate(tiles, 1):
@@ -304,6 +585,9 @@ def build_road_graph(
                         edge_right.append(right)
                         edge_metres.append(accumulated)
                         edge_seconds.append(accumulated / SPEED_MPS[road_class])
+                        if node_is_major is not None and road_class in {"highway", "major"}:
+                            node_is_major[left] = True
+                            node_is_major[right] = True
                 chain_start = endpoint
                 accumulated = 0.0
         progress(f"[road-routing] graph pass {tile_index}/{len(tiles)} {tile['id']}")
@@ -335,6 +619,12 @@ def build_road_graph(
         metre_graph.data,
         components,
         transformer,
+        np.asarray(node_is_major, dtype=np.bool_) if node_is_major is not None else None,
+    )
+    hierarchy_report = (
+        graph.prepare_major_road_hierarchy(progress=progress)
+        if prepare_major_access_hierarchy
+        else None
     )
     report = {
         "graphVersion": GRAPH_VERSION,
@@ -347,6 +637,8 @@ def build_road_graph(
         "components": int(component_count),
         "buildSeconds": round(time.perf_counter() - started, 3),
     }
+    if hierarchy_report is not None:
+        report["majorAccessHierarchy"] = hierarchy_report
     return graph, report
 
 
