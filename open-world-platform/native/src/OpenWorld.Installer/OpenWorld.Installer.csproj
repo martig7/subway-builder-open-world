@@ -3,6 +3,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>OpenWorld.Installer</RootNamespace>
     <AssemblyName>Subway-Builder-Open-World-Setup</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>

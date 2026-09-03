@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Win32;
@@ -29,6 +30,7 @@ internal static class WindowsIntegration
             InstalledWorldRegistration.Create(manifest, locations),
             cancellationToken);
         MigrateLegacyStartupEntries(manifest, locations.ManagerPath);
+        InstallStartMenuShortcut(DesktopLaunchPlan.Create(manifest, locations), locations);
 
         using var key = Registry.CurrentUser.CreateSubKey(ProductKey(manifest), writable: true)
             ?? throw new InvalidOperationException("Could not create the Windows uninstall registration.");
@@ -129,6 +131,7 @@ internal static class WindowsIntegration
         InstalledWorldRegistry.Remove(locations.InstalledWorldsRoot, manifest.Product.ManifestId);
         var remainingWorlds = await InstalledWorldRegistry.ReadAllAsync(locations.InstalledWorldsRoot);
         RepairStartupAfterRemoval(manifest, locations.ManagerPath, remainingWorlds);
+        RepairStartMenuAfterRemoval(remainingWorlds);
         Registry.CurrentUser.DeleteSubKeyTree(ProductKey(manifest), throwOnMissingSubKey: false);
 
         DeleteDirectory(locations.ModRoot);
@@ -165,7 +168,7 @@ internal static class WindowsIntegration
     private static string ProductKey(ReleaseManifest manifest) => $@"{UninstallRoot}\Subway Builder Open World.{manifest.Product.ManifestId}";
 
     private static string StartupCommand(string manifestId, string managerPath) =>
-        $"\"{Path.GetFullPath(managerPath)}\" --world \"{manifestId}\" --start-server";
+        $"\"{Path.GetFullPath(managerPath)}\" --manager --background --start-server --world \"{manifestId}\"";
 
     private static void MigrateLegacyStartupEntries(ReleaseManifest manifest, string managerPath)
     {
@@ -177,6 +180,8 @@ internal static class WindowsIntegration
         var wasEnabled = legacyNames.Any(name => key.GetValue(name) is string value && !string.IsNullOrWhiteSpace(value));
         foreach (var name in legacyNames) key.DeleteValue(name, throwOnMissingValue: false);
         if (wasEnabled && key.GetValue(SharedRunValue) is null)
+            key.SetValue(SharedRunValue, StartupCommand(manifest.Product.ManifestId, managerPath));
+        else if (key.GetValue(SharedRunValue) is string)
             key.SetValue(SharedRunValue, StartupCommand(manifest.Product.ManifestId, managerPath));
     }
 
@@ -193,6 +198,75 @@ internal static class WindowsIntegration
         if (replacement is null) key.DeleteValue(SharedRunValue, throwOnMissingValue: false);
         else key.SetValue(SharedRunValue, StartupCommand(replacement.ManifestId, replacement.ManagerPath));
     }
+
+    private static void InstallStartMenuShortcut(DesktopLaunchPlan plan, InstallLocations locations) =>
+        WriteShortcut(
+            plan.StartMenuShortcutPath,
+            locations.ManagerPath,
+            plan.ManagerArguments,
+            locations.ProductRoot);
+
+    private static void RepairStartMenuAfterRemoval(IReadOnlyList<InstalledWorldRegistration> remainingWorlds)
+    {
+        var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+        if (string.IsNullOrWhiteSpace(programs)) return;
+        var shortcutPath = Path.Combine(programs, DesktopLaunchPlan.ShortcutName);
+        var replacement = remainingWorlds.FirstOrDefault(item => File.Exists(item.ManagerPath));
+        if (replacement is null)
+        {
+            if (File.Exists(shortcutPath)) File.Delete(shortcutPath);
+            return;
+        }
+        WriteShortcut(
+            shortcutPath,
+            replacement.ManagerPath,
+            $"--manager --world \"{replacement.ManifestId}\"",
+            replacement.ProductRoot);
+    }
+
+    private static void WriteShortcut(string shortcutPath, string targetPath, string arguments, string workingDirectory)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(shortcutPath)!);
+        var shellType = Type.GetTypeFromProgID("WScript.Shell")
+            ?? throw new InvalidOperationException("Windows shortcut support is unavailable.");
+        object? shell = null;
+        object? shortcut = null;
+        try
+        {
+            shell = Activator.CreateInstance(shellType)
+                ?? throw new InvalidOperationException("Windows shortcut support did not start.");
+            shortcut = shellType.InvokeMember(
+                "CreateShortcut",
+                BindingFlags.InvokeMethod,
+                binder: null,
+                target: shell,
+                args: [shortcutPath])
+                ?? throw new InvalidOperationException("The Start-menu shortcut could not be created.");
+            SetShortcutProperty(shortcut, "TargetPath", Path.GetFullPath(targetPath));
+            SetShortcutProperty(shortcut, "Arguments", arguments);
+            SetShortcutProperty(shortcut, "WorkingDirectory", Path.GetFullPath(workingDirectory));
+            SetShortcutProperty(shortcut, "IconLocation", $"{Path.GetFullPath(targetPath)},0");
+            shortcut.GetType().InvokeMember(
+                "Save",
+                BindingFlags.InvokeMethod,
+                binder: null,
+                target: shortcut,
+                args: null);
+        }
+        finally
+        {
+            if (shortcut is not null && Marshal.IsComObject(shortcut)) Marshal.FinalReleaseComObject(shortcut);
+            if (shell is not null && Marshal.IsComObject(shell)) Marshal.FinalReleaseComObject(shell);
+        }
+    }
+
+    private static void SetShortcutProperty(object shortcut, string name, string value) =>
+        shortcut.GetType().InvokeMember(
+            name,
+            BindingFlags.SetProperty,
+            binder: null,
+            target: shortcut,
+            args: [value]);
 
     private static void DeleteDirectory(string path, int retries = 1)
     {

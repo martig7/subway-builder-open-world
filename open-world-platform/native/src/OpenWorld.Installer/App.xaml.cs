@@ -3,11 +3,14 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Windows;
 using OpenWorld.Release;
+using MessageBox = System.Windows.MessageBox;
 
 namespace OpenWorld.Installer;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
+    private ManagerSingleInstance? managerInstance;
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -19,6 +22,16 @@ public partial class App : Application
             var managerMode = HasArgument(e.Args, "--manager") ||
                 HasArgument(e.Args, "--manager-preview") ||
                 IsManagerExecutable(Environment.ProcessPath);
+            if (managerMode)
+            {
+                managerInstance = ManagerSingleInstance.AcquireOrActivateExisting();
+                if (managerInstance is null)
+                {
+                    Shutdown(0);
+                    return;
+                }
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            }
             var manifest = await SelectManifestAsync(bundle.Catalog, e.Args, bundle.IsPreview, managerMode || HasArgument(e.Args, "--start-server") || HasArgument(e.Args, "--uninstall-worker"));
             manifest = ApplyPreviewOverrides(manifest, e.Args, bundle.IsPreview);
             var locations = InstallLocations.Resolve(manifest);
@@ -35,7 +48,7 @@ public partial class App : Application
                 return;
             }
 
-            if (HasArgument(e.Args, "--start-server"))
+            if (HasArgument(e.Args, "--start-server") && !managerMode)
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 await TileServerController.StartAndVerifyAsync(manifest, runtime, CancellationToken.None);
@@ -46,7 +59,14 @@ public partial class App : Application
             Window window;
             if (managerMode)
             {
-                var manager = new ManagerWindow(manifest, locations, runtime, bundle.IsPreview);
+                var manager = new ManagerWindow(
+                    manifest,
+                    locations,
+                    runtime,
+                    bundle.IsPreview,
+                    startServerOnLoad: HasArgument(e.Args, "--start-server"),
+                    startHidden: HasArgument(e.Args, "--background"));
+                managerInstance!.Listen(Dispatcher, manager.ShowFromExternalActivation);
                 if (HasArgument(e.Args, "--uninstall"))
                     manager.Loaded += async (_, _) => await manager.RequestUninstallAsync();
                 window = manager;
@@ -74,6 +94,13 @@ public partial class App : Application
             MessageBox.Show(exception.Message, "Subway Builder Open World", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        managerInstance?.Dispose();
+        managerInstance = null;
+        base.OnExit(e);
     }
 
     private static async Task<ReleaseManifest> SelectManifestAsync(ReleaseCatalog catalog, string[] arguments, bool isPreview, bool requireInstalledSelection)
@@ -165,6 +192,8 @@ public partial class App : Application
                 await manager.InitialRefresh.WaitAsync(TimeSpan.FromSeconds(30));
                 await manager.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
                 manager.SaveSnapshot(snapshotPath);
+                manager.CloseForAutomation();
+                return;
             }
             window.Close();
         };

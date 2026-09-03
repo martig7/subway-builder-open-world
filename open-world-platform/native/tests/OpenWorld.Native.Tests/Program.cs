@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.IO.Compression;
+using OpenWorld.Installer;
 using OpenWorld.Release;
 using OpenWorld.TileServer;
 
@@ -21,6 +22,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("installed worlds combine into one shared tile-server registration", InstalledWorldRegistryRoundTrip),
     ("tile-server state verifies the owning process", ServerStateRoundTrip),
     ("tile-server logs rotate within their retention limit", RollingLogRotation),
+    ("desktop launch plan adds Start-menu access without enabling login startup", DesktopLaunchPlanValidation),
 };
 
 var failed = 0;
@@ -385,6 +387,24 @@ static Task RollingLogRotation()
     {
         Directory.Delete(testRoot, recursive: true);
     }
+}
+
+static Task DesktopLaunchPlanValidation()
+{
+    var manifest = ManifestFor(destination: "NEC_CP00_RP00");
+    var locations = InstallLocations.Resolve(manifest, @"C:\Users\fixture\AppData\Roaming", @"C:\Users\fixture\AppData\Local");
+    var plan = DesktopLaunchPlan.Create(
+        manifest,
+        locations,
+        @"C:\Users\fixture\AppData\Roaming\Microsoft\Windows\Start Menu\Programs");
+
+    Equal(
+        @"C:\Users\fixture\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Subway Builder Open World.lnk",
+        plan.StartMenuShortcutPath);
+    Equal("--manager --world \"northeast-corridor-open-world\"", plan.ManagerArguments);
+    Equal("--manager --background --start-server --world \"northeast-corridor-open-world\"", plan.BackgroundStartupArguments);
+    Equal(false, plan.EnableStartupByDefault);
+    return Task.CompletedTask;
 }
 
 static byte[] MinimalPmTiles()

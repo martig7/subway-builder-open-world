@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>OpenWorld.Native.Tests</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\OpenWorld.Installer\OpenWorld.Installer.csproj" />
     <ProjectReference Include="..\..\src\OpenWorld.Release\OpenWorld.Release.csproj" />
     <ProjectReference Include="..\..\src\OpenWorld.TileServer\OpenWorld.TileServer.csproj" />
   </ItemGroup>

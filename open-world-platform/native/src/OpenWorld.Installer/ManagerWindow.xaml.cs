@@ -1,10 +1,14 @@
 using System.Diagnostics;
+using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using OpenWorld.Release;
+using Color = System.Windows.Media.Color;
+using MessageBox = System.Windows.MessageBox;
+using SystemColors = System.Windows.SystemColors;
 
 namespace OpenWorld.Installer;
 
@@ -14,22 +18,30 @@ public partial class ManagerWindow : Window
     private readonly InstallLocations locations;
     private readonly TileServerRuntimePaths runtime;
     private readonly bool isPreview;
+    private readonly bool startServerOnLoad;
+    private readonly bool startHidden;
     private readonly TaskCompletionSource<bool> initialRefresh = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private ManagerTrayIcon? trayIcon;
     private bool busy;
     private bool initializingStartup = true;
+    private bool allowClose;
     private TileServerStatus currentStatus = new(TileServerCondition.Stopped, "Stopped");
 
     internal ManagerWindow(
         ReleaseManifest manifest,
         InstallLocations locations,
         TileServerRuntimePaths runtime,
-        bool isPreview)
+        bool isPreview,
+        bool startServerOnLoad = false,
+        bool startHidden = false)
     {
         InitializeComponent();
         this.manifest = manifest;
         this.locations = locations;
         this.runtime = runtime;
         this.isPreview = isPreview;
+        this.startServerOnLoad = startServerOnLoad;
+        this.startHidden = startHidden;
         Title = $"{manifest.Product.Name} Manager";
         ManagerTitleText.Text = $"{manifest.Product.Name} Manager";
         VersionText.Text = $"Version {manifest.Product.Version}";
@@ -40,10 +52,28 @@ public partial class ManagerWindow : Window
         UninstallButton.IsEnabled = !isPreview;
         if (!isPreview) StartupCheckBox.IsChecked = WindowsIntegration.IsStartupEnabled(manifest, locations.ManagerPath);
         initializingStartup = false;
+        if (!isPreview)
+        {
+            trayIcon = new ManagerTrayIcon(
+                ShowFromExternalActivation,
+                () => StartServerFromTray(),
+                () => RestartServerFromTray(),
+                OpenLogs,
+                ExitManager);
+        }
+        Closing += ManagerWindow_Closing;
+        Closed += (_, _) =>
+        {
+            trayIcon?.Dispose();
+            trayIcon = null;
+        };
         Loaded += async (_, _) =>
         {
+            if (this.startHidden) HideToTray();
             try
             {
+                if (this.startServerOnLoad)
+                    await TileServerController.StartAndVerifyAsync(manifest, runtime, CancellationToken.None);
                 await RefreshAsync(verifyData: true);
                 initialRefresh.TrySetResult(true);
             }
@@ -52,6 +82,8 @@ public partial class ManagerWindow : Window
                 initialRefresh.TrySetException(exception);
                 ActivityText.Foreground = new SolidColorBrush(Color.FromRgb(196, 43, 28));
                 ActivityText.Text = exception.Message;
+                currentStatus = new TileServerStatus(TileServerCondition.Unknown, exception.Message);
+                trayIcon?.Update(currentStatus);
             }
         };
     }
@@ -85,6 +117,7 @@ public partial class ManagerWindow : Window
             TileServerCondition.Unknown => new SolidColorBrush(Color.FromRgb(196, 43, 28)),
             _ => new SolidColorBrush(Color.FromRgb(122, 122, 122))
         };
+        trayIcon?.Update(currentStatus);
 
         if (verifyData)
         {
@@ -158,6 +191,9 @@ public partial class ManagerWindow : Window
         }, verifyAfter: false);
 
     private void Logs_Click(object sender, RoutedEventArgs e)
+        => OpenLogs();
+
+    private void OpenLogs()
     {
         Directory.CreateDirectory(runtime.LogRoot);
         Process.Start(new ProcessStartInfo(runtime.LogRoot) { UseShellExecute = true });
@@ -201,7 +237,10 @@ public partial class ManagerWindow : Window
             MessageBoxResult.No);
         if (result != MessageBoxResult.Yes) return;
         if (await ExecuteAsync("Preparing uninstall", token => WindowsIntegration.StartUninstallWorkerAsync(manifest, locations, runtime, token), verifyAfter: false))
-            Application.Current.Shutdown();
+        {
+            allowClose = true;
+            System.Windows.Application.Current.Shutdown();
+        }
     }
 
     private void Startup_Changed(object sender, RoutedEventArgs e)
@@ -219,5 +258,52 @@ public partial class ManagerWindow : Window
         }
     }
 
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
+    internal void ShowFromExternalActivation()
+    {
+        ShowInTaskbar = true;
+        if (!IsVisible) Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    internal void CloseForAutomation()
+    {
+        allowClose = true;
+        Close();
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    private async void StartServerFromTray() =>
+        await ExecuteAsync("Starting tile server", token => TileServerController.StartAndVerifyAsync(manifest, runtime, token));
+
+    private async void RestartServerFromTray() =>
+        await ExecuteAsync("Restarting tile server", token => TileServerController.RestartAsync(manifest, runtime, token));
+
+    private void HideToTray()
+    {
+        if (isPreview)
+        {
+            Close();
+            return;
+        }
+        ShowInTaskbar = false;
+        Hide();
+    }
+
+    private void ExitManager()
+    {
+        allowClose = true;
+        trayIcon?.Dispose();
+        trayIcon = null;
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    private void ManagerWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        if (allowClose || isPreview) return;
+        e.Cancel = true;
+        HideToTray();
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e) => HideToTray();
 }

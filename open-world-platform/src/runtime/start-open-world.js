@@ -40,6 +40,7 @@ import {
   stageNativeRecovery,
 } from './native-reload-recovery.js';
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
+import { checkSharedTileServerHealth } from './tile-server-health.js';
 
 export const OPEN_WORLD_PLATFORM_RELEASE = 'open-world-platform-v1';
 export const STARTUP_MAP_RECOVERY_VERSION = 'startup-map-recovery-v1';
@@ -141,6 +142,14 @@ export function startOpenWorld({
 
   globalThis[dormantRuntimeKey]?.dispose?.();
   delete globalThis[dormantRuntimeKey];
+
+  if (typeof globalThis.window !== 'undefined') {
+    void checkSharedTileServerHealth({
+      tileBase,
+      fetchImpl: globalThis.fetch?.bind(globalThis),
+      notify: (...args) => api.ui?.showNotification?.(...args),
+    });
+  }
 
   function heapBytes() {
     return Number(globalThis.performance?.memory?.usedJSHeapSize) || null;
