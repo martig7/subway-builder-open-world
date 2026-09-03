@@ -19,7 +19,7 @@ public partial class App : Application
             var managerMode = HasArgument(e.Args, "--manager") ||
                 HasArgument(e.Args, "--manager-preview") ||
                 IsManagerExecutable(Environment.ProcessPath);
-            var manifest = SelectManifest(bundle.Catalog, e.Args, bundle.IsPreview, managerMode || HasArgument(e.Args, "--start-server") || HasArgument(e.Args, "--uninstall-worker"));
+            var manifest = await SelectManifestAsync(bundle.Catalog, e.Args, bundle.IsPreview, managerMode || HasArgument(e.Args, "--start-server") || HasArgument(e.Args, "--uninstall-worker"));
             manifest = ApplyPreviewOverrides(manifest, e.Args, bundle.IsPreview);
             var locations = InstallLocations.Resolve(manifest);
             var runtime = ResolveRuntime(e.Args, bundle.IsPreview, locations);
@@ -76,7 +76,7 @@ public partial class App : Application
         }
     }
 
-    private static ReleaseManifest SelectManifest(ReleaseCatalog catalog, string[] arguments, bool isPreview, bool requireInstalledSelection)
+    private static async Task<ReleaseManifest> SelectManifestAsync(ReleaseCatalog catalog, string[] arguments, bool isPreview, bool requireInstalledSelection)
     {
         if (ArgumentValue(arguments, "--world") is { } requested) return catalog.Select(requested);
         if (catalog.Worlds.Count == 1) return catalog.Worlds[0];
@@ -84,7 +84,7 @@ public partial class App : Application
         var processDirectory = Path.GetDirectoryName(Environment.ProcessPath);
         if (processDirectory is not null)
         {
-            var state = ManagedInstallState.ReadAsync(Path.Combine(processDirectory, "install-state.json")).GetAwaiter().GetResult();
+            var state = await ManagedInstallState.ReadAsync(Path.Combine(processDirectory, "install-state.json"));
             if (state is not null) return catalog.Select(state.ManifestId);
         }
 
