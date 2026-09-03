@@ -157,6 +157,44 @@ test('build bounds native stations and topology while retaining clipped partial-
   assert.equal(network.routeDescriptors['long-route'].fullCycleTimeSeconds, 7_200);
 });
 
+test('1.7 track curves, lane directions, and light-rail type survive canonical projection', () => {
+  const track = {
+    id: 'light-rail-curve',
+    coords: [[1.2, 0.4], [1.5, 0.55], [1.8, 0.6]],
+    trackType: 'light-rail',
+    curveType: 'modified-euler',
+    curveGeometry: { type: 'spiral', entryLength: 42, radius: 275 },
+    nodes: [{ id: 'curve-a', coords: [1.2, 0.4] }, { id: 'curve-b', coords: [1.8, 0.6] }],
+    direction: 'custom',
+    laneDirection: 'forward',
+    reversable: false,
+  };
+  const group = {
+    id: 'light-rail-group',
+    trackIds: [track.id],
+    trackType: 'light-rail',
+    trackLanesType: 'parallel',
+    laneDirections: ['forward', 'reverse', 'forward'],
+    directions: ['forward', 'reverse', 'forward'],
+  };
+  const source = {
+    ...fixtureState(),
+    tracks: [track],
+    trackGroups: [group],
+    stations: [], routes: [], trains: [],
+  };
+
+  const result = new NetworkProjection({ guardBandMeters: 0 }).build({
+    network: createGlobalNetwork(source),
+    activeTileId: 'T1',
+    catalog,
+    baseSnapshot: { cityCode: 'T1', data: {} },
+  });
+
+  assert.deepEqual(result.state.tracks, [track]);
+  assert.deepEqual(result.state.trackGroups, [group]);
+});
+
 test('structural projection fingerprint ignores train motion but detects topology and schedule edits', () => {
   const projection = new NetworkProjection({ guardBandMeters: 0 });
   const network = createGlobalNetwork(fixtureState());

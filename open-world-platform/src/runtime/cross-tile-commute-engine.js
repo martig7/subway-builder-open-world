@@ -11,6 +11,7 @@ function finiteNonNegative(value, label) {
   return value;
 }
 function roundedMoney(value) { return Math.round(value * 100) / 100; }
+function roundedWeight(value) { return Math.round(value * 1e12) / 1e12; }
 
 function eventMass(events) {
   return events.reduce((total, event) => total + event.mass, 0);
@@ -46,7 +47,7 @@ function compileSettlementTemplate(entry) {
     }
     for (const [routeId, routeFare] of Object.entries(revenueByRoute)) {
       if (!Number.isFinite(routeFare) || routeFare < 0) throw new Error(`Invalid journey route fare: ${routeId}`);
-      routeRevenueWeightByRoute[routeId] = roundedMoney((routeRevenueWeightByRoute[routeId] ?? 0)
+      routeRevenueWeightByRoute[routeId] = roundedWeight((routeRevenueWeightByRoute[routeId] ?? 0)
         + sizePerDispatchedMass * routeFare);
     }
     journeys.push({
@@ -261,6 +262,7 @@ export function applyModeShares(world, totals, {
   transitViablePops = 0,
   popModeChoices = {},
   transitJourneys = new Map(),
+  contextKey = null,
 } = {}) {
   migrateCommuteLedger(world);
   let changedFlows = 0;
@@ -284,7 +286,8 @@ export function applyModeShares(world, totals, {
     Object.entries(popModeChoices).map(([popId, modes]) => [popId, { ...modes }]),
   );
   world.crossModeShare = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    contextKey,
     day,
     reason,
     calculatedAtHour: world.worldTime,
@@ -340,10 +343,6 @@ function creditFareRevenue(world, entry, dispatchedMass, direction, hour) {
   world.crossTileFinancials.fareRevenue += fareRevenue;
   world.crossTileFinancials.pendingNativeRevenue += fareRevenue;
   const pending = world.pendingCrossTileAttribution;
-  for (const [routeId, weight] of Object.entries(template.routeRevenueWeightByRoute)) {
-    pending.revenueByRoute[routeId] = (pending.revenueByRoute[routeId] ?? 0)
-      + roundedMoney(dispatchedMass * weight * NATIVE_FARE_MULTIPLIER);
-  }
   for (const journey of template.journeys) {
     const size = dispatchedMass * journey.sizePerDispatchedMass;
     if (!(size > 0)) continue;
@@ -355,6 +354,14 @@ function creditFareRevenue(world, entry, dispatchedMass, direction, hour) {
     const journeyRevenueByRoute = Object.fromEntries(Object.entries(journey.revenueByRoute ?? {}).map(
       ([routeId, routeFare]) => [routeId, roundedMoney(size * routeFare * NATIVE_FARE_MULTIPLIER)],
     ));
+    // Aggregate the finalized per-commute amounts instead of a rounded
+    // per-person weight. Tiny transit shares can be worth less than one cent
+    // per source commuter while still producing material dispatched revenue.
+    for (const [routeId, routeRevenue] of Object.entries(journeyRevenueByRoute)) {
+      pending.revenueByRoute[routeId] = roundedMoney(
+        (pending.revenueByRoute[routeId] ?? 0) + routeRevenue,
+      );
+    }
     pending.completedCommutes.push({
       popId: `${journey.popId}:${direction}:${hour}`,
       size,

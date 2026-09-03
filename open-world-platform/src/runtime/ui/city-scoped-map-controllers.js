@@ -1,6 +1,20 @@
 import { stabilizeMapLayerMoves } from '../map-layer-stability.js';
 
-export const CITY_SCOPED_MAP_CONTROLLERS_VERSION = 'city-scoped-map-controllers-v2';
+export const CITY_SCOPED_MAP_CONTROLLERS_VERSION = 'city-scoped-map-controllers-v3';
+
+export function refreshCityScopedMapArtifacts({ map, controller }) {
+  if (!map || typeof controller?.refresh !== 'function') return { status: 'unavailable' };
+  const refresh = () => {
+    try { controller.refresh(); } catch {}
+  };
+  if (map.isStyleLoaded?.() === false) {
+    if (typeof map.once !== 'function') return { status: 'style-not-ready' };
+    map.once('idle', refresh);
+    return { status: 'deferred-until-idle' };
+  }
+  refresh();
+  return { status: 'refreshed' };
+}
 
 /**
  * Keep a runnable Open World mod's map controllers on its own Tile Views.

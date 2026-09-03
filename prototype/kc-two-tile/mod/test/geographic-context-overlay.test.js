@@ -206,6 +206,55 @@ test('keeps runtime.view out of tile pointer handling while tracking active-tile
   );
 });
 
+test('rebuilds renderer virtualization when the active tile changes while the map style is unavailable', () => {
+  const map = fixtureMap();
+  let styleLoaded = true;
+  map.isStyleLoaded = () => styleLoaded;
+  let activeTileId = 'A';
+  let runtimeListener = null;
+  const runtime = {
+    getActiveTileId: () => activeTileId,
+    subscribe(listener) {
+      runtimeListener = listener;
+      return () => { runtimeListener = null; };
+    },
+  };
+  const distantCatalog = {
+    tiles: [
+      { id: 'A', column: 0, row: 0, bounds: [0, 0, 1, 1] },
+      { id: 'B', column: 6, row: 6, bounds: [6, 6, 7, 7] },
+    ],
+  };
+  const controller = registerGeographicContextOverlay({
+    runtime,
+    tileCatalog: distantCatalog,
+    renderDistance: 1,
+  });
+  controller.attachMap(map);
+
+  styleLoaded = false;
+  activeTileId = 'B';
+  runtimeListener({ type: 'projection-changed', tileId: 'B' }, { activeTileId: 'B' });
+  map.__deck.setProps({
+    layers: [fixtureDeckLayer('demand-points', {
+      data: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [6.5, 6.5] },
+        properties: { id: 'b-demand' },
+      }],
+    })],
+  });
+
+  styleLoaded = true;
+  map.listeners.get('styledata')();
+
+  assert.equal(controller.activeTileId(), 'B');
+  assert.equal(globalThis.__openWorldToolboxRenderVirtualization.activeTileId, 'B');
+  assert.equal(map.__deck.props.layers[0].props.data.length, 1);
+  assert.equal(map.__deck.props.layers[0].props.data[0].properties.id, 'b-demand');
+  controller.dispose();
+});
+
 test('keeps tiled geography on the unified basemap and adds lightweight context sources', () => {
   const map = fixtureMap();
   const controller = registerGeographicContextOverlay({
@@ -1685,6 +1734,90 @@ test('clips interlined routes to the render halo while preserving aligned native
     nativeAttributeBuffer.set(rendered.properties.offset);
   });
   controller.dispose();
+});
+
+test('clips 1.7 Portolan binary ribbons to the render halo without hiding overview rail', () => {
+  const map = fixtureMap();
+  map.setZoom(8);
+  const data = {
+    length: 1,
+    startIndices: new Uint32Array([0, 5]),
+    attributes: {
+      getPath: {
+        size: 2,
+        value: new Float64Array([
+          -76, 40.5,
+          -75, 40.5,
+          -74, 40.5,
+          -73, 40.5,
+          -72, 40.5,
+        ]),
+      },
+      getColor: {
+        size: 4,
+        value: new Uint8Array([
+          1, 0, 0, 255,
+          2, 0, 0, 255,
+          3, 0, 0, 255,
+          4, 0, 0, 255,
+          5, 0, 0, 255,
+        ]),
+      },
+      getOffsetVecs: {
+        size: 2,
+        value: new Float32Array([0, 0, 1, 0, 2, 0, 3, 0, 4, 0]),
+      },
+    },
+  };
+  map.__deck.props.layers = [fixtureDeckLayer('portolan-ribbons', { data })];
+  const controller = registerGeographicContextOverlay({
+    runtime: {
+      getActiveTileId: () => 'A',
+      getInterliningRevision: () => 1,
+      subscribe: () => () => {},
+    },
+    tileCatalog: catalog,
+  });
+
+  controller.attachMap(map);
+
+  const renderedLayer = map.__deck.props.layers[0];
+  const rendered = renderedLayer.props.data;
+  assert.notEqual(renderedLayer.props.visible, false);
+  assert.equal(rendered.length, 1);
+  assert.deepEqual([...rendered.startIndices], [0, 3]);
+  assert.deepEqual([...rendered.attributes.getPath.value], [
+    -75, 40.5,
+    -74, 40.5,
+    -73, 40.5,
+  ]);
+  assert.deepEqual([...rendered.attributes.getColor.value], [
+    2, 0, 0, 255,
+    3, 0, 0, 255,
+    4, 0, 0, 255,
+  ]);
+  assert.deepEqual([...data.startIndices], [0, 5], 'native binary data must remain immutable');
+  controller.dispose();
+});
+
+test('recognizes and spatially filters the 1.7 station Deck layer families', () => {
+  for (const layerId of ['station-marker-dots', 'station-marker-labels', 'portolan-station-pills']) {
+    const map = fixtureMap();
+    map.__deck.props.layers = [fixtureDeckLayer(layerId, {
+      data: [
+        { id: 'inside', position: [-74.5, 40.5] },
+        { id: 'outside', position: [-72, 40.5] },
+      ],
+    })];
+    const controller = registerGeographicContextOverlay({
+      runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
+      tileCatalog: catalog,
+    });
+
+    controller.attachMap(map);
+    assert.deepEqual(map.__deck.props.layers[0].props.data.map((entry) => entry.id), ['inside'], layerId);
+    controller.dispose();
+  }
 });
 
 test('skips Deck setProps when a native update produces the same masked layer tree', () => {
