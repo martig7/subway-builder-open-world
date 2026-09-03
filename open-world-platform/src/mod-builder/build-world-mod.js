@@ -63,7 +63,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
   ].join('\n');
 }
 
-export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot }) {
+export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot = null }) {
   const root = path.resolve(repositoryRoot);
   const consumerRoot = path.resolve(modRoot);
   const generatedRoot = path.resolve(artifactsRoot);
@@ -73,8 +73,8 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   let crossCommutesPath;
   let crossDemandPath;
   const missing = [];
-  if (definition.release.artifactLayout === 'packaged-tile-directories-v1') {
-    packageRoot = generatedRoot;
+  if (packagedTileRoot != null || definition.release.artifactLayout === 'packaged-tile-directories-v1') {
+    packageRoot = packagedTileRoot == null ? generatedRoot : path.resolve(packagedTileRoot);
     for (const tile of selectedTiles) {
       for (const filename of REQUIRED_PACKAGED_TILE_FILES) {
         if (!(await hasFile(path.join(packageRoot, tile.id, filename)))) missing.push(`${tile.id}/${filename}`);

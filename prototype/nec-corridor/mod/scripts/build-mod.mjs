@@ -9,6 +9,9 @@ const worldRoot = path.join(repositoryRoot, 'worlds', 'nec-corridor');
 const artifactsRoot = process.env.NEC_ARTIFACTS_ROOT
   ? path.resolve(process.env.NEC_ARTIFACTS_ROOT)
   : path.resolve(modRoot, '..', 'generated');
-const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot });
+const packagedTileRoot = process.env.NEC_PACKAGED_TILE_ROOT
+  ? path.resolve(process.env.NEC_PACKAGED_TILE_ROOT)
+  : null;
+const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot });
 await verifyWorldMod({ worldRoot, outputRoot: result.distPath });
 console.log(`Built ${result.definition.identity.name} with ${result.selectedTiles.length} Tile Packages`);

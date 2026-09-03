@@ -31,14 +31,18 @@ if (-not [string]::Equals($expectedTileRoot, $normalizedTileRoot, [System.String
     throw 'TileRoot must be the generated mod\tiles directory so the matching consumer artifacts can be selected.'
 }
 $priorNecArtifactsRoot = $env:NEC_ARTIFACTS_ROOT
+$priorNecPackagedTileRoot = $env:NEC_PACKAGED_TILE_ROOT
 Push-Location $resolvedModRoot
 try {
     $env:NEC_ARTIFACTS_ROOT = $inferredArtifactsRoot
+    $env:NEC_PACKAGED_TILE_ROOT = $resolvedTileRoot
     npm run build:release -- --version $Version
     if ($LASTEXITCODE -ne 0) { throw 'NEC release mod build failed.' }
 } finally {
     if ($null -eq $priorNecArtifactsRoot) { Remove-Item Env:NEC_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
     else { $env:NEC_ARTIFACTS_ROOT = $priorNecArtifactsRoot }
+    if ($null -eq $priorNecPackagedTileRoot) { Remove-Item Env:NEC_PACKAGED_TILE_ROOT -ErrorAction SilentlyContinue }
+    else { $env:NEC_PACKAGED_TILE_ROOT = $priorNecPackagedTileRoot }
     Pop-Location
 }
 $resolvedModDist = Join-Path $resolvedModRoot 'dist'
@@ -51,14 +55,18 @@ if ($resolvedTokyoModRoot) {
         throw 'TokyoTileRoot must be the generated mod\tiles directory.'
     }
     $priorTokyoArtifactsRoot = $env:TOKYO_KANAGAWA_ARTIFACTS_ROOT
+    $priorTokyoPackagedTileRoot = $env:TOKYO_KANAGAWA_PACKAGED_TILE_ROOT
     Push-Location $resolvedTokyoModRoot
     try {
         $env:TOKYO_KANAGAWA_ARTIFACTS_ROOT = $tokyoArtifactsRoot
+        $env:TOKYO_KANAGAWA_PACKAGED_TILE_ROOT = $resolvedTokyoTileRoot
         npm run build:release -- --version $Version
         if ($LASTEXITCODE -ne 0) { throw 'Tokyo–Kanagawa release mod build failed.' }
     } finally {
         if ($null -eq $priorTokyoArtifactsRoot) { Remove-Item Env:TOKYO_KANAGAWA_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
         else { $env:TOKYO_KANAGAWA_ARTIFACTS_ROOT = $priorTokyoArtifactsRoot }
+        if ($null -eq $priorTokyoPackagedTileRoot) { Remove-Item Env:TOKYO_KANAGAWA_PACKAGED_TILE_ROOT -ErrorAction SilentlyContinue }
+        else { $env:TOKYO_KANAGAWA_PACKAGED_TILE_ROOT = $priorTokyoPackagedTileRoot }
         Pop-Location
     }
     $resolvedTokyoModDist = Join-Path $resolvedTokyoModRoot 'dist'
