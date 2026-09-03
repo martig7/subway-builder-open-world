@@ -32,7 +32,7 @@ const ROAD_LABEL_LAYER_RE = /(?:^|[-_])labels?(?:[-_]|$)/i;
 // the low-zoom gate cannot accidentally hide rail or route layers.
 const ROAD_DECK_LAYER_ID_RE = /^road-(?:lines-|bridge-(?:casing|fill)-)/i;
 const NON_ROAD_LAYER_RE = /(?:^|[-_])(rail|railway|track|transit|station|route|metro|tram|subway)(?:[-_]|$)/i;
-const RAIL_LINE_LAYER_RE = /(?:^|[-_])(interlined|rail|railway|tracks?|routes?|transit|metro|tram|subway)(?:[-_]|$)/i;
+const RAIL_LINE_LAYER_RE = /(?:^|[-_])(interlined|portolan|ribbons?|rail|railway|tracks?|routes?|transit|metro|tram|subway)(?:[-_]|$)/i;
 const NON_RAIL_LINE_DETAIL_RE = /(?:^|[-_])(station|node|marker|label|preview|train|signal|demand|pop)(?:[-_]|$)/i;
 const MOD_OWNED_MAP_LAYER_RE = /^open-world-/i;
 const WATER_MAP_LAYER_RE = /(?:^|[-_])(water|ocean)(?:[-_]|$)/i;
@@ -46,11 +46,14 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 10;
+const MOVEMENT_DECK_GUARD_VERSION = 11;
+const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
-const VOLATILE_RAIL_LAYER_ID_RE = /^interlined-routes(?:-under)?$/i;
-const RAIL_CLIP_DIAGNOSTIC_VERSION = 'zoom-fast-path-v6';
+const VOLATILE_RAIL_LAYER_ID_RE = /^(?:interlined-routes|portolan-ribbons)(?:-under)?$/i;
+const PORTOLAN_RIBBON_LAYER_ID_RE = /^portolan-ribbons(?:-under)?$/i;
+const STATION_DECK_LAYER_ID_RE = /^(?:station-marker-(?:dots|labels)|portolan-station-pills)$/i;
+const RAIL_CLIP_DIAGNOSTIC_VERSION = 'portolan-binary-v7';
 const RAIL_CLIP_DEBUG_FLAG = '__OPEN_WORLD_RAIL_CLIP_DEBUG';
 const RAIL_CLIP_DEBUG_STATE = '__OPEN_WORLD_RAIL_CLIP_DEBUG_STATE';
 const RAIL_CLIP_DEBUG_PREFIX = '[DEBUG-railclip]';
@@ -1380,6 +1383,98 @@ function isVolatileRailLayerId(id) {
   return typeof id === 'string' && VOLATILE_RAIL_LAYER_ID_RE.test(id);
 }
 
+function isPortolanRibbonLayerId(id) {
+  return typeof id === 'string' && PORTOLAN_RIBBON_LAYER_ID_RE.test(id);
+}
+
+function sequenceLike(source, values) {
+  if (Array.isArray(source)) return values;
+  if (ArrayBuffer.isView(source)) return new source.constructor(values);
+  return values;
+}
+
+function portolanBinaryPathData(value) {
+  const startIndices = value?.startIndices;
+  const attributes = value?.attributes;
+  const path = attributes?.getPath;
+  if (!value || typeof value !== 'object'
+    || !Number.isSafeInteger(value.length) || value.length < 0
+    || (!Array.isArray(startIndices) && !ArrayBuffer.isView(startIndices))
+    || startIndices.length !== value.length + 1
+    || (!Array.isArray(path?.value) && !ArrayBuffer.isView(path?.value))
+    || Number(path?.size) !== 2) return null;
+  const vertexCount = Number(startIndices[startIndices.length - 1]);
+  if (!Number.isSafeInteger(vertexCount) || vertexCount < 0 || path.value.length < vertexCount * 2) return null;
+  return { source: value, startIndices, attributes, path, vertexCount };
+}
+
+function sampleBinaryAttribute(attribute, vertexIndex) {
+  const source = attribute?.value;
+  const size = Number(attribute?.size);
+  if ((!Array.isArray(source) && !ArrayBuffer.isView(source))
+    || !Number.isSafeInteger(size) || size < 1) return null;
+  const left = Math.max(0, Math.floor(vertexIndex));
+  const right = Math.min(Math.ceil(vertexIndex), Math.floor(source.length / size) - 1);
+  const ratio = Math.max(0, Math.min(1, vertexIndex - left));
+  const values = [];
+  for (let component = 0; component < size; component += 1) {
+    const leftValue = Number(source[left * size + component]);
+    const rightValue = Number(source[right * size + component]);
+    values.push(leftValue + (rightValue - leftValue) * ratio);
+  }
+  return values;
+}
+
+function clipPortolanBinaryPaths(binary, virtualization) {
+  const haloBounds = virtualization?.haloBounds;
+  if (!Array.isArray(haloBounds)) return binary.source;
+  const outputStarts = [0];
+  const outputValues = Object.fromEntries(Object.entries(binary.attributes).map(([key]) => [key, []]));
+  let outputVertexCount = 0;
+  let outputFeatureCount = 0;
+  for (let featureIndex = 0; featureIndex < binary.source.length; featureIndex += 1) {
+    const start = Number(binary.startIndices[featureIndex]);
+    const end = Number(binary.startIndices[featureIndex + 1]);
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || end - start < 2) continue;
+    const coordinates = [];
+    const sourceIndices = [];
+    for (let vertexIndex = start; vertexIndex < end; vertexIndex += 1) {
+      coordinates.push([
+        Number(binary.path.value[vertexIndex * 2]),
+        Number(binary.path.value[vertexIndex * 2 + 1]),
+      ]);
+      sourceIndices.push(vertexIndex);
+    }
+    const pieces = clipLineStringWithValues(coordinates, sourceIndices, haloBounds);
+    for (const piece of pieces) {
+      for (let pointIndex = 0; pointIndex < piece.coordinates.length; pointIndex += 1) {
+        const sourceVertex = piece.values[pointIndex];
+        for (const [key, attribute] of Object.entries(binary.attributes)) {
+          const sampled = key === 'getPath'
+            ? piece.coordinates[pointIndex]
+            : sampleBinaryAttribute(attribute, sourceVertex);
+          if (sampled) outputValues[key].push(...sampled);
+        }
+      }
+      outputVertexCount += piece.coordinates.length;
+      outputFeatureCount += 1;
+      outputStarts.push(outputVertexCount);
+    }
+  }
+  const attributes = Object.fromEntries(Object.entries(binary.attributes).map(([key, attribute]) => [
+    key,
+    outputValues[key].length
+      ? { ...attribute, value: sequenceLike(attribute.value, outputValues[key]) }
+      : { ...attribute, value: sequenceLike(attribute.value, []) },
+  ]));
+  return {
+    ...binary.source,
+    length: outputFeatureCount,
+    startIndices: sequenceLike(binary.startIndices, outputStarts),
+    attributes,
+  };
+}
+
 function interlinedSourceParts(feature) {
   const geometry = feature?.geometry;
   if (!geometry || !Array.isArray(geometry.coordinates)) return [];
@@ -1645,11 +1740,14 @@ function maskMovementDeckLayers(
   const isRoad = isRoadDeckLayerId(layerId);
   const isRailLine = isRailLineLayerId(layerId);
   const isVolatileRail = isVolatileRailLayerId(layerId);
+  const isPortolanRibbon = isPortolanRibbonLayerId(layerId);
+  const isStationDeckLayer = typeof layerId === 'string' && STATION_DECK_LAYER_ID_RE.test(layerId);
   const hiddenByOverview = isLowZoomOverview(zoom) && !isRailLine;
   if (!isMovement && !isRoad && !hiddenByOverview && !virtualization) return layers;
   const overrides = {};
   const dataEntry = layerData(layers);
   const [, source] = dataEntry ?? [];
+  const portolanBinary = isPortolanRibbon ? portolanBinaryPathData(layers?.props?.data) : null;
   const maskSignature = virtualization
     ? layerMaskSignature(layerId, zoom, virtualization)
     : null;
@@ -1679,6 +1777,28 @@ function maskMovementDeckLayers(
       nestedState: railClipNestedStateSummary(layers),
       hasVirtualization: Boolean(virtualization),
     }), { key: `no-data:${layerId}`, every: 60 });
+  }
+  if (portolanBinary && virtualization) {
+    const cached = spatialCache?.get(portolanBinary.source);
+    const cacheHit = cached?.signature === maskSignature
+      && cached?.interliningRevision === interliningRevision;
+    const renderedData = cacheHit
+      ? cached.renderedData
+      : mapMovePerfMeasure(
+        'deck.interlining.clip',
+        () => clipPortolanBinaryPaths(portolanBinary, virtualization),
+        {
+          layerId,
+          sourceCount: portolanBinary.source.length,
+          haloBounds: virtualization?.haloBounds?.length ?? 0,
+        },
+      );
+    if (!cacheHit) spatialCache?.set(portolanBinary.source, {
+      signature: maskSignature,
+      interliningRevision,
+      renderedData,
+    });
+    overrides.data = renderedData;
   }
   if (dataEntry && virtualization) {
     const [dataShape, source, sourceContainer] = dataEntry;
@@ -1814,6 +1934,9 @@ function maskMovementDeckLayers(
     overrides.visible = nativeVisible && isDetailedRoadZoom(layerId, zoom);
   }
   if (hiddenByOverview) {
+    overrides.visible = false;
+  }
+  if (isStationDeckLayer && !isDetailedMovementZoom(zoom)) {
     overrides.visible = false;
   }
   const maskedLayer = Object.keys(overrides).length ? cloneLayerWithOverrides(layers, overrides) : layers;
@@ -2613,12 +2736,9 @@ export class GeographicContextOverlayController {
 
   refresh() {
     return mapMovePerfMeasure('overlay.refresh.total', () => {
+      this.syncRendererVirtualizationAuthority();
       if (!mapStyleLoaded(this.map)) return;
       ensureStationMarkerStyle();
-      this.rendererVirtualization = mapMovePerfMeasure(
-        'overlay.create-virtualization',
-        () => this.createRendererVirtualization(),
-      );
       globalThis.__openWorldToolboxRenderMap = this.map;
       globalThis.__openWorldToolboxRenderVirtualization = this.rendererVirtualization;
       ensureMapMovePerfProbes();
@@ -2827,12 +2947,35 @@ export class GeographicContextOverlayController {
     });
   }
 
+  syncRendererVirtualizationAuthority({ force = false } = {}) {
+    const activeTileId = this.activeTileId();
+    if (
+      force
+      || !this.rendererVirtualization
+      || this.rendererVirtualization.activeTileId !== activeTileId
+      || this.rendererVirtualization.renderDistance !== this.renderDistance
+    ) {
+      this.rendererVirtualization = mapMovePerfMeasure(
+        'overlay.create-virtualization',
+        () => this.createRendererVirtualization(),
+      );
+    }
+    if (this.map) {
+      globalThis.__openWorldToolboxRenderMap = this.map;
+      globalThis.__openWorldToolboxRenderVirtualization = this.rendererVirtualization;
+      globalThis.__openWorldRendererVirtualizationAuthorityVersion = (
+        RENDERER_VIRTUALIZATION_AUTHORITY_VERSION
+      );
+    }
+    return this.rendererVirtualization;
+  }
+
   getDeckRendererVirtualization() {
-    return this.rendererVirtualization ?? this.createRendererVirtualization();
+    return this.syncRendererVirtualizationAuthority();
   }
 
   getRendererVirtualization() {
-    return this.createRendererVirtualization();
+    return this.syncRendererVirtualizationAuthority();
   }
 
   releaseMovementDeckVisibilityGuard() {

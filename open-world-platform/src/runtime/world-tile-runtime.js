@@ -28,6 +28,7 @@ const PHASES = Object.freeze(['lease', 'pause', 'snapshot', 'reconcile', 'catchu
 const NATIVE_FINANCE_AUDIT_SCHEMA_VERSION = 3;
 const PASSIVE_RECALCULATION_REASONS = new Set(['startup', 'save-load', 'city-load', 'tile-transition']);
 const NATIVE_DEMAND_TILE_GUARD_METERS = 3_000;
+const CROSS_MODE_SHARE_SCHEMA_VERSION = 2;
 
 function localizedNativeNetworkState(globalState, tileId, tileIdsByRoute) {
   const routes = (globalState?.routes ?? []).filter((route) => (
@@ -90,6 +91,38 @@ function nativeFinanceAuditSignature(world) {
     comparableRouteIds: [...(ownershipProjection?.financeOwnedRouteIds ?? [])].map(String).sort(),
     partialRouteIds: [...(ownershipProjection?.partialRouteIds ?? [])].map(String).sort(),
   }));
+}
+
+function hashAuditValue(value) {
+  const text = JSON.stringify(stableAuditValue(value));
+  let hash = 2_166_136_261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+export function crossModeShareContextKey(world) {
+  const networkSignatures = Object.fromEntries(Object.entries(world.tiles ?? {})
+    .map(([tileId, tile]) => [
+      tileId,
+      tile?.networkProfile?.structuralSignature ?? tile?.networkProfile?.signature ?? null,
+    ])
+    .sort(([left], [right]) => left.localeCompare(right)));
+  const elapsedSeconds = Number.isFinite(world.elapsedSeconds) ? world.elapsedSeconds : 0;
+  const contextHash = hashAuditValue({
+    schemaVersion: CROSS_MODE_SHARE_SCHEMA_VERSION,
+    commuteCatalogBuildHash: world.commuteCatalogBuildHash ?? null,
+    globalNetworkHash: world.globalNetwork?.hash ?? null,
+    networkSignatures,
+    farePolicy: world.farePolicy ?? null,
+    // Timetables are time-of-day specific in 1.7. Keep lifecycle cache hits
+    // within a service hour without forcing a full recalculation on every
+    // tile transition or save-load.
+    requestedDepartureHour: Math.floor(elapsedSeconds / 3_600) % 24,
+  });
+  return `cross-mode-share-v${CROSS_MODE_SHARE_SCHEMA_VERSION}:${contextHash}`;
 }
 
 function summarizeNetworkForLoad(state) {
@@ -725,7 +758,9 @@ export class WorldTileRuntime {
   async recalculateCrossTileModeShare({ reason = 'manual', day = null, force = false } = {}) {
     this.#requireBooted();
     return this.#enqueue(async () => {
-      const passiveCacheReady = this.world.crossModeShare?.schemaVersion === 1
+      const currentContextKey = crossModeShareContextKey(this.world);
+      const passiveCacheReady = this.world.crossModeShare?.schemaVersion === CROSS_MODE_SHARE_SCHEMA_VERSION
+        && this.world.crossModeShare?.contextKey === currentContextKey
         && this.derivedNetworkInvalidations.size === 0
         && this.world.backgroundNativeFinance?.networkHash === (this.world.globalNetwork?.hash ?? null)
         && this.tileIds.every((tileId) => isCurrentOffTileNativeDemandProfile(
@@ -827,6 +862,7 @@ export class WorldTileRuntime {
         transitViablePops: calculated.transitViablePops,
         popModeChoices: calculated.popModeChoices,
         transitJourneys: calculated.transitJourneys,
+        contextKey: crossModeShareContextKey(this.world),
       });
       // Mode share is deterministic from packaged demand plus the saved
       // network profile. Keep the result live for settlement, but do not

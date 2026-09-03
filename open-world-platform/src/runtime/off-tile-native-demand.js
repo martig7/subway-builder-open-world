@@ -186,17 +186,23 @@ function syntheticNativePops(calculated, sourceById) {
   const journeys = [...calculated.transitJourneys.values()].flat();
   return journeys.map((journey) => {
     const source = sourceById.get(String(journey.popId)) ?? {};
+    const commute = {
+      modeChoice: calculated.popModeChoices[journey.popId] ?? { transit: journey.transitMass },
+      transitCost: journey.fare,
+      transitPaths: [{
+        fareCost: journey.fare,
+        segments: journey.stationRoutes.map(({ routeId, stationIds }) => ({ routeId, stationIds })),
+      }],
+    };
     return {
       id: journey.popId,
       homeDepartureTime: source.homeDepartureTime,
       workDepartureTime: source.workDepartureTime,
-      lastCommute: {
-        modeChoice: calculated.popModeChoices[journey.popId] ?? { transit: journey.transitMass },
-        transitPaths: [{
-          fareCost: journey.fare,
-          segments: journey.stationRoutes.map(({ routeId, stationIds }) => ({ routeId, stationIds })),
-        }],
+      commutes: {
+        homeToWork: structuredClone(commute),
+        workToHome: structuredClone(commute),
       },
+      lastCommute: { ...structuredClone(commute), direction: 'workToHome', origin: 'work' },
     };
   });
 }

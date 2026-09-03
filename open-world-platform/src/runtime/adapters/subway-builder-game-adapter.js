@@ -29,20 +29,56 @@ import {
 } from '../simulation-performance-diagnostics.js';
 
 /**
- * Subway Builder 1.6.0 integration boundary.
+ * Subway Builder 1.7.0 integration boundary.
  *
  * The public mod API is versioned independently from the game: the inspected
- * 1.6.0 renderer exposes API version 1.0.0.  The unsupported callback global
+ * 1.7.0 renderer exposes API version 1.0.0.  The unsupported callback global
  * contains only setMoney, setTicketCost, and getState; private Zustand actions
  * must be obtained from getState().  Keep every use of that seam in this file.
  */
+const REQUIRED_STATE_ACTION_GROUPS = Object.freeze({
+  snapshotAndCity: Object.freeze([
+    'generateSave',
+    'loadSave',
+    'loadInitialData',
+    'setCityCode',
+    'setTimeConfig',
+    'setGameMode',
+  ]),
+  network: Object.freeze([
+    'setRoutes',
+    'setTracks',
+    'recalculateAllRouteGeojsons',
+  ]),
+  routeEditing: Object.freeze([
+    'setPreviewRoute',
+    'batchPreviewRouteUpdates',
+    'confirmRouteChange',
+  ]),
+  simulation: Object.freeze([
+    'handleIncrementGameState',
+    'simulateCommutes',
+    'calculatePaths',
+  ]),
+  finance: Object.freeze([
+    'addRevenue',
+    'addExpense',
+    'recordRouteFinancials',
+    'setRouteFinancials',
+    'setFinancialHistory',
+    'setCompletedCommutes',
+  ]),
+});
 const REQUIRED_STATE_ACTIONS = Object.freeze([
-  'generateSave',
-  'loadSave',
-  'loadInitialData',
-  'setTimeConfig',
+  ...new Set(Object.values(REQUIRED_STATE_ACTION_GROUPS).flat()),
+]);
+const REQUIRED_PORTOLAN_STATE_KEYS = Object.freeze([
+  'portolanDiagram',
+  'portolanProgress',
 ]);
 const SUBWAY_BUILDER_1_6_MIN_TRANSIT_CHOICE = 10;
+const NATIVE_COMMUTE_DIRECTIONS = Object.freeze(['homeToWork', 'workToHome']);
+const DIRECTIONAL_COMMUTE_RESTORE_POLICY = 'recalculate-both-directions-v1';
 const CITY_SETTLE_ATTEMPTS = 8;
 const PAUSE_SETTLE_ATTEMPTS = 20;
 const PAUSE_SETTLE_DELAY_MS = 10;
@@ -72,7 +108,7 @@ const CANONICAL_NATIVE_INTERLINING_CACHE = Symbol.for('open-world.canonical-nati
 const CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = Symbol.for('open-world.canonical-native-interlining-cache-version');
 const CANONICAL_NATIVE_INTERLINING_CACHE_BINDING = Symbol.for('open-world.canonical-native-interlining-cache-binding');
 const CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL = Symbol.for('open-world.canonical-native-interlining-cache-original');
-const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 4;
+const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 5;
 const NATIVE_PASS_THROUGH_PLATFORM_PENALTY = 10.1;
 const NATIVE_TURNBACK_WRONG_WAY_PENALTY = 25;
 const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
@@ -90,6 +126,33 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   'rockefellerPaidOut',
   'buildingDemolitionSpendAllTime',
 ]);
+
+export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v6';
+
+/**
+ * Read the current city from the live Zustand snapshot.
+ *
+ * Subway Builder 1.7 can retain an old value in the public getCityCode()
+ * closure across router-driven city changes. The callback seam returns a new
+ * immutable snapshot after each store update. The adapter synchronizes the
+ * authoritative onCityLoad destination through setCityCode(), then reads
+ * state.cityCode as the durable source between lifecycle events.
+ */
+export function readLiveSubwayBuilderCityCode({
+  api = globalThis.SubwayBuilderAPI,
+  callbacks = globalThis.__subwayBuilder_storeCallbacks__,
+} = {}) {
+  try {
+    const cityCode = callbacks?.getState?.()?.cityCode;
+    if (typeof cityCode === 'string' && cityCode) return cityCode;
+  } catch {}
+  try {
+    const cityCode = api?.utils?.getCityCode?.();
+    return typeof cityCode === 'string' && cityCode ? cityCode : null;
+  } catch {
+    return null;
+  }
+}
 
 function normalizeNativeRouteFinancialsEnvelope(value, financialHistory = null) {
   const source = value && typeof value === 'object' && !Array.isArray(value)
@@ -260,11 +323,20 @@ function nativeInterliningFingerprint(state, routes) {
       id: track?.id ?? null,
       trackType: track?.trackType ?? null,
       buildType: track?.buildType ?? null,
+      curveType: track?.curveType ?? null,
+      curveGeometry: track?.curveGeometry ?? null,
+      nodes: track?.nodes ?? null,
+      direction: track?.direction ?? null,
+      laneDirection: track?.laneDirection ?? null,
+      reversable: track?.reversable ?? null,
       coords: track?.coords ?? null,
     }));
     const trackGroups = (state?.trackGroups ?? []).map((group) => ({
       id: group?.id ?? null,
       trackIds: group?.trackIds ?? null,
+      trackType: group?.trackType ?? null,
+      trackLanesType: group?.trackLanesType ?? null,
+      laneDirections: group?.laneDirections ?? group?.directions ?? null,
       centerLine: group?.centerLine ?? null,
     }));
     const stations = (state?.stations ?? []).map((station) => ({
@@ -295,7 +367,16 @@ function nativeInterliningFingerprint(state, routes) {
   }
 }
 
+function hasPortolanState(state) {
+  return Boolean(state)
+    && Object.prototype.hasOwnProperty.call(state, 'portolanDiagram')
+    && Object.prototype.hasOwnProperty.call(state, 'portolanProgress');
+}
+
 function hasInterliningResult(state) {
+  if (hasPortolanState(state)) {
+    return state.portolanProgress == null && state.portolanDiagram != null;
+  }
   return Array.isArray(state?.interlinedFeatureCollection?.features);
 }
 
@@ -310,6 +391,33 @@ function advanceNativeInterliningRevision(binding, signature) {
 
 function commitNativeInterliningSignature(binding, signature) {
   binding.cache.signature = signature;
+}
+
+function promoteCompletedPortolanSignature(binding, state) {
+  const signature = binding.cache.awaitingSignature;
+  if (!signature || !hasPortolanState(state) || state.portolanProgress != null) return false;
+  if (state.portolanDiagram === binding.cache.awaitingDiagram) return false;
+  commitNativeInterliningSignature(binding, signature);
+  binding.cache.awaitingSignature = null;
+  binding.cache.awaitingDiagram = null;
+  return true;
+}
+
+function stageNativeInterliningSignature(binding, signature, state, routes, diagramBefore) {
+  if (!hasPortolanState(state)) {
+    commitNativeInterliningSignature(binding, signature);
+    return;
+  }
+  const hasTopology = (routes ?? []).some(routeHasNativeTopology);
+  if (!hasTopology) {
+    commitNativeInterliningSignature(binding, signature);
+    binding.cache.awaitingSignature = null;
+    binding.cache.awaitingDiagram = null;
+    return;
+  }
+  binding.cache.awaitingSignature = signature;
+  binding.cache.awaitingDiagram = diagramBefore;
+  promoteCompletedPortolanSignature(binding, state);
 }
 
 function installCanonicalNativeInterliningCache(adapter, state) {
@@ -339,6 +447,8 @@ function installCanonicalNativeInterliningCache(adapter, state) {
       revisionSignature: null,
       pending: null,
       pendingSignature: null,
+      awaitingSignature: null,
+      awaitingDiagram: null,
     },
   };
   const guarded = function canonicalNativeRecalculateAllRouteGeojsons(...args) {
@@ -349,6 +459,8 @@ function installCanonicalNativeInterliningCache(adapter, state) {
     const signature = nativeInterliningFingerprint(live, routes);
     if (!signature) return original.apply(this, args);
 
+    promoteCompletedPortolanSignature(binding, live);
+
     if (binding.cache.signature === signature && hasInterliningResult(live)) {
       return Promise.resolve({ status: 'cached', signature });
     }
@@ -358,6 +470,7 @@ function installCanonicalNativeInterliningCache(adapter, state) {
 
     const nativeArgs = [...args];
     nativeArgs[0] = nativeInterliningRouteInputs(live, routes);
+    const portolanDiagramBefore = hasPortolanState(live) ? live.portolanDiagram : null;
     advanceNativeInterliningRevision(binding, signature);
     let result;
     try {
@@ -367,14 +480,21 @@ function installCanonicalNativeInterliningCache(adapter, state) {
       throw error;
     }
     if (!result || typeof result.then !== 'function') {
-      commitNativeInterliningSignature(binding, signature);
+      stageNativeInterliningSignature(binding, signature, live, routes, portolanDiagramBefore);
       return result;
     }
 
     const pending = Promise.resolve(result).then(
       (value) => {
         if (binding.cache.pendingSignature === signature) {
-          commitNativeInterliningSignature(binding, signature);
+          const resolvedState = binding.adapter?.callbacks?.getState?.() ?? live;
+          stageNativeInterliningSignature(
+            binding,
+            signature,
+            resolvedState,
+            routes,
+            portolanDiagramBefore,
+          );
           binding.cache.pending = null;
           binding.cache.pendingSignature = null;
         }
@@ -1505,12 +1625,17 @@ function validSave(snapshot) {
   );
 }
 
-function bindSnapshotToCity(snapshot, cityCode) {
-  if (!cityCode || snapshot?.cityCode === cityCode) return snapshot;
+function bindSnapshotToCity(snapshot, cityCode, cityUid = cityCode) {
+  if (!cityCode) return snapshot;
+  const boundCityUid = cityUid || cityCode;
+  if (snapshot?.cityCode === cityCode && snapshot?.cityUid === boundCityUid) return snapshot;
   const rebound = structuredClone(snapshot);
   rebound.cityCode = cityCode;
+  rebound.cityUid = boundCityUid;
   if (rebound.data && Object.hasOwn(rebound.data, 'cityCode')) rebound.data.cityCode = cityCode;
+  if (rebound.data && Object.hasOwn(rebound.data, 'cityUid')) rebound.data.cityUid = boundCityUid;
   if (rebound.metadata && Object.hasOwn(rebound.metadata, 'cityCode')) rebound.metadata.cityCode = cityCode;
+  if (rebound.metadata && Object.hasOwn(rebound.metadata, 'cityUid')) rebound.metadata.cityUid = boundCityUid;
   return rebound;
 }
 
@@ -1562,7 +1687,7 @@ export class SubwayBuilderGameAdapter {
     api = globalThis.SubwayBuilderAPI,
     callbacks = globalThis.__subwayBuilder_storeCallbacks__,
     expectedApiVersion = '1.0.0',
-    inspectedGameVersion = '1.6.0',
+    inspectedGameVersion = '1.7.0',
     nativeSaveLifecycle = null,
   } = {}) {
     this.api = api;
@@ -1808,13 +1933,33 @@ export class SubwayBuilderGameAdapter {
       getStateError = String(error.message ?? error);
     }
 
+    const hasStateKey = (name) => Boolean(
+      state && Object.prototype.hasOwnProperty.call(state, name),
+    );
+    const missingStateActionsByGroup = Object.freeze(Object.fromEntries(
+      Object.entries(REQUIRED_STATE_ACTION_GROUPS).map(([group, names]) => [
+        group,
+        Object.freeze(names.filter((name) => typeof state?.[name] !== 'function')),
+      ]),
+    ));
+    const stateFields = Object.freeze({
+      cityCode: hasStateKey('cityCode'),
+      portolanDiagram: hasStateKey('portolanDiagram'),
+      portolanProgress: hasStateKey('portolanProgress'),
+      interlinedFeatureCollection: hasStateKey('interlinedFeatureCollection'),
+      trackEditSession: hasStateKey('trackEditSession'),
+    });
+    const interliningModel = stateFields.portolanDiagram && stateFields.portolanProgress
+      ? 'portolan-v1'
+      : (stateFields.interlinedFeatureCollection ? 'legacy-feature-collection' : 'unavailable');
     const required = {
       callbackGetState: typeof this.callbacks?.getState === 'function',
       callbackSetMoney: typeof this.callbacks?.setMoney === 'function',
       callbackSetTicketCost: typeof this.callbacks?.setTicketCost === 'function',
       cityDataFiles: typeof this.api?.cities?.setCityDataFiles === 'function',
-      currentCityCode: typeof this.api?.utils?.getCityCode === 'function',
+      'state.cityCode': hasStateKey('cityCode'),
       ...Object.fromEntries(REQUIRED_STATE_ACTIONS.map((name) => [name, typeof state?.[name] === 'function'])),
+      ...Object.fromEntries(REQUIRED_PORTOLAN_STATE_KEYS.map((name) => [`state.${name}`, hasStateKey(name)])),
     };
     const missing = Object.entries(required).filter(([, present]) => !present).map(([name]) => name);
     return this.capability = Object.freeze({
@@ -1823,19 +1968,26 @@ export class SubwayBuilderGameAdapter {
       expectedApiVersion: this.expectedApiVersion,
       inspectedGameVersion: this.inspectedGameVersion,
       missing,
+      missingStateActionsByGroup,
       getStateError,
+      interliningModel,
+      stateFields,
       callbackMethods: methodsOf(this.callbacks),
       stateMethods: methodsOf(state),
       publicApiMethods: methodsOf(this.api),
       publicCityMethods: methodsOf(this.api?.cities),
+      publicGameStateMethods: methodsOf(this.api?.gameState),
       publicUtilsMethods: methodsOf(this.api?.utils),
       selectedActions: Object.freeze({
         pause: 'setTimeConfig({ paused: true })',
         resume: 'setTimeConfig({ paused: false })',
         staticData: 'loadInitialData',
+        cityIdentity: 'onCityLoad(cityCode) -> setCityCode -> bind save cityCode/cityUid -> getState().cityCode',
         clock: 'setTimeConfig({ elapsedSeconds })',
         save: 'generateSave',
         load: 'loadSave',
+        interlining: 'recalculateAllRouteGeojsons -> portolanDiagram',
+        directionalCommutes: DIRECTIONAL_COMMUTE_RESTORE_POLICY,
       }),
     });
   }
@@ -1849,6 +2001,24 @@ export class SubwayBuilderGameAdapter {
     const state = this.callbacks.getState();
     if (!state) throw new Error('Subway Builder store state is unavailable');
     return state;
+  }
+
+  readLoadedCityCode() {
+    return readLiveSubwayBuilderCityCode({ api: this.api, callbacks: this.callbacks });
+  }
+
+  reassertLoadedCityCode(cityCode) {
+    const stateBefore = this.#state();
+    const previousCityCode = stateBefore.cityCode ?? null;
+    if (!cityCode || previousCityCode === cityCode) {
+      return { status: 'already-current', cityCode: previousCityCode };
+    }
+    stateBefore.setCityCode(cityCode);
+    return {
+      status: 'reasserted',
+      cityCode: this.#state().cityCode ?? null,
+      previousCityCode,
+    };
   }
 
   async assertSupported() {
@@ -2825,6 +2995,7 @@ export class SubwayBuilderGameAdapter {
       return bindSnapshotToCity(
         stampOpenWorldRuntimeSnapshot(compactNativeSnapshot(generated)),
         this.loadedCityCode,
+        state.cityCode === this.loadedCityCode ? state.cityUid : this.loadedCityCode,
       );
     }
 
@@ -2864,7 +3035,7 @@ export class SubwayBuilderGameAdapter {
       },
       viewport: state.mapViewport ?? template.viewport,
       data,
-    }))), this.loadedCityCode);
+    }))), this.loadedCityCode, state.cityCode === this.loadedCityCode ? state.cityUid : this.loadedCityCode);
   }
 
   /** Read live network slices without entering the native generateSave path. */
@@ -3211,6 +3382,8 @@ export class SubwayBuilderGameAdapter {
     if (!expectedCity || loadedCityCode !== expectedCity) {
       throw new Error(`Loaded city/package mismatch: expected ${expectedCity}, got ${loadedCityCode}`);
     }
+    const state = this.#state();
+    if (state.cityCode !== loadedCityCode) state.setCityCode(loadedCityCode);
     this.currentPackage = pkg;
     this.loadedCityCode = loadedCityCode;
   }
@@ -3225,7 +3398,9 @@ export class SubwayBuilderGameAdapter {
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
     await this.#state().loadInitialData(cityCode);
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
-    this.#state().setTimeConfig({ paused: true });
+    const state = this.#state();
+    if (state.cityCode !== cityCode) state.setCityCode(cityCode);
+    state.setTimeConfig({ paused: true });
     this.currentPackage = pkg;
     this.loadedCityCode = cityCode;
   }
@@ -3238,6 +3413,9 @@ export class SubwayBuilderGameAdapter {
     await this.validateSnapshot(snapshot);
     const expectedCity = this.currentPackage?.manifest?.cityCode ?? this.currentPackage?.manifest?.tileId ?? this.loadedCityCode;
     const stateBefore = this.#state();
+    const expectedCityUid = stateBefore.cityCode === expectedCity
+      ? stateBefore.cityUid ?? expectedCity
+      : expectedCity;
     const authoritativeFinanceState = authoritativeFinanceSnapshot?.data
       ?? authoritativeFinanceSnapshot
       ?? stateBefore;
@@ -3246,6 +3424,7 @@ export class SubwayBuilderGameAdapter {
         ? preserveNativeFinancialStateInSnapshot(snapshot, authoritativeFinanceState, stateBefore)
         : snapshot,
       expectedCity,
+      expectedCityUid,
     );
     const {
       nativeSnapshot,
@@ -3303,7 +3482,16 @@ export class SubwayBuilderGameAdapter {
     let popsWithTransitPaths = 0;
     let populationWithTransitPaths = 0;
     let totalTransitPaths = 0;
+    let directionalPops = 0;
+    let directionalCompletePops = 0;
+    let directionalLegs = 0;
     const modeChoicePopulation = { driving: 0, walking: 0, transit: 0, unknown: 0 };
+    const modeChoicePopulationByDirection = Object.fromEntries(
+      NATIVE_COMMUTE_DIRECTIONS.map((direction) => [
+        direction,
+        { driving: 0, walking: 0, transit: 0, unknown: 0 },
+      ]),
+    );
     const samples = { withTransitPath: [], withoutTransitPath: [] };
     const summarizePop = (pop, paths) => ({
       id: pop.id,
@@ -3338,7 +3526,18 @@ export class SubwayBuilderGameAdapter {
     for (const pop of pops?.values?.() ?? []) {
       population += pop.size ?? 0;
       if (!points?.has?.(pop.residenceId) || !points?.has?.(pop.jobId)) danglingPops++;
-      const mode = pop.lastCommute?.modeChoice;
+      const directionalSummaries = NATIVE_COMMUTE_DIRECTIONS
+        .map((direction) => [direction, pop?.commutes?.[direction]])
+        .filter(([, summary]) => summary?.modeChoice);
+      if (directionalSummaries.length > 0) directionalPops++;
+      if (directionalSummaries.length === NATIVE_COMMUTE_DIRECTIONS.length) directionalCompletePops++;
+      directionalLegs += directionalSummaries.length;
+      for (const [direction, summary] of directionalSummaries) {
+        for (const key of Object.keys(modeChoicePopulation)) {
+          modeChoicePopulationByDirection[direction][key] += summary.modeChoice[key] ?? 0;
+        }
+      }
+      const mode = pop?.commutes?.homeToWork?.modeChoice ?? pop.lastCommute?.modeChoice;
       if (mode) {
         calculatedPops++;
         calculatedPopulation += (mode.driving ?? 0) + (mode.walking ?? 0) + (mode.transit ?? 0);
@@ -3355,6 +3554,23 @@ export class SubwayBuilderGameAdapter {
         }
       }
     }
+    let modeChoiceStatisticsSource = 'private-store-fallback';
+    if (typeof this.api?.gameState?.getModeChoiceStats === 'function') {
+      try {
+        for (const direction of NATIVE_COMMUTE_DIRECTIONS) {
+          const publicStats = this.api.gameState.getModeChoiceStats(direction);
+          if (!publicStats || typeof publicStats !== 'object') throw new Error(`Invalid ${direction} mode-choice statistics`);
+          modeChoicePopulationByDirection[direction] = Object.fromEntries(
+            Object.keys(modeChoicePopulation).map((key) => [key, Number(publicStats[key]) || 0]),
+          );
+        }
+        modeChoiceStatisticsSource = 'public-game-state';
+      } catch {
+        // Keep the private aggregate as a compatibility fallback. Mutation and
+        // per-pop completeness still require the store until the public API
+        // exposes equivalent lifecycle controls.
+      }
+    }
     return {
       cityCode: state.cityCode,
       elapsedSeconds: state.timeConfig?.elapsedSeconds,
@@ -3368,7 +3584,13 @@ export class SubwayBuilderGameAdapter {
       popsWithTransitPaths,
       populationWithTransitPaths,
       totalTransitPaths,
+      directionalPops,
+      directionalCompletePops,
+      directionalLegs,
       modeChoicePopulation,
+      modeChoicePopulationByDirection,
+      modeChoiceStatisticsSource,
+      directionalRestorePolicy: DIRECTIONAL_COMMUTE_RESTORE_POLICY,
       samples,
       activeMovements: state.popMovementsMap?.size ?? 0,
       completedCommutes: state.completedCommutes?.length ?? 0,
@@ -3419,6 +3641,7 @@ export class SubwayBuilderGameAdapter {
     const forceClippedRouteRefresh = this.clippedRouteCommuteRefreshPending === true;
     if (!forceClippedRouteRefresh
       && (before.popsWithTransitPaths > 0 || before.transitPopulation > 0)
+      && before.directionalCompletePops === pops.length
       && !(this.lodesTransitFloorActive && before.transitPopulation === 0)) {
       return { status: 'already-current', popCount: pops.length, before };
     }
@@ -3459,7 +3682,7 @@ export class SubwayBuilderGameAdapter {
       .filter((pop) => typeof pop?.id === 'string'
         && pop.id.length > 0
         && !activePopIds.has(pop.id))
-      .map((pop) => ({ popId: pop.id, direction: 'homeToWork' }));
+      .flatMap((pop) => NATIVE_COMMUTE_DIRECTIONS.map((direction) => ({ popId: pop.id, direction })));
     if (popCommutes.length === 0) {
       return {
         status: 'active-journeys-only', popCount: pops.length, skippedActivePops: activePopIds.size,
@@ -3536,13 +3759,12 @@ export class SubwayBuilderGameAdapter {
   async verifyLoaded() {
     await this.assertSupported();
     const expectedCity = this.currentPackage?.manifest?.cityCode ?? this.currentPackage?.manifest?.tileId;
-    let actualCity = this.api.utils.getCityCode();
+    let actualCity = this.readLoadedCityCode();
     for (let attempt = 1; expectedCity && actualCity !== expectedCity && attempt < CITY_SETTLE_ATTEMPTS; attempt++) {
-      // onCityLoad is dispatched during the router/store handoff; the public
-      // city accessor can remain on the previous city through the current
-      // microtask. Yield without adding a visible transition delay.
+      // onCityLoad is dispatched during the router/store handoff. Yield while
+      // the live Zustand snapshot catches up, without adding visible delay.
       await new Promise((resolve) => setTimeout(resolve, 0));
-      actualCity = this.api.utils.getCityCode();
+      actualCity = this.readLoadedCityCode();
     }
     if (expectedCity && actualCity !== expectedCity) throw new Error(`Loaded city mismatch: expected ${expectedCity}, got ${actualCity}`);
     let stablePausedReads = 0;

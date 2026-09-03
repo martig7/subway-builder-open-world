@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { syncCityScopedMapControllers } from '../../../../open-world-platform/src/runtime/ui/city-scoped-map-controllers.js';
+import {
+  refreshCityScopedMapArtifacts,
+  syncCityScopedMapControllers,
+} from '../../../../open-world-platform/src/runtime/ui/city-scoped-map-controllers.js';
 
 function fixtureController() {
   return {
@@ -39,7 +42,7 @@ test('only attaches world controllers while their own city is active', () => {
   assert.deepEqual(controllers.map((controller) => controller.detachCalls), [1, 1, 1]);
   assert.equal(
     globalThis.__openWorldCityScopedMapControllersVersion,
-    'city-scoped-map-controllers-v2',
+    'city-scoped-map-controllers-v3',
   );
 });
 
@@ -65,6 +68,35 @@ test('guards MapLibre layer moves before attaching an owned style controller', (
     controllers: [controller],
   }));
   assert.deepEqual(calls, [], 'controller attachment must not reach an impossible native move');
+});
+
+test('refreshes owned map artifacts once after a transition style settles', () => {
+  const calls = [];
+  const controller = { refresh: () => calls.push('refresh') };
+
+  assert.deepEqual(refreshCityScopedMapArtifacts({
+    map: { isStyleLoaded: () => true },
+    controller,
+  }), { status: 'refreshed' });
+  assert.deepEqual(calls, ['refresh']);
+});
+
+test('defers the final map artifact refresh until an unsettled style becomes idle', () => {
+  const calls = [];
+  let idle;
+  const controller = { refresh: () => calls.push('refresh') };
+  const map = {
+    isStyleLoaded: () => false,
+    once(event, callback) {
+      assert.equal(event, 'idle');
+      idle = callback;
+    },
+  };
+
+  assert.deepEqual(refreshCityScopedMapArtifacts({ map, controller }), { status: 'deferred-until-idle' });
+  assert.deepEqual(calls, []);
+  idle();
+  assert.deepEqual(calls, ['refresh']);
 });
 
 test('every runnable Open World consumer scopes its map controllers by city', () => {

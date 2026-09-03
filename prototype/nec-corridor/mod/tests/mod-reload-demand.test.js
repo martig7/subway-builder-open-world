@@ -16,7 +16,7 @@ function memoryStorage() {
   };
 }
 
-test('hot reload evaluates inactive demand after the runtime snapshot callback', async () => {
+test('hot reload evaluates and caches commute demand when the public city getter is stale', async () => {
   const activeTileId = 'NEC_CM01_RM01';
   const inactiveTile = tileCatalog.tiles.find((tile) => tile.id !== activeTileId);
   assert.ok(inactiveTile);
@@ -44,6 +44,7 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
     money: 1_000_000,
     transitCost: 2.5,
     fareGroups: [],
+    gameMode: 'easy',
     timeConfig: { elapsedSeconds: 8 * 3_600, paused: false },
     stations,
     stNodes: [{ id: 'home-node' }, { id: 'work-node' }],
@@ -60,6 +61,10 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
       openWorldAuthoritativeWorldId: 'hot-reload-demand-world',
     },
     demandData: { points: new Map(), popsMap: new Map() },
+    portolanDiagram: null,
+    portolanProgress: null,
+    trackEditSession: null,
+    completedCommutes: [],
     mapViewport: {},
     generateSave: () => ({
       name: 'open-world-runtime', cityCode: activeTileId,
@@ -78,13 +83,33 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
     }),
     loadSave() {},
     loadInitialData() {},
+    setCityCode(cityCode) { state.cityCode = cityCode; },
     setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
+    setGameMode(gameMode) { state.gameMode = gameMode; },
+    setRoutes(value) { state.routes = value; },
+    setTracks({ newTracks = state.tracks, newTrackGroups = state.trackGroups } = {}) {
+      state.tracks = newTracks;
+      state.trackGroups = newTrackGroups;
+    },
+    recalculateAllRouteGeojsons: async () => {},
+    setPreviewRoute(route) { state.previewRoute = route; },
+    batchPreviewRouteUpdates: async () => {},
+    confirmRouteChange() {},
+    handleIncrementGameState: async () => {},
+    simulateCommutes: async () => {},
+    calculatePaths: async () => {},
     setFinancialHistory(value) { state.financialHistory = value; },
     setRouteFinancials(value) { state.routeFinancials = value; },
     addRevenue(amount) {
       state.money += amount;
       state.financialHistory.currentHourRevenue += amount;
     },
+    addExpense(amount) {
+      state.money -= amount;
+      state.financialHistory.currentHourExpenses += amount;
+    },
+    recordRouteFinancials() {},
+    setCompletedCommutes(value) { state.completedCommutes = value; },
   };
   const demand = {
     points: [
@@ -112,7 +137,9 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
     map: { setTileURLOverride() {}, setDefaultLayerVisibility() {} },
     utils: {
       getCities: () => [],
-      getCityCode: () => activeTileId,
+      // Subway Builder 1.7 retains the previous tile in this public closure;
+      // the live Zustand snapshot above already names the active tile.
+      getCityCode: () => 'NEC_CP00_RP00',
       getPathfindingRules: () => ({}),
       getMap: () => map,
       loadCityData: async (path) => {
@@ -221,6 +248,11 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
       && event?.phase === 'cross-mode-share'
       && event.status === 'recalculated'
     )), 'hot-reload mode-share recovery must complete');
+    assert.equal(
+      globalThis.__necCorridorDiagnostics__.latestCrossModeShare?.tileId,
+      activeTileId,
+      'commute calculations must bind to the live store tile, not the stale public getter',
+    );
     assert.ok(nativeDemandLoads.some((path) => path.includes(`/${inactiveTile.id}/`)));
     assert.equal(state.money, openingMoney, 'reload must rebuild profiles without changing native finance');
     assert.equal(state.financialHistory.currentHourExpenses, 0);
