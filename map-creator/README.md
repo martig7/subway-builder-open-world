@@ -28,10 +28,11 @@ validation gates are complete.
 ## Japan demand and routing workers
 
 The boundary referenced by a World Definition is authoritative for demand
-ownership. Source mesh mass is assigned to one prefecture and any centroid or
-clustered candidate outside that rendered geometry is moved to the nearest
-serialized point it covers. The worker never edits the render geometry and
-records relocated counts, mass, and distances in its report and JSONL progress.
+ownership. Source mesh mass is assigned to building centers from the selected
+Tile Package and merged at the World-configured radius. Sites that still fail
+the rendered-boundary audit are diverted to the cross-tile ledger; the worker
+never edits the render geometry or snaps failed demand onto a boundary edge.
+Reports and JSONL progress record the building placement and ownership audit.
 
 ```powershell
 $env:PYTHONPATH = 'src'

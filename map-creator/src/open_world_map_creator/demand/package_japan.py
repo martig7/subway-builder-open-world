@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Compile the 47-prefecture Japan demand evidence into one runtime ledger.
 
-This module deliberately consumes only geography-specific evidence and the
-World catalog. It contains no per-prefecture branches: Tokyo and Kanagawa use
-their already boundary-constrained sites, while every other prefecture uses the
-same validated candidate-site contract emitted by ``estat_japan_prefecture``.
-Road enrichment is a separate, resumable stage and replaces the deterministic
-geometric estimates written here.
+This module consumes geography-specific evidence, each Tile Package's building
+index, and the World catalog. Tokyo and Kanagawa retain their already compatible
+sites; every other prefecture applies the same building-center placement used by
+that reference World. Road enrichment is a separate, resumable stage and
+replaces the deterministic geometric estimates written here.
 """
 
 from __future__ import annotations
@@ -24,14 +23,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-import numpy as np
-from scipy.spatial import cKDTree
 from shapely.geometry import Point
 
+from .building_sites import build_tile_sites
 from .estat_japan_prefecture import load_prefecture_boundary
 
 
-COMPILER_VERSION = "estat-japan-national-package-v1"
+COMPILER_VERSION = "estat-japan-national-package-v2-building-sites"
 SPECIAL_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 
 
@@ -172,36 +170,6 @@ def road_estimate(home: Site, work: Site) -> tuple[int, int]:
     return max(60, round(distance / 13.4)), distance
 
 
-def _candidate_sites(evidence_dir: Path, pref_code: str) -> list[Site]:
-    candidates = read_json(evidence_dir / "demand-site-candidates.geojson")["features"]
-    jobs = read_json(evidence_dir / "job-mesh-500m.geojson")["features"]
-    coordinates = np.asarray([feature["geometry"]["coordinates"] for feature in candidates], dtype=np.float64)
-    if not len(coordinates):
-        raise ValueError(f"No demand sites in {evidence_dir}")
-    # Longitude is scaled near the prefecture's mean latitude so nearest-site
-    # assignment is metric enough without selecting a special CRS per island.
-    longitude_scale = math.cos(math.radians(float(coordinates[:, 1].mean())))
-    tree = cKDTree(np.column_stack((coordinates[:, 0] * longitude_scale, coordinates[:, 1])))
-    job_weights = np.zeros(len(candidates), dtype=np.int64)
-    if jobs:
-        job_coordinates = np.asarray([feature["geometry"]["coordinates"] for feature in jobs], dtype=np.float64)
-        _, nearest = tree.query(np.column_stack((job_coordinates[:, 0] * longitude_scale, job_coordinates[:, 1])), k=1)
-        for index, feature in zip(nearest.tolist(), jobs, strict=True):
-            job_weights[index] += int(feature["properties"].get("jobs", 0))
-    return [
-        Site(
-            id=str(feature["properties"]["id"]),
-            longitude=float(feature["geometry"]["coordinates"][0]),
-            latitude=float(feature["geometry"]["coordinates"][1]),
-            home_weight=int(feature["properties"].get("commuters", 0)),
-            job_weight=int(job_weights[index]),
-            source_pref=pref_code,
-            owner_pref=pref_code,
-        )
-        for index, feature in enumerate(candidates)
-    ]
-
-
 def _compatible_sites(demand_root: Path, pref_code: str) -> list[Site]:
     value = read_gzip_json(demand_root / "tiles" / tile_id(pref_code) / "demand_data.json.gz")
     return [
@@ -216,6 +184,52 @@ def _compatible_sites(demand_root: Path, pref_code: str) -> list[Site]:
         )
         for point in value["points"]
     ]
+
+
+def _source_cells(path: Path, value_field: str) -> list[dict[str, Any]]:
+    rows = []
+    for feature in read_json(path)["features"]:
+        properties = feature["properties"]
+        longitude, latitude = feature["geometry"]["coordinates"]
+        rows.append({
+            "longitude": float(properties.get("originalLongitude", longitude)),
+            "latitude": float(properties.get("originalLatitude", latitude)),
+            value_field: int(properties.get(value_field, 0)),
+        })
+    return rows
+
+
+def _building_sites(
+    evidence_dir: Path,
+    maps_root: Path,
+    tile: dict[str, Any],
+    boundary: Any,
+    policy: dict[str, Any],
+) -> tuple[list[Site], dict[str, Any]]:
+    tile_name = str(tile["id"])
+    sites, report = build_tile_sites(
+        tile_name,
+        _source_cells(evidence_dir / "home-mesh-250m.geojson", "commuters"),
+        _source_cells(evidence_dir / "job-mesh-500m.geojson", "jobs"),
+        maps_root / tile_name / "buildings_index.bin.gz",
+        [float(value) for value in tile["bounds"]],
+        boundary,
+        radius_m=float(policy["pointMergeDistanceM"]),
+        source_radius_m=float(policy["buildingSourceRadiusM"]),
+        candidate_grid_m=float(policy["candidateGridM"]),
+    )
+    return [
+        Site(
+            id=str(site["id"]),
+            longitude=float(site["location"][0]),
+            latitude=float(site["location"][1]),
+            home_weight=int(site["commuters"]),
+            job_weight=int(site["jobs"]),
+            source_pref=str(tile["prefCode"]),
+            owner_pref=str(tile["prefCode"]),
+        )
+        for site in sites
+    ], report
 
 
 def _load_flows(evidence_root: Path, compatible_evidence: Path) -> tuple[dict[tuple[str, str], int], dict[str, int]]:
@@ -291,21 +305,53 @@ def compile_japan(
     evidence_root: Path,
     compatible_evidence: Path,
     compatible_demand_root: Path,
+    maps_root: Path,
     output_root: Path,
     progress_path: Path | None = None,
 ) -> dict[str, Any]:
     progress = Progress(progress_path)
     catalog = read_json(world_root / "geography" / "tile-views.json")
+    demand_policy = read_json(world_root / "demand.json")["cohortPolicy"]
     codes = [str(tile["prefCode"]) for tile in catalog["tiles"]]
     if codes != [f"{value:02d}" for value in range(1, 48)]:
         raise ValueError("Japan catalog must contain prefecture codes 01..47 in order")
     progress.emit("load", "started", prefectureCount=len(codes))
     _, boundaries, boundary_index, _ = load_prefecture_boundary(set(codes), world_root / "geography" / "prefectures.geojson")
     sites_by_pref: dict[str, list[Site]] = {}
+    site_geometry_reports: dict[str, dict[str, Any]] = {}
     ownership_audit: dict[str, dict[str, Any]] = {}
     deferred_site_ids: set[str] = set()
+    catalog_by_pref = {str(tile["prefCode"]): tile for tile in catalog["tiles"]}
     for pref_code in codes:
-        sites = _compatible_sites(compatible_demand_root, pref_code) if pref_code in SPECIAL_TILE_IDS else _candidate_sites(evidence_root / tile_id(pref_code), pref_code)
+        if pref_code in SPECIAL_TILE_IDS:
+            sites = _compatible_sites(compatible_demand_root, pref_code)
+            geometry_report = {
+                "siteCount": len(sites),
+                "fineSeedSource": "compatible-building-sites",
+                "unanchoredSiteCount": 0,
+            }
+        else:
+            progress.emit(
+                "building-sites",
+                "started",
+                prefCode=pref_code,
+                tileId=tile_id(pref_code),
+            )
+            sites, geometry_report = _building_sites(
+                evidence_root / tile_id(pref_code),
+                maps_root,
+                catalog_by_pref[pref_code],
+                boundaries[pref_code],
+                demand_policy,
+            )
+            progress.emit(
+                "building-sites",
+                "complete",
+                prefCode=pref_code,
+                tileId=tile_id(pref_code),
+                **geometry_report,
+            )
+        site_geometry_reports[pref_code] = geometry_report
         if not sites:
             raise ValueError(f"No sites for prefecture {pref_code}")
         owner_counts: dict[str, int] = defaultdict(int)
@@ -371,7 +417,6 @@ def compile_japan(
     pair_records: dict[tuple[str, str], list[CrossRecord]] = defaultdict(list)
     for record in cross_records:
         pair_records[(record.home.owner_pref, record.work.owner_pref)].append(record)
-    catalog_by_pref = {str(tile["prefCode"]): tile for tile in catalog["tiles"]}
     gateways: list[dict[str, Any]] = []
     buckets: list[dict[str, Any]] = []
     gateway_indexes: dict[tuple[str, str], int] = {}
@@ -431,6 +476,15 @@ def compile_japan(
         "nativeOutsideRenderedBoundary": 0,
         "crossOutsideRenderedBoundaryPointCount": sum(1 for point_id in cross_points if point_id in deferred_site_ids),
         "ownershipAudit": ownership_audit,
+        "siteGeometry": site_geometry_reports,
+        "aggregation": {
+            **demand_policy,
+            "fineSeedSource": "osm-building-index-v1",
+            "unanchoredSiteCount": sum(
+                int(row.get("unanchoredSiteCount", 0))
+                for row in site_geometry_reports.values()
+            ),
+        },
         "routingStatus": "geometric-estimates-written; generated-road enrichment-required",
     }
     write_json(output_root / "reports" / "japan-national-demand.json", report)
@@ -445,6 +499,7 @@ def main() -> None:
     parser.add_argument("--evidence-root", type=Path, default=repository_root / "map-creator" / "data" / "artifacts" / "japan-prefecture-demand-v2")
     parser.add_argument("--compatible-evidence", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "tokyo-kanagawa-test")
     parser.add_argument("--compatible-demand-root", type=Path, default=repository_root / "prototype" / "tokyo-kanagawa" / "generated" / "demand")
+    parser.add_argument("--maps-root", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "maps" / "tiles")
     parser.add_argument("--output-root", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "demand")
     parser.add_argument("--progress-jsonl", type=Path)
     args = parser.parse_args()
@@ -453,6 +508,7 @@ def main() -> None:
         evidence_root=args.evidence_root,
         compatible_evidence=args.compatible_evidence,
         compatible_demand_root=args.compatible_demand_root,
+        maps_root=args.maps_root,
         output_root=args.output_root,
         progress_path=args.progress_jsonl,
     )

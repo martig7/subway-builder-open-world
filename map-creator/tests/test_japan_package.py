@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import unittest
+import gzip
 import json
+import statistics
+import struct
+import tempfile
 from pathlib import Path
 
+import shapely
+from shapely.geometry import shape
+
+from open_world_map_creator.demand.building_sites import BINARY_MAGIC, HEADER_SIZE, build_tile_sites
 from open_world_map_creator.demand.package_japan import Site, WeightedPicker, _compile_native, chunk_mass, proportional_allocations, road_estimate, tile_id
 
 
@@ -44,6 +52,70 @@ class JapanPackageTests(unittest.TestCase):
 
         catalog = json.loads((root / "worlds" / "japan" / "geography" / "tile-views.json").read_text(encoding="utf-8"))
         self.assertIn("+proj=lcc", catalog["crs"])
+        self.assertTrue(all(len(tile["ownershipProjected"]) == 4 for tile in catalog["tiles"]))
+
+    def test_published_prefecture_overlay_is_detailed_and_disjoint(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        value = json.loads(
+            (root / "worlds" / "japan" / "geography" / "prefectures.geojson").read_text(
+                encoding="utf-8"
+            )
+        )
+        geometries = [shape(feature["geometry"]) for feature in value["features"]]
+        vertex_counts = [shapely.get_num_coordinates(geometry) for geometry in geometries]
+
+        self.assertEqual(len(geometries), 47)
+        self.assertTrue(all(geometry.is_valid for geometry in geometries))
+        self.assertGreaterEqual(statistics.median(vertex_counts), 1_000)
+
+        tree = shapely.STRtree(geometries)
+        intersections = tree.query(geometries, predicate="intersects")
+        overlap_area = sum(
+            geometries[left].intersection(geometries[right]).area
+            for left, right in zip(*intersections, strict=True)
+            if left < right
+        )
+        self.assertLess(overlap_area, 1e-10)
+
+    def test_shared_site_builder_anchors_mesh_mass_to_buildings(self) -> None:
+        header = bytearray(HEADER_SIZE)
+        struct.pack_into("<I", header, 0, BINARY_MAGIC)
+        header[4] = 1
+        struct.pack_into("<I", header, 8, 3)
+        struct.pack_into("<d", header, 40, 0.0009)
+        bounds = struct.pack(
+            "<12d",
+            139.0000, 35.0000, 139.0002, 35.0002,
+            139.0023, 35.0017, 139.0025, 35.0019,
+            139.0200, 35.0200, 139.0202, 35.0202,
+        )
+        home = [{"longitude": 139.001, "latitude": 35.001, "commuters": 100}]
+        jobs = [{"longitude": 139.001, "latitude": 35.001, "jobs": 80}]
+        boundary = shape({
+            "type": "Polygon",
+            "coordinates": [[[138.99, 34.99], [139.01, 34.99], [139.01, 35.01], [138.99, 35.01], [138.99, 34.99]]],
+        })
+
+        with tempfile.TemporaryDirectory() as directory:
+            index_path = Path(directory) / "buildings_index.bin.gz"
+            with gzip.open(index_path, "wb") as output:
+                output.write(header)
+                output.write(bounds)
+            sites, report = build_tile_sites(
+                "JP_PREF_TEST",
+                home,
+                jobs,
+                index_path,
+                [138.99, 34.99, 139.01, 35.01],
+                boundary,
+            )
+
+        building_centers = {(139.0001, 35.0001), (139.0024, 35.0018)}
+        self.assertTrue(sites)
+        self.assertTrue(all(tuple(site["location"]) in building_centers for site in sites))
+        self.assertEqual(sum(site["commuters"] for site in sites), 100)
+        self.assertEqual(sum(site["jobs"] for site in sites), 80)
+        self.assertEqual(report["unanchoredSiteCount"], 0)
 
 
 if __name__ == "__main__":

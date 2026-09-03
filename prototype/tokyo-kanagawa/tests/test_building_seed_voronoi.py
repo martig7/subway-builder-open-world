@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.building_seed_voronoi import (
+from open_world_map_creator.demand.building_sites import (
     BINARY_MAGIC,
     HEADER_SIZE,
     cluster_building_seeds,
