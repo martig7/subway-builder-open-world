@@ -56,3 +56,27 @@ sequential and resumable; by default it processes the 45 prefectures outside the
 dedicated Tokyo/Kanagawa rebuild. Routing uses an input fingerprint so a staged
 resume is discarded automatically when its map, catalog, or demand inputs have
 changed.
+
+When a placement repair moves only a known set of endpoints, preserve completed
+work by producing a filtered invalidation sidecar and passing it to routing:
+
+```powershell
+python -m open_world_map_creator.routing.grid_repair `
+  --demand-dir <completed-demand-root> `
+  --output-dir <repaired-demand-root> `
+  --catalog <tile-catalog.json> `
+  --maps-dir <maps-tiles-root> `
+  --invalidation <grid-invalidation.json.gz>
+
+python -m open_world_map_creator.routing `
+  --catalog <tile-catalog.json> `
+  --maps-dir <maps-tiles-root> `
+  --demand-dir <repaired-demand-root> `
+  --report-namespace japan-national `
+  --consumer-manifest-id local.japan-open-world `
+  --invalidation <repaired-demand-root>/reports/japan-national-grid-repair-routing-invalidation.json
+```
+
+The repair never overwrites its source package. It leaves endpoints without a
+nearby building untouched, requires native replacements to remain inside their
+rendered owner, and assigns each moved endpoint a unique building center.

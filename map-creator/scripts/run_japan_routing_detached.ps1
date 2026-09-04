@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Root,
     [Parameter(Mandatory = $true)]
-    [string]$MapsRoot
+    [string]$MapsRoot,
+    [string]$DemandRoot,
+    [string]$Invalidation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,13 +28,18 @@ function Write-RoutingStatus([string]$state, [int]$exitCode) {
 Write-RoutingStatus -state 'running' -exitCode 0
 try {
     $env:PYTHONPATH = Join-Path $Root 'src'
-    & python -m open_world_map_creator.routing `
-        --catalog (Join-Path $Root 'tile-views.json') `
-        --maps-dir $MapsRoot `
-        --demand-dir (Join-Path $Root 'demand') `
-        --report-namespace japan-national `
-        --consumer-manifest-id local.japan-open-world `
-        --progress-jsonl (Join-Path $logs 'routing-progress.jsonl') *>&1 |
+    if (-not $DemandRoot) { $DemandRoot = Join-Path $Root 'demand' }
+    $routingArguments = @(
+        '-m', 'open_world_map_creator.routing',
+        '--catalog', (Join-Path $Root 'tile-views.json'),
+        '--maps-dir', $MapsRoot,
+        '--demand-dir', $DemandRoot,
+        '--report-namespace', 'japan-national',
+        '--consumer-manifest-id', 'local.japan-open-world',
+        '--progress-jsonl', (Join-Path $logs 'routing-progress.jsonl')
+    )
+    if ($Invalidation) { $routingArguments += @('--invalidation', $Invalidation) }
+    & python @routingArguments *>&1 |
         Tee-Object -FilePath $stdout -Append
     if ($LASTEXITCODE -ne 0) { throw "Japan routing exited with code $LASTEXITCODE" }
     Write-RoutingStatus -state 'complete' -exitCode 0

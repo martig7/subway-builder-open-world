@@ -48,6 +48,11 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--demand-report-name")
     command.add_argument("--build-hash-prefix")
     command.add_argument("--progress-jsonl", type=Path)
+    command.add_argument(
+        "--invalidation",
+        type=Path,
+        help="Reroute only native cohorts and cross partitions named by this sidecar.",
+    )
     command.add_argument("--cross-samples-per-tile-pair", type=int, default=4)
     command.add_argument("--no-resume", action="store_true")
     return command
@@ -70,6 +75,7 @@ def main(argv: list[str] | None = None) -> None:
             demand_report_name=args.demand_report_name,
             build_hash_prefix=args.build_hash_prefix,
             cross_samples_per_tile_pair=args.cross_samples_per_tile_pair,
+            invalidation_path=args.invalidation,
             resume=not args.no_resume,
             progress=progress,
         )

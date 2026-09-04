@@ -19,6 +19,7 @@ from open_world_map_creator.demand.package_japan import (
     Site,
     WeightedPicker,
     _compile_native,
+    _deferred_building_sites,
     _deferred_source_sites,
     _partition_source_cells,
     _promote_same_owner_cross_records,
@@ -100,6 +101,37 @@ class JapanPackageTests(unittest.TestCase):
         self.assertEqual([(site.longitude, site.latitude) for site in sites], [(141.25, 37.5)])
         self.assertEqual((sites[0].home_weight, sites[0].job_weight), (11, 13))
         self.assertTrue(sites[0].force_cross)
+
+    def test_deferred_cells_are_anchored_to_buildings_but_remain_cross_tile(self) -> None:
+        header = bytearray(HEADER_SIZE)
+        struct.pack_into("<I", header, 0, BINARY_MAGIC)
+        header[4] = 1
+        struct.pack_into("<I", header, 8, 2)
+        struct.pack_into("<d", header, 40, 0.0009)
+        bounds = struct.pack(
+            "<8d",
+            139.0000, 35.0000, 139.0002, 35.0002,
+            139.0023, 35.0017, 139.0025, 35.0019,
+        )
+        tile = {"id": "JP_PREF_TEST", "prefCode": "13", "bounds": [138.99, 34.99, 139.01, 35.01]}
+        policy = {"pointMergeDistanceM": 350, "buildingSourceRadiusM": 750, "candidateGridM": 100}
+        home = [{"longitude": 139.001, "latitude": 35.001, "commuters": 100}]
+        jobs = [{"longitude": 139.001, "latitude": 35.001, "jobs": 80}]
+
+        with tempfile.TemporaryDirectory() as directory:
+            index_path = Path(directory) / "buildings_index.bin.gz"
+            with gzip.open(index_path, "wb") as output:
+                output.write(header)
+                output.write(bounds)
+            sites, report = _deferred_building_sites(tile, home, jobs, index_path, policy)
+
+        self.assertTrue(sites)
+        self.assertTrue(all(site.id.startswith("deferred-source-") for site in sites))
+        self.assertTrue(all(site.force_cross for site in sites))
+        self.assertTrue(all((site.longitude, site.latitude) != (139.001, 35.001) for site in sites))
+        self.assertEqual(sum(site.home_weight for site in sites), 100)
+        self.assertEqual(sum(site.job_weight for site in sites), 80)
+        self.assertEqual(report["deferredBuildingSiteCount"], len(sites))
 
     def test_shared_evidence_is_filtered_by_source_prefecture(self) -> None:
         evidence = {

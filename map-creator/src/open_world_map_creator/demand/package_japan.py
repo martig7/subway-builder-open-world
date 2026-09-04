@@ -3,8 +3,8 @@
 
 This module consumes geography-specific evidence, each Tile Package's building
 index, and the World catalog. Every prefecture uses the same boundary-aware
-building-center placement. Source cells outside their owning prefecture remain
-at their evidence coordinate and are emitted as cross-tile demand. Road
+building-center placement. Source cells outside their owning prefecture are
+anchored to nearby buildings but remain cross-tile demand. Road
 enrichment is a separate, resumable stage and replaces the deterministic
 geometric estimates written here.
 """
@@ -24,14 +24,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+import numpy as np
 import shapely
+from pyproj import Transformer
+from scipy.spatial import cKDTree
 from shapely.geometry import Point
 
-from .building_sites import build_tile_sites
+from .building_sites import build_tile_sites, read_building_centers
 from .estat_japan_prefecture import load_prefecture_boundary
 
 
-COMPILER_VERSION = "estat-japan-national-package-v4-boundary-owned-sites"
+COMPILER_VERSION = "estat-japan-national-package-v5-deferred-building-sites"
 SPECIAL_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 
 
@@ -236,6 +239,77 @@ def _deferred_source_sites(
     return result
 
 
+def _deferred_building_sites(
+    tile: dict[str, Any],
+    deferred_home: list[dict[str, Any]],
+    deferred_jobs: list[dict[str, Any]],
+    building_index_path: Path,
+    policy: dict[str, Any],
+) -> tuple[list[Site], dict[str, Any]]:
+    """Anchor out-of-boundary source cells without making them native demand."""
+    raw_sites = _deferred_source_sites(tile, deferred_home, deferred_jobs)
+    if not raw_sites:
+        return [], {"deferredBuildingSiteCount": 0}
+    bounds = [float(value) for value in tile["bounds"]]
+    center_lon = (bounds[0] + bounds[2]) / 2
+    center_lat = (bounds[1] + bounds[3]) / 2
+    local_crs = (
+        f"+proj=aeqd +lat_0={center_lat:.10f} +lon_0={center_lon:.10f} "
+        "+datum=WGS84 +units=m +no_defs"
+    )
+    transformer = Transformer.from_crs("EPSG:4326", local_crs, always_xy=True)
+    buildings = read_building_centers(building_index_path, bounds, transformer)
+    tree = cKDTree(np.column_stack((buildings["x"], buildings["y"])))
+    x_values, y_values = transformer.transform(
+        [site.longitude for site in raw_sites],
+        [site.latitude for site in raw_sites],
+    )
+    candidate_count = min(128, len(buildings["x"]))
+    distances, candidates = tree.query(
+        np.column_stack((x_values, y_values)),
+        k=candidate_count,
+        workers=-1,
+    )
+    if candidate_count == 1:
+        distances = np.asarray(distances).reshape(-1, 1)
+        candidates = np.asarray(candidates).reshape(-1, 1)
+    maximum_snap = float(policy.get("deferredBuildingSnapDistanceM", 5_000.0))
+    used: set[tuple[float, float]] = set()
+    anchored: dict[str, tuple[float, float, float]] = {}
+    for site_index in sorted(range(len(raw_sites)), key=lambda index: raw_sites[index].id):
+        for distance, candidate in zip(distances[site_index], candidates[site_index], strict=True):
+            location = (
+                round(float(buildings["longitudes"][int(candidate)]), 7),
+                round(float(buildings["latitudes"][int(candidate)]), 7),
+            )
+            if location in used:
+                continue
+            if float(distance) <= maximum_snap:
+                used.add(location)
+                anchored[raw_sites[site_index].id] = (*location, float(distance))
+            break
+    result = [
+        Site(
+            site.id,
+            anchored.get(site.id, (site.longitude, site.latitude, 0.0))[0],
+            anchored.get(site.id, (site.longitude, site.latitude, 0.0))[1],
+            site.home_weight,
+            site.job_weight,
+            site.source_pref,
+            site.owner_pref,
+            True,
+        )
+        for site in raw_sites
+    ]
+    snap_distances = [entry[2] for entry in anchored.values()]
+    return result, {
+        "deferredBuildingSiteCount": len(result),
+        "deferredAnchoredBuildingSiteCount": len(anchored),
+        "deferredUnanchoredSiteCount": len(result) - len(anchored),
+        "deferredMaximumBuildingSnapDistanceM": round(max(snap_distances, default=0.0), 3),
+    }
+
+
 def _building_sites(
     evidence_dir: Path,
     maps_root: Path,
@@ -278,10 +352,17 @@ def _building_sites(
         )
         for site in sites
     ]
-    deferred_sites = _deferred_source_sites(tile, deferred_home, deferred_jobs)
+    deferred_sites, deferred_report = _deferred_building_sites(
+        tile,
+        deferred_home,
+        deferred_jobs,
+        maps_root / tile_name / "buildings_index.bin.gz",
+        policy,
+    )
     compiled_sites.extend(deferred_sites)
     return compiled_sites, {
         **report,
+        **deferred_report,
         "sourceHomeMass": sum(int(cell["commuters"]) for cell in home_cells),
         "sourceJobMass": sum(int(cell["jobs"]) for cell in job_cells),
         "deferredSourceCellCount": len(deferred_sites),
@@ -487,10 +568,12 @@ def compile_japan(
         no_owner: list[str] = []
         owned_sites = []
         for site in sites:
+            if site.force_cross:
+                deferred_site_ids.add(site.id)
             point = Point(site.longitude, site.latitude)
             if boundaries[pref_code].covers(point):
                 owner_pref = pref_code
-                force_cross = False
+                force_cross = site.force_cross
             else:
                 hits = boundary_index.all_tree.query(point, predicate="covered_by")
                 if len(hits):
@@ -502,7 +585,6 @@ def compile_japan(
                     # giant boundary-edge demand dot.
                     owner_pref = pref_code
                     no_owner.append(site.id)
-                    deferred_site_ids.add(site.id)
                 force_cross = True
             owner_counts[owner_pref] += 1
             owned_sites.append(Site(site.id, site.longitude, site.latitude, site.home_weight, site.job_weight, pref_code, owner_pref, force_cross))

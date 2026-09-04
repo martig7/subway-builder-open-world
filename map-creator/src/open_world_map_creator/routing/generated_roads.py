@@ -692,6 +692,91 @@ def _route_options(
     }
 
 
+def _read_json_or_gzip(path: Path) -> dict[str, Any]:
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as source:
+            return json.load(source)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _selective_routing_plan(
+    demand: Path,
+    invalidation_path: Path,
+) -> dict[str, Any]:
+    """Validate endpoint identities and return the smallest safe rerouting set."""
+    invalidation = _read_json_or_gzip(invalidation_path)
+    native: dict[str, set[str]] = {}
+    for tile_id, entry in invalidation["native"].items():
+        payload = _read_gzip_json(demand / "tiles" / tile_id / "demand_data.json.gz")
+        actual = {str(pop["id"]): pop for pop in payload["pops"]}
+        selected: set[str] = set()
+        for captured in entry["pops"]:
+            pop_id = str(captured["id"])
+            pop = actual.get(pop_id)
+            if pop is None:
+                raise ValueError(f"Missing invalidated native cohort {tile_id}:{pop_id}")
+            identity = (
+                str(pop["residenceId"]),
+                str(pop["jobId"]),
+                int(pop["size"]),
+            )
+            expected = (
+                str(captured["residenceId"]),
+                str(captured["jobId"]),
+                int(captured["size"]),
+            )
+            if identity != expected:
+                raise ValueError(
+                    f"Invalidated native cohort changed {tile_id}:{pop_id}: {identity} != {expected}"
+                )
+            selected.add(pop_id)
+        native[tile_id] = selected
+
+    cross = _read_gzip_json(demand / "world" / "cross_demand.json.gz")
+    point_fields = {name: index for index, name in enumerate(cross["pointFields"])}
+    pop_fields = {name: index for index, name in enumerate(cross["popFields"])}
+    points = cross["points"]
+    actual_cross = {str(pop[pop_fields["id"]]): pop for pop in cross["pops"]}
+    affected = {
+        (str(partition[0]), str(partition[1]))
+        for partition in invalidation["cross"]["affectedPartitions"]
+    }
+    captured_partitions: set[tuple[str, str]] = set()
+    for captured in invalidation["cross"]["pops"]:
+        pop_id = str(captured["id"])
+        pop = actual_cross.get(pop_id)
+        if pop is None:
+            raise ValueError(f"Missing invalidated cross cohort {pop_id}")
+        home = points[int(pop[pop_fields["homePoint"]])]
+        work = points[int(pop[pop_fields["workPoint"]])]
+        identity = (
+            str(home[point_fields["id"]]),
+            str(work[point_fields["id"]]),
+            int(pop[pop_fields["mass"]]),
+            str(home[point_fields["tileId"]]),
+            str(work[point_fields["tileId"]]),
+        )
+        expected = (
+            str(captured["homePointId"]),
+            str(captured["workPointId"]),
+            int(captured["mass"]),
+            str(captured["partition"][0]),
+            str(captured["partition"][1]),
+        )
+        if identity != expected:
+            raise ValueError(f"Invalidated cross cohort changed {pop_id}: {identity} != {expected}")
+        captured_partitions.add((identity[3], identity[4]))
+    if captured_partitions != affected:
+        raise ValueError(
+            f"Cross invalidation partitions changed: {sorted(captured_partitions)} != {sorted(affected)}"
+        )
+    return {
+        "manifest": invalidation,
+        "nativePopIds": native,
+        "crossPartitions": affected,
+    }
+
+
 def enrich_generated_road_driving(
     catalog_path: str | Path,
     maps_dir: str | Path,
@@ -706,6 +791,7 @@ def enrich_generated_road_driving(
     max_snap_metres: float = DEFAULT_MAX_SNAP_METRES,
     max_detour_ratio: float = DEFAULT_MAX_DETOUR_RATIO,
     cross_samples_per_tile_pair: int = DEFAULT_CROSS_SAMPLES_PER_TILE_PAIR,
+    invalidation_path: str | Path | None = None,
     resume: bool = True,
     progress: Any = print,
 ) -> dict[str, Any]:
@@ -717,6 +803,17 @@ def enrich_generated_road_driving(
     build_hash_prefix = build_hash_prefix or f"{report_namespace}-road-v1"
     started = time.perf_counter()
     demand = Path(demand_dir)
+    selective_plan = (
+        _selective_routing_plan(demand, Path(invalidation_path))
+        if invalidation_path is not None
+        else None
+    )
+    if selective_plan is not None:
+        progress(
+            "[road-routing] selective plan validated "
+            f"({sum(map(len, selective_plan['nativePopIds'].values()))} native cohorts, "
+            f"{len(selective_plan['crossPartitions'])} cross partitions)"
+        )
     progress("[road-routing] started graph build")
     graph, graph_report = build_road_graph(
         catalog_path, maps_dir, maximum_edge_metres=maximum_edge_metres, progress=progress
@@ -737,6 +834,8 @@ def enrich_generated_road_driving(
         "crossDemand": _sha256(demand / "world" / "cross_demand.json.gz"),
         "crossCommutes": _sha256(demand / "world" / "cross_commutes.json"),
     }
+    if invalidation_path is not None:
+        input_fingerprint["routingInvalidation"] = _sha256(Path(invalidation_path))
     stage_fingerprint_path = stage / ".routing-inputs.json"
     if stage.exists():
         recovered_fingerprint = (
@@ -764,16 +863,35 @@ def enrich_generated_road_driving(
             counts["routes"] += recovered_routes
             counts["nativeRoutes"] += recovered_routes
             counts["recoveredNativeRoutes"] += recovered_routes
+            if selective_plan is not None:
+                rerouted = len(selective_plan["nativePopIds"].get(tile_id, ()))
+                counts["recoveredSelectiveNativeRoutes"] += rerouted
+                counts["preservedNativeRoutes"] += recovered_routes - rerouted
             progress(f"[road-routing] recovered native routes {tile_index}/{len(tile_ids)} {tile_id} ({recovered_routes})")
             continue
         payload = _read_gzip_json(source_path)
         points = {str(point["id"]): tuple(map(float, point["location"])) for point in payload["points"]}
         route_started = time.perf_counter()
         last_route_progress = route_started
-        route_total = len(payload["pops"])
+        selected_pop_ids = (
+            selective_plan["nativePopIds"].get(tile_id, set())
+            if selective_plan is not None
+            else None
+        )
+        selected_pops = (
+            [pop for pop in payload["pops"] if str(pop["id"]) in selected_pop_ids]
+            if selected_pop_ids is not None
+            else payload["pops"]
+        )
+        route_total = len(selected_pops)
+        if selective_plan is not None:
+            preserved = len(payload["pops"]) - route_total
+            counts["routes"] += preserved
+            counts["nativeRoutes"] += preserved
+            counts["preservedNativeRoutes"] += preserved
         route_cache: dict[tuple[str, str], RouteResult] = {}
-        progress(f"[road-routing] native started {tile_index}/{len(tile_ids)} {tile_id} ({route_total})")
-        for pop_index, pop in enumerate(payload["pops"], 1):
+        progress(f"[road-routing] native started {tile_index}/{len(tile_ids)} {tile_id} ({route_total} selected)")
+        for pop_index, pop in enumerate(selected_pops, 1):
             pair = (str(pop["residenceId"]), str(pop["jobId"]))
             route = route_cache.get(pair)
             if route is None:
@@ -801,7 +919,10 @@ def enrich_generated_road_driving(
                 )
                 last_route_progress = now
         _gzip_json(staged_path, payload)
-        progress(f"[road-routing] native routes {tile_index}/{len(tile_ids)} {tile_id} ({len(payload['pops'])})")
+        progress(
+            f"[road-routing] native routes {tile_index}/{len(tile_ids)} {tile_id} "
+            f"({route_total} rerouted, {len(payload['pops']) - route_total} preserved)"
+        )
 
     cross_path = demand / "world" / "cross_demand.json.gz"
     cross = _read_gzip_json(cross_path)
@@ -824,8 +945,17 @@ def enrich_generated_road_driving(
     if resume and partition_cache_path.is_file():
         partition_cache = json.loads(partition_cache_path.read_text(encoding="utf-8"))
         models: dict[str, dict[str, Any]] = dict(partition_cache.get("models", {}))
+        completed_selective_partitions = {
+            tuple(map(str, partition))
+            for partition in partition_cache.get("selectiveCompletedPartitions", [])
+        }
+    elif selective_plan is not None and (demand / "reports" / route_models_name).is_file():
+        partition_cache = json.loads((demand / "reports" / route_models_name).read_text(encoding="utf-8"))
+        models = dict(partition_cache.get("models", {}))
+        completed_selective_partitions = set()
     else:
         models = {}
+        completed_selective_partitions = set()
     search_counts: Counter[str] = Counter()
 
     def direct_metres(pop: list[Any]) -> float:
@@ -836,6 +966,23 @@ def enrich_generated_road_driving(
     partition_items = sorted(partition_indices.items())
     for partition_number, (partition, indices) in enumerate(partition_items, 1):
         cache_key = f"{partition[0]}->{partition[1]}"
+        partition_selected = (
+            selective_plan is None or partition in selective_plan["crossPartitions"]
+        )
+        if not partition_selected:
+            if cache_key not in models:
+                raise ValueError(f"Cannot preserve missing cross routing model {cache_key}")
+            counts["routes"] += len(indices)
+            counts["crossRoutes"] += len(indices)
+            counts["preservedCrossRoutes"] += len(indices)
+            search_counts["preservedPartitions"] += 1
+            progress(
+                f"[road-routing] cross partition preserved {partition_number}/{len(partition_items)} "
+                f"{cache_key} ({len(indices)} cohorts)"
+            )
+            continue
+        if selective_plan is not None and partition not in completed_selective_partitions:
+            models.pop(cache_key, None)
         model = models.get(cache_key)
         if model is None:
             sample_count = min(max(1, cross_samples_per_tile_pair), len(indices))
@@ -886,10 +1033,15 @@ def enrich_generated_road_driving(
                     "sampledPopIds": sampled_pop_ids,
                 }
             models[cache_key] = model
+            if selective_plan is not None:
+                completed_selective_partitions.add(partition)
             _write_json(partition_cache_path, {
                 "schemaVersion": 1,
                 "graphVersion": GRAPH_VERSION,
                 "samplesPerTilePair": cross_samples_per_tile_pair,
+                "selectiveCompletedPartitions": [
+                    list(item) for item in sorted(completed_selective_partitions)
+                ],
                 "models": models,
             })
         else:
@@ -921,6 +1073,15 @@ def enrich_generated_road_driving(
             f"[road-routing] cross partition {partition_number}/{len(partition_items)} "
             f"{cache_key} ({len(indices)} cohorts, {model['roadSamples']} road samples)"
         )
+    _write_json(partition_cache_path, {
+        "schemaVersion": 1,
+        "graphVersion": GRAPH_VERSION,
+        "samplesPerTilePair": cross_samples_per_tile_pair,
+        "selectiveCompletedPartitions": [
+            list(item) for item in sorted(completed_selective_partitions)
+        ],
+        "models": models,
+    })
     cross["drivingModel"] = _driving_model()
     _gzip_json(stage / "world" / "cross_demand.json.gz", cross)
 
@@ -993,6 +1154,13 @@ def enrich_generated_road_driving(
         "crossSearches": dict(sorted(search_counts.items())),
         "elapsedSeconds": round(time.perf_counter() - started, 3),
     }
+    if selective_plan is not None:
+        routing_report["selection"] = {
+            "mode": "invalidation",
+            "invalidationSha256": _sha256(Path(invalidation_path)),
+            "nativeCohortCount": sum(map(len, selective_plan["nativePopIds"].values())),
+            "crossPartitionCount": len(selective_plan["crossPartitions"]),
+        }
     _write_json(stage / "reports" / routing_report_name, routing_report)
 
     stage_fingerprint_path.unlink(missing_ok=True)
