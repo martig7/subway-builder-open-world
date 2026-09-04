@@ -1,6 +1,5 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     [Parameter(Mandatory = $true)][ValidatePattern('^https://')][string]$ReleaseAssetBaseUrl,
     [Parameter(Mandatory = $true)][Alias('ModRoot')][string]$NecModRoot,
     [Parameter(Mandatory = $true)][Alias('TileRoot')][string]$NecTileRoot,
@@ -11,6 +10,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))
+$versionPath = Join-Path $repositoryRoot 'VERSION'
+if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) { throw "Open World version file is missing: $versionPath" }
+$Version = [System.IO.File]::ReadAllText($versionPath).Trim()
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid Open World version: $Version" }
+if (-not $ReleaseAssetBaseUrl.TrimEnd('/').EndsWith("/v$Version", [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "ReleaseAssetBaseUrl must end in /v$Version."
+}
 $nativeRoot = Split-Path -Parent $PSScriptRoot
 $resolvedModRoot = [System.IO.Path]::GetFullPath($NecModRoot)
 $resolvedTileRoot = [System.IO.Path]::GetFullPath($NecTileRoot)
@@ -36,7 +43,7 @@ Push-Location $resolvedModRoot
 try {
     $env:NEC_ARTIFACTS_ROOT = $inferredArtifactsRoot
     $env:NEC_PACKAGED_TILE_ROOT = $resolvedTileRoot
-    npm run build:release -- --version $Version
+    npm run build:release
     if ($LASTEXITCODE -ne 0) { throw 'NEC release mod build failed.' }
 } finally {
     if ($null -eq $priorNecArtifactsRoot) { Remove-Item Env:NEC_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
@@ -60,7 +67,7 @@ if ($resolvedTokyoModRoot) {
     try {
         $env:TOKYO_KANAGAWA_ARTIFACTS_ROOT = $tokyoArtifactsRoot
         $env:TOKYO_KANAGAWA_PACKAGED_TILE_ROOT = $resolvedTokyoTileRoot
-        npm run build:release -- --version $Version
+        npm run build:release
         if ($LASTEXITCODE -ne 0) { throw 'Tokyo–Kanagawa release mod build failed.' }
     } finally {
         if ($null -eq $priorTokyoArtifactsRoot) { Remove-Item Env:TOKYO_KANAGAWA_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
@@ -98,6 +105,7 @@ dotnet run --project $packager -c Release -- `
     --output $resolvedOutput `
     --base-url $ReleaseAssetBaseUrl `
     --version $Version `
+    --map-parts 4 `
     --manifest-name release-manifest-nec.json
 if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed.' }
 
@@ -115,6 +123,7 @@ if ($resolvedTokyoModRoot) {
         --asset-prefix tokyo-kanagawa `
         --tile-prefix JP `
         --expected-tiles 2 `
+        --map-parts 1 `
         --port 8799 `
         --manifest-name release-manifest-tokyo-kanagawa.json
     if ($LASTEXITCODE -ne 0) { throw 'Tokyo–Kanagawa release packaging failed.' }
@@ -171,6 +180,8 @@ $spaceLines = foreach ($world in $worldManifests) {
 }
 $releaseBody = @(
     "# Subway Builder Open World $Version",
+    '',
+    'Test release',
     '',
     '## Download',
     '',

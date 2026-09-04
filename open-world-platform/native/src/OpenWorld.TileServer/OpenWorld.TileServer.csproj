@@ -3,7 +3,6 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>OpenWorld.TileServer</RootNamespace>
     <AssemblyName>open-world-tile-server</AssemblyName>
-    <Version>0.1.0</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 </Project>

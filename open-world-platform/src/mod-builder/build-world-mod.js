@@ -65,6 +65,8 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
 
 export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot = null }) {
   const root = path.resolve(repositoryRoot);
+  const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Invalid Open World version: ${version}`);
   const consumerRoot = path.resolve(modRoot);
   const generatedRoot = path.resolve(artifactsRoot);
   const loaded = await loadWorldDefinition(worldRoot);
@@ -181,7 +183,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
     id: definition.identity.manifestId,
     name: definition.identity.name,
     description: definition.identity.description,
-    version: definition.identity.version,
+    version,
     author: { name: definition.identity.author },
     main: 'index.js',
   };

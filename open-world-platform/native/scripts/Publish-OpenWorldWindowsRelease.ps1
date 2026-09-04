@@ -1,6 +1,5 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     [Parameter(Mandatory = $true)][ValidatePattern('^https://')][string]$ReleaseAssetBaseUrl,
     [Parameter(Mandatory = $true)][string]$NecModRoot,
     [Parameter(Mandatory = $true)][string]$NecTileRoot,
