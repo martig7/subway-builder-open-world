@@ -13,6 +13,14 @@ New-Item -ItemType Directory -Force -Path $OsrmRoot | Out-Null
 $OsrmRoot = (Resolve-Path -LiteralPath $OsrmRoot).Path
 if (-not $ProgressJsonl) { $ProgressJsonl = Join-Path $OsrmRoot 'osrm-preparation-progress.jsonl' }
 
+# Docker Desktop's default config can delegate public-registry access to a
+# desktop credential helper that is unavailable in non-interactive runner
+# sessions. OSRM's image is public, so use an isolated credential-free config.
+$dockerConfig = Join-Path $OsrmRoot 'docker-cli'
+New-Item -ItemType Directory -Force -Path $dockerConfig | Out-Null
+'{"auths":{}}' | Set-Content -LiteralPath (Join-Path $dockerConfig 'config.json') -Encoding ascii
+$env:DOCKER_CONFIG = $dockerConfig
+
 function Write-OsrmProgress([string]$stage, [string]$message, [string]$status = 'running') {
     $event = [ordered]@{
         event = 'osrm-preparation-progress'
