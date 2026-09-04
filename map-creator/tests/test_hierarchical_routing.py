@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from open_world_map_creator.routing.generated_roads import RoadGraph
+from open_world_map_creator.routing.generated_roads import (
+    RoadGraph,
+    _refresh_enriched_tile_manifest,
+    _sha256,
+)
 
 
 class _IdentityTransformer:
@@ -43,6 +49,38 @@ def _road_graph(
 
 
 class HierarchicalRoutingTests(unittest.TestCase):
+    def test_enriched_manifest_refreshes_primary_demand_hash(self) -> None:
+        with TemporaryDirectory() as directory:
+            tile_root = Path(directory)
+            for filename, payload in (
+                ("demand_data.json.gz", b"routed demand"),
+                ("cross_commutes.json", b"routed commutes"),
+                ("cross_demand.json.gz", b"routed cross demand"),
+            ):
+                (tile_root / filename).write_bytes(payload)
+            manifest = {
+                "sha256": "stale-demand-hash",
+                "assets": [
+                    {
+                        "path": "demand_data.json.gz",
+                        "sha256": "stale-asset-hash",
+                        "bytes": 1,
+                    }
+                ],
+            }
+
+            refreshed = _refresh_enriched_tile_manifest(manifest, tile_root)
+
+            self.assertEqual(
+                refreshed["sha256"], _sha256(tile_root / "demand_data.json.gz")
+            )
+            demand_asset = next(
+                asset
+                for asset in refreshed["assets"]
+                if asset["path"] == "demand_data.json.gz"
+            )
+            self.assertEqual(demand_asset["sha256"], refreshed["sha256"])
+
     def test_major_road_portal_hierarchy_matches_full_graph(self) -> None:
         graph = _road_graph(
             coordinates=[

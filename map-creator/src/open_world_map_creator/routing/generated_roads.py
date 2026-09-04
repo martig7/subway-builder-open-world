@@ -64,6 +64,25 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _refresh_enriched_tile_manifest(
+    manifest: dict[str, Any], tile_root: Path
+) -> dict[str, Any]:
+    assets_by_path = {asset["path"]: asset for asset in manifest.get("assets", [])}
+    for filename in (
+        "demand_data.json.gz",
+        "cross_commutes.json",
+        "cross_demand.json.gz",
+    ):
+        path = tile_root / filename
+        asset = assets_by_path.setdefault(filename, {"path": filename})
+        asset["bytes"] = path.stat().st_size
+        asset["sha256"] = _sha256(path)
+    manifest["assets"] = [assets_by_path[key] for key in sorted(assets_by_path)]
+    manifest["sha256"] = assets_by_path["demand_data.json.gz"]["sha256"]
+    manifest["drivingModel"] = _driving_model()
+    return manifest
+
+
 def _stable_id(*parts: object) -> str:
     return hashlib.sha256("\x1f".join(map(str, parts)).encode("utf-8")).hexdigest()[:24]
 
@@ -940,15 +959,10 @@ def enrich_generated_road_driving(
         _gzip_json(tile_root / "cross_demand.json.gz", tile_cross)
         _write_json(tile_root / "cross_commutes.json", tile_commutes)
         manifest = json.loads((demand / "tiles" / tile_id / "manifest.json").read_text(encoding="utf-8"))
-        assets_by_path = {asset["path"]: asset for asset in manifest.get("assets", [])}
-        for filename in ("demand_data.json.gz", "cross_commutes.json", "cross_demand.json.gz"):
-            path = tile_root / filename
-            asset = assets_by_path.setdefault(filename, {"path": filename})
-            asset["bytes"] = path.stat().st_size
-            asset["sha256"] = _sha256(path)
-        manifest["assets"] = [assets_by_path[key] for key in sorted(assets_by_path)]
-        manifest["drivingModel"] = _driving_model()
-        _write_json(tile_root / "manifest.json", manifest)
+        _write_json(
+            tile_root / "manifest.json",
+            _refresh_enriched_tile_manifest(manifest, tile_root),
+        )
 
     demand_report_path = demand / "reports" / demand_report_name
     demand_report = json.loads(demand_report_path.read_text(encoding="utf-8"))
