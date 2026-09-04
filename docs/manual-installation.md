@@ -1,98 +1,44 @@
 # Manual installation
 
-These instructions are a temporary alternative to the Open World installer. They install Northeast Corridor Open World and run the shared tile server without administrator access. The tile-server window or Terminal process must remain running while an Open World mod is in use.
+Install Northeast Corridor Open World by copying the downloaded files into Subway Builder's folders, then opening the tile server.
 
-Download these release assets into one folder:
+## Download
+
+Download these files from the v0.5.0 release:
 
 - `northeast-corridor-open-world-v0.5.0.zip`
-- `nec-map-part-01-of-04-v0.5.0.zip` through `nec-map-part-04-of-04-v0.5.0.zip`
-- The standalone tile-server ZIP for your operating system
-- `tile-server-SHA256SUMS.txt`
+- All four map ZIPs: `nec-map-part-01-of-04-v0.5.0.zip` through `nec-map-part-04-of-04-v0.5.0.zip`
+- One tile-server ZIP for your computer:
+  - Windows: `open-world-tile-server-windows-x64-v0.5.0.zip`
+  - Mac with Apple silicon: `open-world-tile-server-macos-arm64-v0.5.0.zip`
+  - Mac with an Intel processor: `open-world-tile-server-macos-x64-v0.5.0.zip`
 
-The tile server listens only on `127.0.0.1:8799`. Running it without `--tiles` serves every compatible World found in the Subway Builder city-data directory.
+On Mac, Apple menu > About This Mac shows either an Apple chip or an Intel processor.
 
-## Windows
+## Open the game folders
 
-1. Verify the tile-server ZIP against `tile-server-SHA256SUMS.txt`:
+1. In Subway Builder, open the mod manager and click **Open Mods Folder**.
+2. Go up one folder level to reach **metro-maker4**. Use the parent-folder control, not the browser-style Back button.
+3. Keep this folder open, then close Subway Builder and any Open World tile-server window before copying files. If Open World Manager is running a server, click **Stop** there first.
 
-   ```powershell
-   Get-FileHash .\open-world-tile-server-windows-x64-v0.5.0.zip -Algorithm SHA256
-   ```
+## Copy the mod and maps
 
-2. Create these per-user directories:
+1. Extract each downloaded ZIP. On Windows, right-click it and choose **Extract All**. On Mac, double-click it.
+2. Inside `metro-maker4`, open `mods` and create a folder named `northeast-corridor-open-world` if it does not already exist.
+3. Copy the contents of the extracted mod ZIP into that folder. `manifest.json` and `index.js` should sit directly inside `northeast-corridor-open-world`, not inside another nested folder.
+4. Return to `metro-maker4`, then open `cities` and `data`. Create either folder if it is missing.
+5. From each of the four extracted map ZIPs, copy all the `NEC_` folders into `data`. For example, `NEC_CM01_RM01` should sit directly inside `data`. Do not copy the enclosing `nec-map-part-...` folders.
 
-   ```powershell
-   $gameRoot = Join-Path $env:APPDATA 'metro-maker4'
-   $modRoot = Join-Path $gameRoot 'mods\northeast-corridor-open-world'
-   $dataRoot = Join-Path $gameRoot 'cities\data'
-   $serverRoot = Join-Path $env:LOCALAPPDATA 'Programs\Subway Builder Open World\server'
-   New-Item -ItemType Directory -Force -Path $modRoot, $dataRoot, $serverRoot
-   ```
+## Run the tile server
 
-3. Extract the mod ZIP into `$modRoot`. Extract all four map-part ZIPs into `$dataRoot`; after extraction, `$dataRoot` should contain directories such as `NEC_CM01_RM01`.
+1. Move the extracted tile-server folder somewhere you can keep it, such as Documents. Do not run it from inside the ZIP.
+2. Open that folder and double-click:
+   - Windows: `open-world-tile-server.exe`
+   - Mac: `open-world-tile-server`
+3. Leave the tile-server window open while playing. Open Subway Builder and enable Northeast Corridor Open World in the mod manager.
 
-4. Extract `open-world-tile-server-windows-x64-v0.5.0.zip` into `$serverRoot`.
+Open the same executable before playing each time. Only one tile server is needed for all installed Open World maps; do not start a second copy if one is already running.
 
-5. Start the server:
+## Updating
 
-   ```powershell
-   & (Join-Path $serverRoot 'open-world-tile-server.exe')
-   ```
-
-6. Leave that window open, start Subway Builder, and enable Northeast Corridor Open World in the Mods menu. Stop the server with `Ctrl+C`, or run `open-world-tile-server.exe stop` from a second window.
-
-Confirm that the server is ready by opening <http://127.0.0.1:8799/_health>.
-
-## macOS
-
-Subway Builder supports macOS 12 or later on both Apple Silicon and Intel. In Terminal, run `uname -m`: use `macos-arm64` when it prints `arm64`, or `macos-x64` when it prints `x86_64`.
-
-1. Verify the selected ZIP. Replace `ARCH` with `arm64` or `x64`:
-
-   ```bash
-   shasum -a 256 "open-world-tile-server-macos-ARCH-v0.5.0.zip"
-   ```
-
-   Compare the result with `tile-server-SHA256SUMS.txt`.
-
-2. Set the per-user locations:
-
-   ```bash
-   game_root="$HOME/Library/Application Support/metro-maker4"
-   mod_root="$game_root/mods/northeast-corridor-open-world"
-   data_root="$game_root/cities/data"
-   server_root="$HOME/Library/Application Support/Subway Builder Open World/server"
-   mkdir -p "$mod_root" "$data_root" "$server_root"
-   ```
-
-3. Extract the mod and map files from the directory containing the downloads:
-
-   ```bash
-   ditto -x -k "northeast-corridor-open-world-v0.5.0.zip" "$mod_root"
-   for archive in nec-map-part-*-of-04-v0.5.0.zip; do
-     ditto -x -k "$archive" "$data_root"
-   done
-   ```
-
-4. Extract the selected server ZIP and make the binary executable:
-
-   ```bash
-   ditto -x -k "open-world-tile-server-macos-ARCH-v0.5.0.zip" "$server_root"
-   chmod +x "$server_root/open-world-tile-server"
-   ```
-
-5. Start the server:
-
-   ```bash
-   "$server_root/open-world-tile-server"
-   ```
-
-   This initial placeholder is unsigned. If Gatekeeper blocks it, open System Settings > Privacy & Security, review the blocked Open World tile server, and choose **Open Anyway**. Do not disable Gatekeeper globally.
-
-6. Leave Terminal open, start Subway Builder, and enable Northeast Corridor Open World in the Mods menu. Stop the server with `Control-C`, or run `"$server_root/open-world-tile-server" stop` from a second Terminal window.
-
-Confirm that the server is ready by opening <http://127.0.0.1:8799/_health>.
-
-## Updating or removing files
-
-Stop the shared tile server before replacing or removing any World package. Verify that <http://127.0.0.1:8799/_health> no longer responds, then update the mod or map directories. Saved games are separate and should not be deleted.
+Close Subway Builder and stop the tile server before replacing files. Copy the new mod files and map folders into the same locations, accepting replacement of matching files. Leave other worlds and saved games alone, then open the tile-server executable again.

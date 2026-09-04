@@ -53,25 +53,17 @@ try {
             "Open World Tile Server $version",
             "Platform: $($target.Platform)",
             '',
-            'Run the executable without arguments to serve every PMTiles package in the',
-            'standard Subway Builder city-data directory on http://127.0.0.1:8799/.',
+            'Follow MANUAL-INSTALLATION.md to copy the mod and maps into Subway Builder.',
+            'To find the game folders, open the mod manager, click Open Mods Folder,',
+            'then go up one folder level to metro-maker4.',
             '',
-            'Commands:',
-            "  $($target.Executable) version",
-            "  $($target.Executable) status",
-            "  $($target.Executable) stop",
+            "After extracting this ZIP, double-click $($target.Executable).",
+            'Leave its window open while playing. Open it again before playing each time.',
             '',
-            'Use serve --root PATH, --port PORT, --state-root PATH, --log-root PATH,',
-            'or --tiles ID,ID to override the defaults. See MANUAL-INSTALLATION.md',
-            'included in this ZIP for complete installation instructions.',
-            '',
-            $(if ($target.Rid -like 'osx-*') { 'This placeholder macOS build is unsigned. macOS may require explicit approval.' } else { 'This Windows build is self-signed by Giancarlo Martinelli (gcm).' })
+            'One tile server handles all installed Open World maps.',
+            'Do not open a second copy while one is running.'
         ) | Set-Content -LiteralPath (Join-Path $packageRoot 'README.txt') -Encoding utf8
         Copy-Item -LiteralPath $manual -Destination (Join-Path $packageRoot 'MANUAL-INSTALLATION.md')
-
-        if ($target.Sign) {
-            Export-Certificate -Cert $certificate -FilePath (Join-Path $packageRoot 'publisher.cer') -Type CERT | Out-Null
-        }
 
         $archive = Join-Path $resolvedOutput "open-world-tile-server-$($target.Platform)-v$version.zip"
         if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
