@@ -7,6 +7,7 @@ using OpenWorld.Release;
 var options = Options.Parse(args);
 if (Path.GetFileName(options.ManifestName) != options.ManifestName) throw new ArgumentException("--manifest-name must be a file name.");
 if (options.ExpectedTiles <= 0) throw new ArgumentOutOfRangeException(nameof(options.ExpectedTiles));
+if (options.MapParts <= 0 || options.MapParts > options.ExpectedTiles) throw new ArgumentOutOfRangeException(nameof(options.MapParts));
 if (string.IsNullOrWhiteSpace(options.TilePrefix) || options.TilePrefix.Any(character => !(char.IsAsciiLetterOrDigit(character))))
     throw new ArgumentException("--tile-prefix must contain only ASCII letters and digits.");
 Directory.CreateDirectory(options.Output);
@@ -27,13 +28,13 @@ var modFiles = new[] { "manifest.json", "index.js", "world-definition.json", "wo
 var modArchiveName = $"{options.ManifestId}-v{options.Version}.zip";
 var modArchivePath = Path.Combine(options.Output, modArchiveName);
 var modInstalledBytes = CreateArchive(modArchivePath, modFiles.Select(name => (Path.Combine(options.ModDist, name), name)));
-assets.Add(Asset(modArchiveName, ReleaseAssetKind.Mod, modArchivePath, modInstalledBytes, "."));
+var modAsset = Asset(modArchiveName, ReleaseAssetKind.Mod, modArchivePath, modInstalledBytes, ".");
 File.Copy(sourceManifestPath, Path.Combine(options.Output, $"{options.AssetPrefix}-manifest.json"), overwrite: true);
 
 var supportName = $"{options.AssetPrefix}-open-world-support-v{options.Version}.zip";
 var supportPath = Path.Combine(options.Output, supportName);
 var supportInstalledBytes = CreateArchive(supportPath, [(options.ServerExecutable, "open-world-tile-server.exe")]);
-assets.Add(Asset(supportName, ReleaseAssetKind.Support, supportPath, supportInstalledBytes, "."));
+var supportAsset = Asset(supportName, ReleaseAssetKind.Support, supportPath, supportInstalledBytes, ".");
 
 var tileDirectories = Directory.EnumerateDirectories(options.TileRoot)
     .Where(path => File.Exists(Path.Combine(path, "tiles.pmtiles")))
@@ -49,11 +50,25 @@ foreach (var tileDirectory in tileDirectories)
         tileId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
         tileId.Any(character => !(char.IsAsciiLetterOrDigit(character) || character == '_')))
         throw new InvalidDataException($"Unsafe {options.ProductName} tile id: {tileId}");
-    var archiveName = $"{options.AssetPrefix}-data-{tileId}-v{options.Version}.zip";
-    var archivePath = Path.Combine(options.Output, archiveName);
-    var installedBytes = CreateArchive(archivePath, cityFiles.Select(name => (Path.Combine(tileDirectory, name), name)));
-    assets.Add(Asset(archiveName, ReleaseAssetKind.TileData, archivePath, installedBytes, tileId));
 }
+
+var tilesPerPart = (int)Math.Ceiling(tileDirectories.Length / (double)options.MapParts);
+for (var partIndex = 0; partIndex < options.MapParts; partIndex++)
+{
+    var partTiles = tileDirectories.Skip(partIndex * tilesPerPart).Take(tilesPerPart).ToArray();
+    if (partTiles.Length == 0) continue;
+    var tileIds = partTiles.Select(path => Path.GetFileName(path)!).ToArray();
+    var archiveName = $"{options.AssetPrefix}-map-part-{partIndex + 1:D2}-of-{options.MapParts:D2}-v{options.Version}.zip";
+    var archivePath = Path.Combine(options.Output, archiveName);
+    var installedBytes = CreateArchive(
+        archivePath,
+        partTiles.SelectMany(tileDirectory => cityFiles.Select(name => (
+            Path.Combine(tileDirectory, name),
+            $"{Path.GetFileName(tileDirectory)}/{name}"))));
+    assets.Add(Asset(archiveName, ReleaseAssetKind.TileData, archivePath, installedBytes, ".") with { Destinations = tileIds });
+}
+assets.Add(supportAsset);
+assets.Add(modAsset);
 
 var installedTotal = assets.Sum(asset => asset.InstalledBytes);
 var workingBytes = assets.Max(asset => asset.InstalledBytes + asset.DownloadBytes) + 128L * 1024 * 1024;
@@ -129,6 +144,7 @@ internal sealed record Options(
     string AssetPrefix,
     string TilePrefix,
     int ExpectedTiles,
+    int MapParts,
     int Port,
     string ManifestName)
 {
@@ -158,6 +174,7 @@ internal sealed record Options(
             Optional("asset-prefix", "nec"),
             Optional("tile-prefix", "NEC"),
             Integer("expected-tiles", 34),
+            Integer("map-parts", 4),
             Integer("port", 8799),
             Optional("manifest-name", "release-manifest.json"));
     }

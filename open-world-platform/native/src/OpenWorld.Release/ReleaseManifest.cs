@@ -32,7 +32,10 @@ public sealed record ReleaseAsset(
     string Sha256,
     long DownloadBytes,
     long InstalledBytes,
-    string Destination);
+    string Destination)
+{
+    public IReadOnlyList<string> Destinations { get; init; } = [];
+}
 
 public sealed record ReleaseManifest(
     int SchemaVersion,
@@ -48,6 +51,13 @@ public sealed record ReleaseManifest(
     };
 
     public long DownloadBytes => Assets.Sum(asset => asset.DownloadBytes);
+
+    [JsonIgnore]
+    public IReadOnlyList<string> TileIds => Assets
+        .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
+        .SelectMany(asset => asset.Destinations is { Count: > 0 } ? asset.Destinations : [asset.Destination])
+        .Order(StringComparer.Ordinal)
+        .ToArray();
 
     public string ToJson() => JsonSerializer.Serialize(this, new JsonSerializerOptions(JsonOptions) { WriteIndented = true }) + Environment.NewLine;
 
@@ -94,13 +104,34 @@ public sealed record ReleaseManifest(
                 throw new InvalidDataException($"Release asset has an invalid SHA-256: {asset.Name}");
             if (asset.DownloadBytes <= 0 || asset.InstalledBytes <= 0)
                 throw new InvalidDataException($"Release asset sizes must be positive: {asset.Name}");
-            if (string.IsNullOrWhiteSpace(asset.Destination) || Path.IsPathRooted(asset.Destination) || asset.Destination.Contains("..", StringComparison.Ordinal))
-                throw new InvalidDataException($"Unsafe release destination: {asset.Name}");
+            if (asset.Destinations is null)
+                throw new InvalidDataException($"Release asset destinations are missing: {asset.Name}");
+            if (asset.Kind == ReleaseAssetKind.TileData && asset.Destinations.Count > 0)
+            {
+                if (asset.Destination != ".")
+                    throw new InvalidDataException($"A multi-tile map part must target the shared data directory: {asset.Name}");
+                if (asset.Destinations.Any(destination => !SafeSegment(destination)) ||
+                    asset.Destinations.Distinct(StringComparer.Ordinal).Count() != asset.Destinations.Count)
+                    throw new InvalidDataException($"Unsafe or duplicate map-part destination: {asset.Name}");
+            }
+            else
+            {
+                if (asset.Destinations.Count != 0 ||
+                    string.IsNullOrWhiteSpace(asset.Destination) ||
+                    Path.IsPathRooted(asset.Destination) ||
+                    asset.Destination.Contains("..", StringComparison.Ordinal))
+                    throw new InvalidDataException($"Unsafe release destination: {asset.Name}");
+            }
         }
 
         if (!Assets.Any(asset => asset.Kind == ReleaseAssetKind.Mod))
             throw new InvalidDataException("The release must contain a Railyard mod asset.");
     }
+
+    private static bool SafeSegment(string value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        Path.GetFileName(value) == value &&
+        value is not "." and not "..";
 
     public static async Task VerifyAssetAsync(Stream stream, ReleaseAsset asset, CancellationToken cancellationToken = default)
     {

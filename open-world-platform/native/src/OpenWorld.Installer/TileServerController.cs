@@ -197,31 +197,30 @@ internal static class TileServerController
         TileServerRuntimePaths runtime,
         CancellationToken cancellationToken)
     {
-        var tileAssets = manifest.Assets.Where(asset => asset.Kind == ReleaseAssetKind.TileData).ToArray();
+        var tileIds = manifest.TileIds;
         var verified = 0;
-        foreach (var asset in tileAssets)
+        foreach (var tileId in tileIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (Path.GetFileName(asset.Destination) != asset.Destination) continue;
-            var directory = Path.Combine(runtime.DataRoot, asset.Destination);
+            var directory = Path.Combine(runtime.DataRoot, tileId);
             if (RequiredPackageFiles.All(name => File.Exists(Path.Combine(directory, name)) && new FileInfo(Path.Combine(directory, name)).Length > 0))
                 verified++;
         }
 
-        if (verified != tileAssets.Length)
-            return new DataVerificationResult(verified, tileAssets.Length, $"{verified} of {tileAssets.Length} packages verified");
+        if (verified != tileIds.Count)
+            return new DataVerificationResult(verified, tileIds.Count, $"{verified} of {tileIds.Count} packages verified");
 
         var status = await GetStatusAsync(manifest, cancellationToken);
-        if (status.Condition == TileServerCondition.Running && tileAssets.Length > 0)
+        if (status.Condition == TileServerCondition.Running && tileIds.Count > 0)
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var testTile = new Uri($"http://127.0.0.1:{manifest.Product.TileServerPort}/{tileAssets[0].Destination}/0/0/0.mvt");
+            var testTile = new Uri($"http://127.0.0.1:{manifest.Product.TileServerPort}/{tileIds[0]}/0/0/0.mvt");
             using var response = await client.GetAsync(testTile, cancellationToken);
             if (!response.IsSuccessStatusCode)
-                return new DataVerificationResult(verified, tileAssets.Length, $"Packages verified; test tile returned HTTP {(int)response.StatusCode}");
+                return new DataVerificationResult(verified, tileIds.Count, $"Packages verified; test tile returned HTTP {(int)response.StatusCode}");
         }
 
-        return new DataVerificationResult(verified, tileAssets.Length, $"{verified} of {tileAssets.Length} packages verified");
+        return new DataVerificationResult(verified, tileIds.Count, $"{verified} of {tileIds.Count} packages verified");
     }
 
     private static ProcessStartInfo NewStartInfo(string executable) => new()
@@ -239,11 +238,7 @@ internal static class TileServerController
     private static string Port(ReleaseManifest manifest) =>
         manifest.Product.TileServerPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    private static string[] TileIds(ReleaseManifest manifest) => manifest.Assets
-        .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
-        .Select(asset => asset.Destination)
-        .Order(StringComparer.Ordinal)
-        .ToArray();
+    private static string[] TileIds(ReleaseManifest manifest) => manifest.TileIds.ToArray();
 
     private static async Task<string[]> DesiredTileIdsAsync(
         ReleaseManifest manifest,

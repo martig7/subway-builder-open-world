@@ -52,9 +52,8 @@ public partial class MainWindow : Window
         DataRootPathText.Text = locations.CityDataRoot;
         PublisherText.Text = manifest.Product.Publisher;
 
-        var destinations = manifest.Assets
-            .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
-            .Select(asset => Path.Combine(locations.CityDataRoot, asset.Destination))
+        var destinations = manifest.TileIds
+            .Select(tileId => Path.Combine(locations.CityDataRoot, tileId))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();

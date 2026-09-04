@@ -54,9 +54,7 @@ public sealed record ReleaseCatalog(
         if (Worlds.Select(world => world.Product.TileServerPort).Distinct().Count() != 1)
             throw new InvalidDataException("All worlds in a release must use one shared tile-server port.");
         var duplicateTile = Worlds
-            .SelectMany(world => world.Assets
-                .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
-                .Select(asset => (world.Product.ManifestId, TileId: asset.Destination)))
+            .SelectMany(world => world.TileIds.Select(tileId => (world.Product.ManifestId, TileId: tileId)))
             .GroupBy(item => item.TileId, StringComparer.Ordinal)
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicateTile is not null)

@@ -135,10 +135,9 @@ internal static class WindowsIntegration
         Registry.CurrentUser.DeleteSubKeyTree(ProductKey(manifest), throwOnMissingSubKey: false);
 
         DeleteDirectory(locations.ModRoot);
-        foreach (var asset in manifest.Assets.Where(asset => asset.Kind == ReleaseAssetKind.TileData))
+        foreach (var tileId in manifest.TileIds)
         {
-            if (Path.GetFileName(asset.Destination) != asset.Destination) continue;
-            DeleteDirectory(Path.Combine(locations.CityDataRoot, asset.Destination));
+            DeleteDirectory(Path.Combine(locations.CityDataRoot, tileId));
         }
         DeleteDirectory(locations.CacheRoot);
         DeleteDirectory(locations.ProductRoot, retries: 20);

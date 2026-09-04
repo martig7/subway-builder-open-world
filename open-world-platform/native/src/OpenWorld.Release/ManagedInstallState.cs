@@ -20,11 +20,7 @@ public sealed record ManagedInstallState(
         manifest.Product.Version,
         manifest.Product.ManifestId,
         DateTimeOffset.UtcNow,
-        manifest.Assets
-            .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
-            .Select(asset => asset.Destination)
-            .Order(StringComparer.Ordinal)
-            .ToArray());
+        manifest.TileIds);
 
     public static async Task WriteAsync(string path, ManagedInstallState state, CancellationToken cancellationToken = default)
     {

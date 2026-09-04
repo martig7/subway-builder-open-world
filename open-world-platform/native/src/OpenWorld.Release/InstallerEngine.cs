@@ -37,8 +37,21 @@ public sealed class InstallerEngine(HttpClient httpClient, string? assetRoot = n
                 await ReleaseManifest.VerifyAssetAsync(input, asset, cancellationToken);
 
             Report(InstallStage.Installing, "Installing verified files", asset.Name);
-            var target = ResolveTarget(asset, locations);
-            await InstallArchiveAsync(cachePath, target, asset.InstalledBytes, cancellationToken);
+            if (asset.Kind == ReleaseAssetKind.TileData && asset.Destinations.Count > 0)
+            {
+                await InstallMapPartAsync(
+                    cachePath,
+                    locations.CityDataRoot,
+                    asset.Destinations,
+                    asset.InstalledBytes,
+                    entry => Report(InstallStage.Installing, "Extracting verified map files", $"{asset.Name}: {entry}"),
+                    cancellationToken);
+            }
+            else
+            {
+                var target = ResolveTarget(asset, locations);
+                await InstallArchiveAsync(cachePath, target, asset.InstalledBytes, cancellationToken);
+            }
             File.Delete(cachePath);
             completedAssets++;
             completedBytes += asset.DownloadBytes;
@@ -233,6 +246,100 @@ public sealed class InstallerEngine(HttpClient httpClient, string? assetRoot = n
                 if (!Directory.Exists(target) && Directory.Exists(backup)) Directory.Move(backup, target);
                 throw;
             }
+        }
+        finally
+        {
+            if (Directory.Exists(stage)) Directory.Delete(stage, recursive: true);
+        }
+    }
+
+    private static async Task InstallMapPartAsync(
+        string archivePath,
+        string cityDataRoot,
+        IReadOnlyList<string> tileIds,
+        long expectedInstalledBytes,
+        Action<string> reportEntry,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(cityDataRoot);
+        var parent = Path.GetDirectoryName(cityDataRoot) ?? throw new InvalidDataException($"City-data root has no parent: {cityDataRoot}");
+        var transactionId = Guid.NewGuid().ToString("N");
+        var stage = Path.Combine(parent, $".{Path.GetFileName(cityDataRoot)}.installing-{transactionId}");
+        var allowedTiles = tileIds.ToHashSet(StringComparer.Ordinal);
+        var extractedTiles = new HashSet<string>(StringComparer.Ordinal);
+        var committed = new List<(string Target, string Backup, bool HadPrevious)>();
+        Directory.CreateDirectory(stage);
+        try
+        {
+            long installedBytes = 0;
+            using (var zip = ZipFile.OpenRead(archivePath))
+            {
+                var stagePrefix = Path.GetFullPath(stage).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                foreach (var entry in zip.Entries)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var entryName = entry.FullName.Replace('\\', '/');
+                    if (entryName.EndsWith("/", StringComparison.Ordinal)) continue;
+                    var segments = entryName.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (segments.Length < 2 || !allowedTiles.Contains(segments[0]))
+                        throw new InvalidDataException($"Map-part entry is outside its tile allowlist: {entry.FullName}");
+                    var destination = Path.GetFullPath(Path.Combine(stage, entryName));
+                    if (!destination.StartsWith(stagePrefix, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException($"ZIP entry escapes its map-part staging directory: {entry.FullName}");
+                    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                    await using var source = entry.Open();
+                    await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 128 * 1024, FileOptions.Asynchronous);
+                    await source.CopyToAsync(output, cancellationToken);
+                    installedBytes += entry.Length;
+                    extractedTiles.Add(segments[0]);
+                    reportEntry(entryName);
+                }
+            }
+
+            if (installedBytes != expectedInstalledBytes)
+                throw new InvalidDataException($"{Path.GetFileName(archivePath)} installed {installedBytes} bytes; expected {expectedInstalledBytes}.");
+            if (!extractedTiles.SetEquals(allowedTiles))
+                throw new InvalidDataException($"{Path.GetFileName(archivePath)} does not contain every declared tile directory.");
+            foreach (var tileId in tileIds)
+            {
+                if (!File.Exists(Path.Combine(stage, tileId, "tiles.pmtiles")))
+                    throw new InvalidDataException($"{Path.GetFileName(archivePath)} is missing {tileId}/tiles.pmtiles.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                foreach (var tileId in tileIds)
+                {
+                    var target = SafeChild(cityDataRoot, tileId);
+                    var stagedTile = Path.Combine(stage, tileId);
+                    var backup = Path.Combine(parent, $".{tileId}.previous-{transactionId}");
+                    var hadPrevious = Directory.Exists(target);
+                    if (hadPrevious) Directory.Move(target, backup);
+                    try
+                    {
+                        Directory.Move(stagedTile, target);
+                    }
+                    catch
+                    {
+                        if (hadPrevious && !Directory.Exists(target) && Directory.Exists(backup)) Directory.Move(backup, target);
+                        throw;
+                    }
+                    committed.Add((target, backup, hadPrevious));
+                }
+            }
+            catch
+            {
+                foreach (var (target, backup, hadPrevious) in committed.AsEnumerable().Reverse())
+                {
+                    if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
+                    if (hadPrevious && Directory.Exists(backup)) Directory.Move(backup, target);
+                }
+                throw;
+            }
+
+            foreach (var (_, backup, hadPrevious) in committed)
+                if (hadPrevious && Directory.Exists(backup)) Directory.Delete(backup, recursive: true);
         }
         finally
         {

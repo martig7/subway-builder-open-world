@@ -22,11 +22,7 @@ public sealed record InstalledWorldRegistration(
         locations.ManagerPath,
         locations.ServerExecutablePath,
         locations.CityDataRoot,
-        manifest.Assets
-            .Where(asset => asset.Kind == ReleaseAssetKind.TileData)
-            .Select(asset => asset.Destination)
-            .Order(StringComparer.Ordinal)
-            .ToArray());
+        manifest.TileIds);
 
     public void Validate()
     {

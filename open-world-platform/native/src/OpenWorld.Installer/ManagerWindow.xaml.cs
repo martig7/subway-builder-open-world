@@ -227,7 +227,7 @@ public partial class ManagerWindow : Window
     {
         if (isPreview) return;
         await InitialRefresh;
-        var packageCount = manifest.Assets.Count(asset => asset.Kind == ReleaseAssetKind.TileData);
+        var packageCount = manifest.TileIds.Count;
         var result = MessageBox.Show(
             this,
             $"Remove the manager, mod, tile server, and {packageCount} managed data packages? Saved games are kept.",
