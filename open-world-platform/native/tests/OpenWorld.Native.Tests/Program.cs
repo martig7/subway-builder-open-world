@@ -29,6 +29,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("tile-server state verifies the owning process", ServerStateRoundTrip),
     ("tile-server logs rotate within their retention limit", RollingLogRotation),
     ("desktop launch plan adds Start-menu access without enabling login startup", DesktopLaunchPlanValidation),
+    ("manager uses a world-neutral title and the release-manifest version", ManagerPresentationValidation),
 };
 
 var failed = 0;
@@ -651,6 +652,15 @@ static Task DesktopLaunchPlanValidation()
     Equal("--manager --world \"northeast-corridor-open-world\"", plan.ManagerArguments);
     Equal("--manager --background --start-server --world \"northeast-corridor-open-world\"", plan.BackgroundStartupArguments);
     Equal(false, plan.EnableStartupByDefault);
+    return Task.CompletedTask;
+}
+
+static Task ManagerPresentationValidation()
+{
+    var manifest = ManifestFor(destination: "NEC_CP00_RP00");
+    var presentation = ManagerPresentation.FromManifest(manifest);
+    Equal("Open World Manager", presentation.Title);
+    Equal($"Version {manifest.Product.Version}", presentation.VersionText);
     return Task.CompletedTask;
 }
 

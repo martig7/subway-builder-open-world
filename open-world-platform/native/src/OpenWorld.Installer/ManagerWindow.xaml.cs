@@ -42,9 +42,10 @@ public partial class ManagerWindow : Window
         this.isPreview = isPreview;
         this.startServerOnLoad = startServerOnLoad;
         this.startHidden = startHidden;
-        Title = $"{manifest.Product.Name} Manager";
-        ManagerTitleText.Text = $"{manifest.Product.Name} Manager";
-        VersionText.Text = $"Version {manifest.Product.Version}";
+        var presentation = ManagerPresentation.FromManifest(manifest);
+        Title = presentation.Title;
+        ManagerTitleText.Text = presentation.Title;
+        VersionText.Text = presentation.VersionText;
         AddressText.Text = $"127.0.0.1:{manifest.Product.TileServerPort}";
         ModeText.Text = isPreview ? "Preview mode" : string.Empty;
         StartupCheckBox.IsEnabled = !isPreview;
