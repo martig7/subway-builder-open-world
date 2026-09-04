@@ -8,6 +8,7 @@ DETACHED_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_q
 ROUTING_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_routing_detached.ps1"
 ROUTING_START_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "start_japan_routing.ps1"
 OSRM_PREPARE_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "prepare_japan_osrm.ps1"
+OSRM_HANDOFF_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_osrm_routing_when_ready.ps1"
 
 
 class JapanRunnerScriptTests(unittest.TestCase):
@@ -64,6 +65,16 @@ class JapanRunnerScriptTests(unittest.TestCase):
         self.assertIn("'--algorithm', 'mld'", script)
         self.assertIn("dataset.json", script)
         self.assertIn("osrm-preparation-progress.jsonl", script)
+
+    def test_osrm_handoff_waits_for_dataset_and_uses_durable_cache(self) -> None:
+        script = OSRM_HANDOFF_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("dataset.json", script)
+        self.assertIn("osrm-routing-handoff.jsonl", script)
+        self.assertIn("cache\\osrm-routes.sqlite3", script)
+        self.assertIn("'-RoutingProvider', 'osrm'", script)
+        self.assertIn("'-OsrmDatasetId', $dataset.datasetId", script)
+        self.assertIn("'-Invalidation', $Invalidation", script)
 
 
 if __name__ == "__main__":
