@@ -65,7 +65,9 @@ def _sha256(path: Path) -> str:
 
 
 def _refresh_enriched_tile_manifest(
-    manifest: dict[str, Any], tile_root: Path
+    manifest: dict[str, Any],
+    tile_root: Path,
+    driving_model: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     assets_by_path = {asset["path"]: asset for asset in manifest.get("assets", [])}
     for filename in (
@@ -79,7 +81,7 @@ def _refresh_enriched_tile_manifest(
         asset["sha256"] = _sha256(path)
     manifest["assets"] = [assets_by_path[key] for key in sorted(assets_by_path)]
     manifest["sha256"] = assets_by_path["demand_data.json.gz"]["sha256"]
-    manifest["drivingModel"] = _driving_model()
+    manifest["drivingModel"] = driving_model or _driving_model()
     return manifest
 
 
@@ -692,6 +694,57 @@ def _route_options(
     }
 
 
+def _route_many(
+    router: Any,
+    requests: Iterable[tuple[Any, tuple[float, float], tuple[float, float]]],
+    *,
+    route_options: dict[str, float],
+    fallback_speed_mps: float,
+    fallback_circuity: float,
+    progress: Any,
+) -> dict[Any, RouteResult]:
+    materialized = list(requests)
+    batch = getattr(router, "route_pairs", None)
+    if callable(batch):
+        return batch(
+            materialized,
+            fallback_speed_mps=fallback_speed_mps,
+            fallback_circuity=fallback_circuity,
+            progress=progress,
+            **route_options,
+        )
+    return {
+        key: router.route(
+            origin,
+            destination,
+            fallback_speed_mps=fallback_speed_mps,
+            fallback_circuity=fallback_circuity,
+            **route_options,
+        )
+        for key, origin, destination in materialized
+    }
+
+
+def _route_one(
+    router: Any,
+    origin: tuple[float, float],
+    destination: tuple[float, float],
+    *,
+    route_options: dict[str, float],
+    fallback_speed_mps: float,
+    fallback_circuity: float,
+    progress: Any,
+) -> RouteResult:
+    return _route_many(
+        router,
+        [(0, origin, destination)],
+        route_options=route_options,
+        fallback_speed_mps=fallback_speed_mps,
+        fallback_circuity=fallback_circuity,
+        progress=progress,
+    )[0]
+
+
 def _read_json_or_gzip(path: Path) -> dict[str, Any]:
     if path.suffix == ".gz":
         with gzip.open(path, "rt", encoding="utf-8") as source:
@@ -792,6 +845,7 @@ def enrich_generated_road_driving(
     max_detour_ratio: float = DEFAULT_MAX_DETOUR_RATIO,
     cross_samples_per_tile_pair: int = DEFAULT_CROSS_SAMPLES_PER_TILE_PAIR,
     invalidation_path: str | Path | None = None,
+    route_backend: Any | None = None,
     resume: bool = True,
     progress: Any = print,
 ) -> dict[str, Any]:
@@ -814,19 +868,38 @@ def enrich_generated_road_driving(
             f"({sum(map(len, selective_plan['nativePopIds'].values()))} native cohorts, "
             f"{len(selective_plan['crossPartitions'])} cross partitions)"
         )
-    progress("[road-routing] started graph build")
-    graph, graph_report = build_road_graph(
-        catalog_path, maps_dir, maximum_edge_metres=maximum_edge_metres, progress=progress
-    )
     catalog = json.loads(Path(catalog_path).read_text(encoding="utf-8"))
     tile_ids = [str(tile["id"]) for tile in catalog["tiles"] if tile.get("status") == "selected"]
+    transformer = Transformer.from_crs("EPSG:4326", catalog["crs"], always_xy=True)
+    if route_backend is None:
+        progress("[road-routing] started generated-road graph build")
+        router, graph_report = build_road_graph(
+            catalog_path,
+            maps_dir,
+            maximum_edge_metres=maximum_edge_metres,
+            progress=progress,
+        )
+        driving_model = _driving_model()
+        routing_fingerprint = {
+            "provider": "generated-roads",
+            "roads": {
+                tile_id: _sha256(Path(maps_dir) / tile_id / "roads.geojson.gz")
+                for tile_id in tile_ids
+            },
+        }
+    else:
+        router = route_backend
+        driving_model = dict(router.driving_model())
+        graph_report = dict(router.report())
+        routing_fingerprint = dict(router.input_fingerprint)
+        progress(
+            "[road-routing] using external routing backend "
+            f"{driving_model['provider']} ({driving_model.get('datasetId', 'unversioned')})"
+        )
     stage = demand.parent / f".{demand.name}-road-routing-stage"
     input_fingerprint = {
         "catalog": _sha256(Path(catalog_path)),
-        "roads": {
-            tile_id: _sha256(Path(maps_dir) / tile_id / "roads.geojson.gz")
-            for tile_id in tile_ids
-        },
+        "routingBackend": routing_fingerprint,
         "nativeDemand": {
             tile_id: _sha256(demand / "tiles" / tile_id / "demand_data.json.gz")
             for tile_id in tile_ids
@@ -889,23 +962,29 @@ def enrich_generated_road_driving(
             counts["routes"] += preserved
             counts["nativeRoutes"] += preserved
             counts["preservedNativeRoutes"] += preserved
-        route_cache: dict[tuple[str, str], RouteResult] = {}
+        unique_requests: dict[
+            tuple[str, str], tuple[tuple[float, float], tuple[float, float]]
+        ] = {}
+        for pop in selected_pops:
+            pair = (str(pop["residenceId"]), str(pop["jobId"]))
+            unique_requests.setdefault(pair, (points[pair[0]], points[pair[1]]))
         progress(f"[road-routing] native started {tile_index}/{len(tile_ids)} {tile_id} ({route_total} selected)")
+        route_cache = _route_many(
+            router,
+            (
+                (pair, coordinates[0], coordinates[1])
+                for pair, coordinates in unique_requests.items()
+            ),
+            route_options=route_options,
+            fallback_speed_mps=LOCAL_FALLBACK_SPEED_MPS,
+            fallback_circuity=1.0,
+            progress=progress,
+        )
+        counts["nativeSearches"] += len(unique_requests)
+        counts["reusedNativeRoutes"] += route_total - len(unique_requests)
         for pop_index, pop in enumerate(selected_pops, 1):
             pair = (str(pop["residenceId"]), str(pop["jobId"]))
-            route = route_cache.get(pair)
-            if route is None:
-                route = graph.route(
-                    points[pair[0]],
-                    points[pair[1]],
-                    fallback_speed_mps=LOCAL_FALLBACK_SPEED_MPS,
-                    fallback_circuity=1.0,
-                    **route_options,
-                )
-                route_cache[pair] = route
-                counts["nativeSearches"] += 1
-            else:
-                counts["reusedNativeRoutes"] += 1
+            route = route_cache[pair]
             pop["drivingSeconds"] = route.seconds
             pop["drivingDistance"] = route.metres
             _route_counter(counts, route)
@@ -932,7 +1011,9 @@ def enrich_generated_road_driving(
         (float(point[point_fields["longitude"]]), float(point[point_fields["latitude"]]))
         for point in cross["points"]
     ]
-    projected_cross_points = [graph.projected(*point) for point in cross_points]
+    projected_cross_points = [
+        tuple(map(float, transformer.transform(*point))) for point in cross_points
+    ]
     tile_field = point_fields["tileId"]
     partition_indices: dict[tuple[str, str], list[int]] = {}
     for pop_index, pop in enumerate(cross["pops"]):
@@ -999,17 +1080,19 @@ def enrich_generated_road_driving(
                     f"[road-routing] cross sample started {partition_number}/{len(partition_items)} "
                     f"{cache_key} {sample_number}/{len(sample_offsets)}"
                 )
-                route = graph.route(
+                route = _route_one(
+                    router,
                     cross_points[int(pop[pop_fields["homePoint"]])],
                     cross_points[int(pop[pop_fields["workPoint"]])],
+                    route_options=route_options,
                     fallback_speed_mps=CROSS_FALLBACK_SPEED_MPS,
                     fallback_circuity=CROSS_FALLBACK_CIRCUITY,
-                    **route_options,
+                    progress=progress,
                 )
                 search_counts[route.source] += 1
                 search_counts["searches"] += 1
                 sampled_pop_ids.append(str(pop[pop_fields["id"]]))
-                if route.source == "generated-road-graph":
+                if route.source in {"generated-road-graph", "osrm"}:
                     road_ratios.append(route.metres / direct)
                     seconds_per_direct_metre.append(route.seconds / direct)
                 progress(
@@ -1018,7 +1101,11 @@ def enrich_generated_road_driving(
                 )
             if road_ratios:
                 model = {
-                    "provider": "generated-road-tile-pair-model",
+                    "provider": (
+                        "osrm-tile-pair-model"
+                        if driving_model["provider"] == "osrm"
+                        else "generated-road-tile-pair-model"
+                    ),
                     "distanceRatio": round(float(np.median(road_ratios)), 8),
                     "secondsPerDirectMetre": round(float(np.median(seconds_per_direct_metre)), 10),
                     "roadSamples": len(road_ratios),
@@ -1037,7 +1124,7 @@ def enrich_generated_road_driving(
                 completed_selective_partitions.add(partition)
             _write_json(partition_cache_path, {
                 "schemaVersion": 1,
-                "graphVersion": GRAPH_VERSION,
+                "graphVersion": driving_model["graphVersion"],
                 "samplesPerTilePair": cross_samples_per_tile_pair,
                 "selectiveCompletedPartitions": [
                     list(item) for item in sorted(completed_selective_partitions)
@@ -1075,14 +1162,14 @@ def enrich_generated_road_driving(
         )
     _write_json(partition_cache_path, {
         "schemaVersion": 1,
-        "graphVersion": GRAPH_VERSION,
+        "graphVersion": driving_model["graphVersion"],
         "samplesPerTilePair": cross_samples_per_tile_pair,
         "selectiveCompletedPartitions": [
             list(item) for item in sorted(completed_selective_partitions)
         ],
         "models": models,
     })
-    cross["drivingModel"] = _driving_model()
+    cross["drivingModel"] = driving_model
     _gzip_json(stage / "world" / "cross_demand.json.gz", cross)
 
     commutes = json.loads((demand / "world" / "cross_commutes.json").read_text(encoding="utf-8"))
@@ -1110,7 +1197,7 @@ def enrich_generated_road_driving(
         f"{bucket['id']}:{bucket['mass']}:{bucket['defaultTravelSeconds']}" for bucket in commutes["buckets"]
     ]
     commutes["buildHash"] = f"{build_hash_prefix}-{_stable_id(*commute_parts)}"
-    commutes["drivingModel"] = _driving_model()
+    commutes["drivingModel"] = driving_model
     _write_json(stage / "world" / "cross_commutes.json", commutes)
 
     for tile_id in tile_ids:
@@ -1122,15 +1209,15 @@ def enrich_generated_road_driving(
         manifest = json.loads((demand / "tiles" / tile_id / "manifest.json").read_text(encoding="utf-8"))
         _write_json(
             tile_root / "manifest.json",
-            _refresh_enriched_tile_manifest(manifest, tile_root),
+            _refresh_enriched_tile_manifest(manifest, tile_root, driving_model),
         )
 
     demand_report_path = demand / "reports" / demand_report_name
     demand_report = json.loads(demand_report_path.read_text(encoding="utf-8"))
-    demand_report.setdefault("aggregation", {})["drivingModel"] = _driving_model()
+    demand_report.setdefault("aggregation", {})["drivingModel"] = driving_model
     demand_report["roadRouting"] = {
         "report": routing_report_name,
-        "graphVersion": GRAPH_VERSION,
+        "graphVersion": driving_model["graphVersion"],
         "completed": True,
     }
     _write_json(stage / "reports" / demand_report_name, demand_report)
@@ -1138,10 +1225,10 @@ def enrich_generated_road_driving(
     routing_report = {
         "schemaVersion": 1,
         "status": "complete",
-        "kind": "generated-road driving-time splice",
+        "kind": f"{driving_model['provider']} driving-time splice",
         "consumerManifestId": consumer_manifest_id,
-        "graph": graph_report,
-        "drivingModel": _driving_model(),
+        "graph": dict(router.report()) if route_backend is not None else graph_report,
+        "drivingModel": driving_model,
         "policy": {
             "maxRoutedDirectMetres": max_routed_direct_metres,
             "maxSnapMetres": max_snap_metres,

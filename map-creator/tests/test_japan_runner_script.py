@@ -7,6 +7,7 @@ RUNNER_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_que
 DETACHED_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_map_queue_detached.ps1"
 ROUTING_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_routing_detached.ps1"
 ROUTING_START_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "start_japan_routing.ps1"
+OSRM_PREPARE_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "prepare_japan_osrm.ps1"
 
 
 class JapanRunnerScriptTests(unittest.TestCase):
@@ -48,6 +49,21 @@ class JapanRunnerScriptTests(unittest.TestCase):
         self.assertIn("'-DemandRoot', $DemandRoot", starter)
         self.assertIn("'-Invalidation', $Invalidation", starter)
         self.assertIn("launcher.stderr.log", starter)
+        self.assertIn("'--routing-provider', $RoutingProvider", script)
+        self.assertIn("'--osrm-dataset-id', $OsrmDatasetId", script)
+        self.assertIn("'--osrm-cache', $OsrmCache", script)
+        self.assertIn("'-OsrmDatasetId', $OsrmDatasetId", starter)
+
+    def test_osrm_preparation_is_resumable_and_serves_mld(self) -> None:
+        script = OSRM_PREPARE_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("--continue-at -", script)
+        self.assertIn("osrm-extract", script)
+        self.assertIn("osrm-partition", script)
+        self.assertIn("osrm-customize", script)
+        self.assertIn("'--algorithm', 'mld'", script)
+        self.assertIn("dataset.json", script)
+        self.assertIn("osrm-preparation-progress.jsonl", script)
 
 
 if __name__ == "__main__":

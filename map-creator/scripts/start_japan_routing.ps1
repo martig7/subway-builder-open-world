@@ -4,7 +4,15 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$MapsRoot,
     [string]$DemandRoot,
-    [string]$Invalidation
+    [string]$Invalidation,
+    [ValidateSet('generated-roads', 'osrm')]
+    [string]$RoutingProvider = 'generated-roads',
+    [string]$OsrmBaseUrl = 'http://127.0.0.1:5000',
+    [string]$OsrmDatasetId,
+    [string]$OsrmCache,
+    [int]$OsrmWorkers = 16,
+    [int]$OsrmMaxTableCoordinates = 100,
+    [double]$MaxRoutedDirectMetres = 3000000
 )
 
 $runner = Join-Path $Root 'run_japan_routing_detached.ps1'
@@ -15,10 +23,17 @@ $arguments = @(
     '-ExecutionPolicy', 'Bypass',
     '-File', $runner,
     '-Root', $Root,
-    '-MapsRoot', $MapsRoot
+    '-MapsRoot', $MapsRoot,
+    '-RoutingProvider', $RoutingProvider,
+    '-OsrmBaseUrl', $OsrmBaseUrl,
+    '-OsrmWorkers', $OsrmWorkers,
+    '-OsrmMaxTableCoordinates', $OsrmMaxTableCoordinates,
+    '-MaxRoutedDirectMetres', $MaxRoutedDirectMetres
 )
 if ($DemandRoot) { $arguments += @('-DemandRoot', $DemandRoot) }
 if ($Invalidation) { $arguments += @('-Invalidation', $Invalidation) }
+if ($OsrmDatasetId) { $arguments += @('-OsrmDatasetId', $OsrmDatasetId) }
+if ($OsrmCache) { $arguments += @('-OsrmCache', $OsrmCache) }
 $process = Start-Process `
     -FilePath 'powershell.exe' `
     -ArgumentList $arguments `

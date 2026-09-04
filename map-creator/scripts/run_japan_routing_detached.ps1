@@ -4,7 +4,15 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$MapsRoot,
     [string]$DemandRoot,
-    [string]$Invalidation
+    [string]$Invalidation,
+    [ValidateSet('generated-roads', 'osrm')]
+    [string]$RoutingProvider = 'generated-roads',
+    [string]$OsrmBaseUrl = 'http://127.0.0.1:5000',
+    [string]$OsrmDatasetId,
+    [string]$OsrmCache,
+    [int]$OsrmWorkers = 16,
+    [int]$OsrmMaxTableCoordinates = 100,
+    [double]$MaxRoutedDirectMetres = 3000000
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,9 +44,22 @@ try {
         '--demand-dir', $DemandRoot,
         '--report-namespace', 'japan-national',
         '--consumer-manifest-id', 'local.japan-open-world',
+        '--routing-provider', $RoutingProvider,
         '--progress-jsonl', (Join-Path $logs 'routing-progress.jsonl')
     )
     if ($Invalidation) { $routingArguments += @('--invalidation', $Invalidation) }
+    if ($RoutingProvider -eq 'osrm') {
+        if (-not $OsrmDatasetId) { throw 'OsrmDatasetId is required for OSRM routing' }
+        if (-not $OsrmCache) { $OsrmCache = Join-Path $Root 'cache\osrm-routes.sqlite3' }
+        $routingArguments += @(
+            '--osrm-base-url', $OsrmBaseUrl,
+            '--osrm-dataset-id', $OsrmDatasetId,
+            '--osrm-cache', $OsrmCache,
+            '--osrm-workers', $OsrmWorkers,
+            '--osrm-max-table-coordinates', $OsrmMaxTableCoordinates,
+            '--max-routed-direct-metres', $MaxRoutedDirectMetres
+        )
+    }
     & python @routingArguments *>&1 |
         Tee-Object -FilePath $stdout -Append
     if ($LASTEXITCODE -ne 0) { throw "Japan routing exited with code $LASTEXITCODE" }

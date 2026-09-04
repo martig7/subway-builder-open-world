@@ -57,6 +57,35 @@ dedicated Tokyo/Kanagawa rebuild. Routing uses an input fingerprint so a staged
 resume is discarded automatically when its map, catalog, or demand inputs have
 changed.
 
+For national OSRM routing, prepare a versioned MLD graph once and give routing a
+durable SQLite cache outside the demand package:
+
+```powershell
+.\scripts\prepare_japan_osrm.ps1 -OsrmRoot <osrm-data-root>
+$dataset = Get-Content -Raw <osrm-data-root>\dataset.json | ConvertFrom-Json
+python -m open_world_map_creator.routing `
+  --catalog <tile-catalog.json> `
+  --maps-dir <maps-tiles-root> `
+  --demand-dir <demand-root> `
+  --report-namespace japan-national `
+  --consumer-manifest-id local.japan-open-world `
+  --routing-provider osrm `
+  --osrm-dataset-id $dataset.datasetId `
+  --osrm-cache <routing-cache-root>\osrm-routes.sqlite3 `
+  --osrm-workers 16 `
+  --max-routed-direct-metres 3000000 `
+  --progress-jsonl <routing-progress.jsonl>
+```
+
+The cache key includes the OSRM dataset/profile, routing fallback policy, and
+both coordinates at 1e-7 degree precision. Each completed one-to-many request is
+committed immediately. A crash can therefore resume without repeating finished
+queries. Moving a demand point changes only cache keys that touch that point;
+combine this automatic coordinate invalidation with the existing invalidation
+sidecar to rewrite only the affected cohorts and cross-tile partitions. Changing
+the OSRM dataset ID intentionally invalidates the complete cache without deleting
+older entries.
+
 When a placement repair moves only a known set of endpoints, preserve completed
 work by producing a filtered invalidation sidecar and passing it to routing:
 
