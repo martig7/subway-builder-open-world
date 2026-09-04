@@ -1,0 +1,83 @@
+name: macOS tile server smoke test
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/standalone-tile-server]
+    paths:
+      - '.github/workflows/macos-tile-server.yml'
+      - 'open-world-platform/native/**'
+      - 'docs/manual-installation.md'
+      - 'VERSION'
+  pull_request:
+    paths:
+      - '.github/workflows/macos-tile-server.yml'
+      - 'open-world-platform/native/**'
+      - 'VERSION'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            rid: osx-arm64
+          - runner: macos-15-intel
+            rid: osx-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build native server
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          dotnet publish open-world-platform/native/src/OpenWorld.TileServer -c Release -r '${{ matrix.rid }}' --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$RUNNER_TEMP/publish"
+      - name: Package using the release ZIP builder
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          ./open-world-platform/native/scripts/New-MacTileServerArchive.ps1 -Executable "$env:RUNNER_TEMP/publish/open-world-tile-server" -Manual docs/manual-installation.md -Readme docs/manual-installation.md -Version $version -Output "$env:RUNNER_TEMP/server.zip"
+          ./open-world-platform/native/scripts/Test-MacTileServerArchive.ps1 -Archive "$env:RUNNER_TEMP/server.zip"
+      - name: Build and mount drag-to-Applications DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/dmg-stage"
+          mkdir -p "$stage" "$RUNNER_TEMP/dmg-mounted" "$HOME/Applications"
+          ditto -x -k "$RUNNER_TEMP/server.zip" "$stage"
+          ln -s /Applications "$stage/Applications"
+          printf 'Drag Open World Tile Server.app to Applications, then open it from Applications.\nKeep its Terminal window open while playing.\n' > "$stage/Drag to Applications.txt"
+          app="$stage/Open World Tile Server.app"
+          plutil -lint "$app/Contents/Info.plist"
+          test -x "$app/Contents/MacOS/launcher"
+          test -x "$app/Contents/MacOS/open-world-tile-server"
+          test -x "$app/Contents/Resources/Run Tile Server.command"
+          sh -n "$app/Contents/MacOS/launcher"
+          sh -n "$app/Contents/Resources/Run Tile Server.command"
+          dmg="artifacts/open-world-tile-server-${{ matrix.rid }}-v$(cat VERSION | tr -d '\r\n').dmg"
+          hdiutil create -volname 'Open World Tile Server' -srcfolder "$stage" -ov -format UDZO "$dmg"
+          hdiutil verify "$dmg"
+          hdiutil attach "$dmg" -nobrowse -mountpoint "$RUNNER_TEMP/dmg-mounted"
+          trap 'hdiutil detach "$RUNNER_TEMP/dmg-mounted"' EXIT
+          test "$(readlink "$RUNNER_TEMP/dmg-mounted/Applications")" = /Applications
+          ditto "$RUNNER_TEMP/dmg-mounted/Open World Tile Server.app" "$HOME/Applications/Open World Tile Server.app"
+      - name: Test server and Launch Services handoff
+        shell: bash
+        run: python3 open-world-platform/native/scripts/test-macos-launch.py "$HOME/Applications/Open World Tile Server.app"
+      - name: Collect diagnostics
+        if: always()
+        shell: bash
+        run: |
+          screencapture -x artifacts/desktop.png || true
+          log show --last 5m --style compact --predicate 'process == "Terminal" OR process == "launcher" OR process == "open-world-tile-server"' > artifacts/macos.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-tile-server-${{ matrix.rid }}
+          path: artifacts/
+          retention-days: 14
