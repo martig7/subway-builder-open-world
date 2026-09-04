@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Root,
     [Parameter(Mandatory = $true)]
-    [string]$MapsRoot
+    [string]$MapsRoot,
+    [string]$DemandRoot,
+    [string]$Invalidation
 )
 
 $runner = Join-Path $Root 'run_japan_routing_detached.ps1'
@@ -13,6 +15,8 @@ $arguments = @(
     '-Root', $Root,
     '-MapsRoot', $MapsRoot
 )
+if ($DemandRoot) { $arguments += @('-DemandRoot', $DemandRoot) }
+if ($Invalidation) { $arguments += @('-Invalidation', $Invalidation) }
 $process = Start-Process `
     -FilePath 'powershell.exe' `
     -ArgumentList $arguments `

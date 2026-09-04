@@ -45,6 +45,8 @@ class JapanRunnerScriptTests(unittest.TestCase):
         self.assertIn("Write-RoutingStatus -state 'complete' -exitCode 0", script)
         self.assertIn("Write-RoutingStatus -state 'failed' -exitCode 1", script)
         self.assertIn("-WindowStyle Hidden", starter)
+        self.assertIn("'-DemandRoot', $DemandRoot", starter)
+        self.assertIn("'-Invalidation', $Invalidation", starter)
 
 
 if __name__ == "__main__":
