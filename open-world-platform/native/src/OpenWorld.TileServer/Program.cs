@@ -4,6 +4,27 @@ using System.Reflection;
 using System.Text.Json;
 using OpenWorld.TileServer;
 
+var exitCode = 1;
+try
+{
+    exitCode = await RunAsync(args);
+}
+catch (Exception exception)
+{
+    Console.Error.WriteLine($"Tile server error: {exception.Message}");
+}
+
+// A terminal launched by Finder or Explorer would otherwise disappear on failure.
+// Redirected commands (including installer control commands) must never wait.
+if (exitCode != 0 && !Console.IsInputRedirected && !Console.IsOutputRedirected && !Console.IsErrorRedirected)
+{
+    Console.Error.WriteLine("Press Enter to close.");
+    Console.ReadLine();
+}
+return exitCode;
+
+static async Task<int> RunAsync(string[] args)
+{
 const string serverVersion = "native-pmtiles-directory-v4";
 const string instanceHeader = "X-PMTiles-Server-Instance";
 const string controlHeader = "X-PMTiles-Control-Token";
@@ -284,6 +305,7 @@ async Task<int> StopManagedServerAsync(int stopPort, string stopStatePath)
 
 static string? Header(HttpResponseMessage response, string name) =>
     response.Headers.TryGetValues(name, out var values) ? values.SingleOrDefault() : null;
+}
 
 internal sealed class CommandLine
 {
