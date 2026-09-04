@@ -1,7 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { checkSharedTileServerHealth } from '../src/runtime/tile-server-health.js';
+import {
+  checkSharedTileServerHealth,
+  monitorSharedTileServerHealth,
+} from '../src/runtime/tile-server-health.js';
+
+function createFakeDocument() {
+  const elements = new Map();
+  const body = {
+    children: [],
+    appendChild(element) {
+      element.parentNode = body;
+      body.children.push(element);
+      if (element.id) elements.set(element.id, element);
+      return element;
+    },
+    removeChild(element) {
+      body.children = body.children.filter((candidate) => candidate !== element);
+      if (element.id) elements.delete(element.id);
+      element.parentNode = null;
+    },
+  };
+  return {
+    body,
+    createElement(tagName) {
+      return {
+        tagName,
+        id: '',
+        role: '',
+        style: {},
+        textContent: '',
+        parentNode: null,
+        setAttribute(name, value) { this[name] = value; },
+      };
+    },
+    getElementById(id) { return elements.get(id) ?? null; },
+  };
+}
 
 test('healthy shared tile server does not notify the player', async () => {
   const notifications = [];
@@ -55,4 +91,39 @@ test('unexpected process on the shared port is treated as unavailable', async ()
 
   assert.equal(result.status, 'unavailable');
   assert.equal(notifications.length, 1);
+});
+
+test('loading-screen warning remains visible until the shared tile server starts', async () => {
+  const documentObject = createFakeDocument();
+  const globalObject = {};
+  const scheduled = [];
+  let serverRunning = false;
+
+  const first = await monitorSharedTileServerHealth({
+    tileBase: 'http://127.0.0.1:8799',
+    fetchImpl: async () => {
+      if (!serverRunning) throw new TypeError('fetch failed');
+      return { ok: true, headers: new Map([['X-PMTiles-Server-Version', 'native-pmtiles-directory-v4']]) };
+    },
+    notify: () => { throw new Error('notification surface unavailable during loading'); },
+    globalObject,
+    documentObject,
+    scheduleRetry(callback, delay) {
+      assert.equal(delay, 2_000);
+      scheduled.push(callback);
+      return scheduled.length;
+    },
+  });
+
+  assert.equal(first.status, 'unavailable');
+  assert.equal(documentObject.body.children.length, 1);
+  assert.equal(documentObject.body.children[0].role, 'alert');
+  assert.match(documentObject.body.children[0].textContent, /tile server is not running/i);
+  assert.equal(documentObject.body.children[0].style.zIndex, '2147483647');
+
+  serverRunning = true;
+  const second = await scheduled.shift()();
+
+  assert.equal(second.status, 'running');
+  assert.equal(documentObject.body.children.length, 0);
 });
