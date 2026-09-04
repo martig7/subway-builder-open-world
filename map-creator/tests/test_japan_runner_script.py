@@ -47,6 +47,7 @@ class JapanRunnerScriptTests(unittest.TestCase):
         self.assertIn("-WindowStyle Hidden", starter)
         self.assertIn("'-DemandRoot', $DemandRoot", starter)
         self.assertIn("'-Invalidation', $Invalidation", starter)
+        self.assertIn("launcher.stderr.log", starter)
 
 
 if __name__ == "__main__":
