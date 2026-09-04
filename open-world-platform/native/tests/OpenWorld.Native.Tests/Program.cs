@@ -28,6 +28,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("installed worlds combine into one shared tile-server registration", InstalledWorldRegistryRoundTrip),
     ("tile-server state verifies the owning process", ServerStateRoundTrip),
     ("tile-server logs rotate within their retention limit", RollingLogRotation),
+    ("tile-server defaults to the Subway Builder city-data directory", DefaultTileServerPathValidation),
     ("desktop launch plan adds Start-menu access without enabling login startup", DesktopLaunchPlanValidation),
     ("manager uses a world-neutral title and the release-manifest version", ManagerPresentationValidation),
 };
@@ -661,6 +662,15 @@ static Task ManagerPresentationValidation()
     var presentation = ManagerPresentation.FromManifest(manifest);
     Equal("Open World Manager", presentation.Title);
     Equal($"Version {manifest.Product.Version}", presentation.VersionText);
+    return Task.CompletedTask;
+}
+
+static Task DefaultTileServerPathValidation()
+{
+    var applicationData = Path.Combine(Path.GetTempPath(), "open-world-app-data-fixture");
+    Equal(
+        Path.GetFullPath(Path.Combine(applicationData, "metro-maker4", "cities", "data")),
+        DefaultServerPaths.ResolveDataRoot(applicationData));
     return Task.CompletedTask;
 }
 

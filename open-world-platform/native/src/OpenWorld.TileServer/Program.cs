@@ -29,11 +29,11 @@ if (command is "status" or "check")
 
 if (command != "serve")
 {
-    Console.Error.WriteLine("Usage: open-world-tile-server serve --root PATH [--port 8799] [--state-root PATH] [--log-root PATH] [--tiles ID,ID] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
+    Console.Error.WriteLine("Usage: open-world-tile-server [serve [--root PATH] [--port 8799] [--state-root PATH] [--log-root PATH] [--tiles ID,ID]] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
     return 2;
 }
 
-var root = options.Required("root");
+var root = Path.GetFullPath(options.Optional("root") ?? DefaultServerPaths.ResolveDataRoot());
 var logRoot = Path.GetFullPath(options.Optional("log-root") ?? Path.Combine(stateRoot, "logs"));
 var allowedIds = options.Optional("tiles")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
 if (allowedIds is { Count: 0 } || allowedIds?.Any(id => !ArchiveCatalog.IsSafeId(id)) == true)
