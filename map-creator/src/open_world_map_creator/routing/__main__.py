@@ -61,6 +61,8 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--osrm-workers", type=int, default=16)
     command.add_argument("--osrm-max-table-coordinates", type=int, default=100)
     command.add_argument("--osrm-timeout-seconds", type=float, default=60.0)
+    command.add_argument("--passenger-ferry-catalog", type=Path)
+    command.add_argument("--ferry-transfer-seconds", type=float, default=300.0)
     command.add_argument("--max-routed-direct-metres", type=float)
     command.add_argument(
         "--invalidation",
@@ -82,6 +84,8 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit("--osrm-max-table-coordinates must be at least 2")
     if args.routing_provider == "osrm" and not args.osrm_dataset_id:
         raise SystemExit("--osrm-dataset-id is required for durable OSRM cache identity")
+    if args.passenger_ferry_catalog and args.routing_provider != "osrm":
+        raise SystemExit("--passenger-ferry-catalog requires --routing-provider osrm")
     if args.progress_jsonl and args.progress_jsonl.exists() and args.no_resume:
         args.progress_jsonl.unlink()
     progress = JsonProgress(args.progress_jsonl)
@@ -106,6 +110,11 @@ def main(argv: list[str] | None = None) -> None:
                 datasetId=args.osrm_dataset_id,
                 cachePath=str(cache_path),
             )
+            if args.passenger_ferry_catalog:
+                from .ferries import PassengerFerryRouter
+                route_backend = PassengerFerryRouter(
+                    route_backend, args.passenger_ferry_catalog, args.ferry_transfer_seconds
+                )
         routing_options: dict[str, Any] = {}
         if args.max_routed_direct_metres is not None:
             routing_options["max_routed_direct_metres"] = args.max_routed_direct_metres

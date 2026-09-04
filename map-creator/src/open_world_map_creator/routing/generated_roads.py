@@ -1071,6 +1071,7 @@ def enrich_generated_road_driving(
             road_ratios: list[float] = []
             seconds_per_direct_metre: list[float] = []
             sampled_pop_ids: list[str] = []
+            passenger_ferry_samples = 0
             for sample_number, offset in enumerate(sample_offsets, 1):
                 pop = cross["pops"][indices[offset]]
                 direct = direct_metres(pop)
@@ -1092,6 +1093,8 @@ def enrich_generated_road_driving(
                 search_counts[route.source] += 1
                 search_counts["searches"] += 1
                 sampled_pop_ids.append(str(pop[pop_fields["id"]]))
+                if route.source == "osrm-passenger-ferry":
+                    passenger_ferry_samples += 1
                 if route.source in {"generated-road-graph", "osrm"}:
                     road_ratios.append(route.metres / direct)
                     seconds_per_direct_metre.append(route.seconds / direct)
@@ -1119,6 +1122,8 @@ def enrich_generated_road_driving(
                     "roadSamples": 0,
                     "sampledPopIds": sampled_pop_ids,
                 }
+            if passenger_ferry_samples:
+                model["passengerFerrySamples"] = passenger_ferry_samples
             models[cache_key] = model
             if selective_plan is not None:
                 completed_selective_partitions.add(partition)
@@ -1134,6 +1139,19 @@ def enrich_generated_road_driving(
         else:
             search_counts["recoveredPartitions"] += 1
 
+        # Fixed transfers and port access must not be scaled by a tile-pair
+        # distance ratio. Resolve actual endpoints in ferry-bearing partitions.
+        ferry_routes = {}
+        if model.get("passengerFerrySamples"):
+            ferry_routes = _route_many(
+                router,
+                ((i, cross_points[int(cross["pops"][i][pop_fields["homePoint"]])],
+                  cross_points[int(cross["pops"][i][pop_fields["workPoint"]])]) for i in indices),
+                route_options=route_options,
+                fallback_speed_mps=CROSS_FALLBACK_SPEED_MPS,
+                fallback_circuity=CROSS_FALLBACK_CIRCUITY,
+                progress=progress,
+            )
         for pop_index in indices:
             pop = cross["pops"][pop_index]
             direct = direct_metres(pop)
@@ -1152,6 +1170,9 @@ def enrich_generated_road_driving(
                     str(model["provider"]),
                     0.0,
                 )
+            ferry_route = ferry_routes.get(pop_index)
+            if ferry_route is not None and ferry_route.source == "osrm-passenger-ferry":
+                route = ferry_route
             pop[pop_fields["drivingSeconds"]] = route.seconds
             pop[pop_fields["drivingDistance"]] = route.metres
             _route_counter(counts, route)

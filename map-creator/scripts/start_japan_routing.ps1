@@ -10,6 +10,8 @@ param(
     [string]$OsrmBaseUrl = 'http://127.0.0.1:5000',
     [string]$OsrmDatasetId,
     [string]$OsrmCache,
+    [string]$PassengerFerryCatalog,
+    [double]$FerryTransferSeconds = 300,
     [int]$OsrmWorkers = 16,
     [int]$OsrmMaxTableCoordinates = 100,
     [double]$MaxRoutedDirectMetres = 3000000
@@ -34,6 +36,10 @@ if ($DemandRoot) { $arguments += @('-DemandRoot', $DemandRoot) }
 if ($Invalidation) { $arguments += @('-Invalidation', $Invalidation) }
 if ($OsrmDatasetId) { $arguments += @('-OsrmDatasetId', $OsrmDatasetId) }
 if ($OsrmCache) { $arguments += @('-OsrmCache', $OsrmCache) }
+if ($PassengerFerryCatalog) {
+    $arguments += @('-PassengerFerryCatalog', $PassengerFerryCatalog,
+        '-FerryTransferSeconds', $FerryTransferSeconds)
+}
 $process = Start-Process `
     -FilePath 'powershell.exe' `
     -ArgumentList $arguments `

@@ -10,6 +10,8 @@ param(
     [string]$OsrmBaseUrl = 'http://127.0.0.1:5000',
     [string]$OsrmDatasetId,
     [string]$OsrmCache,
+    [string]$PassengerFerryCatalog,
+    [double]$FerryTransferSeconds = 300,
     [int]$OsrmWorkers = 16,
     [int]$OsrmMaxTableCoordinates = 100,
     [double]$MaxRoutedDirectMetres = 3000000
@@ -48,6 +50,10 @@ try {
         '--progress-jsonl', (Join-Path $logs 'routing-progress.jsonl')
     )
     if ($Invalidation) { $routingArguments += @('--invalidation', $Invalidation) }
+    if ($PassengerFerryCatalog) {
+        $routingArguments += @('--passenger-ferry-catalog', $PassengerFerryCatalog,
+            '--ferry-transfer-seconds', $FerryTransferSeconds)
+    }
     if ($RoutingProvider -eq 'osrm') {
         if (-not $OsrmDatasetId) { throw 'OsrmDatasetId is required for OSRM routing' }
         if (-not $OsrmCache) { $OsrmCache = Join-Path $Root 'cache\osrm-routes.sqlite3' }

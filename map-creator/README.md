@@ -86,6 +86,37 @@ sidecar to rewrite only the affected cohorts and cross-tile partitions. Changing
 the OSRM dataset ID intentionally invalidates the complete cache without deleting
 older entries.
 
+Passenger ferries can repair OSRM `NoRoute` pairs without changing the car graph
+or invalidating successful road routes. Install the `ferries` extra and extract
+a catalog from the same PBF used to prepare OSRM:
+
+```powershell
+python -m open_world_map_creator.routing.ferry_catalog `
+  --pbf <osrm-data-root>/japan-latest.osm.pbf `
+  --output <routing-cache-root>/passenger-ferries.json
+```
+
+Add `--passenger-ferry-catalog <catalog.json> --ferry-transfer-seconds 300` to
+the OSRM routing command (or `-PassengerFerryCatalog` / `-FerryTransferSeconds`
+to the PowerShell launcher). Completed road pairs remain in the existing cache;
+ferry results and unsuccessful attempts use a separate table in that database.
+The ferry cache stores the individual drive, sailing, and rideshare legs and
+includes catalog, dataset, endpoint, and transfer-policy identities. Re-running
+publication reads successful road pairs from cache and only computes new ferry
+attempts. Changing the catalog or a demand coordinate invalidates those attempts.
+
+Terminal access follows mapped walking connections up to 1500 m (four expansion
+passes) and requires the connected road to snap within 20 m of OSRM. No artificial
+water crossings are introduced. Ferry direction and passenger-access exclusions
+are respected. Way durations are used when available; other sailings explicitly
+use an estimated 5 km/h. A relation duration is never copied onto every member
+way. Missing/incomplete mapped ferry or terminal connections remain unresolved.
+The 300-second transfer applies upon leaving a ferry for a road leg, including
+the final rideshare. Sailing segments split into several OSM ways do not incur
+extra transfers. Timetable waiting and ticket prices are not modeled. The game
+still receives aggregate time/distance and uses its existing distance-based cost;
+accurate ferry/rideshare monetary costs require a separate mode-choice change.
+
 When a placement repair moves only a known set of endpoints, preserve completed
 work by producing a filtered invalidation sidecar and passing it to routing:
 

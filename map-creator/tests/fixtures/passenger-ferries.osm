@@ -1,0 +1,14 @@
+<osm version="0.6">
+  <node id="1" lat="35" lon="139" />
+  <node id="2" lat="35" lon="139.0001" />
+  <node id="3" lat="35" lon="139.0002" />
+  <node id="4" lat="35" lon="139.1" />
+  <node id="5" lat="35" lon="139.1001" />
+  <node id="6" lat="35" lon="139.1002" />
+  <way id="10"><nd ref="1"/><nd ref="4"/><tag k="route" v="ferry"/><tag k="motor_vehicle" v="no"/><tag k="foot" v="yes"/><tag k="duration" v="00:30"/></way>
+  <way id="11"><nd ref="1"/><nd ref="4"/><tag k="route" v="ferry"/><tag k="foot" v="no"/></way>
+  <way id="20"><nd ref="1"/><nd ref="2"/><tag k="highway" v="footway"/></way>
+  <way id="21"><nd ref="2"/><nd ref="3"/><tag k="highway" v="residential"/></way>
+  <way id="22"><nd ref="4"/><nd ref="5"/><tag k="highway" v="footway"/></way>
+  <way id="23"><nd ref="5"/><nd ref="6"/><tag k="highway" v="residential"/></way>
+</osm>
