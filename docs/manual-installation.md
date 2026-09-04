@@ -34,7 +34,7 @@ On Mac, Apple menu > About This Mac shows either an Apple chip or an Intel proce
 1. Move the extracted tile-server folder somewhere you can keep it, such as Documents. Do not run it from inside the ZIP.
 2. Open that folder and double-click:
    - Windows: `open-world-tile-server.exe`
-   - Mac: `open-world-tile-server`
+   - Mac: `Open World Tile Server.app` (opens the tile-server window in Terminal; no commands to type)
 3. Leave the tile-server window open while playing. Open Subway Builder and enable Northeast Corridor Open World in the mod manager.
 
 Open the same executable before playing each time. Only one tile server is needed for all installed Open World maps; do not start a second copy if one is already running.

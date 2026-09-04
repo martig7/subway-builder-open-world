@@ -57,7 +57,7 @@ try {
             'To find the game folders, open the mod manager, click Open Mods Folder,',
             'then go up one folder level to metro-maker4.',
             '',
-            "After extracting this ZIP, double-click $($target.Executable).",
+            $(if ($target.Sign) { "After extracting this ZIP, double-click $($target.Executable)." } else { 'After extracting this ZIP, double-click Open World Tile Server.app.' }),
             'Leave its window open while playing. Open it again before playing each time.',
             '',
             'One tile server handles all installed Open World maps.',
@@ -67,7 +67,13 @@ try {
 
         $archive = Join-Path $resolvedOutput "open-world-tile-server-$($target.Platform)-v$version.zip"
         if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
-        Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $archive -CompressionLevel Optimal
+        if ($target.Sign) {
+            Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $archive -CompressionLevel Optimal
+        } else {
+            & (Join-Path $PSScriptRoot 'New-MacTileServerArchive.ps1') -Executable $publishedExecutable `
+                -Manual $manual -Readme (Join-Path $packageRoot 'README.txt') -Version $version -Output $archive
+            & (Join-Path $PSScriptRoot 'Test-MacTileServerArchive.ps1') -Archive $archive
+        }
         $archives.Add($archive)
     }
 
