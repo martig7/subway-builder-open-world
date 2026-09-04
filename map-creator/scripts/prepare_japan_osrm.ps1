@@ -101,8 +101,8 @@ try {
         Write-OsrmProgress 'preprocess' 'reusing existing prepared OSRM graph'
     }
 
-    $existing = (& docker ps -a --filter "name=^/${ContainerName}$" --format '{{.Names}}').Trim()
-    if ($existing -eq $ContainerName) {
+    $existing = @(& docker ps -a --filter "name=^/${ContainerName}$" --format '{{.Names}}')
+    if ($existing -contains $ContainerName) {
         Write-OsrmProgress 'serve' "replacing existing $ContainerName container"
         Invoke-Docker -Arguments @('rm', '-f', $ContainerName)
     }
