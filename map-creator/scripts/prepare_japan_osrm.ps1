@@ -31,9 +31,22 @@ function Invoke-Docker([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "docker $($Arguments[0]) exited with code $LASTEXITCODE" }
 }
 
+function Test-DockerReady {
+    # Windows PowerShell promotes a native program's stderr to an ErrorRecord.
+    # Probe with a non-terminating preference so an offline engine can be handled
+    # by the Docker Desktop startup path below.
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        & docker info *> $null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
 try {
-    & docker info *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if (-not (Test-DockerReady)) {
         $desktop = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
         if (-not (Test-Path -LiteralPath $desktop)) { throw 'Docker Desktop is not installed' }
         Write-OsrmProgress 'docker' 'starting Docker Desktop'
@@ -41,8 +54,7 @@ try {
         $ready = $false
         for ($attempt = 1; $attempt -le 90; $attempt++) {
             Start-Sleep -Seconds 5
-            & docker info *> $null
-            if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+            if (Test-DockerReady) { $ready = $true; break }
             if ($attempt % 6 -eq 0) {
                 Write-OsrmProgress 'docker' "waiting for Docker Desktop ($attempt/90)"
             }
