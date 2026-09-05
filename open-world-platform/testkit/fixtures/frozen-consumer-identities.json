@@ -16,7 +16,7 @@
       "artifactWorldId": "JP_TOKYO_KANAGAWA_MAINLAND",
       "initialTileId": "JP_TOKYO_MAINLAND",
       "storageNamespace": "tokyo-kanagawa",
-      "tileServerPort": 8800,
+      "tileServerPort": 8799,
       "basemapRevision": "tokyo-kanagawa-mainland-v2"
     },
     "ny-state": {

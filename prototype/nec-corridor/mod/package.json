@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-mod.mjs",
+    "build:release": "node scripts/build-release-mod.mjs",
     "install": "node scripts/install-mod.mjs",
     "test": "node --test"
   },

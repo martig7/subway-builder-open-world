@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>OpenWorld.ReleasePackager</RootNamespace>
+    <AssemblyName>open-world-release-packager</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenWorld.Release\OpenWorld.Release.csproj" />
+  </ItemGroup>
+</Project>

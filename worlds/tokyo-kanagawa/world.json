@@ -29,7 +29,7 @@
   },
   "runtime": {
     "storageNamespace": "tokyo-kanagawa",
-    "tileServerPort": 8800,
+    "tileServerPort": 8799,
     "tileBaseGlobal": "TOKYO_KANAGAWA_TILE_BASE",
     "diagnosticNamespace": "tokyo-kanagawa",
     "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=tokyo-kanagawa-mainland-v2",

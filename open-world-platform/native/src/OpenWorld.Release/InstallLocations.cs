@@ -1,0 +1,47 @@
+namespace OpenWorld.Release;
+
+public sealed record InstallLocations(
+    string ProductRoot,
+    string SupportRoot,
+    string ModRoot,
+    string CityDataRoot,
+    string CacheRoot,
+    string LogRoot,
+    string SharedServerRoot)
+{
+    public string ManagerPath => Path.Combine(ProductRoot, "Subway Builder Open World.exe");
+    public string ServerExecutablePath => Path.Combine(SupportRoot, "open-world-tile-server.exe");
+    public string StateRoot => Path.Combine(SharedServerRoot, "state");
+    public string ServerLogRoot => Path.Combine(SharedServerRoot, "logs");
+    public string InstalledWorldsRoot => Path.Combine(StateRoot, "worlds");
+    public string InstallStatePath => Path.Combine(ProductRoot, "install-state.json");
+    public string ReleaseManifestPath => Path.Combine(ProductRoot, "release-manifest.json");
+
+    public static InstallLocations Resolve(ReleaseManifest manifest, string? appData = null, string? localAppData = null)
+    {
+        appData ??= Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        localAppData ??= Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(appData)) throw new InvalidOperationException("Windows application-data directory is unavailable.");
+        if (string.IsNullOrWhiteSpace(localAppData)) throw new InvalidOperationException("Windows local application-data directory is unavailable.");
+
+        var safeProduct = SafeSegment(manifest.Product.Id);
+        var safeMod = SafeSegment(manifest.Product.ManifestId);
+        var productRoot = Path.GetFullPath(Path.Combine(localAppData, "Programs", safeProduct));
+        var gameRoot = Path.GetFullPath(Path.Combine(appData, "metro-maker4"));
+        return new InstallLocations(
+            productRoot,
+            Path.Combine(productRoot, "server"),
+            Path.Combine(gameRoot, "mods", safeMod),
+            Path.Combine(gameRoot, "cities", "data"),
+            Path.Combine(localAppData, "metro-maker4", safeProduct, "cache", manifest.Product.Version),
+            Path.Combine(productRoot, "logs"),
+            Path.Combine(localAppData, "metro-maker4", "open-world-pmtiles"));
+    }
+
+    private static string SafeSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value is "." or ".." || value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || value.Contains(Path.DirectorySeparatorChar) || value.Contains(Path.AltDirectorySeparatorChar))
+            throw new InvalidDataException($"Unsafe installation identifier: {value}");
+        return value;
+    }
+}

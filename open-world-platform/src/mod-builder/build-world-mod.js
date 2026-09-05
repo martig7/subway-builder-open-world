@@ -70,8 +70,10 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
   ].join('\n');
 }
 
-export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot }) {
+export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot = null }) {
   const root = path.resolve(repositoryRoot);
+  const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Invalid Open World version: ${version}`);
   const consumerRoot = path.resolve(modRoot);
   const generatedRoot = path.resolve(artifactsRoot);
   const loaded = await loadWorldDefinition(worldRoot);
@@ -80,8 +82,8 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   let crossCommutesPath;
   let crossDemandPath;
   const missing = [];
-  if (definition.release.artifactLayout === 'packaged-tile-directories-v1') {
-    packageRoot = generatedRoot;
+  if (packagedTileRoot != null || definition.release.artifactLayout === 'packaged-tile-directories-v1') {
+    packageRoot = packagedTileRoot == null ? generatedRoot : path.resolve(packagedTileRoot);
     for (const tile of selectedTiles) {
       for (const filename of REQUIRED_PACKAGED_TILE_FILES) {
         if (!(await hasFile(path.join(packageRoot, tile.id, filename)))) missing.push(`${tile.id}/${filename}`);
@@ -194,7 +196,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
     id: definition.identity.manifestId,
     name: definition.identity.name,
     description: definition.identity.description,
-    version: definition.identity.version,
+    version,
     author: { name: definition.identity.author },
     main: 'index.js',
   };

@@ -6,7 +6,12 @@ import { verifyWorldMod } from '../../../../open-world-platform/src/mod-builder/
 const modRoot = path.resolve(import.meta.dirname, '..');
 const repositoryRoot = path.resolve(modRoot, '..', '..', '..');
 const worldRoot = path.join(repositoryRoot, 'worlds', 'nec-corridor');
-const artifactsRoot = path.resolve(modRoot, '..', 'generated');
-const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot });
+const artifactsRoot = process.env.NEC_ARTIFACTS_ROOT
+  ? path.resolve(process.env.NEC_ARTIFACTS_ROOT)
+  : path.resolve(modRoot, '..', 'generated');
+const packagedTileRoot = process.env.NEC_PACKAGED_TILE_ROOT
+  ? path.resolve(process.env.NEC_PACKAGED_TILE_ROOT)
+  : null;
+const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot });
 await verifyWorldMod({ worldRoot, outputRoot: result.distPath });
 console.log(`Built ${result.definition.identity.name} with ${result.selectedTiles.length} Tile Packages`);

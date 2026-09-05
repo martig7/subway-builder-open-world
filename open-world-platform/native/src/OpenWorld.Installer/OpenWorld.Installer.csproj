@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>OpenWorld.Installer</RootNamespace>
+    <AssemblyName>Subway-Builder-Open-World-Setup</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenWorld.Release\OpenWorld.Release.csproj" />
+    <EmbeddedResource Include="$(ReleaseManifestPath)" LogicalName="release-manifest.json" Condition="'$(ReleaseManifestPath)' != ''" />
+    <EmbeddedResource Include="$(ReleaseSignaturePath)" LogicalName="release-manifest.json.sig" Condition="'$(ReleaseSignaturePath)' != ''" />
+    <EmbeddedResource Include="$(ReleaseCatalogPath)" LogicalName="release-catalog.json" Condition="'$(ReleaseCatalogPath)' != ''" />
+    <EmbeddedResource Include="$(ReleaseCatalogSignaturePath)" LogicalName="release-catalog.json.sig" Condition="'$(ReleaseCatalogSignaturePath)' != ''" />
+    <EmbeddedResource Include="$(PublisherCertificatePath)" LogicalName="publisher.cer" Condition="'$(PublisherCertificatePath)' != ''" />
+  </ItemGroup>
+</Project>
