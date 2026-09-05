@@ -16,12 +16,12 @@ Subway Builder 1.7 filters parks by `area` in square metres: large is at least
 parks fade between zoom 12 and 12.5. Both reach 0.8 opacity. The Open World
 native-detail gate also hides these layers below zoom 10.
 
-Current Depot land-use features do not provide `area`. The adapter treats an
-absent area as zero **for filtering only**; it does not invent a stored area.
-Thus existing parks use the small-park fade, including geographically large
-ones. A future source-provided area will automatically enable native size
-classification. This change does not provide zoomed-out vegetation or add
-forest/grass categories missing from the current archives.
+Current Depot land-use features do not provide `area`. The adapter deliberately
+renders all `kind=park` features through `parks-large`, without inventing stored
+areas. `parks-small` is filtered empty to prevent duplicate painting. This
+removes the small-park fade; airports remain excluded. Retained v1 adapters are
+restored before attaching v2. Below zoom 10, the separate
+[world vegetation overview](world-vegetation.md) supplies coarse greenery.
 
 ## Full installed-archive audit, 2026-09-05
 

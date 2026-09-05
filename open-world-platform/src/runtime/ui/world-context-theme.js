@@ -31,6 +31,7 @@ export function readWorldContextTheme(map) {
       && ['fill', 'fill-extrusion'].includes(layer.type));
   return {
     land: paintValue(map, background, 'background-color') ?? fallbackColors.land,
+    vegetation: paintValue(map, map?.getLayer?.('parks-large') ?? map?.getLayer?.('parks-small'), 'fill-extrusion-color') ?? '#2a513c',
     water: paintValue(map, water, water?.type === 'fill-extrusion' ? 'fill-extrusion-color' : 'fill-color')
       ?? fallbackColors.water,
   };
@@ -45,6 +46,7 @@ export function syncWorldContextTheme(map) {
       ['open-world-ocean', colors.water],
       ['open-world-land', colors.land],
       ['open-world-land-high-zoom', colors.land],
+      ['open-world-vegetation', colors.vegetation],
     ]) {
       const layer = map.getLayer?.(id);
       if (!layer || JSON.stringify(paintValue(map, layer, 'fill-color')) === JSON.stringify(color)) continue;

@@ -23,6 +23,7 @@ import {
 } from './map-layer-stability.js';
 import { relaxMapZoomLimits } from './map-zoom-limits.js';
 import { registerGeographicContextOverlay } from './ui/geographic-context-overlay.js';
+import { createWorldVegetationLoader } from './ui/world-vegetation.js';
 import { registerRenderDistanceToolbar } from './ui/render-distance-panel.js';
 import {
   refreshCityScopedMapArtifacts,
@@ -54,6 +55,7 @@ export function startOpenWorld({
   workerSources = {},
   authoritativeCityCode: initialAuthoritativeCityCode = null,
 } = {}) {
+  const worldVegetationLoader = createWorldVegetationLoader(artifacts?.worldVegetationGzipBase64);
   if (!definition?.identity?.worldId || !definition?.runtime?.diagnosticNamespace) {
     throw new Error('startOpenWorld requires a validated World Definition');
   }
@@ -830,6 +832,7 @@ export function startOpenWorld({
           tileCatalog,
           onTileSelect: switchFromWorldGrid,
           nativeParkSourceLayer: definition.map.nativeParkSourceLayer,
+          worldVegetationLoader,
           worldContextTilesUrl: definition.map.worldContextTileId
             ? tileUrl({ tileId: definition.map.worldContextTileId }, tileBase)
             : null,

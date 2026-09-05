@@ -114,6 +114,59 @@ const catalog = {
   ],
 };
 
+test('vegetation loads once, stays below native content, follows themes and recovers after style replacement', async () => {
+  const map = fixtureMap();
+  map.removeSource = (id) => map.sources.delete(id);
+  map.addLayer({ id: 'parks-large', type: 'fill-extrusion', source: 'general-tiles',
+    'source-layer': 'parks', paint: { 'fill-extrusion-color': '#117733' } });
+  map.getPaintProperty = (id, property) => map.getLayer(id)?.paint?.[property];
+  map.setPaintProperty = (id, property, value) => { map.getLayer(id).paint[property] = value; };
+  const data = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {},
+    geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,0]]] } }] };
+  let loads = 0;
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog,
+    worldVegetationLoader: async () => { loads++; return data; } });
+  controller.attachMap(map);
+  await controller.worldVegetationPromise;
+  const source = map.getSource('open-world-vegetation-source');
+  const layer = map.getLayer('open-world-vegetation');
+  assert.equal(layer.maxzoom, 10);
+  assert.equal(source.maxzoom, 9);
+  assert.equal(layer.paint['fill-color'], '#117733');
+  assert.ok(map.layerOrder.indexOf(layer.id) > map.layerOrder.indexOf('open-world-land'));
+  assert.ok(map.layerOrder.indexOf(layer.id) < map.layerOrder.indexOf('water'));
+  map.getLayer('parks-large').paint['fill-extrusion-color'] = '#558822';
+  controller.handleStyleData();
+  assert.equal(layer.paint['fill-color'], '#558822');
+  for (const zoom of [5, 9, 10, 12]) { map.setZoom(zoom); controller.handleZoom(); }
+  assert.equal(map.getSource('open-world-vegetation-source'), source, 'zoom must not rebuild geometry');
+  map.removeLayer(layer.id);
+  map.removeSource('open-world-vegetation-source');
+  controller.handleStyleData();
+  assert.ok(map.getLayer(layer.id), 'a diff-only style change restores vegetation');
+  assert.equal(loads, 1);
+  controller.dispose();
+  assert.equal(map.getLayer(layer.id), undefined);
+  assert.equal(map.getSource('open-world-vegetation-source'), undefined);
+});
+
+test('park mapping migrates retained v1 small-park policy to all-large', async () => {
+  const { syncNativeParkLanduse } = await import('../../../../open-world-platform/src/runtime/ui/native-park-landuse.js');
+  const map = fixtureMap();
+  const state = new Map();
+  for (const size of ['large', 'small']) {
+    const filter = [size === 'large' ? '>=' : '<', ['get', 'area'], 100000];
+    const old = ['all', ['==', ['get', 'kind'], 'park'], [size === 'large' ? '>=' : '<', ['coalesce', ['get', 'area'], 0], 100000]];
+    map.addLayer({ id: `parks-${size}`, type: 'fill-extrusion', source: 'general-tiles', 'source-layer': 'landuse', filter: old });
+    state.set(`parks-${size}`, { sourceLayer: 'parks', filter, mappedFilter: old });
+  }
+  map[Symbol.for('open-world.native-park-landuse')] = state;
+  syncNativeParkLanduse(map);
+  assert.deepEqual(map.getLayer('parks-large').filter, ['==', ['get', 'kind'], 'park']);
+  assert.deepEqual(map.getLayer('parks-small').filter, ['==', 1, 0]);
+  assert.equal(map.__openWorldNativeParkLanduse.sizePolicy, 'all-large');
+});
+
 test('opt-in native park mapping filters landuse, retains theme and order, and restores on detach', () => {
   const map = fixtureMap();
   for (const size of ['large', 'small']) map.addLayer({
@@ -134,8 +187,7 @@ test('opt-in native park mapping filters landuse, retains theme and order, and r
   for (const size of ['large', 'small']) {
     const layer = map.getLayer(`parks-${size}`);
     assert.equal(layer['source-layer'], 'landuse');
-    assert.deepEqual(layer.filter, ['all', ['==', ['get', 'kind'], 'park'],
-      [size === 'large' ? '>=' : '<', ['coalesce', ['get', 'area'], 0], 100000]]);
+    assert.deepEqual(layer.filter, size === 'large' ? ['==', ['get', 'kind'], 'park'] : ['==', 1, 0]);
     assert.deepEqual(layer.paint, original.paint);
     assert.deepEqual(layer.layout, original.layout);
   }

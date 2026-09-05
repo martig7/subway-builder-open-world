@@ -57,6 +57,9 @@ export function validateWorldDefinition(definition) {
   if (map.nativeParkSourceLayer != null && !['parks', 'landuse'].includes(map.nativeParkSourceLayer)) {
     errors.push('map.nativeParkSourceLayer must be parks or landuse');
   }
+  if (map.worldVegetation != null && map.worldVegetation !== 'modis-igbp-2023-v1') {
+    errors.push('map.worldVegetation is unsupported');
+  }
 
   const demand = requireObject(root.demand, 'demand', errors);
   if (!SUPPORTED_DEMAND_ADAPTERS.has(demand.adapter)) errors.push(`demand.adapter is unsupported: ${demand.adapter ?? '(missing)'}`);

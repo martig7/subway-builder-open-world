@@ -1,14 +1,6 @@
-export const NATIVE_PARK_LANDUSE_VERSION = 'native-park-landuse-v1';
+export const NATIVE_PARK_LANDUSE_VERSION = 'native-park-landuse-all-large-v2';
 const STATE = Symbol.for('open-world.native-park-landuse');
 const BUSY = new WeakSet();
-
-function withUnknownAreaAsSmall(value) {
-  if (!Array.isArray(value)) return value;
-  if (value.length === 2 && value[0] === 'get' && value[1] === 'area') {
-    return ['coalesce', ['get', 'area'], 0];
-  }
-  return value.map(withUnknownAreaAsSmall);
-}
 
 function replaceLayer(map, layers, original, replacement) {
   const next = layers[layers.findIndex((layer) => layer.id === original.id) + 1]?.id;
@@ -25,6 +17,9 @@ function replaceLayer(map, layers, original, replacement) {
 // Paint, opacity, foundation visibility and zoom behavior remain native-owned.
 export function syncNativeParkLanduse(map) {
   if (!map || BUSY.has(map)) return;
+  // Retained v1 mappings sent unknown-area parks through the small-park fade.
+  // Restore their native definitions before installing the new generation.
+  if (map[STATE] && map[STATE].version !== NATIVE_PARK_LANDUSE_VERSION) releaseNativeParkLanduse(map);
   BUSY.add(map);
   try {
     if (typeof map.getLayer === 'function' && ['parks-large', 'parks-small'].every((id) => {
@@ -33,17 +28,19 @@ export function syncNativeParkLanduse(map) {
     })) return;
     const layers = map.getStyle?.()?.layers ?? [];
     const state = map[STATE] ??= new Map();
+    state.version = NATIVE_PARK_LANDUSE_VERSION;
     for (const id of ['parks-large', 'parks-small']) {
       const layer = layers.find((candidate) => candidate.id === id);
       if (!layer || layer.source !== 'general-tiles' || layer['source-layer'] !== 'parks') continue;
-      const filter = ['all', ['==', ['get', 'kind'], 'park'], withUnknownAreaAsSmall(layer.filter
-        ?? [id === 'parks-large' ? '>=' : '<', ['get', 'area'], 100000])];
+      // All real park polygons use native large-park visibility. Disable the
+      // small pass so alpha blending never paints the same polygon twice.
+      const filter = id === 'parks-large' ? ['==', ['get', 'kind'], 'park'] : ['==', 1, 0];
       replaceLayer(map, layers, layer, { ...layer, 'source-layer': 'landuse', filter });
       state.set(id, { sourceLayer: layer['source-layer'], filter: layer.filter, mappedFilter: filter });
     }
     map.__openWorldNativeParkLanduse = {
       version: NATIVE_PARK_LANDUSE_VERSION,
-      sourceLayer: 'landuse', includedKinds: ['park'], unknownArea: 'small',
+      sourceLayer: 'landuse', includedKinds: ['park'], sizePolicy: 'all-large',
       layers: [...state.keys()],
     };
   } finally { BUSY.delete(map); }

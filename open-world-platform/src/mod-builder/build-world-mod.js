@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { loadWorldDefinition } from '../contracts/load-world-definition.js';
 import { OPEN_WORLD_PLATFORM_RELEASE } from '../runtime/start-open-world.js';
+import { loadWorldVegetationArtifact } from './world-vegetation-artifact.js';
 
 const REQUIRED_MAP_FILES = ['buildings_index.bin.gz', 'roads.geojson.gz', 'runways_taxiways.geojson.gz', 'tiles.pmtiles', 'map-manifest.json'];
 const REQUIRED_DEMAND_FILES = ['demand_data.json.gz'];
@@ -61,6 +62,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     `    worldDefinitionHash: ${JSON.stringify(worldDefinitionHash)},`,
     '    commuteCatalog: __OPEN_WORLD_CROSS_COMMUTE_CATALOG__,',
     '    crossDemandGzipBase64: __OPEN_WORLD_CROSS_DEMAND_GZIP_BASE64__,',
+    '    worldVegetationGzipBase64: __OPEN_WORLD_VEGETATION_GZIP_BASE64__,',
     '  },',
     '  workerSources: {',
     '    nativeDemandEvaluator: __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__,',
@@ -78,6 +80,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   const generatedRoot = path.resolve(artifactsRoot);
   const loaded = await loadWorldDefinition(worldRoot);
   const { definition, selectedTiles, worldDefinitionHash } = loaded;
+  const worldVegetationGzipBase64 = await loadWorldVegetationArtifact(root, definition);
   let packageRoot;
   let crossCommutesPath;
   let crossDemandPath;
@@ -188,6 +191,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
     define: {
       __OPEN_WORLD_CROSS_COMMUTE_CATALOG__: crossCommutes,
       __OPEN_WORLD_CROSS_DEMAND_GZIP_BASE64__: JSON.stringify(crossDemandGzipBase64),
+      __OPEN_WORLD_VEGETATION_GZIP_BASE64__: JSON.stringify(worldVegetationGzipBase64),
       __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__: JSON.stringify(workerSources.nativeDemandEvaluator),
       __OPEN_WORLD_ROAD_ROUTE_WORKER_SOURCE__: JSON.stringify(workerSources.roadRoute),
     },
@@ -203,6 +207,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   await writeFile(path.join(distPath, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(path.join(distPath, 'world-definition.json'), `${JSON.stringify(definition, null, 2)}\n`);
   await writeFile(path.join(distPath, 'world-definition.sha256'), `${worldDefinitionHash}\n`);
+  await copyFile(path.join(root, 'SOURCES.md'), path.join(distPath, 'SOURCES.md'));
   if (definition.runtime.tileServerProvider === 'shared-native-v4') {
     // dist is reused across builds. Explicitly retire the old server artifacts
     // when an existing consumer migrates to the official shared service.

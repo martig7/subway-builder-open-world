@@ -17,6 +17,7 @@ building-supplements = ["mapbox-vector-tile>=2.2", "pmtiles>=3.7", "requests>=2.
 label-audit = ["mapbox-vector-tile>=2.2", "pmtiles>=3.7", "osmium>=4.0"]
 label-publication = ["mapbox-vector-tile>=2.2", "pmtiles>=3.7", "pykakasi==2.3.0"]
 landuse-audit = ["mapbox-vector-tile>=2.2", "pmtiles>=3.7"]
+vegetation = ["rasterio==1.4.3", "shapely==2.1.2", "pillow>=12", "requests>=2.31", "numpy>=1.26"]
 test = []
 
 [project.scripts]

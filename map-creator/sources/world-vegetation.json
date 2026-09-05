@@ -1,0 +1,22 @@
+{
+  "id": "modis-igbp-2023-v1",
+  "layer": "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual",
+  "date": "2023-01-01",
+  "wms": "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
+  "palette": "https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_IGBP_Land_Cover_Type.xml",
+  "attribution": "NASA EOSDIS GIBS; MODIS MCD12Q1 v061 (2023), processed by Open World",
+  "includedClasses": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+  "quadrantWidth": 8192,
+  "quadrantHeight": 4096,
+  "simplifyDegrees": 0.04,
+  "minimumPixels": 8,
+  "minimumHolePixels": 4,
+  "paletteSha256": "29a9b5fe6d976a0ea5da12c46d9accfe20a1807b3f602d36d940663d6e854ef7",
+  "quadrantSha256": [
+    "584460db903f0e75af64a6d26bf026ae8be48b6fe234a9fde732135bb7d34cd7",
+    "a82912658875e454132d216915d69878b4fc64232c61485e1248f298d56cf3ba",
+    "5287843517492d4455637739b4db85e7b542018390ccdc2741c6488c7013a717",
+    "56b622e1aed85fb1115379a57dd7efd201accb4b6c27192c3c48997ff82ef0b5"
+  ],
+  "artifactSha256": "300363f319c9f7d585e16086e87f12bf56d4ea471c04e932cfa6951703755f11"
+}
