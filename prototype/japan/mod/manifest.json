@@ -3,6 +3,6 @@
   "name": "Japan Open World",
   "description": "One persistent open world spanning all 47 Japanese prefectures.",
   "version": "0.2.0",
-  "author": { "name": "Open World Prototype" },
+  "author": { "name": "Giancarlo Martinelli (gcm)" },
   "main": "index.js"
 }

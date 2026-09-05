@@ -7,7 +7,7 @@
     "name": "Japan Open World",
     "description": "One persistent national open world expanded prefecture by prefecture.",
     "version": "0.2.0",
-    "author": "Open World Prototype",
+    "author": "Giancarlo Martinelli (gcm)",
     "compatibilityLineage": ["japan-world", "JP_NATIONAL_OPEN_WORLD", "tokyo-kanagawa-world"]
   },
   "tileViews": {
@@ -34,6 +34,7 @@
   "runtime": {
     "storageNamespace": "open-world-sidecar-local.japan-open-world-v1",
     "tileServerPort": 8799,
+    "tileServerProvider": "shared-native-v4",
     "tileBaseGlobal": "JAPAN_OPEN_WORLD_TILE_BASE",
     "diagnosticNamespace": "japan",
     "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-source-romaji-v1",

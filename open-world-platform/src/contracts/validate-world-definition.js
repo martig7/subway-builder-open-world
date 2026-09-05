@@ -62,6 +62,7 @@ export function validateWorldDefinition(definition) {
   if (!Array.isArray(demand.crossPopPrefixes) || demand.crossPopPrefixes.length === 0) errors.push('demand.crossPopPrefixes must be a non-empty array');
 
   const runtime = requireObject(root.runtime, 'runtime', errors);
+  if (runtime.tileServerProvider != null && runtime.tileServerProvider !== 'shared-native-v4') errors.push('runtime.tileServerProvider must be shared-native-v4');
   requireString(runtime.storageNamespace, 'runtime.storageNamespace', errors, STABLE_ID);
   if (!Number.isInteger(runtime.tileServerPort) || runtime.tileServerPort < 1024 || runtime.tileServerPort > 65535) {
     errors.push('runtime.tileServerPort must be an unprivileged TCP port');
