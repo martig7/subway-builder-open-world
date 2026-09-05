@@ -203,7 +203,12 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   await writeFile(path.join(distPath, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(path.join(distPath, 'world-definition.json'), `${JSON.stringify(definition, null, 2)}\n`);
   await writeFile(path.join(distPath, 'world-definition.sha256'), `${worldDefinitionHash}\n`);
-  if (definition.runtime.tileServerProvider !== 'shared-native-v4') {
+  if (definition.runtime.tileServerProvider === 'shared-native-v4') {
+    // dist is reused across builds. Explicitly retire the old server artifacts
+    // when an existing consumer migrates to the official shared service.
+    await rm(path.join(distPath, 'start-tile-server.ps1'), { force: true });
+    await rm(path.join(distPath, 'native-pmtiles-server.ps1'), { force: true });
+  } else {
     const installerRoot = path.join(root, 'open-world-platform', 'src', 'installer');
     const starterTemplate = await readFile(path.join(installerRoot, 'start-tile-server.template.ps1'), 'utf8');
     const starter = starterTemplate
