@@ -21,6 +21,11 @@ test('Japan Open World owns every prefecture through one manifest', async () => 
 test('Japan separates centrally stored computation geometry from zoom-dependent display data', async () => {
   const definition = JSON.parse(await readFile(path.join(worldRoot, 'world.json'), 'utf8'));
   assert.equal(definition.map.computationBoundary, 'japan/geography/prefectures-full.geojson');
+  assert.equal(definition.tileViews.ownershipBoundary, 'geography/prefectures.geojson');
+  const ownership = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.ownershipBoundary), 'utf8'));
+  assert.equal(ownership.features.length, 47);
+  assert.equal(ownership.lods, undefined);
+  assert.notEqual(ownership.purpose, 'display-only');
   const display = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.boundaryOverlay), 'utf8'));
   assert.equal(display.purpose, 'display-only');
   assert.deepEqual(display.lods.map((level) => level.minZoom), [0, 7, 9, 11, 13]);

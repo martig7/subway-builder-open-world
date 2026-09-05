@@ -45,6 +45,7 @@ export function validateWorldDefinition(definition) {
   requireRelativeJsonPath(tileViews.catalog, 'tileViews.catalog', errors);
   requireString(tileViews.initialTileId, 'tileViews.initialTileId', errors, STABLE_ID);
   if (tileViews.boundaryOverlay != null) requireRelativeJsonPath(tileViews.boundaryOverlay, 'tileViews.boundaryOverlay', errors);
+  if (tileViews.ownershipBoundary != null) requireRelativeJsonPath(tileViews.ownershipBoundary, 'tileViews.ownershipBoundary', errors);
 
   const map = requireObject(root.map, 'map', errors);
   if (map.computationBoundary != null) requireRelativeJsonPath(map.computationBoundary, 'map.computationBoundary', errors);

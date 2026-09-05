@@ -6,12 +6,32 @@ from types import SimpleNamespace
 
 import shapely
 from shapely.geometry import Polygon, mapping, shape
-from open_world_map_creator.geography import computation_boundary, display_lods
+from open_world_map_creator.geography import computation_boundary, ownership_boundary, display_lods
+from open_world_map_creator.demand.estat_japan_prefecture import load_prefecture_boundary
 from open_world_map_creator.routing.prepare_water_land import repair_area_rings
 from open_world_map_creator.routing.repair_water_sources import polygonize_ways
 
 
 class GeometryTests(unittest.TestCase):
+    def test_explicit_ownership_is_independent_of_raw_geometry_and_display_lods(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            definition = {"map": {"computationBoundary": "missing-raw.geojson"},
+                          "tileViews": {"ownershipBoundary": "approved.geojson", "boundaryOverlay": "display.json"}}
+            (root / "world.json").write_text(json.dumps(definition))
+            with self.assertRaises(FileNotFoundError):
+                ownership_boundary(root)
+            approved = root / "approved.geojson"
+            approved.write_text(json.dumps({"type": "FeatureCollection", "features": []}))
+            self.assertEqual(ownership_boundary(root), approved)
+            definition['tileViews']['ownershipBoundary'] = '../escape.json'
+            (root / "world.json").write_text(json.dumps(definition))
+            with self.assertRaisesRegex(ValueError, 'escapes'):
+                ownership_boundary(root)
+            approved.write_text(json.dumps({"purpose": "display-only", "features": []}))
+            with self.assertRaisesRegex(ValueError, 'Display LODs'):
+                load_prefecture_boundary(set(), approved)
+
     def test_reconstructs_self_intersecting_water_and_fragmented_outer_rings(self):
         bowtie = polygonize_ways([[(0, 0), (2, 2), (0, 2), (2, 0), (0, 0)]])
         self.assertTrue(bowtie.is_valid)

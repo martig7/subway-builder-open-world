@@ -2,9 +2,9 @@
 """Compile the 47-prefecture Japan demand evidence into one runtime ledger.
 
 This module consumes geography-specific evidence, each Tile Package's building
-index, and the World catalog. Every prefecture uses the same boundary-aware
-building-center placement. Source cells outside their owning prefecture are
-anchored to nearby buildings but remain cross-tile demand. Road
+index, and the World catalog. Full World outlines assign ownership before one
+shared building-placement pass. Statistical prefectures do not force placement
+or cross-tile classification. Road
 enrichment is a separate, resumable stage and replaces the deterministic
 geometric estimates written here.
 """
@@ -24,17 +24,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-import numpy as np
-import shapely
-from pyproj import Transformer
-from scipy.spatial import cKDTree
-from shapely.geometry import Point
-
-from .building_sites import build_tile_sites, read_building_centers
+from .boundary_sites import compile_boundary_sites
+from .owned_ledger import OwnedDemandLedger
 from .estat_japan_prefecture import load_prefecture_boundary
 
 
-COMPILER_VERSION = "estat-japan-national-package-v5-deferred-building-sites"
+COMPILER_VERSION = "estat-japan-national-package-v6-boundary-first"
 SPECIAL_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 
 
@@ -194,183 +189,6 @@ def _source_cells(
     return rows
 
 
-def _partition_source_cells(
-    cells: list[dict[str, Any]],
-    rendered_land: Any,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    if not cells:
-        return [], []
-    points = shapely.points(
-        [cell["longitude"] for cell in cells],
-        [cell["latitude"] for cell in cells],
-    )
-    inside = shapely.covers(rendered_land, points)
-    accepted = [cell for cell, included in zip(cells, inside, strict=True) if included]
-    deferred = [cell for cell, included in zip(cells, inside, strict=True) if not included]
-    return accepted, deferred
-
-
-def _deferred_source_sites(
-    tile: dict[str, Any],
-    deferred_home: list[dict[str, Any]],
-    deferred_jobs: list[dict[str, Any]],
-) -> list[Site]:
-    tile_name = str(tile["id"])
-    deferred_weights: dict[tuple[float, float], dict[str, int]] = defaultdict(lambda: {"commuters": 0, "jobs": 0})
-    for cell in deferred_home:
-        key = (round(float(cell["longitude"]), 7), round(float(cell["latitude"]), 7))
-        deferred_weights[key]["commuters"] += int(cell["commuters"])
-    for cell in deferred_jobs:
-        key = (round(float(cell["longitude"]), 7), round(float(cell["latitude"]), 7))
-        deferred_weights[key]["jobs"] += int(cell["jobs"])
-    result = []
-    for (longitude, latitude), weights in sorted(deferred_weights.items()):
-        digest = hashlib.sha256(f"{tile_name}:{longitude:.7f}:{latitude:.7f}".encode()).hexdigest()[:24]
-        result.append(Site(
-            id=f"deferred-source-{digest}",
-            longitude=longitude,
-            latitude=latitude,
-            home_weight=weights["commuters"],
-            job_weight=weights["jobs"],
-            source_pref=str(tile["prefCode"]),
-            owner_pref=str(tile["prefCode"]),
-            force_cross=True,
-        ))
-    return result
-
-
-def _deferred_building_sites(
-    tile: dict[str, Any],
-    deferred_home: list[dict[str, Any]],
-    deferred_jobs: list[dict[str, Any]],
-    building_index_path: Path,
-    policy: dict[str, Any],
-) -> tuple[list[Site], dict[str, Any]]:
-    """Anchor out-of-boundary source cells without making them native demand."""
-    raw_sites = _deferred_source_sites(tile, deferred_home, deferred_jobs)
-    if not raw_sites:
-        return [], {"deferredBuildingSiteCount": 0}
-    bounds = [float(value) for value in tile["bounds"]]
-    center_lon = (bounds[0] + bounds[2]) / 2
-    center_lat = (bounds[1] + bounds[3]) / 2
-    local_crs = (
-        f"+proj=aeqd +lat_0={center_lat:.10f} +lon_0={center_lon:.10f} "
-        "+datum=WGS84 +units=m +no_defs"
-    )
-    transformer = Transformer.from_crs("EPSG:4326", local_crs, always_xy=True)
-    buildings = read_building_centers(building_index_path, bounds, transformer)
-    tree = cKDTree(np.column_stack((buildings["x"], buildings["y"])))
-    x_values, y_values = transformer.transform(
-        [site.longitude for site in raw_sites],
-        [site.latitude for site in raw_sites],
-    )
-    candidate_count = min(128, len(buildings["x"]))
-    distances, candidates = tree.query(
-        np.column_stack((x_values, y_values)),
-        k=candidate_count,
-        workers=-1,
-    )
-    if candidate_count == 1:
-        distances = np.asarray(distances).reshape(-1, 1)
-        candidates = np.asarray(candidates).reshape(-1, 1)
-    maximum_snap = float(policy.get("deferredBuildingSnapDistanceM", 5_000.0))
-    used: set[tuple[float, float]] = set()
-    anchored: dict[str, tuple[float, float, float]] = {}
-    for site_index in sorted(range(len(raw_sites)), key=lambda index: raw_sites[index].id):
-        for distance, candidate in zip(distances[site_index], candidates[site_index], strict=True):
-            location = (
-                round(float(buildings["longitudes"][int(candidate)]), 7),
-                round(float(buildings["latitudes"][int(candidate)]), 7),
-            )
-            if location in used:
-                continue
-            if float(distance) <= maximum_snap:
-                used.add(location)
-                anchored[raw_sites[site_index].id] = (*location, float(distance))
-            break
-    result = [
-        Site(
-            site.id,
-            anchored.get(site.id, (site.longitude, site.latitude, 0.0))[0],
-            anchored.get(site.id, (site.longitude, site.latitude, 0.0))[1],
-            site.home_weight,
-            site.job_weight,
-            site.source_pref,
-            site.owner_pref,
-            True,
-        )
-        for site in raw_sites
-    ]
-    snap_distances = [entry[2] for entry in anchored.values()]
-    return result, {
-        "deferredBuildingSiteCount": len(result),
-        "deferredAnchoredBuildingSiteCount": len(anchored),
-        "deferredUnanchoredSiteCount": len(result) - len(anchored),
-        "deferredMaximumBuildingSnapDistanceM": round(max(snap_distances, default=0.0), 3),
-    }
-
-
-def _building_sites(
-    evidence_dir: Path,
-    maps_root: Path,
-    tile: dict[str, Any],
-    boundary: Any,
-    policy: dict[str, Any],
-) -> tuple[list[Site], dict[str, Any]]:
-    tile_name = str(tile["id"])
-    pref_code = str(tile["prefCode"])
-    home_cells = _source_cells(
-        evidence_dir / "home-mesh-250m.geojson", "commuters", pref_code
-    )
-    job_cells = _source_cells(
-        evidence_dir / "job-mesh-500m.geojson", "jobs", pref_code
-    )
-
-    accepted_home, deferred_home = _partition_source_cells(home_cells, boundary)
-    accepted_jobs, deferred_jobs = _partition_source_cells(job_cells, boundary)
-    sites, report = build_tile_sites(
-        tile_name,
-        accepted_home,
-        accepted_jobs,
-        maps_root / tile_name / "buildings_index.bin.gz",
-        [float(value) for value in tile["bounds"]],
-        boundary,
-        candidate_boundary=boundary,
-        radius_m=float(policy["pointMergeDistanceM"]),
-        source_radius_m=float(policy["buildingSourceRadiusM"]),
-        candidate_grid_m=float(policy["candidateGridM"]),
-    )
-    compiled_sites = [
-        Site(
-            id=str(site["id"]),
-            longitude=float(site["location"][0]),
-            latitude=float(site["location"][1]),
-            home_weight=int(site["commuters"]),
-            job_weight=int(site["jobs"]),
-            source_pref=str(tile["prefCode"]),
-            owner_pref=str(tile["prefCode"]),
-        )
-        for site in sites
-    ]
-    deferred_sites, deferred_report = _deferred_building_sites(
-        tile,
-        deferred_home,
-        deferred_jobs,
-        maps_root / tile_name / "buildings_index.bin.gz",
-        policy,
-    )
-    compiled_sites.extend(deferred_sites)
-    return compiled_sites, {
-        **report,
-        **deferred_report,
-        "sourceHomeMass": sum(int(cell["commuters"]) for cell in home_cells),
-        "sourceJobMass": sum(int(cell["jobs"]) for cell in job_cells),
-        "deferredSourceCellCount": len(deferred_sites),
-        "deferredSourceHomeMass": sum(int(cell["commuters"]) for cell in deferred_home),
-        "deferredSourceJobMass": sum(int(cell["jobs"]) for cell in deferred_jobs),
-    }
-
-
 def _load_flows(evidence_root: Path, compatible_evidence: Path) -> tuple[dict[tuple[str, str], int], dict[str, int]]:
     pair_mass: dict[tuple[str, str], int] = defaultdict(int)
     accepted_by_origin: dict[str, int] = defaultdict(int)
@@ -393,124 +211,24 @@ def _load_flows(evidence_root: Path, compatible_evidence: Path) -> tuple[dict[tu
     return dict(pair_mass), dict(accepted_by_origin)
 
 
-def _compile_native(tile: str, pref_code: str, sites: list[Site], local_mass: int) -> tuple[dict[str, Any], list[CrossRecord], dict[str, int]]:
-    home = proportional_allocations([site.home_weight for site in sites], local_mass)
-    jobs = proportional_allocations([site.job_weight for site in sites], local_mass)
-    points: dict[str, dict[str, Any]] = {}
-    pops: list[dict[str, Any]] = []
-    diverted: list[CrossRecord] = []
-    home_rows = [[index, mass] for index, mass in enumerate(home) if mass]
-    job_rows = [[index, mass] for index, mass in enumerate(jobs) if mass]
-    home_index = job_index = cohort_index = 0
-    while home_index < len(home_rows) and job_index < len(job_rows):
-        home_site_index, home_remaining = home_rows[home_index]
-        job_site_index, job_remaining = job_rows[job_index]
-        amount = min(home_remaining, job_remaining)
-        residence = sites[home_site_index]
-        workplace = sites[job_site_index]
-        seconds, distance = road_estimate(residence, workplace)
+def _local_records(pref_code, sites, local_mass):
+    homes = [[i, mass] for i, mass in enumerate(proportional_allocations([s.home_weight for s in sites], local_mass)) if mass]
+    jobs = [[i, mass] for i, mass in enumerate(proportional_allocations([s.job_weight for s in sites], local_mass)) if mass]
+    h = j = sequence = 0
+    while h < len(homes) and j < len(jobs):
+        amount = min(homes[h][1], jobs[j][1])
         for mass in chunk_mass(amount):
-            if residence.force_cross or workplace.force_cross:
-                pop_id = f"jp-national-cross-boundary-audit-{pref_code}-{cohort_index:07d}"
-                diverted.append(CrossRecord(pop_id, mass, residence, workplace, pref_code, pref_code))
-                cohort_index += 1
-                continue
-            pop_id = f"jp-national-local-{tile.lower()}-{cohort_index:07d}"
-            cohort_index += 1
-            pops.append({"id": pop_id, "size": mass, "residenceId": residence.id, "jobId": workplace.id, "drivingSeconds": seconds, "drivingDistance": distance})
-            home_point = points.setdefault(residence.id, {"id": residence.id, "location": [residence.longitude, residence.latitude], "jobs": 0, "residents": 0, "popIds": []})
-            work_point = points.setdefault(workplace.id, {"id": workplace.id, "location": [workplace.longitude, workplace.latitude], "jobs": 0, "residents": 0, "popIds": []})
-            home_point["residents"] += mass
-            work_point["jobs"] += mass
-            home_point["popIds"].append(pop_id)
-            if work_point is not home_point:
-                work_point["popIds"].append(pop_id)
-        home_rows[home_index][1] -= amount
-        job_rows[job_index][1] -= amount
-        if home_rows[home_index][1] == 0:
-            home_index += 1
-        if job_rows[job_index][1] == 0:
-            job_index += 1
-    if home_index != len(home_rows) or job_index != len(job_rows):
-        raise AssertionError(f"{tile} native allocation did not conserve mass")
-    native_mass = sum(int(pop["size"]) for pop in pops)
-    diverted_mass = sum(record.mass for record in diverted)
-    return {"points": [points[key] for key in sorted(points)], "pops": pops}, diverted, {"sourceLocalMass": local_mass, "nativeMass": native_mass, "divertedMass": diverted_mass, "pointCount": len(points), "cohortCount": len(pops), "divertedCohortCount": len(diverted)}
-
-
-def _promote_same_owner_cross_records(
-    native_payloads: dict[str, dict[str, Any]],
-    native_reports: dict[str, dict[str, int]],
-    cross_records: list[CrossRecord],
-    deferred_site_ids: set[str],
-) -> tuple[list[CrossRecord], dict[str, int]]:
-    point_maps = {
-        pref_code: {str(point["id"]): point for point in payload["points"]}
-        for pref_code, payload in native_payloads.items()
-    }
-    remaining = []
-    promoted_mass = 0
-    promoted_cohort_count = 0
-    for record in cross_records:
-        owner_pref = record.home.owner_pref
-        promotable = (
-            owner_pref == record.work.owner_pref
-            and record.home.id not in deferred_site_ids
-            and record.work.id not in deferred_site_ids
-        )
-        if not promotable:
-            remaining.append(record)
-            continue
-
-        payload = native_payloads[owner_pref]
-        point_map = point_maps[owner_pref]
-        seconds, distance = road_estimate(record.home, record.work)
-        payload["pops"].append({
-            "id": record.id,
-            "size": record.mass,
-            "residenceId": record.home.id,
-            "jobId": record.work.id,
-            "drivingSeconds": seconds,
-            "drivingDistance": distance,
-        })
-        def demand_point(site: Site) -> dict[str, Any]:
-            return point_map.setdefault(site.id, {
-                "id": site.id,
-                "location": [site.longitude, site.latitude],
-                "jobs": 0,
-                "residents": 0,
-                "popIds": [],
-            })
-
-        home_point = demand_point(record.home)
-        work_point = demand_point(record.work)
-        home_point["residents"] += record.mass
-        work_point["jobs"] += record.mass
-        home_point["popIds"].append(record.id)
-        if work_point is not home_point:
-            work_point["popIds"].append(record.id)
-
-        owner_report = native_reports[owner_pref]
-        owner_report["nativeMass"] += record.mass
-        owner_report["cohortCount"] += 1
-        owner_report["reclassifiedCrossMass"] = owner_report.get("reclassifiedCrossMass", 0) + record.mass
-        owner_report["reclassifiedCrossCohortCount"] = owner_report.get("reclassifiedCrossCohortCount", 0) + 1
-        if record.id.startswith("jp-national-cross-boundary-audit-"):
-            source_report = native_reports[record.source_origin_pref]
-            source_report["divertedMass"] -= record.mass
-            source_report["divertedCohortCount"] -= 1
-        promoted_mass += record.mass
-        promoted_cohort_count += 1
-
-    for pref_code, payload in native_payloads.items():
-        payload["points"] = [point_maps[pref_code][point_id] for point_id in sorted(point_maps[pref_code])]
-        native_reports[pref_code]["pointCount"] = len(payload["points"])
-        native_reports[pref_code].setdefault("reclassifiedCrossMass", 0)
-        native_reports[pref_code].setdefault("reclassifiedCrossCohortCount", 0)
-    return remaining, {
-        "reclassifiedCrossMass": promoted_mass,
-        "reclassifiedCrossCohortCount": promoted_cohort_count,
-    }
+            home, work = sites[homes[h][0]], sites[jobs[j][0]]
+            kind = 'local' if home.owner_pref == work.owner_pref else 'cross'
+            yield CrossRecord(f"jp-national-{kind}-{tile_id(pref_code).lower()}-{sequence:07d}",
+                              mass, home, work, pref_code, pref_code)
+            sequence += 1
+        homes[h][1] -= amount
+        jobs[j][1] -= amount
+        h += int(homes[h][1] == 0)
+        j += int(jobs[j][1] == 0)
+    if h != len(homes) or j != len(jobs):
+        raise AssertionError("Local OD allocation did not conserve mass")
 
 
 def compile_japan(
@@ -529,84 +247,38 @@ def compile_japan(
     if codes != [f"{value:02d}" for value in range(1, 48)]:
         raise ValueError("Japan catalog must contain prefecture codes 01..47 in order")
     progress.emit("load", "started", prefectureCount=len(codes))
-    from ..geography import computation_boundary
-    _, boundaries, boundary_index, _ = load_prefecture_boundary(set(codes), computation_boundary(world_root))
-    sites_by_pref: dict[str, list[Site]] = {}
-    site_geometry_reports: dict[str, dict[str, Any]] = {}
-    ownership_audit: dict[str, dict[str, Any]] = {}
-    deferred_site_ids: set[str] = set()
+    from ..geography import ownership_boundary
+    boundary_path = ownership_boundary(world_root)
+    _, boundaries, _, _ = load_prefecture_boundary(set(codes), boundary_path)
+    sources = {}
     catalog_by_pref = {str(tile["prefCode"]): tile for tile in catalog["tiles"]}
     for pref_code in codes:
-        progress.emit(
-            "building-sites",
-            "started",
-            prefCode=pref_code,
-            tileId=tile_id(pref_code),
-        )
-        evidence_dir = (
-            compatible_evidence
-            if pref_code in SPECIAL_TILE_IDS
-            else evidence_root / tile_id(pref_code)
-        )
-        sites, geometry_report = _building_sites(
-            evidence_dir,
-            maps_root,
-            catalog_by_pref[pref_code],
-            boundaries[pref_code],
-            demand_policy,
-        )
-        progress.emit(
-            "building-sites",
-            "complete",
-            prefCode=pref_code,
-            tileId=tile_id(pref_code),
-            **geometry_report,
-        )
-        site_geometry_reports[pref_code] = geometry_report
+        evidence_dir = compatible_evidence if pref_code in SPECIAL_TILE_IDS else evidence_root / tile_id(pref_code)
+        sources[pref_code] = {
+            "home": _source_cells(evidence_dir / "home-mesh-250m.geojson", "commuters", pref_code),
+            "jobs": _source_cells(evidence_dir / "job-mesh-500m.geojson", "jobs", pref_code),
+        }
+        progress.emit("load-evidence", "complete", prefCode=pref_code)
+    try:
+        rows, placement_report = compile_boundary_sites(boundaries, sources,
+            {code: maps_root / tile_id(code) / "buildings_index.bin.gz" for code in codes},
+            demand_policy, lambda message: progress.emit("boundary-sites", "running", message=message))
+    except ValueError as error:
+        progress.emit("boundary-sites", "failed", error=str(error), publicationBlocked=True)
+        raise
+    sites_by_pref = {code: [Site(**row) for row in rows[code]] for code in codes}
+    site_geometry_reports = placement_report["owners"]
+    ownership_audit = placement_report
+    for code, sites in sites_by_pref.items():
         if not sites:
-            raise ValueError(f"No sites for prefecture {pref_code}")
-        owner_counts: dict[str, int] = defaultdict(int)
-        no_owner: list[str] = []
-        owned_sites = []
-        for site in sites:
-            if site.force_cross:
-                deferred_site_ids.add(site.id)
-            point = Point(site.longitude, site.latitude)
-            if boundaries[pref_code].covers(point):
-                owner_pref = pref_code
-                force_cross = site.force_cross
-            else:
-                hits = boundary_index.all_tree.query(point, predicate="covered_by")
-                if len(hits):
-                    owner_pref = min(boundary_index.all_codes[int(index)] for index in hits)
-                else:
-                    # No rendered tile owns this coastal point. Keep its exact
-                    # source location but force cohorts through the aggregate
-                    # ledger so native building lookup cannot snap it into a
-                    # giant boundary-edge demand dot.
-                    owner_pref = pref_code
-                    no_owner.append(site.id)
-                force_cross = True
-            owner_counts[owner_pref] += 1
-            owned_sites.append(Site(site.id, site.longitude, site.latitude, site.home_weight, site.job_weight, pref_code, owner_pref, force_cross))
-        sites = owned_sites
-        ownership_audit[pref_code] = {"ownerCounts": dict(sorted(owner_counts.items())), "noOwnerCount": len(no_owner)}
-        progress.emit("site-ownership", "complete", prefCode=pref_code, tileId=tile_id(pref_code), **ownership_audit[pref_code])
-        sites_by_pref[pref_code] = sites
-        forced_count = sum(1 for site in sites if site.force_cross)
-        progress.emit("load-sites", "complete", prefCode=pref_code, tileId=tile_id(pref_code), siteCount=len(sites), nativeOutsideRenderedBoundary=0, forcedCrossSiteCount=forced_count, crossTileOwnerCount=sum(count for owner, count in owner_counts.items() if owner != pref_code), deferredOutsideRenderCount=len(no_owner))
+            raise ValueError(f"No owned building sites for source prefecture {code}")
     pair_mass, accepted_by_origin = _load_flows(evidence_root, compatible_evidence)
     progress.emit("load-flows", "complete", directedPairCount=len(pair_mass), acceptedMass=sum(pair_mass.values()))
 
-    native_payloads: dict[str, dict[str, Any]] = {}
-    native_report_by_pref: dict[str, dict[str, int]] = {}
-    cross_records: list[CrossRecord] = []
+    ledger = OwnedDemandLedger(codes, road_estimate)
     for pref_code in codes:
-        tile = tile_id(pref_code)
-        native, diverted, report = _compile_native(tile, pref_code, sites_by_pref[pref_code], pair_mass.get((pref_code, pref_code), 0))
-        native_payloads[pref_code] = native
-        native_report_by_pref[pref_code] = report
-        cross_records.extend(diverted)
+        for record in _local_records(pref_code, sites_by_pref[pref_code], pair_mass.get((pref_code, pref_code), 0)):
+            ledger.add(record)
 
     home_pickers = {code: WeightedPicker(sites, "home_weight") for code, sites in sites_by_pref.items()}
     job_pickers = {code: WeightedPicker(sites, "job_weight") for code, sites in sites_by_pref.items()}
@@ -620,16 +292,15 @@ def compile_japan(
             seed = f"{origin_code}:{destination_code}:{cohort_count}"
             home_site = home_pickers[origin_code].pick(f"home:{seed}")
             work_site = job_pickers[destination_code].pick(f"work:{seed}")
-            cross_records.append(CrossRecord(f"jp-national-cross-{origin_code}-{destination_code}-{cohort_count:06d}", cohort_mass, home_site, work_site, origin_code, destination_code))
+            kind = 'local' if home_site.owner_pref == work_site.owner_pref else 'cross'
+            ledger.add(CrossRecord(f"jp-national-{kind}-{origin_code}-{destination_code}-{cohort_count:06d}", cohort_mass, home_site, work_site, origin_code, destination_code))
         progress.emit("cross-demand", "complete", originPrefCode=origin_code, destinationPrefCode=destination_code, mass=mass, cohortCount=cohort_count)
 
-    cross_records, reclassification_report = _promote_same_owner_cross_records(
-        native_payloads,
-        native_report_by_pref,
-        cross_records,
-        deferred_site_ids,
-    )
-    progress.emit("cross-reclassification", "complete", **reclassification_report)
+    native_payloads, native_report_by_pref, cross_records = ledger.finish()
+    compiled_mass = sum(row['nativeMass'] for row in native_report_by_pref.values()) + sum(record.mass for record in cross_records)
+    if compiled_mass != sum(pair_mass.values()):
+        raise AssertionError('Final ownership classification did not conserve national commute mass')
+    progress.emit("owner-classification", "complete", crossCohortCount=len(cross_records))
     native_reports = []
     for pref_code in codes:
         tile = tile_id(pref_code)
@@ -701,9 +372,9 @@ def compile_japan(
         "crossMass": sum(record.mass for record in cross_records),
         "crossPointCount": len(point_ids),
         "crossCohortCount": len(encoded_pops),
-        **reclassification_report,
+        "ownershipBoundary": {"source": str(boundary_path), "sha256": sha256(boundary_path)},
         "nativeOutsideRenderedBoundary": 0,
-        "crossOutsideRenderedBoundaryPointCount": sum(1 for point_id in cross_points if point_id in deferred_site_ids),
+        "crossOutsideRenderedBoundaryPointCount": 0,
         "ownershipAudit": ownership_audit,
         "siteGeometry": site_geometry_reports,
         "aggregation": {

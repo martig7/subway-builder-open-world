@@ -25,7 +25,7 @@ class JapanPrefectureQueueTests(unittest.TestCase):
                 json.dumps({
                     "status": "demand-evidence-complete",
                     "workerVersion": WORKER_VERSION,
-                    "renderBoundary": {"sha256": "current-boundary"},
+                    "ownershipBoundary": {"sha256": "current-boundary"},
                 }),
                 encoding="utf-8",
             )

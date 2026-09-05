@@ -32,10 +32,10 @@ from shapely.strtree import STRtree
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_RAW = REPOSITORY_ROOT / "prototype" / "japan" / "raw-data" / "estat" / "od"
-DEFAULT_BOUNDARY = Path(os.environ.get("OW_MAP_DATA_ROOT", REPOSITORY_ROOT / "map-creator" / "data")) / "sources" / "japan" / "geography" / "prefectures-full.geojson"
+DEFAULT_BOUNDARY = None  # Resolve the selected World's ownership input at CLI entry.
 DEFAULT_OUTPUT = REPOSITORY_ROOT / "map-creator" / "data" / "japan-prefectures"
 DEFAULT_PREFECTURES = ("13", "14")
-WORKER_VERSION = "estat-japan-computation-boundary-v3"
+WORKER_VERSION = "estat-japan-ownership-boundary-v4"
 PREFECTURE_NAMES = dict(zip(
     (f"{code:02d}" for code in range(1, 48)),
     (
@@ -188,15 +188,17 @@ def load_prefecture_boundary(
     boundary_source: Path,
 ) -> tuple[dict[str, Any], dict[str, Any], BoundaryOwnershipIndex, dict[str, str]]:
     source = json.loads(boundary_source.read_text(encoding="utf-8"))
+    if source.get("purpose") == "display-only" or "lods" in source:
+        raise ValueError("Display LODs cannot determine demand ownership")
     features = [feature for feature in source["features"] if feature["properties"]["pref_code"] in prefecture_codes]
     found = {feature["properties"]["pref_code"] for feature in features}
     if found != prefecture_codes:
         raise ValueError(f"Missing prefecture boundaries: {sorted(prefecture_codes - found)}")
-    selected = {feature["properties"]["pref_code"]: make_valid(shape(feature["geometry"])) for feature in features}
     all_prefectures = {
         feature["properties"]["pref_code"]: make_valid(shape(feature["geometry"]))
         for feature in source["features"]
     }
+    selected = {code: all_prefectures[code] for code in prefecture_codes}
     names = {
         feature["properties"]["pref_code"]: str(
             feature["properties"].get("pref_name_ja")
@@ -214,19 +216,28 @@ def load_prefecture_boundary(
 
 
 def assign_prefecture(code: str, boundary_index: BoundaryOwnershipIndex) -> tuple[str, str] | None:
-    """Assign a mesh once against authoritative computation geometry, never a display LOD."""
+    """Assign a mesh against full World ownership, never a display LOD."""
     longitude, latitude = mesh_center(code)
+    if len(code) not in (9, 10):
+        raise ValueError(f"Unexpected Japanese mesh code: {code!r}")
+    return resolve_cell_ownership(longitude, latitude, 1 if len(code) == 10 else 2, boundary_index)
+
+
+def resolve_cell_ownership(longitude, latitude, mesh_scale, boundary_index):
+    """One ownership rule for source extraction and final building placement.
+
+    Prefer the centre's owner; for a coastal overhang use the greatest footprint
+    overlap. Source prefecture labels and the current display zoom play no role.
+    A cell wholly outside the World has no owner here, not an implicit fallback.
+    """
+    if mesh_scale not in (1, 2):
+        raise ValueError('Expected a 250 m or 500 m mesh scale')
     center = Point(longitude, latitude)
     center_hits = boundary_index.all_tree.query(center, predicate="covered_by")
     if len(center_hits):
         pref_code = min(boundary_index.all_codes[int(index)] for index in center_hits)
-        return pref_code, "center-inside-computation-boundary"
-    if len(code) == 10:
-        half_longitude, half_latitude = 0.0015625, 1 / 960
-    elif len(code) == 9:
-        half_longitude, half_latitude = 0.003125, 1 / 480
-    else:
-        raise ValueError(f"Unexpected Japanese mesh code: {code!r}")
+        return pref_code, "center-inside-ownership-boundary"
+    half_longitude, half_latitude = mesh_scale / 640, mesh_scale / 960
     cell = box(
         longitude - half_longitude,
         latitude - half_latitude,
@@ -239,10 +250,10 @@ def assign_prefecture(code: str, boundary_index: BoundaryOwnershipIndex) -> tupl
         overlaps[boundary_index.all_codes[part_index]] += boundary_index.all_parts[part_index].intersection(cell).area
     if not overlaps:
         return None
-    pref_code, overlap_area = max(overlaps.items(), key=lambda item: (item[1], item[0]))
+    pref_code, overlap_area = min(overlaps.items(), key=lambda item: (-item[1], item[0]))
     if overlap_area <= 0:
         return None
-    return pref_code, "maximum-computation-boundary-overlap"
+    return pref_code, "maximum-ownership-boundary-overlap"
 
 
 def relocate_into_boundary(
@@ -697,10 +708,10 @@ def build_prefecture_evidence(
         "worldId": "JP_NATIONAL_OPEN_WORLD",
         "tileIds": tile_ids,
         "prefectures": prefecture_names,
-        "computationBoundary": {
+        "ownershipBoundary": {
             "source": str(boundary_source),
             "sha256": sha256(boundary_source),
-            "policy": "full-detail computation geometry; independent of display LODs",
+            "policy": "full approved World ownership geometry; independent of display LODs",
             "areaKm2": round(
                 sum(boundary_index.projected_boundary(code)[2].area for code in prefecture_codes) / 1_000_000,
                 2,
@@ -740,9 +751,9 @@ def build_prefecture_evidence(
             "reconciliationDelta": od_reconciliation["reconciliationDelta"],
         },
         "boundaryAssignment": {
-            "policy": "one authoritative computation-boundary owner per source mesh; no fractional mass",
-            "homeMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-computation-boundary-overlap" for row in homes),
-            "jobMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-computation-boundary-overlap" for row in jobs),
+            "policy": "one authoritative World-boundary owner per source mesh; no fractional mass",
+            "homeMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-ownership-boundary-overlap" for row in homes),
+            "jobMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-ownership-boundary-overlap" for row in jobs),
         },
         "nextStage": "building-footprint allocation and map assets",
     }
@@ -766,11 +777,12 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prefecture", action="append", dest="prefectures", help="two-digit prefecture code; repeatable")
     parser.add_argument("--raw-root", type=Path, default=DEFAULT_RAW)
+    parser.add_argument("--world-root", type=Path, default=REPOSITORY_ROOT / "worlds" / "japan")
     parser.add_argument(
         "--boundary-source",
         type=Path,
         default=DEFAULT_BOUNDARY,
-        help="full-detail authoritative computation geometry; never a display LOD",
+        help="full approved World ownership geometry; never a display LOD",
     )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--progress-jsonl", type=Path)
@@ -778,6 +790,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--queue-total", type=int)
     parser.add_argument("--site-radius-m", type=float, default=350, help="NEC-style Voronoi seed coverage radius in metres (default: 350)")
     args = parser.parse_args(argv)
+    if args.boundary_source is None:
+        from ..geography import ownership_boundary
+        args.boundary_source = ownership_boundary(args.world_root)
     if args.site_radius_m < 250:
         parser.error("site radius must be at least 250 m: smaller values out-resolve the source mesh")
     prefecture_codes = args.prefectures or list(DEFAULT_PREFECTURES)

@@ -34,9 +34,12 @@ def sha256(path: Path) -> str:
 def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     catalog = read_json(world_root / "geography" / "tile-views.json")
     selected = [tile for tile in catalog["tiles"] if tile.get("status") == "selected"]
-    from ..geography import computation_boundary
-    boundary_source = read_json(computation_boundary(world_root))
+    from ..geography import ownership_boundary
+    boundary_source = read_json(ownership_boundary(world_root))
     boundaries = {str(feature["properties"]["pref_code"]): make_valid(shape(feature["geometry"])) for feature in boundary_source["features"]}
+    from shapely import prepare
+    for boundary in boundaries.values():
+        prepare(boundary)
     native_mass = 0
     native_points = 0
     native_cohorts = 0
@@ -108,7 +111,20 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     if cross_mass != sum(int(bucket["mass"]) for bucket in commutes["buckets"]):
         raise ValueError("Cross ledger and commute bucket mass differ")
     if outside:
-        raise ValueError(f"{outside} native demand points are outside computation boundaries")
+        raise ValueError(f"{outside} native demand points are outside ownership boundaries")
+    report = read_json(demand_root / 'reports' / 'japan-national-demand.json')
+    if native_mass + cross_mass != report['acceptedMass']:
+        raise ValueError('National commute mass differs from accepted source controls')
+    if report.get('compilerVersion') == 'estat-japan-national-package-v6-boundary-first':
+        if cross_outside:
+            raise ValueError(f'{cross_outside} cross-demand points are outside ownership boundaries')
+        if report.get('ownershipBoundary', {}).get('sha256') != sha256(ownership_boundary(world_root)):
+            raise ValueError('Demand was compiled with a different ownership boundary')
+        for row in cross['pops']:
+            home = cross['points'][int(row[pop_fields['homePoint']])][point_fields['tileId']]
+            work = cross['points'][int(row[pop_fields['workPoint']])][point_fields['tileId']]
+            if home == work:
+                raise ValueError('Same-owner commute was incorrectly retained as cross-tile')
     return {
         "valid": True,
         "tileCount": len(selected),

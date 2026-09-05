@@ -13,6 +13,7 @@
   "tileViews": {
     "catalog": "geography/tile-views.json",
     "initialTileId": "JP_TOKYO_MAINLAND",
+    "ownershipBoundary": "geography/prefectures.geojson",
     "boundaryOverlay": "geography/display-boundaries.json"
   },
   "map": {

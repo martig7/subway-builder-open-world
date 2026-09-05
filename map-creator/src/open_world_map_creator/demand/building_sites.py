@@ -128,7 +128,8 @@ def select_building_candidates(
     retained = np.concatenate(retained_parts)
     inside = shapely.covers(
         boundary,
-        shapely.points(buildings["longitudes"][retained], buildings["latitudes"][retained]),
+        # Ownership must still hold after the serialized coordinate rounding.
+        shapely.points(np.round(buildings["longitudes"][retained], 7), np.round(buildings["latitudes"][retained], 7)),
     )
     retained = retained[np.asarray(inside, dtype=bool)]
     if len(retained) == 0:

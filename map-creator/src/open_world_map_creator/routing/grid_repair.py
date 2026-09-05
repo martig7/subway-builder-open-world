@@ -200,8 +200,8 @@ def relocate_marked_grid_points(
     tiles = {str(tile["id"]): tile for tile in catalog["tiles"]}
     world_root = catalog_path.parent.parent
     if boundary_path is None and (world_root / "world.json").is_file():
-        from ..geography import computation_boundary
-        boundary_path = computation_boundary(world_root)
+        from ..geography import ownership_boundary
+        boundary_path = ownership_boundary(world_root)
     boundary_source = json.loads(
         (boundary_path or catalog_path.parent / "prefectures.geojson").read_text(
             encoding="utf-8"

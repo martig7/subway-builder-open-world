@@ -15,14 +15,8 @@ from pyproj import Transformer
 
 from open_world_map_creator.demand.building_sites import BINARY_MAGIC, HEADER_SIZE, build_tile_sites
 from open_world_map_creator.demand.package_japan import (
-    CrossRecord,
     Site,
     WeightedPicker,
-    _compile_native,
-    _deferred_building_sites,
-    _deferred_source_sites,
-    _partition_source_cells,
-    _promote_same_owner_cross_records,
     _source_cells,
     chunk_mass,
     proportional_allocations,
@@ -50,88 +44,6 @@ class JapanPackageTests(unittest.TestCase):
         self.assertEqual(picker.pick("fixed"), picker.pick("fixed"))
         self.assertEqual(road_estimate(sites[0], sites[1]), road_estimate(sites[0], sites[1]))
         self.assertGreater(road_estimate(sites[0], sites[1])[0], 60)
-
-    def test_boundary_failed_sites_are_diverted_out_of_native_demand(self) -> None:
-        site = Site("outside", 139.0, 35.0, 500, 500, "13", "11", True)
-        native, diverted, report = _compile_native("JP_TOKYO_MAINLAND", "13", [site], 500)
-        self.assertEqual(native, {"points": [], "pops": []})
-        self.assertEqual(sum(record.mass for record in diverted), 500)
-        self.assertEqual(report["nativeMass"], 0)
-        self.assertEqual(report["divertedMass"], 500)
-
-    def test_cross_records_are_promoted_when_rendered_endpoints_share_an_owner(self) -> None:
-        home = Site("home", 139.0, 35.0, 10, 0, "13", "11", True)
-        work = Site("work", 139.1, 35.1, 0, 10, "14", "11", True)
-        deferred = Site("sea", 140.0, 36.0, 5, 5, "11", "11", True)
-        records = [
-            CrossRecord("promote", 10, home, work, "13", "14"),
-            CrossRecord("deferred", 5, deferred, deferred, "11", "11"),
-        ]
-        payloads = {"11": {"points": [], "pops": []}}
-        reports = {"11": {"nativeMass": 0, "cohortCount": 0, "divertedMass": 5, "divertedCohortCount": 1}}
-
-        remaining, report = _promote_same_owner_cross_records(
-            payloads, reports, records, {"sea"}
-        )
-
-        self.assertEqual([record.id for record in remaining], ["deferred"])
-        self.assertEqual(report, {"reclassifiedCrossMass": 10, "reclassifiedCrossCohortCount": 1})
-        self.assertEqual(sum(pop["size"] for pop in payloads["11"]["pops"]), 10)
-        self.assertEqual(reports["11"]["nativeMass"], 10)
-
-    def test_source_cells_outside_rendered_land_are_deferred_at_source(self) -> None:
-        rendered_land = shape({
-            "type": "Polygon",
-            "coordinates": [[[139.0, 35.0], [140.0, 35.0], [140.0, 36.0], [139.0, 36.0], [139.0, 35.0]]],
-        })
-        cells = [
-            {"longitude": 139.5, "latitude": 35.5, "commuters": 7},
-            {"longitude": 141.25, "latitude": 37.5, "commuters": 11},
-        ]
-
-        accepted, deferred = _partition_source_cells(cells, rendered_land)
-        sites = _deferred_source_sites(
-            {"id": "JP_PREF_46", "prefCode": "46"},
-            deferred,
-            [{"longitude": 141.25, "latitude": 37.5, "jobs": 13}],
-        )
-
-        self.assertEqual(accepted, [cells[0]])
-        self.assertEqual(deferred, [cells[1]])
-        self.assertEqual([(site.longitude, site.latitude) for site in sites], [(141.25, 37.5)])
-        self.assertEqual((sites[0].home_weight, sites[0].job_weight), (11, 13))
-        self.assertTrue(sites[0].force_cross)
-
-    def test_deferred_cells_are_anchored_to_buildings_but_remain_cross_tile(self) -> None:
-        header = bytearray(HEADER_SIZE)
-        struct.pack_into("<I", header, 0, BINARY_MAGIC)
-        header[4] = 1
-        struct.pack_into("<I", header, 8, 2)
-        struct.pack_into("<d", header, 40, 0.0009)
-        bounds = struct.pack(
-            "<8d",
-            139.0000, 35.0000, 139.0002, 35.0002,
-            139.0023, 35.0017, 139.0025, 35.0019,
-        )
-        tile = {"id": "JP_PREF_TEST", "prefCode": "13", "bounds": [138.99, 34.99, 139.01, 35.01]}
-        policy = {"pointMergeDistanceM": 350, "buildingSourceRadiusM": 750, "candidateGridM": 100}
-        home = [{"longitude": 139.001, "latitude": 35.001, "commuters": 100}]
-        jobs = [{"longitude": 139.001, "latitude": 35.001, "jobs": 80}]
-
-        with tempfile.TemporaryDirectory() as directory:
-            index_path = Path(directory) / "buildings_index.bin.gz"
-            with gzip.open(index_path, "wb") as output:
-                output.write(header)
-                output.write(bounds)
-            sites, report = _deferred_building_sites(tile, home, jobs, index_path, policy)
-
-        self.assertTrue(sites)
-        self.assertTrue(all(site.id.startswith("deferred-source-") for site in sites))
-        self.assertTrue(all(site.force_cross for site in sites))
-        self.assertTrue(all((site.longitude, site.latitude) != (139.001, 35.001) for site in sites))
-        self.assertEqual(sum(site.home_weight for site in sites), 100)
-        self.assertEqual(sum(site.job_weight for site in sites), 80)
-        self.assertEqual(report["deferredBuildingSiteCount"], len(sites))
 
     def test_shared_evidence_is_filtered_by_source_prefecture(self) -> None:
         evidence = {

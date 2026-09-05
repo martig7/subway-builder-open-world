@@ -41,7 +41,7 @@ def is_complete(output: Path, boundary_sha256: str | None = None) -> bool:
         and report.get("workerVersion") == WORKER_VERSION
         and (
             boundary_sha256 is None
-            or report.get("computationBoundary", report.get("renderBoundary", {})).get("sha256") == boundary_sha256
+            or report.get("ownershipBoundary", {}).get("sha256") == boundary_sha256
         )
     )
 
@@ -51,6 +51,7 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--prefecture", action="append", dest="prefectures")
     command.add_argument("--raw-root", type=Path, default=DEFAULT_RAW)
     command.add_argument("--boundary-source", type=Path, default=DEFAULT_BOUNDARY)
+    command.add_argument("--world-root", type=Path, default=Path(__file__).resolve().parents[4] / "worlds" / "japan")
     command.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
     command.add_argument("--progress-jsonl", type=Path)
     command.add_argument("--site-radius-m", type=float, default=350)
@@ -60,6 +61,9 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     args = parser().parse_args(argv)
+    if args.boundary_source is None:
+        from ..geography import ownership_boundary
+        args.boundary_source = ownership_boundary(args.world_root)
     prefecture_codes = args.prefectures or list(DEFAULT_QUEUE)
     if any(code not in PREFECTURE_NAMES for code in prefecture_codes):
         raise SystemExit("--prefecture must be a two-digit code from 01 through 47")

@@ -52,6 +52,9 @@ test('Japan Open World exposes all 47 prefectures through one consumer', async (
   const worldRoot = path.join(root, 'worlds', 'japan');
   const definition = JSON.parse(await readFile(path.join(worldRoot, 'world.json'), 'utf8'));
   assert.deepEqual(validateWorldDefinition(definition).errors, []);
+  const escaped = structuredClone(definition);
+  escaped.tileViews.ownershipBoundary = '../outside.geojson';
+  assert.ok(validateWorldDefinition(escaped).errors.some(error => error.includes('ownershipBoundary')));
   const catalog = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.catalog), 'utf8'));
   assert.equal(catalog.tiles.length, 47);
   assert.equal(new Set(catalog.tiles.map((tile) => tile.id)).size, 47);

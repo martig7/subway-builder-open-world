@@ -34,6 +34,25 @@ def computation_boundary(world_root, source_root=None):
     return target
 
 
+def ownership_boundary(world_root):
+    """Full approved Tile View outlines, never a zoom-selected display LOD.
+
+    Raw administrative/physical geometry remains available for computation, but
+    only this World-owned geometry decides demand's final tile membership.
+    """
+    root = Path(world_root).resolve()
+    definition = json.loads((root / 'world.json').read_text(encoding='utf-8'))
+    key = definition.get('tileViews', {}).get('ownershipBoundary')
+    if not key:
+        return computation_boundary(root)
+    target = (root / key).resolve()
+    if root not in target.parents:
+        raise ValueError('Ownership boundary escapes the World directory')
+    if not target.is_file():
+        raise FileNotFoundError(f'Authoritative ownership geometry is missing: {target}')
+    return target
+
+
 def display_lods(source, progress=print, metric_crs=METRIC_CRS):
     forward = Transformer.from_crs("EPSG:4326", metric_crs, always_xy=True).transform
     inverse = Transformer.from_crs(metric_crs, "EPSG:4326", always_xy=True).transform
