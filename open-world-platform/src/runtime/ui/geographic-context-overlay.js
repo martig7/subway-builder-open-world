@@ -13,6 +13,7 @@ const TILE_BOUNDARY_LAYER_ID = 'open-world-tile-boundaries';
 const WORLD_BOUNDARY_LAYER_ID = 'open-world-country-boundaries';
 const WORLD_CONTEXT_SOURCE_ID = 'open-world-world-context-source';
 export const WORLD_CONTEXT_VERSION = 'independent-world-context-v1';
+export const WORLD_CONTEXT_RESTORE_VERSION = 'theme-context-restoration-v1';
 const WORLD_LAND_HIGH_ZOOM_LAYER_ID = 'open-world-land-high-zoom';
 const WORLD_BOUNDARY_HIGH_ZOOM_LAYER_ID = 'open-world-country-boundaries-high-zoom';
 const WORLD_OCEAN_SOURCE_ID = 'open-world-ocean-source';
@@ -2371,6 +2372,16 @@ function mapStyleLoaded(map) {
   try { return Boolean(map?.isStyleLoaded?.()); } catch { return false; }
 }
 
+function contextArtifactsMissing(map) {
+  if (!map) return false;
+  try {
+    return [WORLD_OCEAN_LAYER_ID, TILE_SELECTION_LAYER_ID, TILE_BOUNDARY_LAYER_ID]
+      .some((id) => !map.getLayer?.(id))
+      || (safeMapSource(map, WORLD_CONTEXT_SOURCE_ID)
+        && [WORLD_LAND_LAYER_ID, WORLD_LAND_HIGH_ZOOM_LAYER_ID].some((id) => !map.getLayer?.(id)));
+  } catch { return true; }
+}
+
 function ensureWorldContextSource(map, worldContextTilesUrl) {
   const definition = worldContextSourceDefinition(map, worldContextTilesUrl);
   if (!definition) return false;
@@ -2396,6 +2407,7 @@ function ensureWorldContextSource(map, worldContextTilesUrl) {
 
 function ensureArtifacts(map, worldContextTilesUrl) {
   map.__openWorldWorldContextVersion = WORLD_CONTEXT_VERSION;
+  map.__openWorldWorldContextRestoreVersion = WORLD_CONTEXT_RESTORE_VERSION;
   const theme = readWorldContextTheme(map);
   const worldLayerIds = new Set([
     WORLD_WATER_BACKGROUND_LAYER_ID,
@@ -2610,8 +2622,12 @@ export class GeographicContextOverlayController {
     this.rendererVirtualization = null;
     this.spatialSourceVisibility = null;
     this.nativeHoverDelegateMap = null;
+    this.contextRefreshPending = true;
+    this.refreshingContext = false;
+    this.handleIdle = () => this.retryContextRefresh();
     this.handleStyle = () => {
       this.boundarySubmission = null;
+      this.contextRefreshPending = true;
       const refresh = () => {
         this.refresh();
       };
@@ -2664,6 +2680,10 @@ export class GeographicContextOverlayController {
         });
     };
     this.handleStyleData = () => {
+      if (this.refreshingContext) return;
+      // setStyle can diff away mod layers without another style.load. Also
+      // retry a style.load that arrived before native sources finished loading.
+      this.retryContextRefresh();
       // Paint edits can arrive while tiles are still loading. Synchronize now,
       // without rebuilding geometry or waiting for isStyleLoaded()/idle.
       syncWorldContextTheme(this.map);
@@ -2707,6 +2727,7 @@ export class GeographicContextOverlayController {
       }
       try { this.map.off('style.load', this.handleStyle); } catch {}
       try { this.map.off('styledata', this.handleStyleData); } catch {}
+      try { this.map.off('idle', this.handleIdle); } catch {}
       try { this.map.off('zoom', this.handleZoom); } catch {}
       resumeNativeHoverDelegates(this.map, this, { release: true });
     }
@@ -2717,6 +2738,7 @@ export class GeographicContextOverlayController {
     this.stationMarkerVisibility?.reset?.();
     this.stationMarkerVisibility = null;
     this.map = map;
+    this.contextRefreshPending = true;
     this.runtimeActiveTileId = this.readRuntimeActiveTileId();
     this.rendererVirtualization = this.createRendererVirtualization();
     this.nativeHoverDelegateMap = map;
@@ -2750,6 +2772,7 @@ export class GeographicContextOverlayController {
     this.stationMarkerVisibility.apply?.();
     map?.on?.('style.load', this.handleStyle);
     map?.on?.('styledata', this.handleStyleData);
+    map?.on?.('idle', this.handleIdle);
     map?.on?.('zoom', this.handleZoom);
     ensureStationMarkerStyle();
     updateStationMarkerVisibility(map);
@@ -2766,19 +2789,28 @@ export class GeographicContextOverlayController {
     delete globalThis.__openWorldMovementZoomTrace;
     delete globalThis.__printOpenWorldMovementZoomTrace;
     this.refresh();
-    map?.once?.('idle', () => {
-      if (this.map !== map) return;
-      // onMapReady may arrive after style.load but before MapLibre considers
-      // every style source loaded. The initial refresh then exits, so idle is
-      // the authoritative retry point rather than only a diagnostic event.
-      this.refresh();
-    });
+  }
+
+  retryContextRefresh() {
+    if (!this.map || this.refreshingContext) return;
+    if (this.contextRefreshPending || contextArtifactsMissing(this.map)) this.refresh();
   }
 
   refresh() {
+    if (this.refreshingContext) return;
+    this.refreshingContext = true;
+    try { return this.refreshContext(); }
+    finally { this.refreshingContext = false; }
+  }
+
+  refreshContext() {
     return mapMovePerfMeasure('overlay.refresh.total', () => {
       this.syncRendererVirtualizationAuthority();
-      if (!mapStyleLoaded(this.map)) return;
+      if (!mapStyleLoaded(this.map)) {
+        this.contextRefreshPending = true;
+        return;
+      }
+      this.contextRefreshPending = false;
       ensureStationMarkerStyle();
       globalThis.__openWorldToolboxRenderMap = this.map;
       globalThis.__openWorldToolboxRenderVirtualization = this.rendererVirtualization;
@@ -2824,6 +2856,7 @@ export class GeographicContextOverlayController {
     if (!attachedMap) return;
     try { attachedMap.off('style.load', this.handleStyle); } catch {}
     try { attachedMap.off('styledata', this.handleStyleData); } catch {}
+    try { attachedMap.off('idle', this.handleIdle); } catch {}
     try { attachedMap.off('zoom', this.handleZoom); } catch {}
     {
       const container = attachedMap.getContainer?.();

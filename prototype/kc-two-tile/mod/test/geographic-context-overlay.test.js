@@ -1965,11 +1965,7 @@ test('captures the actual runtime layer order and source metadata for ocean diag
 test('installs geographic context when the map becomes idle after an initially unready attach', () => {
   const map = fixtureMap();
   let styleLoaded = false;
-  let idleCallback = null;
   map.isStyleLoaded = () => styleLoaded;
-  map.once = (event, callback) => {
-    if (event === 'idle') idleCallback = callback;
-  };
   const controller = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
     tileCatalog: catalog,
@@ -1977,12 +1973,48 @@ test('installs geographic context when the map becomes idle after an initially u
 
   controller.attachMap(map);
   assert.equal(map.layers.has(geographicContextLayerIds.worldOcean), false);
-  assert.equal(typeof idleCallback, 'function');
+  assert.equal(typeof map.listeners.get('idle'), 'function');
 
   styleLoaded = true;
-  idleCallback();
+  map.listeners.get('idle')();
   assert.equal(map.layers.has(geographicContextLayerIds.worldOcean), true);
   assert.equal(map.layers.has(geographicContextLayerIds.worldLand), true);
+});
+
+test('restores ocean after repeated theme replacements finish loading after style.load', () => {
+  const map = fixtureMap();
+  const addSource = map.addSource;
+  map.addSource = (...args) => {
+    addSource(...args);
+    map.listeners.get('styledata')?.();
+  };
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog });
+  controller.attachMap(map);
+  map.listeners.get('idle')?.();
+  for (let change = 0; change < 3; change++) {
+    for (const id of [...map.layers.keys()]) if (id.startsWith('open-world-')) map.removeLayer(id);
+    for (const id of [...map.sources.keys()]) if (id.startsWith('open-world-')) map.sources.delete(id);
+    map.isStyleLoaded = () => false;
+    map.layers.get('native-background').paint = { 'background-color': `#${change}12233` };
+    Object.assign(map.layers.get('water'), { type: 'fill-extrusion', paint: { 'fill-extrusion-color': `#${change}45566` } });
+    // Exercise deferred styledata, idle-only retry, and setStyle diff without
+    // a style.load event. Source additions emit synchronous styledata too.
+    if (change < 2) map.listeners.get('style.load')();
+    map.isStyleLoaded = () => true;
+    if (change === 1) map.listeners.get('idle')?.();
+    else map.listeners.get('styledata')();
+    assert.ok(map.getLayer(geographicContextLayerIds.worldOcean), `ocean missing after theme change ${change}`);
+    assert.ok(map.getLayer(geographicContextLayerIds.worldLand));
+    assert.equal(map.getLayer(geographicContextLayerIds.worldOcean).paint['fill-color'], `#${change}45566`);
+    assert.equal(map.getLayer(geographicContextLayerIds.worldLand).paint['fill-color'], `#${change}12233`);
+    assert.ok(map.layerOrder.indexOf(geographicContextLayerIds.worldOcean) < map.layerOrder.indexOf(geographicContextLayerIds.worldLand));
+    assert.ok(map.layerOrder.indexOf(geographicContextLayerIds.worldLand) < map.layerOrder.indexOf('water'));
+    const insertions = map.insertions.length;
+    map.listeners.get('idle')?.();
+    assert.equal(map.insertions.length, insertions, 'idle must not rebuild a healthy overlay');
+  }
+  controller.dispose();
+  assert.equal(map.listeners.has('idle'), false);
 });
 
 test('survives styledata while MapLibre temporarily detaches its internal style', () => {
