@@ -57,6 +57,12 @@ ODbL; coastline source: https://osmdata.openstreetmap.de/data/land-polygons.html
 The bounds must contain all candidate journeys with a margin. Pass the resulting
 physical mask—not either prefecture file—to `--water-land-geojson`.
 
+`scripts/run_japan_water_routing_when_ready.ps1` connects mask preparation to
+routing in an arbitrary Runner workspace. It waits for the mask report, refuses
+unusable water areas or a hash mismatch, routes a separate demand copy, and runs
+the conservation audit. Its output is not installed automatically. Both the
+mask report and routing/audit logs must be reviewed before publication.
+
 ```powershell
 $env:PYTHONPATH = 'src'
 python -m open_world_map_creator plan --world ..\worlds\japan --tile JP_PREF_11

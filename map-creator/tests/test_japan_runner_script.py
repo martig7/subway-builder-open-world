@@ -12,6 +12,13 @@ OSRM_HANDOFF_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_o
 
 
 class JapanRunnerScriptTests(unittest.TestCase):
+    def test_water_handoff_requires_mask_validation_and_audits_separate_output(self):
+        script = (REPOSITORY_ROOT / "map-creator/scripts/run_japan_water_routing_when_ready.ps1").read_text(encoding="utf-8")
+        self.assertIn("$mask.unusableAreaIds.Count -gt 0", script)
+        self.assertIn("Get-FileHash -LiteralPath $LandMask", script)
+        self.assertIn("Copy-Item -LiteralPath $OriginalDemand -Destination $output", script)
+        self.assertIn("open_world_map_creator.routing.ferry_audit --before $OriginalDemand --after $output", script)
+
     def test_water_options_reach_the_location_independent_routing_command(self):
         script = ROUTING_SCRIPT.read_text(encoding="utf-8")
         starter = ROUTING_START_SCRIPT.read_text(encoding="utf-8")
