@@ -5,6 +5,7 @@ import {
   normalizeRenderDistance,
   virtualizeGeoJsonData,
 } from './renderer-virtualization.js';
+import { readWorldContextTheme, syncWorldContextTheme } from './world-context-theme.js';
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const BOUNDARY_SOURCE_ID = 'open-world-tile-boundaries-source';
 const TILE_SELECTION_LAYER_ID = 'open-world-tile-selection';
@@ -2395,6 +2396,7 @@ function ensureWorldContextSource(map, worldContextTilesUrl) {
 
 function ensureArtifacts(map, worldContextTilesUrl) {
   map.__openWorldWorldContextVersion = WORLD_CONTEXT_VERSION;
+  const theme = readWorldContextTheme(map);
   const worldLayerIds = new Set([
     WORLD_WATER_BACKGROUND_LAYER_ID,
     WORLD_OCEAN_LAYER_ID,
@@ -2428,7 +2430,7 @@ function ensureArtifacts(map, worldContextTilesUrl) {
       // land tiles begin, otherwise an unavailable/overzoomed land source can
       // leave the ocean painted over the base game's land.
       maxzoom: STATION_MARKER_MIN_ZOOM,
-      paint: { 'fill-color': '#102f68', 'fill-opacity': 1 },
+      paint: { 'fill-color': theme.water, 'fill-opacity': 1 },
     }, firstNativeContentLayer);
   } else if (
     map.getLayer(WORLD_OCEAN_LAYER_ID)?.maxzoom !== STATION_MARKER_MIN_ZOOM
@@ -2452,7 +2454,7 @@ function ensureArtifacts(map, worldContextTilesUrl) {
       source: worldSourceId,
       'source-layer': 'world_land',
       maxzoom: STATION_MARKER_MIN_ZOOM,
-      paint: { 'fill-color': '#1c3046', 'fill-opacity': 1 },
+      paint: { 'fill-color': theme.land, 'fill-opacity': 1 },
     }, firstNativeContentLayer);
   }
   if (hasWorldContextSource && !map.getLayer?.(WORLD_LAND_HIGH_ZOOM_LAYER_ID)) {
@@ -2463,9 +2465,10 @@ function ensureArtifacts(map, worldContextTilesUrl) {
       'source-layer': 'world_land',
       minzoom: STATION_MARKER_MIN_ZOOM,
       maxzoom: GEOGRAPHIC_CONTEXT_MAX_ZOOM,
-      paint: { 'fill-color': '#1c3046', 'fill-opacity': 1 },
+      paint: { 'fill-color': theme.land, 'fill-opacity': 1 },
     }, firstNativeContentLayer);
   }
+  syncWorldContextTheme(map);
   // These moves are intentional on every refresh: a hot reload may inherit
   // old ordering. Ocean must be below land, but both must cover the native
   // background and remain below ALL native content, including native land
@@ -2661,6 +2664,9 @@ export class GeographicContextOverlayController {
         });
     };
     this.handleStyleData = () => {
+      // Paint edits can arrive while tiles are still loading. Synchronize now,
+      // without rebuilding geometry or waiting for isStyleLoaded()/idle.
+      syncWorldContextTheme(this.map);
       const refreshMovementRanges = () => {
         if (!mapStyleLoaded(this.map)) return;
         mapMovePerfMeasure('map.styledata.work', () => {

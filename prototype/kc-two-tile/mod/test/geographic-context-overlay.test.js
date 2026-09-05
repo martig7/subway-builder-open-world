@@ -114,6 +114,64 @@ const catalog = {
   ],
 };
 
+test('world land and ocean follow native themes, custom paints and unloaded style edits without repaint loops', () => {
+  const map = fixtureMap();
+  map.layers.get('native-background').paint = { 'background-color': '#212d38' };
+  Object.assign(map.layers.get('water'), { type: 'fill-extrusion', paint: { 'fill-extrusion-color': '#123456' } });
+  const writes = [];
+  map.getPaintProperty = (id, key) => map.layers.get(id)?.paint?.[key];
+  map.setPaintProperty = (id, key, value) => {
+    writes.push([id, key, value]);
+    map.layers.get(id).paint[key] = value;
+    // MapLibre paint updates may emit styledata themselves.
+    map.listeners.get('styledata')?.();
+  };
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog });
+  controller.attachMap(map);
+  const assertColors = (land, water) => {
+    assert.deepEqual(map.getPaintProperty(geographicContextLayerIds.worldLand, 'fill-color'), land);
+    assert.deepEqual(map.getPaintProperty(geographicContextLayerIds.worldLandHighZoom, 'fill-color'), land);
+    assert.deepEqual(map.getPaintProperty(geographicContextLayerIds.worldOcean, 'fill-color'), water);
+  };
+  assertColors('#212d38', '#123456');
+  const source = map.getSource(geographicContextLayerIds.worldContextSource);
+  map.isStyleLoaded = () => false;
+  for (const [land, water] of [['#f8f0e1', '#b1d8e8'], ['#483d50', '#332244']]) {
+    map.layers.get('native-background').paint['background-color'] = land;
+    map.layers.get('water').paint['fill-extrusion-color'] = water;
+    const count = writes.length;
+    map.listeners.get('styledata')();
+    assertColors(land, water);
+    assert.equal(writes.length - count, 3);
+    map.listeners.get('styledata')();
+    assert.equal(writes.length - count, 3, 'unchanged paints must not issue further writes');
+    assert.equal(map.getSource(geographicContextLayerIds.worldContextSource), source);
+  }
+  controller.dispose();
+  assert.equal(map.listeners.has('styledata'), false);
+});
+
+test('theme synchronization repairs retained fixed-color layers and survives native style replacement', () => {
+  const map = fixtureMap();
+  const first = registerGeographicContextOverlay({ tileCatalog: catalog });
+  first.attachMap(map);
+  const oldHandler = map.listeners.get('styledata');
+  map.layers.get('native-background').paint = { 'background-color': '#abcdef' };
+  Object.assign(map.layers.get('water'), { type: 'fill', paint: { 'fill-color': '#fedcba' } });
+  map.setPaintProperty = (id, key, value) => { map.layers.get(id).paint[key] = value; };
+  const next = registerGeographicContextOverlay({ tileCatalog: catalog });
+  next.attachMap(map);
+  assert.notEqual(map.listeners.get('styledata'), oldHandler);
+  assert.equal(map.getLayer(geographicContextLayerIds.worldLand).paint['fill-color'], '#abcdef');
+  for (const id of [geographicContextLayerIds.worldLand, geographicContextLayerIds.worldLandHighZoom, geographicContextLayerIds.worldOcean]) map.removeLayer(id);
+  map.layers.get('native-background').paint['background-color'] = '#eeeedd';
+  map.listeners.get('style.load')();
+  assert.equal(map.getLayer(geographicContextLayerIds.worldLand).paint['fill-color'], '#eeeedd');
+  assert.equal(map.getLayer(geographicContextLayerIds.worldLandHighZoom).paint['fill-color'], '#eeeedd');
+  assert.equal(map.getLayer(geographicContextLayerIds.worldOcean).paint['fill-color'], '#fedcba');
+  next.dispose();
+});
+
 test('builds geographic tile polygons and identifies the active tile', () => {
   const data = tileBoundaryGeoJson(catalog, 'B', 'A');
   assert.equal(data.features.length, 2);
