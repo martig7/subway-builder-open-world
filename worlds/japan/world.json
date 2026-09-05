@@ -21,6 +21,7 @@
     "sourceLock": "sources.lock.json",
     "sourceLayout": "map.json",
     "profile": "osm-depot-world-v1",
+    "nativeParkSourceLayer": "landuse",
     "worldContextTileId": "JP_TOKYO_MAINLAND",
     "basemapRevision": "japan-source-romaji-v1",
     "labelPolicy": "japan-source-romaji-v1"

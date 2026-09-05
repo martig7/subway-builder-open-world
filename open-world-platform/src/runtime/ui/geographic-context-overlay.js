@@ -6,6 +6,7 @@ import {
   virtualizeGeoJsonData,
 } from './renderer-virtualization.js';
 import { readWorldContextTheme, syncWorldContextTheme } from './world-context-theme.js';
+import { syncNativeParkLanduse, releaseNativeParkLanduse } from './native-park-landuse.js';
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const BOUNDARY_SOURCE_ID = 'open-world-tile-boundaries-source';
 const TILE_SELECTION_LAYER_ID = 'open-world-tile-selection';
@@ -2595,6 +2596,7 @@ export class GeographicContextOverlayController {
     tileCatalog,
     onTileSelect = null,
     worldContextTilesUrl = null,
+    nativeParkSourceLayer = 'parks',
     renderDistance = 3,
     renderDistanceStorage = globalThis.localStorage,
     renderDistanceStorageKey = 'open-world:render-distance',
@@ -2603,6 +2605,7 @@ export class GeographicContextOverlayController {
     this.tileCatalog = tileCatalog;
     this.onTileSelect = onTileSelect;
     this.worldContextTilesUrl = worldContextTilesUrl;
+    this.nativeParkSourceLayer = nativeParkSourceLayer;
     this.renderDistanceStorage = renderDistanceStorage;
     this.renderDistanceStorageKey = renderDistanceStorageKey;
     let persistedRenderDistance = null;
@@ -2695,6 +2698,7 @@ export class GeographicContextOverlayController {
             this.rendererVirtualization,
           ), { key: 'styledata', every: 1, first: 100 });
           applyNativeDetailLayerZoomRanges(this.map);
+          if (this.nativeParkSourceLayer === 'landuse') syncNativeParkLanduse(this.map);
           applyRoadLayerZoomRanges(this.map);
           applyMovementLayerZoomRanges(this.map);
           mapMovePerfMeasure(
@@ -2729,6 +2733,7 @@ export class GeographicContextOverlayController {
       try { this.map.off('styledata', this.handleStyleData); } catch {}
       try { this.map.off('idle', this.handleIdle); } catch {}
       try { this.map.off('zoom', this.handleZoom); } catch {}
+      releaseNativeParkLanduse(this.map);
       resumeNativeHoverDelegates(this.map, this, { release: true });
     }
     this.detachTileSelectionHandlers();
@@ -2841,6 +2846,7 @@ export class GeographicContextOverlayController {
         this.rendererVirtualization,
       ), { key: 'map-refresh-snapshot', every: 1, first: 100 });
       mapMovePerfMeasure('overlay.ensure-artifacts', () => ensureArtifacts(this.map, this.worldContextTilesUrl));
+      if (this.nativeParkSourceLayer === 'landuse') syncNativeParkLanduse(this.map);
       const activeTileId = this.activeTileId();
       if (this.hoveredTileId === activeTileId) this.setHoveredTile(null);
       this.syncTileBoundaryData(activeTileId);
@@ -2858,6 +2864,7 @@ export class GeographicContextOverlayController {
     try { attachedMap.off('styledata', this.handleStyleData); } catch {}
     try { attachedMap.off('idle', this.handleIdle); } catch {}
     try { attachedMap.off('zoom', this.handleZoom); } catch {}
+    releaseNativeParkLanduse(attachedMap);
     {
       const container = attachedMap.getContainer?.();
       if (container?.dataset) delete container.dataset[STATION_MARKER_VISIBILITY_KEY];

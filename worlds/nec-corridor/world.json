@@ -17,6 +17,7 @@
   "map": {
     "sourceLock": "sources.lock.json",
     "profile": "osm-depot-world-v1",
+    "nativeParkSourceLayer": "landuse",
     "basemapRevision": "nec-corridor-z0-z9-v2"
   },
   "demand": {

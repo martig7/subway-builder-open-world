@@ -829,6 +829,7 @@ export function startOpenWorld({
           runtime,
           tileCatalog,
           onTileSelect: switchFromWorldGrid,
+          nativeParkSourceLayer: definition.map.nativeParkSourceLayer,
           worldContextTilesUrl: definition.map.worldContextTileId
             ? tileUrl({ tileId: definition.map.worldContextTileId }, tileBase)
             : null,

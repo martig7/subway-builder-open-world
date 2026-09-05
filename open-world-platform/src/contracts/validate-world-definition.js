@@ -54,6 +54,9 @@ export function validateWorldDefinition(definition) {
   requireString(map.basemapRevision, 'map.basemapRevision', errors, STABLE_ID);
   if (map.labelPolicy != null) requireString(map.labelPolicy, 'map.labelPolicy', errors, STABLE_ID);
   if (map.worldContextTileId != null) requireString(map.worldContextTileId, 'map.worldContextTileId', errors, STABLE_ID);
+  if (map.nativeParkSourceLayer != null && !['parks', 'landuse'].includes(map.nativeParkSourceLayer)) {
+    errors.push('map.nativeParkSourceLayer must be parks or landuse');
+  }
 
   const demand = requireObject(root.demand, 'demand', errors);
   if (!SUPPORTED_DEMAND_ADAPTERS.has(demand.adapter)) errors.push(`demand.adapter is unsupported: ${demand.adapter ?? '(missing)'}`);

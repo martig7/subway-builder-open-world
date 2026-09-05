@@ -114,6 +114,65 @@ const catalog = {
   ],
 };
 
+test('opt-in native park mapping filters landuse, retains theme and order, and restores on detach', () => {
+  const map = fixtureMap();
+  for (const size of ['large', 'small']) map.addLayer({
+    id: `parks-${size}`, type: 'fill-extrusion', source: 'general-tiles', 'source-layer': 'parks',
+    filter: [size === 'large' ? '>=' : '<', ['get', 'area'], 100000],
+    paint: { 'fill-extrusion-color': '#123456', 'fill-extrusion-opacity': .8 },
+    layout: { visibility: 'none' },
+  }, 'native-city-labels');
+  const original = structuredClone(map.getLayer('parks-small'));
+  const plain = registerGeographicContextOverlay({ tileCatalog: catalog });
+  plain.attachMap(map);
+  assert.equal(map.getLayer('parks-small')['source-layer'], 'parks', 'other World schemas remain untouched');
+  plain.dispose();
+  const addLayer = map.addLayer;
+  map.addLayer = (...args) => { addLayer(...args); map.listeners.get('styledata')?.(); };
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog, nativeParkSourceLayer: 'landuse' });
+  controller.attachMap(map);
+  for (const size of ['large', 'small']) {
+    const layer = map.getLayer(`parks-${size}`);
+    assert.equal(layer['source-layer'], 'landuse');
+    assert.deepEqual(layer.filter, ['all', ['==', ['get', 'kind'], 'park'],
+      [size === 'large' ? '>=' : '<', ['coalesce', ['get', 'area'], 0], 100000]]);
+    assert.deepEqual(layer.paint, original.paint);
+    assert.deepEqual(layer.layout, original.layout);
+  }
+  assert.ok(map.layerOrder.indexOf('parks-large') < map.layerOrder.indexOf('parks-small'));
+  assert.ok(map.layerOrder.indexOf('parks-small') < map.layerOrder.indexOf('native-city-labels'));
+  const count = map.insertions.length;
+  controller.handleStyleData();
+  assert.equal(map.insertions.length, count, 'stable native park layers must not be recreated');
+  map.getLayer('parks-small').paint['fill-extrusion-color'] = '#abcdef';
+  controller.handleStyleData();
+  assert.equal(map.getLayer('parks-small').paint['fill-extrusion-color'], '#abcdef');
+  controller.dispose();
+  assert.equal(map.getLayer('parks-small')['source-layer'], 'parks');
+  assert.deepEqual(map.getLayer('parks-small').filter, original.filter);
+  assert.equal(map.getLayer('parks-small').paint['fill-extrusion-color'], '#abcdef', 'detach preserves the current theme');
+});
+
+test('native park mapping reattaches after theme replacement and hot reload without duplicate layers', () => {
+  const map = fixtureMap();
+  const native = { id: 'parks-small', type: 'fill-extrusion', source: 'general-tiles', 'source-layer': 'parks',
+    filter: ['<', ['get', 'area'], 100000], paint: { 'fill-extrusion-color': '#123456' } };
+  map.addLayer(structuredClone(native));
+  const first = registerGeographicContextOverlay({ tileCatalog: catalog, nativeParkSourceLayer: 'landuse' });
+  first.attachMap(map);
+  map.removeLayer(native.id);
+  map.addLayer({ ...native, paint: { 'fill-extrusion-color': '#aabbcc' } });
+  first.handleStyle();
+  assert.equal(map.getLayer(native.id)['source-layer'], 'landuse');
+  assert.equal(map.getLayer(native.id).paint['fill-extrusion-color'], '#aabbcc');
+  const second = registerGeographicContextOverlay({ tileCatalog: catalog, nativeParkSourceLayer: 'landuse' });
+  second.attachMap(map);
+  assert.equal(map.layerOrder.filter((id) => id === native.id).length, 1);
+  assert.equal(map.getLayer(native.id)['source-layer'], 'landuse');
+  second.dispose();
+  assert.deepEqual(map.getLayer(native.id).filter, native.filter);
+});
+
 test('world land and ocean follow native themes, custom paints and unloaded style edits without repaint loops', () => {
   const map = fixtureMap();
   map.layers.get('native-background').paint = { 'background-color': '#212d38' };

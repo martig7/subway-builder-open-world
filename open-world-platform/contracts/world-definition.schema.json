@@ -39,6 +39,7 @@
       "properties": {
         "sourceLock": { "$ref": "#/$defs/relativeJsonPath" },
         "profile": { "$ref": "#/$defs/stableId" },
+        "nativeParkSourceLayer": { "enum": ["parks", "landuse"] },
         "basemapRevision": { "$ref": "#/$defs/stableId" }
       }
     },
