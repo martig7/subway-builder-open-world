@@ -1,8 +1,12 @@
-# Subway Builder Open World Windows installer and tile server
+# Subway Builder Open World installer and tile server
 
 This directory contains the native Windows release path shared by Open World
 consumers. Setup reads one signed release catalog and lets the user choose which
 World to install.
+
+The tile server itself is cross-platform. `scripts/Publish-StandaloneTileServers.ps1`
+produces self-contained Windows x64, macOS Apple Silicon, and macOS Intel ZIPs.
+See `docs/manual-installation.md` for the temporary manual setup path.
 
 Installed Worlds register their tile packages with one per-user PMTiles service
 on port `8799`. Starting, repairing, or installing a World restarts that verified
@@ -69,3 +73,14 @@ The script generates `release-body.md` with a single-file download instruction,
 the setup executable's exact size and SHA-256, the additional download and disk
 requirements, and the self-signed certificate identity. Use that generated text
 for the GitHub release description.
+
+To build standalone server packages using the repository's central version:
+
+```powershell
+./scripts/Publish-StandaloneTileServers.ps1 `
+  -Output ../../../prototype/nec-corridor/generated/release/tile-server
+```
+
+The Windows binary is signed with the same self-signed publisher certificate as
+setup. The placeholder macOS binaries are unsigned and must be signed and
+notarized on macOS before they can provide a normal Gatekeeper experience.

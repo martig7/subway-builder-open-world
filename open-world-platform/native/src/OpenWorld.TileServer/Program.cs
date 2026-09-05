@@ -4,6 +4,27 @@ using System.Reflection;
 using System.Text.Json;
 using OpenWorld.TileServer;
 
+var exitCode = 1;
+try
+{
+    exitCode = await RunAsync(args);
+}
+catch (Exception exception)
+{
+    Console.Error.WriteLine($"Tile server error: {exception.Message}");
+}
+
+// A terminal launched by Finder or Explorer would otherwise disappear on failure.
+// Redirected commands (including installer control commands) must never wait.
+if (exitCode != 0 && !Console.IsInputRedirected && !Console.IsOutputRedirected && !Console.IsErrorRedirected)
+{
+    Console.Error.WriteLine("Press Enter to close.");
+    Console.ReadLine();
+}
+return exitCode;
+
+static async Task<int> RunAsync(string[] args)
+{
 const string serverVersion = "native-pmtiles-directory-v4";
 const string instanceHeader = "X-PMTiles-Server-Instance";
 const string controlHeader = "X-PMTiles-Control-Token";
@@ -29,11 +50,11 @@ if (command is "status" or "check")
 
 if (command != "serve")
 {
-    Console.Error.WriteLine("Usage: open-world-tile-server serve --root PATH [--port 8799] [--state-root PATH] [--log-root PATH] [--tiles ID,ID] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
+    Console.Error.WriteLine("Usage: open-world-tile-server [serve [--root PATH] [--port 8799] [--state-root PATH] [--log-root PATH] [--tiles ID,ID]] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
     return 2;
 }
 
-var root = options.Required("root");
+var root = Path.GetFullPath(options.Optional("root") ?? DefaultServerPaths.ResolveDataRoot());
 var logRoot = Path.GetFullPath(options.Optional("log-root") ?? Path.Combine(stateRoot, "logs"));
 var allowedIds = options.Optional("tiles")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
 if (allowedIds is { Count: 0 } || allowedIds?.Any(id => !ArchiveCatalog.IsSafeId(id)) == true)
@@ -284,6 +305,7 @@ async Task<int> StopManagedServerAsync(int stopPort, string stopStatePath)
 
 static string? Header(HttpResponseMessage response, string name) =>
     response.Headers.TryGetValues(name, out var values) ? values.SingleOrDefault() : null;
+}
 
 internal sealed class CommandLine
 {

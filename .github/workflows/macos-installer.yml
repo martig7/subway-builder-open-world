@@ -1,0 +1,87 @@
+name: macOS installer and manager
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/macos-installer]
+    paths: ['open-world-platform/native/**', '.github/workflows/macos-installer.yml', 'VERSION']
+  pull_request:
+    paths: ['open-world-platform/native/**', '.github/workflows/macos-installer.yml', 'VERSION']
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            rid: osx-arm64
+          - runner: macos-15-intel
+            rid: osx-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build native manager and DMG
+        run: bash open-world-platform/native/macos/build-manager.sh '${{ matrix.rid }}' "$RUNNER_TEMP/manager-build"
+      - name: Mount DMG and install app copy
+        run: |
+          mkdir -p "$RUNNER_TEMP/mounted" "$HOME/Applications" artifacts/screenshots
+          hdiutil attach "$RUNNER_TEMP/manager-build/"*.dmg -nobrowse -mountpoint "$RUNNER_TEMP/mounted"
+          test "$(readlink "$RUNNER_TEMP/mounted/Applications")" = /Applications
+          ditto "$RUNNER_TEMP/mounted/Open World Manager.app" "$HOME/Applications/Open World Manager.app"
+          hdiutil detach "$RUNNER_TEMP/mounted"
+          cp "$RUNNER_TEMP/manager-build/"*.dmg artifacts/
+      - name: Installer safety and server lifecycle tests
+        run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server"
+      - name: Real NEC GitHub install smoke
+        if: matrix.rid == 'osx-arm64'
+        run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server" --full-release
+      - name: Live UI backend integration
+        env:
+          UI_SNAPSHOT_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          "$HOME/Applications/Open World Manager.app/Contents/MacOS/OpenWorldManager" --ui-smoke > artifacts/ui-smoke.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" || true' EXIT
+          for i in $(seq 1 30); do
+            test -f "$UI_SNAPSHOT_ROOT/ui-smoke-passed" && break
+            sleep 1
+          done
+          cat "$UI_SNAPSHOT_ROOT/ui-smoke-passed"
+      - name: Capture every interface
+        if: always()
+        env:
+          UI_SNAPSHOT_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/screenshots
+          app="$HOME/Applications/Open World Manager.app/Contents/MacOS/OpenWorldManager"
+          for state in installer progress cancel complete manager error uninstall; do
+            rm -f "$UI_SNAPSHOT_ROOT/window-id"
+            "$app" --snapshot "$state" > "artifacts/$state.log" 2>&1 &
+            pid=$!
+            for i in $(seq 1 20); do
+              test -f "$UI_SNAPSHOT_ROOT/window-id" && break
+              sleep 1
+            done
+            test -f "$UI_SNAPSHOT_ROOT/window-id"
+            screencapture -x -o -l "$(cat "$UI_SNAPSHOT_ROOT/window-id")" "artifacts/screenshots/$state.png"
+            kill "$pid"
+            wait "$pid" || true
+          done
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          mkdir -p artifacts
+          log show --last 5m --style compact --predicate 'process == "OpenWorldManager" OR process == "open-world-tile-server"' > artifacts/macos.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-installer-${{ matrix.rid }}
+          path: artifacts/
+          retention-days: 14
