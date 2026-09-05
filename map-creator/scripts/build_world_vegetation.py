@@ -20,7 +20,33 @@ from PIL import Image
 import requests
 from rasterio.features import shapes
 from rasterio.transform import from_bounds
-from shapely.geometry import shape, mapping, Polygon
+from shapely.geometry import shape, mapping, Polygon, LineString
+from shapely import union_all
+
+
+def simplify_chunk_polygon(polygon, tolerance, bounds):
+    """Simplify natural edges, retaining every endpoint on an artificial cut.
+
+    Ordinary polygon simplification can drop a nearly-collinear chunk corner,
+    opening a long triangular gap against the independently simplified neighbor.
+    Invalid ring combinations fall back to the valid original, never a buffer.
+    """
+    west, south, east, north = bounds
+    def ring_coordinates(ring):
+        coords = list(ring.coords)[:-1]
+        anchors = [i for i, (x, y) in enumerate(coords)
+                   if min(abs(x-west), abs(x-east), abs(y-south), abs(y-north)) < 1e-8]
+        if not anchors:
+            return list(Polygon(coords).simplify(tolerance, preserve_topology=True).exterior.coords)
+        result = []
+        for j, start in enumerate(anchors):
+            end = anchors[(j+1) % len(anchors)]
+            segment = coords[start:end+1] if end > start else coords[start:] + coords[:end+1]
+            result.extend(list(LineString(segment).simplify(tolerance).coords)[:-1])
+        return result + result[:1]
+    candidate = Polygon(ring_coordinates(polygon.exterior),
+                        [ring_coordinates(ring) for ring in polygon.interiors])
+    return candidate if candidate.is_valid and not candidate.is_empty else polygon
 
 
 def digest(data):
@@ -75,6 +101,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--spec', type=Path, default=Path('map-creator/sources/world-vegetation.json'))
     parser.add_argument('--data-root', type=Path, default=Path('map-creator/data'))
+    parser.add_argument('--candidate', action='store_true', help='Write a review candidate without replacing the pinned artifact')
     args = parser.parse_args()
     spec = json.loads(args.spec.read_text())
     root = args.data_root / 'sources' / 'world-vegetation' / spec['id']
@@ -106,8 +133,8 @@ def main():
         minimum_area = abs(transform.a * transform.e) * spec['minimumPixels']
         # Bound topology work: connected continental forests can otherwise
         # create enormous polygons with hundreds of thousands of holes.
-        # Aligned chunks retain shared straight edges, and the renderer uses
-        # a non-antialiased fill to avoid seams at those processing cuts.
+        # Lock cut vertices while simplifying each chunk, then dissolve the
+        # artificial boundaries before client-side low-zoom simplification.
         for row in range(0, mask.shape[0], 256):
             for column in range(0, mask.shape[1], 256):
                 chunk = mask[row:row + 256, column:column + 256]
@@ -119,30 +146,40 @@ def main():
                     minimum_hole = abs(transform.a * transform.e) * spec['minimumHolePixels']
                     polygon = Polygon(polygon.exterior, [ring for ring in polygon.interiors
                                       if Polygon(ring).area >= minimum_hole])
-                    polygon = polygon.simplify(spec['simplifyDegrees'], preserve_topology=True)
+                    chunk_bounds = (west + column*transform.a, north + (row+chunk.shape[0])*transform.e,
+                                    west + (column+chunk.shape[1])*transform.a, north + row*transform.e)
+                    polygon = simplify_chunk_polygon(polygon, spec['simplifyDegrees'], chunk_bounds)
                     if not polygon.is_valid or polygon.is_empty:
                         raise ValueError('Invalid vegetation geometry')
                     geometry = json.loads(json.dumps(mapping(polygon)), parse_float=lambda v: round(float(v), 5))
                     if not shape(geometry).is_valid:
-                        raise ValueError('Coordinate quantization made invalid vegetation')
+                        geometry = mapping(polygon)  # retain precision rather than damage topology
                     features.append({'type': 'Feature', 'properties': {}, 'geometry': geometry})
             print(json.dumps({'stage': 'simplify', 'quadrant': i, 'rows': row + chunk.shape[0],
                               'totalRows': mask.shape[0], 'features': len(features)}), flush=True)
         sources.append({'url': url, 'sha256': digest(data), 'bytes': len(data)})
         print(json.dumps({'stage': 'polygonize', 'quadrant': i, 'features': len(features)}), flush=True)
+    print(json.dumps({'stage': 'dissolve-chunk-edges', 'features': len(features)}), flush=True)
+    merged = union_all([shape(feature['geometry']) for feature in features], grid_size=.00001)
+    if not merged.is_valid:
+        raise ValueError('Invalid dissolved vegetation geometry')
+    polygons = [merged] if merged.geom_type == 'Polygon' else list(merged.geoms)
+    features = [{'type': 'Feature', 'properties': {}, 'geometry': mapping(polygon)} for polygon in polygons]
     payload = {'type': 'FeatureCollection', 'features': features}
     raw = json.dumps(payload, separators=(',', ':')).encode()
     encoded = gzip.compress(raw, mtime=0, compresslevel=9)
-    verify_digest(encoded, spec['artifactSha256'], 'Vegetation artifact')
+    if not args.candidate:
+        verify_digest(encoded, spec['artifactSha256'], 'Vegetation artifact')
     output = args.data_root / 'artifacts' / 'world-vegetation'
     output.mkdir(parents=True, exist_ok=True)
-    path = output / f'{spec["id"]}.geojson.gz'
+    suffix = '.candidate' if args.candidate else ''
+    path = output / f'{spec["id"]}{suffix}.geojson.gz'
     path.write_bytes(encoded)
     report = {'id': spec['id'], 'source': spec, 'downloads': sources,
               'paletteSha256': digest(palette_data), 'artifactSha256': digest(encoded),
               'features': len(features), 'vegetationPixels': pixel_count,
               'jsonBytes': len(raw), 'gzipBytes': len(encoded), 'resolutionDegrees': 180 / spec['quadrantWidth']}
-    (output / f'{spec["id"]}.json').write_text(json.dumps(report, indent=2) + '\n')
+    (output / f'{spec["id"]}{suffix}.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({'stage': 'complete', **{k: v for k, v in report.items() if k not in {'source', 'downloads'}}}), flush=True)
 
 

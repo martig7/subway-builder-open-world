@@ -58,6 +58,18 @@ try {
   assert.ok(samples.amazon > 0);
   assert.equal(samples.sahara, 0);
   assert.equal(samples.pacific, 0);
+  // These points are continuous vegetation in the source raster but were
+  // exposed by independent chunk simplification near Alaska's processing cuts.
+  await page.evaluate(() => map.jumpTo({ center: [-158, 68.8], zoom: 4 }));
+  await page.waitForFunction(() => map.isStyleLoaded());
+  const seamHits = await page.evaluate(() => [
+    [-163.1304931640625, 68.807373046875],
+    [-157.5054931640625, 69.510498046875],
+  ].map(point => map.queryRenderedFeatures(map.project(point), { layers: ['open-world-vegetation'] }).length));
+  assert.ok(seamHits.every(count => count > 0), `Vegetation chunk seam exposed: ${seamHits}`);
+  await page.screenshot({ path: screenshot.replace('.png', '-seams.png') });
+  await page.evaluate(() => map.jumpTo({ center: [0, 15], zoom: 1.3 }));
+  await page.waitForFunction(() => map.isStyleLoaded());
   const resubmissions = await page.evaluate(() => {
     const source = map.getSource('open-world-vegetation-source');
     const original = source.setData;
@@ -100,7 +112,7 @@ try {
     if (controller.map !== null) throw new Error('Disposed controller retained its destroyed map');
   });
   console.log(JSON.stringify({ status: 'PASS', ...samples, pendingSourceRestoreMs, resubmissions,
-    checks: ['native park validation', 'forest/desert/ocean', 'native theme', 'zoom 10 cutoff', 'style replacement with pending native source', 'cleanup after Map.remove'] }));
+    checks: ['native park validation', 'forest/desert/ocean', 'vegetation chunk seams', 'native theme', 'zoom 10 cutoff', 'style replacement with pending native source', 'cleanup after Map.remove'] }));
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

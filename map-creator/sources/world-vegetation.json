@@ -11,6 +11,7 @@
   "simplifyDegrees": 0.04,
   "minimumPixels": 8,
   "minimumHolePixels": 4,
+  "processingRevision": "locked-and-dissolved-chunk-edges-v2",
   "paletteSha256": "29a9b5fe6d976a0ea5da12c46d9accfe20a1807b3f602d36d940663d6e854ef7",
   "quadrantSha256": [
     "584460db903f0e75af64a6d26bf026ae8be48b6fe234a9fde732135bb7d34cd7",
@@ -18,5 +19,5 @@
     "5287843517492d4455637739b4db85e7b542018390ccdc2741c6488c7013a717",
     "56b622e1aed85fb1115379a57dd7efd201accb4b6c27192c3c48997ff82ef0b5"
   ],
-  "artifactSha256": "300363f319c9f7d585e16086e87f12bf56d4ea471c04e932cfa6951703755f11"
+  "artifactSha256": "fba702594373407e297e72edb2e44212907eebfcf41822d161f9cd59ab911ae5"
 }

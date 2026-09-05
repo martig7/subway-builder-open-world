@@ -4,10 +4,24 @@ import unittest
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from build_world_vegetation import palette_lookup, vegetation_mask
+from build_world_vegetation import palette_lookup, vegetation_mask, simplify_chunk_polygon
+from shapely.geometry import Polygon, Point
 
 
 class WorldVegetationTest(unittest.TestCase):
+    def test_simplification_keeps_shared_chunk_edge(self):
+        polygon = Polygon([(0, 0), (5, 0), (5, 5), (.02, 5), (0, 4.98)])
+        simplified = simplify_chunk_polygon(polygon, .04, (0, 0, 5, 5))
+        self.assertTrue(simplified.covers(Point(.001, 2.5)), 'Simplification opens a wedge along the chunk cut')
+
+    def test_chunk_simplification_retains_holes_and_validity(self):
+        polygon = Polygon([(0, 0), (5, 0), (5, 5), (.02, 5), (0, 4.98)],
+                          holes=[[(1, 1), (2, 1), (2, 2), (1, 2)]])
+        simplified = simplify_chunk_polygon(polygon, .04, (0, 0, 5, 5))
+        self.assertTrue(simplified.is_valid)
+        self.assertFalse(simplified.covers(Point(1.5, 1.5)))
+        self.assertTrue(simplified.covers(Point(.001, 2.5)))
+
     def test_uses_source_classes_not_green_or_legend_ids(self):
         xml = '''<ColorMaps><ColorMap><Entries>
         <ColorMapEntry rgb="33,138,33" sourceValue="1" ref="0"/>

@@ -34,7 +34,12 @@ The overview samples roughly 2.4 km pixels, removes patches below eight pixels
 and holes below four pixels, and simplifies by 0.04 degrees. It is intentionally
 approximate, especially at coasts and near zoom 10, and must never classify
 demand or computational land boundaries. Processing uses bounded, aligned
-256-pixel chunks; non-antialiased fills avoid seams at chunk edges.
+256-pixel chunks. Simplification locks the artificial chunk-edge vertices, then
+the chunk polygons are dissolved into continuous vegetation before publication.
+This removes internal cuts so MapLibre can retain its inexpensive low-zoom
+simplification without independently moving two sides of a chunk boundary.
+Non-antialiased fills avoid edge-blending seams. Invalid simplified geometry
+falls back to the original valid polygon, never buffering neighboring chunks.
 
 ## Reproduction
 
@@ -45,14 +50,21 @@ from the repository root:
 python map-creator/scripts/build_world_vegetation.py
 ```
 
-Progress is printed per downloaded quadrant and processed row. The source lock
+Progress is printed per downloaded quadrant, processed row, and final dissolve stage. The source lock
 is `map-creator/sources/world-vegetation.json`; raw inputs and the final gzip
 are SHA256-checked. Cached inputs live in `map-creator/data/sources/world-vegetation`.
 The resulting artifact and report live in `map-creator/data/artifacts/world-vegetation`.
-Builds require the pinned artifact: 14,393 polygons, 9,249,736 JSON bytes,
-1,832,872 compressed bytes. They embed it, decode once off-thread, and install
+Builds require the pinned artifact: 12,083 polygons, 16,955,686 JSON bytes,
+2,936,224 compressed bytes. They embed it, decode once off-thread, and install
 `SOURCES.md` alongside the bundle. Regenerating changed source data requires
 reviewing and updating the lock, not silently accepting upstream changes.
+
+Run `python map-creator/scripts/audit_vegetation_seams.py` to check 20,436
+sample points on and beside horizontal/vertical chunk cuts against continuous
+vegetation in the original raster. The seam-safe artifact has zero missing
+samples. `--candidate` on the generator/auditor allows reviewing a changed
+artifact before updating its pin. The browser regression also probes known
+seam locations at zoom 4 and captures an inspection image.
 
 See [SOURCES.md](../SOURCES.md) for attribution and
 [source research](../research/world-vegetation-source.md) for selection details.

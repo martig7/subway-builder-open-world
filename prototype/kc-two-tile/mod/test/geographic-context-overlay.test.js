@@ -132,6 +132,7 @@ test('vegetation loads once, stays below native content, follows themes and reco
   const layer = map.getLayer('open-world-vegetation');
   assert.equal(layer.maxzoom, 10);
   assert.equal(source.maxzoom, 9);
+  assert.equal(source.tolerance, 2, 'dissolved geometry retains inexpensive low-zoom rendering');
   assert.equal(layer.paint['fill-color'], '#117733');
   assert.ok(map.layerOrder.indexOf(layer.id) > map.layerOrder.indexOf('open-world-land'));
   assert.ok(map.layerOrder.indexOf(layer.id) < map.layerOrder.indexOf('water'));

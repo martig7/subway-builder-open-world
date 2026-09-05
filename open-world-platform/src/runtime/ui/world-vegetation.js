@@ -1,7 +1,7 @@
 import { createOffMainThreadJsonDecoder } from '../embedded-tile-package-adapter.js';
 import { readWorldContextTheme } from './world-context-theme.js';
 
-export const WORLD_VEGETATION_VERSION = 'world-vegetation-modis-2023-v1';
+export const WORLD_VEGETATION_VERSION = 'world-vegetation-seam-safe-v2';
 export const WORLD_VEGETATION_SOURCE = 'open-world-vegetation-source';
 export const WORLD_VEGETATION_LAYER = 'open-world-vegetation';
 export const WORLD_VEGETATION_ATTRIBUTION = 'Vegetation: NASA MODIS MCD12Q1 v061 (2023), NASA GIBS / ESDIS; simplified by Open World';
@@ -27,6 +27,8 @@ export function ensureWorldVegetation(map, data, beforeId) {
   const existing = map.getSource?.(WORLD_VEGETATION_SOURCE);
   if (!existing) {
     map.addSource(WORLD_VEGETATION_SOURCE, {
+      // Processing chunks are dissolved offline, so low-zoom simplification
+      // cannot move two independent sides of the same artificial boundary.
       type: 'geojson', data, maxzoom: 9, tolerance: 2,
       attribution: WORLD_VEGETATION_ATTRIBUTION,
     });
