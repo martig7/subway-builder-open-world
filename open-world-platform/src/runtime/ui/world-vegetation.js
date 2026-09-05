@@ -38,13 +38,14 @@ export function ensureWorldVegetation(map, data, beforeId) {
   if (!map.getLayer?.(WORLD_VEGETATION_LAYER)) {
     map.addLayer({
       id: WORLD_VEGETATION_LAYER, type: 'fill', source: WORLD_VEGETATION_SOURCE,
-      minzoom: 0, maxzoom: 10,
+      minzoom: 0, maxzoom: 24,
       paint: { 'fill-color': readWorldContextTheme(map).vegetation, 'fill-opacity': .8, 'fill-antialias': false },
     }, beforeId);
   }
+  if (map.getLayer?.(WORLD_VEGETATION_LAYER)?.maxzoom !== 24) map.setLayerZoomRange?.(WORLD_VEGETATION_LAYER, 0, 24);
   // This background is above base land but below native water, roads and rail.
   map.moveLayer?.(WORLD_VEGETATION_LAYER, beforeId);
-  map.__openWorldVegetation = { version: WORLD_VEGETATION_VERSION, features: data.features.length, maxzoom: 10 };
+  map.__openWorldVegetation = { version: WORLD_VEGETATION_VERSION, features: data.features.length, maxzoom: 24 };
 }
 
 export function releaseWorldVegetation(map) {

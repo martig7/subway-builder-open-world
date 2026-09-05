@@ -89,7 +89,7 @@ try {
   await page.waitForFunction(() => map.getPaintProperty('open-world-vegetation', 'fill-color') === '#66aa77');
   await page.evaluate(() => map.jumpTo({ center: [-60, -5], zoom: 10 }));
   await page.waitForFunction(() => map.isStyleLoaded());
-  assert.equal(await page.evaluate(() => map.queryRenderedFeatures({ layers: ['open-world-vegetation'] }).length), 0);
+  assert.ok(await page.evaluate(() => map.queryRenderedFeatures({ layers: ['open-world-vegetation'] }).length) > 0);
   await page.evaluate(() => { map.setStyle(style()); map.jumpTo({ center: [0, 15], zoom: 1.3 }); });
   await page.waitForFunction(() => map.isStyleLoaded() && map.getLayer('open-world-vegetation'));
   assert.equal(await page.evaluate(() => map.getPaintProperty('open-world-vegetation', 'fill-color')), '#367e45');
@@ -118,7 +118,7 @@ try {
     if (controller.map !== null) throw new Error('Disposed controller retained its destroyed map');
   });
   console.log(JSON.stringify({ status: 'PASS', ...samples, pendingSourceRestoreMs, resubmissions,
-    checks: ['native park validation', 'forest/desert/ocean', 'vegetation chunk seams', 'native theme', 'zoom 10 cutoff', 'style replacement with pending native source', 'cleanup after Map.remove'] }));
+    checks: ['native park validation', 'forest/desert/ocean', 'vegetation chunk seams', 'native theme', 'high-zoom vegetation', 'style replacement with pending native source', 'cleanup after Map.remove'] }));
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

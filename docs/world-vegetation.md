@@ -1,11 +1,27 @@
 # Worldwide vegetation overview
 
-NEC and Japan enable `map.worldVegetation: "modis-igbp-2023-v1"`. Below zoom 10,
-a bundled GeoJSON fill uses the native large-park theme color and 0.8 opacity.
-At zoom 10 it disappears and detailed native parks take over. The layer is above
-the overview ocean/land and below native map content; theme/style replacement
+NEC and Japan enable `map.worldVegetation: "modis-igbp-2023-v1"`. A bundled
+GeoJSON fill uses the native large-park theme color and 0.8 opacity through zoom
+24. At zoom 10 an opaque native land backing covers the world context inside
+the current map package's generation footprint; detailed native parks take over
+there. Panning outside that footprint still shows world ocean, land and vegetation,
+overzooming the existing zoom-9 sources without downloading higher-detail data.
+The layer is above the overview ocean/land and below native map content; theme/style replacement
 restores it. No gameplay requests go to NASA, and no existing PMTiles, demand,
 boundaries, or routes are changed.
+
+`native-footprint-world-backdrop-v1` uses packaged `mapManifest.haloBounds`
+(or the generated `map-manifest.json`) embedded by the centralized builder.
+Older packages without that metadata fall back conservatively to tile bounds.
+The source URL determines the footprint owner during a tile handoff, ahead of
+the runtime selection, so the previous map cannot acquire the next tile's backing.
+
+`native-world-context-theme-lit-water-v2` matches the MapLibre zero-height
+extrusion shader's ambient and directional lighting on the flat world ocean.
+Copying raw water paint made the ocean darker than native water. The flat fill
+is retained for layer ordering. `scripts/test-world-water-browser.mjs` compares
+actual pixels for default/custom light, high-zoom ocean, native water, and backing
+coverage; rerun it when changing MapLibre versions. Native water itself is not modified.
 
 World-layer restoration waits for the parsed style, not for all native source
 requests to complete. MapLibre's `isStyleLoaded()` includes source readiness;

@@ -41,7 +41,7 @@ export function assertMapLabelPolicy(definition, manifest, tileId) {
   }
 }
 
-function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definition, worldDefinitionHash }) {
+function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definition, worldDefinitionHash, nativeMapBounds }) {
   const runtime = moduleSpecifier(consumerRoot, path.join(platformRoot, 'src', 'runtime', 'start-open-world.js'));
   const worldDefinition = moduleSpecifier(consumerRoot, path.join(worldRoot, 'world.json'));
   const catalog = moduleSpecifier(consumerRoot, path.join(worldRoot, definition.tileViews.catalog));
@@ -56,7 +56,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     '',
     'startOpenWorld({',
     '  definition,',
-    '  catalogSource,',
+    `  catalogSource: { ...catalogSource, tiles: catalogSource.tiles.map(tile => ({ ...tile, nativeMapBounds: (${JSON.stringify(nativeMapBounds)})[tile.id] ?? tile.bounds })) },`,
     '  boundaryOverlay,',
     '  artifacts: {',
     `    worldDefinitionHash: ${JSON.stringify(worldDefinitionHash)},`,
@@ -158,6 +158,20 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   }
 
   const crossCommutes = await readFile(crossCommutesPath, 'utf8');
+  // Native map generation includes a halo beyond selection/ownership polygons.
+  // Preserve its actual footprint for the high-zoom land backing, without
+  // changing demand boundaries or rebuilding the tile archives.
+  const nativeMapBounds = {};
+  let packageManifest = {};
+  try { packageManifest = JSON.parse(await readFile(path.join(packageRoot, 'package-manifest.json'), 'utf8')); } catch {}
+  for (const tile of selectedTiles) {
+    let manifest = packageManifest.tiles?.find(entry => entry.id === tile.id)?.mapManifest;
+    if (!manifest) {
+      try { manifest = JSON.parse(await readFile(path.join(generatedRoot, 'maps', 'tiles', tile.id, 'map-manifest.json'), 'utf8')); } catch {}
+    }
+    const bounds = manifest?.haloBounds ?? tile.bounds;
+    if (Array.isArray(bounds) && bounds.length === 4 && bounds.every(Number.isFinite)) nativeMapBounds[tile.id] = bounds;
+  }
   const crossDemandGzipBase64 = (await readFile(crossDemandPath)).toString('base64');
 
   const esbuild = await loadEsbuild();
@@ -176,7 +190,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   await esbuild.build({
     absWorkingDir: consumerRoot,
     stdin: {
-      contents: generatedEntrySource({ consumerRoot, platformRoot, worldRoot: path.resolve(worldRoot), definition, worldDefinitionHash }),
+      contents: generatedEntrySource({ consumerRoot, platformRoot, worldRoot: path.resolve(worldRoot), definition, worldDefinitionHash, nativeMapBounds }),
       resolveDir: consumerRoot,
       sourcefile: 'open-world-entry.generated.js',
       loader: 'js',

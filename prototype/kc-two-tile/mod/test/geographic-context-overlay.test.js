@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { renderedWaterColor } from '../../../../open-world-platform/src/runtime/ui/world-context-theme.js';
 
 import {
   geographicContextLayerIds,
@@ -130,7 +131,7 @@ test('vegetation loads once, stays below native content, follows themes and reco
   await controller.worldVegetationPromise;
   const source = map.getSource('open-world-vegetation-source');
   const layer = map.getLayer('open-world-vegetation');
-  assert.equal(layer.maxzoom, 10);
+  assert.equal(layer.maxzoom, 24);
   assert.equal(source.maxzoom, 9);
   assert.equal(source.tolerance, 2, 'dissolved geometry retains inexpensive low-zoom rendering');
   assert.equal(layer.paint['fill-color'], '#117733');
@@ -244,6 +245,30 @@ test('native park mapping reattaches after theme replacement and hot reload with
   assert.deepEqual(map.getLayer(native.id).filter, native.filter);
 });
 
+test('native backing follows source ownership during a handoff, not selection boundaries', () => {
+  const map = fixtureMap();
+  const tiles = catalog.tiles.map(tile => ({ ...tile, nativeMapBounds: tile.id === 'A' ? [-80, 35, -70, 45] : [-70, 35, -60, 45] }));
+  map.sources.get('general-tiles').tiles = ['http://localhost/A/{z}/{x}/{y}.mvt'];
+  const controller = registerGeographicContextOverlay({ tileCatalog: { ...catalog, tiles }, runtime: { getActiveTileId: () => 'B' } });
+  controller.attachMap(map);
+  const id = 'open-world-native-land-backing';
+  assert.deepEqual(map.getSource(id).data.features[0].geometry.coordinates[0], [[-80,35],[-70,35],[-70,45],[-80,45],[-80,35]]);
+  const data = map.getSource(id).data;
+  controller.refresh();
+  assert.equal(map.getSource(id).data, data, 'stable refresh must not resubmit geometry');
+  map.sources.get('general-tiles').tiles = ['http://localhost/B/{z}/{x}/{y}.mvt'];
+  controller.refresh();
+  assert.deepEqual(map.getSource(id).data.features[0].geometry.coordinates[0][0], [-70,35]);
+  assert.ok(map.layerOrder.indexOf(id) > map.layerOrder.indexOf(geographicContextLayerIds.worldLandHighZoom));
+  assert.ok(map.layerOrder.indexOf(id) < map.layerOrder.indexOf('water'));
+  assert.equal(map.getLayer(id).minzoom, 10);
+  // Old hot-reloaded ocean zoom ranges must be repaired, not retained.
+  map.getLayer(geographicContextLayerIds.worldOcean).maxzoom = 10;
+  controller.refresh();
+  assert.equal(map.getLayer(geographicContextLayerIds.worldOcean).maxzoom, 24);
+  controller.dispose();
+});
+
 test('world land and ocean follow native themes, custom paints and unloaded style edits without repaint loops', () => {
   const map = fixtureMap();
   map.layers.get('native-background').paint = { 'background-color': '#212d38' };
@@ -261,7 +286,7 @@ test('world land and ocean follow native themes, custom paints and unloaded styl
   const assertColors = (land, water) => {
     assert.deepEqual(map.getPaintProperty(geographicContextLayerIds.worldLand, 'fill-color'), land);
     assert.deepEqual(map.getPaintProperty(geographicContextLayerIds.worldLandHighZoom, 'fill-color'), land);
-    assert.deepEqual(map.getPaintProperty(geographicContextLayerIds.worldOcean, 'fill-color'), water);
+    assert.deepEqual(map.getPaintProperty(geographicContextLayerIds.worldOcean, 'fill-color'), renderedWaterColor(map, map.getLayer('water'), water));
   };
   assertColors('#212d38', '#123456');
   const source = map.getSource(geographicContextLayerIds.worldContextSource);
@@ -272,9 +297,9 @@ test('world land and ocean follow native themes, custom paints and unloaded styl
     const count = writes.length;
     map.listeners.get('styledata')();
     assertColors(land, water);
-    assert.equal(writes.length - count, 3);
+    assert.equal(writes.length - count, 4);
     map.listeners.get('styledata')();
-    assert.equal(writes.length - count, 3, 'unchanged paints must not issue further writes');
+    assert.equal(writes.length - count, 4, 'unchanged paints must not issue further writes');
     assert.equal(map.getSource(geographicContextLayerIds.worldContextSource), source);
   }
   controller.dispose();
@@ -491,7 +516,7 @@ test('keeps tiled geography on the unified basemap and adds lightweight context 
     id: geographicContextLayerIds.worldOcean,
     type: 'fill',
     source: geographicContextLayerIds.worldOceanSource,
-    maxzoom: 10,
+    maxzoom: 24,
     paint: { 'fill-color': '#102f68', 'fill-opacity': 1 },
   });
   assert.deepEqual(map.layers.get(geographicContextLayerIds.worldLand), {
@@ -548,6 +573,7 @@ test('keeps tiled geography on the unified basemap and adds lightweight context 
       geographicContextLayerIds.boundarySource,
       geographicContextLayerIds.worldContextSource,
       geographicContextLayerIds.worldOceanSource,
+      'open-world-native-land-backing',
     ].sort(),
   );
   const ocean = map.sources.get(geographicContextLayerIds.worldOceanSource).data;
@@ -557,6 +583,7 @@ test('keeps tiled geography on the unified basemap and adds lightweight context 
     [geographicContextLayerIds.worldOcean, 'water'],
     [geographicContextLayerIds.worldLand, 'water'],
     [geographicContextLayerIds.worldLandHighZoom, 'water'],
+    ['open-world-native-land-backing', 'water'],
     [geographicContextLayerIds.worldBoundaries, 'native-city-labels'],
     [geographicContextLayerIds.worldBoundariesHighZoom, 'native-city-labels'],
     [geographicContextLayerIds.tileSelection, undefined],
@@ -2217,7 +2244,7 @@ test('restores ocean after repeated theme replacements finish loading after styl
     else map.listeners.get('styledata')();
     assert.ok(map.getLayer(geographicContextLayerIds.worldOcean), `ocean missing after theme change ${change}`);
     assert.ok(map.getLayer(geographicContextLayerIds.worldLand));
-    assert.equal(map.getLayer(geographicContextLayerIds.worldOcean).paint['fill-color'], `#${change}45566`);
+    assert.equal(map.getLayer(geographicContextLayerIds.worldOcean).paint['fill-color'], renderedWaterColor(map, map.getLayer('water'), `#${change}45566`));
     assert.equal(map.getLayer(geographicContextLayerIds.worldLand).paint['fill-color'], `#${change}12233`);
     assert.ok(map.layerOrder.indexOf(geographicContextLayerIds.worldOcean) < map.layerOrder.indexOf(geographicContextLayerIds.worldLand));
     assert.ok(map.layerOrder.indexOf(geographicContextLayerIds.worldLand) < map.layerOrder.indexOf('water'));
