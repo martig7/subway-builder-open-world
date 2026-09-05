@@ -10,6 +10,53 @@ resumable work, immutable artifacts, and logs in separate subdirectories. Set
 `OW_MAP_DATA_ROOT` to place heavy data elsewhere without changing artifact
 identity.
 
+## Computation geometry versus display geometry
+
+World `map.computationBoundary` is a key under the central source store
+(`map-creator/data/sources`, or `$OW_MAP_DATA_ROOT/sources`). Demand compilation,
+verification and World-aware placement repair resolve it independently of
+`tileViews.boundaryOverlay`, which is **display only**. A declared computation
+source that is missing is an error, never permission to use a simplified overlay.
+Changing camera zoom cannot change demand ownership or route endpoints.
+
+Japan's unsimplified e-Stat prefecture file is preserved byte-for-byte at
+`sources/japan/geography/prefectures-full.geojson` (6,387,880 vertices; SHA-256
+`0982a0f483c1e5bd9525cea4fe4166e6fad291ef3c468284a2599bf639da788f`). This is
+administrative/statistical geometry, **not** a physical land/water mask.
+Prepare independent display levels with:
+
+```powershell
+python -m open_world_map_creator.geography `
+  --computation-source <unsimplified-prefectures.geojson> `
+  --computation-output <central-source-store>/japan/geography/prefectures-full.geojson `
+  --display-source <detailed-display-coverage.geojson> `
+  --display-output <world>/geography/display-boundaries.json
+```
+
+The shared-edge coverage is noded once before simplification. Levels start at
+zooms 0/6/8/10/12 with tolerances 2000/500/100/25/0 metres respectively. Other
+Worlds can supply their metric projection with `--display-crs`. The runtime
+switches precomputed geometry only when the level or source changes, and updates
+active/hover state without resending polygons. Legacy Worlds still work without
+LOD data. The original detailed display source remains separate and untouched.
+
+For physical routing, install the `geometry` extra and prepare actual land:
+
+```powershell
+python -m open_world_map_creator.routing.prepare_water_land `
+  --coast-zip <land-polygons-split-4326.zip> `
+  --pbf <same-source-used-by-osrm.osm.pbf> `
+  --output <central-source-store>/japan/geography/physical-land.geojson `
+  --bounds 120 20 155 47
+```
+
+This dissolves unsimplified OSM coastline polygons and subtracts inland water
+assembled from OSM areas, retaining islands and holes. Inputs and output are
+hashed in a companion report. OSM-derived geometry is © OpenStreetMap contributors,
+ODbL; coastline source: https://osmdata.openstreetmap.de/data/land-polygons.html.
+The bounds must contain all candidate journeys with a margin. Pass the resulting
+physical mask—not either prefecture file—to `--water-land-geojson`.
+
 ```powershell
 $env:PYTHONPATH = 'src'
 python -m open_world_map_creator plan --world ..\worlds\japan --tile JP_PREF_11

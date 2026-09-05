@@ -32,10 +32,10 @@ from shapely.strtree import STRtree
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_RAW = REPOSITORY_ROOT / "prototype" / "japan" / "raw-data" / "estat" / "od"
-DEFAULT_BOUNDARY = REPOSITORY_ROOT / "worlds" / "japan" / "geography" / "prefectures.geojson"
+DEFAULT_BOUNDARY = Path(os.environ.get("OW_MAP_DATA_ROOT", REPOSITORY_ROOT / "map-creator" / "data")) / "sources" / "japan" / "geography" / "prefectures-full.geojson"
 DEFAULT_OUTPUT = REPOSITORY_ROOT / "map-creator" / "data" / "japan-prefectures"
 DEFAULT_PREFECTURES = ("13", "14")
-WORKER_VERSION = "estat-japan-render-boundary-v2"
+WORKER_VERSION = "estat-japan-computation-boundary-v3"
 PREFECTURE_NAMES = dict(zip(
     (f"{code:02d}" for code in range(1, 48)),
     (

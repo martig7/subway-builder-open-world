@@ -36,6 +36,10 @@ export function createOpenWorldCatalog({ definition, catalogSource, boundaryOver
       description: tile.description ?? `${gridName} map package`,
       population: Number(tile.population ?? 0),
       boundaryGeometry: tile.boundaryGeometry ?? boundaries.get(String(boundaryKey)) ?? null,
+      boundaryLods: boundaryOverlay?.lods?.map((level) => ({
+        minZoom: level.minZoom,
+        geometry: boundaryIndex(level).get(String(boundaryKey)) ?? null,
+      })).filter((level) => level.geometry) ?? tile.boundaryLods ?? [],
       initialViewState: normalizeInitialViewState(tile.initialViewState ?? tile.initialView),
       neighbors: Object.freeze(tile.neighbors ?? []),
     });

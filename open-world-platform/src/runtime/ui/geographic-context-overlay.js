@@ -959,7 +959,15 @@ function ringFor(tile) {
   return [[west, south], [east, south], [east, north], [west, north], [west, south]];
 }
 
-function boundaryGeometryFor(tile) {
+export const BOUNDARY_LOD_VERSION = 'precomputed-boundary-lod-v1';
+
+function boundaryLodFor(tile, zoom) {
+  return (tile.boundaryLods ?? []).filter((level) => level.minZoom <= zoom).at(-1);
+}
+
+function boundaryGeometryFor(tile, zoom) {
+  const lod = boundaryLodFor(tile, zoom);
+  if (lod?.geometry) return lod.geometry;
   const geometry = tile.boundaryGeometry
     ?? (tile.boundary && !Array.isArray(tile.boundary) ? tile.boundary : null);
   if (geometry && ['Polygon', 'MultiPolygon'].includes(geometry.type)) return geometry;
@@ -1036,14 +1044,15 @@ function syncNativeHoverDelegateGate(map, owner) {
   }
 }
 
-export function tileBoundaryGeoJson(catalog, activeTileId = null, hoveredTileId = null) {
+export function tileBoundaryGeoJson(catalog, activeTileId = null, hoveredTileId = null, zoom = Infinity) {
   return {
     type: 'FeatureCollection',
     features: (catalog?.tiles ?? []).flatMap((tile) => {
-      const geometry = boundaryGeometryFor(tile);
+      const geometry = boundaryGeometryFor(tile, zoom);
       if (!geometry) return [];
       return [{
         type: 'Feature',
+        id: tile.id,
         properties: {
           tileId: tile.id,
           name: tile.name ?? tile.id,
@@ -2575,12 +2584,14 @@ export class GeographicContextOverlayController {
     this.spatialSourceVisibility = null;
     this.nativeHoverDelegateMap = null;
     this.handleStyle = () => {
+      this.boundarySubmission = null;
       const refresh = () => {
         this.refresh();
       };
       globalThis.requestAnimationFrame?.(refresh) ?? refresh();
     };
     this.handleZoom = () => mapMovePerfMeasure('map.zoom.total', () => {
+      this.syncTileBoundaryData();
       syncNativeHoverDelegateGate(this.map, this);
       mapMovePerfMeasure('marker.visibility', () => updateStationMarkerVisibility(this.map), {
         zoom: this.map?.getZoom?.() ?? null,
@@ -2857,9 +2868,45 @@ export class GeographicContextOverlayController {
   }
 
   syncTileBoundaryData(activeTileId = this.activeTileId()) {
+    const source = safeMapSource(this.map, BOUNDARY_SOURCE_ID);
+    if (!source) return;
+    const zoom = this.map?.getZoom?.() ?? Infinity;
+    const lodKey = this.tileCatalog.tiles.map((tile) => boundaryLodFor(tile, zoom)?.minZoom ?? 'legacy').join(',');
+    const stateKey = `${activeTileId}:${this.hoveredTileId}`;
+    const unchangedGeometry = this.boundarySubmission?.source === source
+      && this.boundarySubmission?.lodKey === lodKey;
+    const featureState = typeof this.map?.setFeatureState === 'function';
+    if (featureState && (this.map.__openWorldBoundaryLodStyleVersion !== BOUNDARY_LOD_VERSION
+      || this.boundarySubmission?.source !== source)) {
+      const state = (key) => ['boolean', ['feature-state', key], ['boolean', ['get', key], false]];
+      this.map.setPaintProperty?.(TILE_SELECTION_LAYER_ID, 'fill-opacity', ['case', state('hovered'), .28, 0]);
+      this.map.setPaintProperty?.(TILE_BOUNDARY_LAYER_ID, 'line-color', ['case', ['any', state('active'), state('hovered')], '#ffd166', '#79b8e8']);
+      this.map.setPaintProperty?.(TILE_BOUNDARY_LAYER_ID, 'line-opacity', ['case', state('active'), .95, .7]);
+      this.map.setPaintProperty?.(TILE_BOUNDARY_LAYER_ID, 'line-width', ['interpolate', ['linear'], ['zoom'],
+        0, ['case', state('active'), 1.1, .65], 9, ['case', state('active'), 2.8, 1.5],
+        15, ['case', state('active'), 4.2, 2.2]]);
+      this.map.__openWorldBoundaryLodStyleVersion = BOUNDARY_LOD_VERSION;
+    }
+    if (unchangedGeometry && this.boundarySubmission.stateKey === stateKey) return;
+    if (featureState && unchangedGeometry) {
+      for (const tile of this.tileCatalog.tiles) this.map.setFeatureState(
+        { source: BOUNDARY_SOURCE_ID, id: tile.id },
+        { active: tile.id === activeTileId, hovered: tile.id === this.hoveredTileId && tile.id !== activeTileId },
+      );
+      this.boundarySubmission.stateKey = stateKey;
+      return;
+    }
+    this.boundarySubmission = { source, lodKey, stateKey, version: BOUNDARY_LOD_VERSION };
+    this.map.__openWorldBoundaryLodDiagnostic = { version: BOUNDARY_LOD_VERSION, lodKey, zoom };
+    if (featureState) {
+      for (const tile of this.tileCatalog.tiles) this.map.setFeatureState(
+        { source: BOUNDARY_SOURCE_ID, id: tile.id },
+        { active: tile.id === activeTileId, hovered: tile.id === this.hoveredTileId && tile.id !== activeTileId },
+      );
+    }
     return mapMovePerfMeasure('maplibre.tile-boundary.setData', () => (
-      safeMapSource(this.map, BOUNDARY_SOURCE_ID)?.setData(
-        tileBoundaryGeoJson(this.tileCatalog, activeTileId, this.hoveredTileId),
+      source.setData(
+        tileBoundaryGeoJson(this.tileCatalog, activeTileId, this.hoveredTileId, zoom),
       )
     ), { activeTileId, hoveredTileId: this.hoveredTileId });
   }

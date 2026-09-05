@@ -12,6 +12,7 @@ import shapely
 from shapely.geometry import Point, shape
 from shapely.ops import transform
 from shapely.strtree import STRtree
+from open_world_map_creator.geography import computation_boundary
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -69,7 +70,7 @@ def main() -> int:
     )
     boundary_source = read_json(
         args.boundary_source
-        or args.world_root / "geography" / "prefectures.geojson"
+        or computation_boundary(args.world_root)
     )
     tile_id_by_pref = {
         str(tile["prefCode"]): str(tile["id"])

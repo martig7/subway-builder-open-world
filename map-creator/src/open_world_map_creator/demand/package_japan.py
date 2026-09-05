@@ -529,7 +529,8 @@ def compile_japan(
     if codes != [f"{value:02d}" for value in range(1, 48)]:
         raise ValueError("Japan catalog must contain prefecture codes 01..47 in order")
     progress.emit("load", "started", prefectureCount=len(codes))
-    _, boundaries, boundary_index, _ = load_prefecture_boundary(set(codes), world_root / "geography" / "prefectures.geojson")
+    from ..geography import computation_boundary
+    _, boundaries, boundary_index, _ = load_prefecture_boundary(set(codes), computation_boundary(world_root))
     sites_by_pref: dict[str, list[Site]] = {}
     site_geometry_reports: dict[str, dict[str, Any]] = {}
     ownership_audit: dict[str, dict[str, Any]] = {}

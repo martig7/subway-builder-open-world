@@ -47,6 +47,7 @@ export function validateWorldDefinition(definition) {
   if (tileViews.boundaryOverlay != null) requireRelativeJsonPath(tileViews.boundaryOverlay, 'tileViews.boundaryOverlay', errors);
 
   const map = requireObject(root.map, 'map', errors);
+  if (map.computationBoundary != null) requireRelativeJsonPath(map.computationBoundary, 'map.computationBoundary', errors);
   requireRelativeJsonPath(map.sourceLock, 'map.sourceLock', errors);
   requireString(map.profile, 'map.profile', errors, STABLE_ID);
   requireString(map.basemapRevision, 'map.basemapRevision', errors, STABLE_ID);

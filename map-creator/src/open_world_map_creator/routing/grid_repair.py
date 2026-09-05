@@ -198,13 +198,17 @@ def relocate_marked_grid_points(
     marked = _marked_points(manifest)
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     tiles = {str(tile["id"]): tile for tile in catalog["tiles"]}
+    world_root = catalog_path.parent.parent
+    if boundary_path is None and (world_root / "world.json").is_file():
+        from ..geography import computation_boundary
+        boundary_path = computation_boundary(world_root)
     boundary_source = json.loads(
         (boundary_path or catalog_path.parent / "prefectures.geojson").read_text(
             encoding="utf-8"
         )
     )
     boundaries = {
-        str(feature["properties"]["pref_code"]): shape(feature["geometry"])
+        str(feature["properties"]["pref_code"]): shapely.make_valid(shape(feature["geometry"]))
         for feature in boundary_source["features"]
     }
     native_ids = {

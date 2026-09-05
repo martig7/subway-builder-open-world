@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from shapely.geometry import Point, shape
+from shapely import make_valid
 
 
 def read_json(path: Path) -> Any:
@@ -33,8 +34,9 @@ def sha256(path: Path) -> str:
 def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     catalog = read_json(world_root / "geography" / "tile-views.json")
     selected = [tile for tile in catalog["tiles"] if tile.get("status") == "selected"]
-    boundary_source = read_json(world_root / "geography" / "prefectures.geojson")
-    boundaries = {str(feature["properties"]["pref_code"]): shape(feature["geometry"]) for feature in boundary_source["features"]}
+    from ..geography import computation_boundary
+    boundary_source = read_json(computation_boundary(world_root))
+    boundaries = {str(feature["properties"]["pref_code"]): make_valid(shape(feature["geometry"])) for feature in boundary_source["features"]}
     native_mass = 0
     native_points = 0
     native_cohorts = 0
