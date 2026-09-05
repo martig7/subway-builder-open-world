@@ -8,9 +8,18 @@ import shapely
 from shapely.geometry import Polygon, mapping, shape
 from open_world_map_creator.geography import computation_boundary, display_lods
 from open_world_map_creator.routing.prepare_water_land import repair_area_rings
+from open_world_map_creator.routing.repair_water_sources import polygonize_ways
 
 
 class GeometryTests(unittest.TestCase):
+    def test_reconstructs_self_intersecting_water_and_fragmented_outer_rings(self):
+        bowtie = polygonize_ways([[(0, 0), (2, 2), (0, 2), (2, 0), (0, 0)]])
+        self.assertTrue(bowtie.is_valid)
+        self.assertEqual(bowtie.area, 2)
+        fragmented = polygonize_ways([[(0, 0), (2, 0)], [(2, 0), (2, 2)],
+                                      [(2, 2), (0, 2)], [(0, 2), (0, 0)]])
+        self.assertEqual(fragmented.area, 4)
+
     def test_repairs_invalid_osm_water_ring_without_filling_holes(self):
         def ring(points):
             return [SimpleNamespace(location=SimpleNamespace(lon=x, lat=y)) for x, y in points]

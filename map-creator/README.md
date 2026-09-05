@@ -63,6 +63,14 @@ unusable water areas or a hash mismatch, routes a separate demand copy, and runs
 the conservation audit. Its output is not installed automatically. Both the
 mask report and routing/audit logs must be reviewed before publication.
 
+Malformed OSM areas are not silently accepted. `routing.inspect_water_areas`
+prints their original source records; `routing.repair_water_sources` can rebuild
+specified outer/inner way rings from the same fingerprinted PBF and patch only
+affected mask pieces. Japan's two known source repairs are declared in
+`worlds/japan/sources/water-area-repairs.json`, not hardcoded in the router.
+The original mask is preserved, and the repaired mask receives a new hash and
+provenance report before it can pass the routing handoff gate.
+
 ```powershell
 $env:PYTHONPATH = 'src'
 python -m open_world_map_creator plan --world ..\worlds\japan --tile JP_PREF_11
