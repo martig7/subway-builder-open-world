@@ -659,6 +659,27 @@ for (const removed of [false, true]) test(`disposes an overlay after MapLibre ha
   assert.equal(controller.map, null);
 });
 
+test('tile switch never resubmits finalized layers from the previous map to a shared Deck', () => {
+  const oldMap = fixtureMap();
+  const oldLayers = oldMap.__deck.props.layers;
+  const original = oldMap.__deck.setProps;
+  let retired = false;
+  oldMap.__deck.setProps = function (props) {
+    if (retired && props.layers === oldLayers) throw new Error('deck.gl: assertion failed: finalized previous-map layers');
+    return original.call(this, props);
+  };
+  const old = registerGeographicContextOverlay({ tileCatalog: catalog });
+  old.attachMap(oldMap);
+  retired = true;
+  oldMap._removed = true;
+  const nextMap = fixtureMap();
+  nextMap.__deck = oldMap.__deck;
+  const next = registerGeographicContextOverlay({ tileCatalog: catalog });
+  assert.doesNotThrow(() => next.attachMap(nextMap));
+  assert.equal(next.map, nextMap);
+  next.dispose();
+});
+
 test('upgrades legacy cleanup when a shared Deck retains the destroyed map owner', () => {
   const oldMap = fixtureMap();
   let unsubscribed = 0;

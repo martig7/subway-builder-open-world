@@ -1,3 +1,5 @@
+import { guardRetiredMapImages } from './retired-map-images.js';
+
 const PATCH_GENERATION = 6;
 const LEGACY_PATCH_KEY = Symbol.for('subway-builder-open-world:stable-map-layer-moves');
 const V2_PATCH_KEY = Symbol.for('subway-builder-open-world:stable-map-layer-moves:v2');
@@ -231,6 +233,7 @@ function activePreviousPatch(map) {
  * exists again.
  */
 export function stabilizeMapLayerMoves(map) {
+  guardRetiredMapImages(map);
   if (!map || typeof map.moveLayer !== 'function') return map;
   stabilizeStyleLayerOrder(map.style);
   stabilizeMapLayerPrototypes(map);

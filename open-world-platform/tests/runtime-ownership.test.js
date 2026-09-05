@@ -154,6 +154,10 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     off() {},
   };
   let mapReads = 0;
+  let overviewNavigation = null;
+  const previousSessionStorage = globalThis.sessionStorage;
+  globalThis.sessionStorage = { getItem: key => key === 'tokyo-kanagawa:pending-navigation' ? overviewNavigation : null,
+    setItem() {}, removeItem() {} };
   const host = createHost('JP_TOKYO_MAINLAND', {
     publicCityCode: 'NEC_CP00_RP00',
     currentMap: () => ++mapReads >= 4 ? map : null,
@@ -201,6 +205,14 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.cityCode, 'JP_TOKYO_MAINLAND');
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.status, 'recentered');
     assert.equal(cameraMoves.length, 1, 'camera repair must target the live tile instead of the stale public city');
+    map.getZoom = () => 4;
+    overviewNavigation = JSON.stringify({ worldId: 'runtime-ownership-session', from: 'JP_KANAGAWA_MAINLAND', tileId: 'JP_TOKYO_MAINLAND', transitionId: 'camera-overview-test' });
+    host.hooks.callbacks.get('onMapReady')[0](map);
+    assert.equal(cameraMoves.length, 2, 'an explicit tile selection must recenter even from world overview');
+    host.hooks.callbacks.get('onMapReady')[0](map);
+    assert.equal(cameraMoves.length, 2, 'repeated readiness must not reset the overview again');
+    overviewNavigation = null;
+    map.getZoom = () => 11;
 
     await controller.lifecycle.cityLoad('JP_KANAGAWA_MAINLAND', { authoritative: true });
 
@@ -216,6 +228,7 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
     assert.equal(controller.diagnostics.cityStoreRepair.cityCode, 'JP_TOKYO_MAINLAND');
     assert.equal(controller.diagnostics.mapCameraRepair.cityCode, 'JP_TOKYO_MAINLAND');
   } finally {
+    globalThis.sessionStorage = previousSessionStorage;
     globalThis.__subwayBuilder_storeCallbacks__ = previousCallbacks;
     globalThis.fetch = previousFetch;
     if (previousGeneration === undefined) delete globalThis.__tokyoKanagawaGeneration__;

@@ -20,10 +20,16 @@ invalid park filter, so real MapLibre validation is required for filter changes.
 Cleanup also runs after `Map.remove()` (which deletes the Style), not just before
 map destruction. Park/vegetation release skips removed styles while controller
 cleanup still releases listeners, runtime subscriptions and shared Deck ownership.
-The `disposed-map-cleanup-v2` generation upgrades retained controller cleanup
+The `retired-renderer-handoff-v3` generation upgrades retained controller cleanup
 methods before disposal: an old bundle's failing closure must not block the new
 map attaching. Regression coverage includes real MapLibre removal, old-owner
 replacement through a shared Deck, and a decode resolving after disposal.
+Retired-map handoff releases the Deck guard without resubmitting the previous
+renderer’s native layers. Live same-map disposal still restores native layers.
+Late native image callbacks are guarded only when their map has no style or is
+removed; image validation/errors on live styles are preserved. Explicit tile
+navigation recenters the destination once per map even below zoom 10, while
+ordinary overview/style repair continues to preserve the user's camera.
 
 NASA GIBS serves the 2023 MODIS MCD12Q1 v061 IGBP classification. Exact published
 palette values select classes 1–11: forest, shrubland, savanna, grassland and

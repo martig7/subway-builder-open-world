@@ -60,19 +60,19 @@ export function createOpenWorldCityRegistration({ definition, tileCatalog }) {
     return { status: 'repaired', cityCode, tilesUrl, previousTiles: currentTiles, styleRebound };
   }
 
-  function repairPilotMapCamera(map, cityCode, { catalog = tileCatalog, minimumLocalZoom = 10 } = {}) {
+  function repairPilotMapCamera(map, cityCode, { catalog = tileCatalog, minimumLocalZoom = 10, force = false } = {}) {
     const city = cityDefinitionsFor(catalog).find((candidate) => candidate.code === cityCode);
     const tile = catalog.tiles.find((candidate) => (candidate.gameCityCode ?? candidate.id) === cityCode);
     if (!city || !tile) return { status: 'not-open-world-city', cityCode };
     const zoom = Number(map?.getZoom?.());
     if (!Number.isFinite(zoom)) return { status: 'camera-unavailable', cityCode };
-    if (zoom < minimumLocalZoom) return { status: 'world-view', cityCode, zoom };
+    if (!force && zoom < minimumLocalZoom) return { status: 'world-view', cityCode, zoom };
     const rawCenter = map?.getCenter?.();
     const longitude = Number(rawCenter?.lng ?? rawCenter?.lon ?? rawCenter?.[0]);
     const latitude = Number(rawCenter?.lat ?? rawCenter?.[1]);
     if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return { status: 'camera-unavailable', cityCode, zoom };
     const [west, south, east, north] = tile.bounds ?? [];
-    if (longitude >= west && longitude <= east && latitude >= south && latitude <= north) {
+    if (!force && longitude >= west && longitude <= east && latitude >= south && latitude <= north) {
       return { status: 'current', cityCode, zoom, center: [longitude, latitude] };
     }
     if (typeof map?.jumpTo !== 'function') return { status: 'jump-unavailable', cityCode, zoom, center: [longitude, latitude] };

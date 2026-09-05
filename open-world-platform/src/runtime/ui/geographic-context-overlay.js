@@ -2318,13 +2318,13 @@ function releaseMovementDeckVisibilityGuard(deck, owner) {
     nativeLayerCount: Array.isArray(patch.nativeLayers) ? patch.nativeLayers.length : null,
   }, { key: 'deck-guard-released', every: 10 });
   if (deck.setProps === patch.wrapper) deck.setProps = patch.originalSetProps;
-  if (patch.nativeLayers != null) {
+  if (patch.nativeLayers != null && !owner.map?._removed && !owner.retiringMapRenderer) {
     patch.originalSetProps.call(deck, { layers: patch.nativeLayers });
   }
   delete deck[MOVEMENT_DECK_GUARD_KEY];
 }
 
-export const GEOGRAPHIC_CONTEXT_CLEANUP_VERSION = 'disposed-map-cleanup-v2';
+export const GEOGRAPHIC_CONTEXT_CLEANUP_VERSION = 'retired-renderer-handoff-v3';
 
 function replaceGeographicContextControllerOwner(map, controller) {
   if (!map) return;
@@ -2342,8 +2342,10 @@ function replaceGeographicContextControllerOwner(map, controller) {
       && typeof owner.detachMap === 'function' && owner.renderDistanceListeners instanceof Set) {
       owner.detachMap = GeographicContextOverlayController.prototype.detachMap;
       owner.dispose = GeographicContextOverlayController.prototype.dispose;
+      owner.releaseMovementDeckVisibilityGuard = GeographicContextOverlayController.prototype.releaseMovementDeckVisibilityGuard;
       owner.cleanupVersion = GEOGRAPHIC_CONTEXT_CLEANUP_VERSION;
     }
+    owner.retiringMapRenderer = Boolean(owner.map && owner.map !== map);
     owner.dispose?.();
   }
   try {
@@ -2766,7 +2768,9 @@ export class GeographicContextOverlayController {
       resumeNativeHoverDelegates(this.map, this, { release: true });
     }
     this.detachTileSelectionHandlers();
+    this.retiringMapRenderer = Boolean(this.map && this.map !== map);
     this.releaseMovementDeckVisibilityGuard();
+    this.retiringMapRenderer = false;
     releaseSpatialSourceVisibilityGuards(this.map);
     this.spatialSourceVisibility = null;
     this.stationMarkerVisibility?.reset?.();

@@ -283,6 +283,13 @@ export function startOpenWorld({
     nativeDemandWorkerSource: workerSources.nativeDemandEvaluator ?? null,
   });
   let latestMap = api.utils?.getMap?.() ?? null;
+  let navigationCamera = null;
+  function rememberNavigationCamera(pending) {
+    if (!pending?.from || !pending.tileId) return;
+    const key = pending.transitionId ?? `${pending.from}->${pending.tileId}`;
+    if (navigationCamera?.key !== key) navigationCamera = { key, tileId: pending.tileId, maps: new WeakSet() };
+  }
+  rememberNavigationCamera(navigation.pending());
   let crossDemandController = null;
   let projectionOverlayController = null;
   let geographicContextController = null;
@@ -742,6 +749,7 @@ export function startOpenWorld({
       settlementReady = false;
       try {
         const pending = navigation.pendingFor(loadedCityCode);
+        rememberNavigationCamera(pending);
         const nativeSessionId = api.gameState.getGameSessionId();
         loadTraceId = createAuthoritativeLoadTraceId('startup', loadedCityCode, nativeSessionId);
         recordAuthoritativeLoad({
@@ -1069,6 +1077,7 @@ export function startOpenWorld({
     const liveCityCode = readLiveSubwayBuilderCityCode({ api });
     const currentRuntimeTileId = runtimeTileId();
     const pendingForLoadedCity = navigation.pendingFor(loadedCityCode);
+    rememberNavigationCamera(pendingForLoadedCity);
     if (
       started && ready && !pendingForLoadedCity
       && liveCityCode && currentRuntimeTileId
@@ -1180,6 +1189,7 @@ export function startOpenWorld({
       ready = true;
       settlementReady = (await recalculateCrossModeShare('tile-transition', api.gameState.getCurrentDay?.() ?? null)) != null;
       navigation.complete(pending);
+      if (latestMap && !latestMap._removed) repairLoadedMap(latestMap, 'tile-navigation-complete');
       diagnostics.transitionMapRefresh = refreshCityScopedMapArtifacts({
         map: latestMap,
         controller: geographicContextController,
@@ -1240,7 +1250,7 @@ export function startOpenWorld({
   }
 
   function repairLoadedMap(map, reason) {
-    if (!isCurrent() || latestMap !== map) return;
+    if (!isCurrent() || latestMap !== map || map?._removed) return;
     const loadedCityCode = currentCityCode();
     if (!registration.cities.includes(loadedCityCode)) return;
     if (rejectUnsignaledStoreCityChanges && runtimeTileId() === loadedCityCode) {
@@ -1256,8 +1266,11 @@ export function startOpenWorld({
     };
     diagnostics.mapCameraRepair = {
       reason,
-      ...repairPilotMapCamera(map, loadedCityCode),
+      ...repairPilotMapCamera(map, loadedCityCode, {
+        force: navigationCamera?.tileId === loadedCityCode && !navigationCamera.maps.has(map),
+      }),
     };
+    if (navigationCamera?.tileId === loadedCityCode && diagnostics.mapCameraRepair.status === 'recentered') navigationCamera.maps.add(map);
     if (diagnostics.tileSource.status === 'repaired') {
       console.warn(`${logLabel} repaired stale native tile source`, diagnostics.tileSource);
     }
@@ -1271,6 +1284,7 @@ export function startOpenWorld({
   api.hooks.onGameSaved?.((saveName) => { void handleGameSaved(saveName); });
   api.hooks.onMapReady((map) => {
     if (!isCurrent()) return;
+    rememberNavigationCamera(navigation.pending());
     if (latestMap && tileSourceStyleHandler) {
       try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
     }
@@ -1319,6 +1333,7 @@ export function startOpenWorld({
       return;
     }
     modeShareInvalidation.cancel();
+    navigationCamera = null;
     disposeSharedTransitObserver();
     projectionOverlayController?.dispose?.();
     geographicContextController?.dispose?.();
