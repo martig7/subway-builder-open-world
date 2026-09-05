@@ -274,6 +274,13 @@ test('hot reload evaluates and caches commute demand when the public city getter
     hooks.hourChange(paidHour);
     await new Promise((resolve) => setTimeout(resolve, 20));
     assert.equal(state.money, moneyAfterFirstReceipt, 'the native hourly receipt must be idempotent');
+    const revenueReport = await globalThis.__necCorridorDiagnostics__.revenueSnapshot();
+    assert.equal(revenueReport.activeTileId, activeTileId);
+    assert.equal(revenueReport.lifecycle.observedCityCode, activeTileId);
+    assert.equal(revenueReport.lifecycle.ready, true);
+    assert.ok(revenueReport.inactiveEstimatedDailyRevenue > 0);
+    assert.equal(revenueReport.lastPosting.status, 'already-posted');
+    assert.equal(revenueReport.latestSettlement.backgroundRevenue, 0);
   } finally {
     globalThis.SubwayBuilderAPI = previous.api;
     globalThis.__subwayBuilder_storeCallbacks__ = previous.callbacks;

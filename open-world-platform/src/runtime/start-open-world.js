@@ -378,6 +378,11 @@ export function startOpenWorld({
       console.debug(logLabel, event);
     },
   });
+  diagnostics.revenueSnapshot = async () => ({
+    ...await runtime.inspectNativeRevenue(),
+    lifecycle: { ready, settlementReady, currentGeneration: isCurrent(), observedCityCode: currentCityCode() },
+    latestSettlement: diagnostics.latestSettlement ?? null,
+  });
   const stageTransition = runtime.stageNavigationTransition.bind(runtime);
   runtime.stageNavigationTransition = async (tileId, options = {}) => {
     const sample = {
@@ -487,8 +492,15 @@ export function startOpenWorld({
     if (!ready || !isCurrent()) return null;
     const loadedCity = currentCityCode();
     if (!registration.cities.includes(loadedCity) || runtime.view().activeTileId !== loadedCity) return null;
-    try { return await runtime.settleCrossTileCommutes(reason); }
-    catch (error) { console.warn(`${logLabel} cross-city settlement failed (${reason})`, error); return null; }
+    try {
+      const result = await runtime.settleCrossTileCommutes(reason);
+      diagnostics.latestSettlement = { capturedAt: Date.now(), ...result };
+      return result;
+    } catch (error) {
+      diagnostics.latestSettlement = { capturedAt: Date.now(), status: 'failed', reason, error: String(error?.message ?? error) };
+      console.warn(`${logLabel} cross-city settlement failed (${reason})`, error);
+      return null;
+    }
   }
 
   const modeShareInvalidation = createDailyModeShareInvalidation({

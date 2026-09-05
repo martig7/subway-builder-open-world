@@ -27,6 +27,7 @@ import {
 const PHASES = Object.freeze(['lease', 'pause', 'snapshot', 'reconcile', 'catchup', 'prepare', 'load', 'globals', 'restore', 'verify', 'commit', 'resume']);
 const NATIVE_FINANCE_AUDIT_SCHEMA_VERSION = 3;
 const PASSIVE_RECALCULATION_REASONS = new Set(['startup', 'save-load', 'city-load', 'tile-transition']);
+export const NATIVE_REVENUE_RECOVERY_VERSION = 'native-revenue-profile-retry-v1';
 const NATIVE_DEMAND_TILE_GUARD_METERS = 3_000;
 const CROSS_MODE_SHARE_SCHEMA_VERSION = 2;
 
@@ -194,6 +195,8 @@ export class WorldTileRuntime {
     this.fullNativeNetworkEnabled = true;
     this.networkProjection = tileCatalog ? new NetworkProjection({ guardBandMeters: 250 }) : null;
     this.derivedNetworkInvalidations = new Set();
+    this.nativeRevenueCompilation = null;
+    this.lastNativeRevenuePosting = null;
   }
   async boot(worldId, loadedTileId = null, {
     saveName = null,
@@ -204,6 +207,8 @@ export class WorldTileRuntime {
     loadTraceId = null,
   } = {}) {
     if (this.world) return this.view();
+    this.nativeRevenueCompilation = null;
+    this.lastNativeRevenuePosting = null;
     this.revenueAccrual?.invalidate?.();
     const startupStartedAt = this.now();
     const traceId = loadTraceId
@@ -755,11 +760,93 @@ export class WorldTileRuntime {
     };
   }
 
+  async inspectNativeRevenue() {
+    this.#requireBooted();
+    const world = this.world;
+    const finance = world.backgroundNativeFinance;
+    const native = this.game.calculateNativeFinanceProfile?.(world.activeTileId,
+      world.globalNetwork?.nativeState ?? null)?.tileRevenueProfile;
+    const globals = await this.game.captureAuthoritativeGlobals?.();
+    const tiles = this.tileIds.map(tileId => {
+      const profile = finance?.tileRevenueProfiles?.[tileId];
+      return { tileId, active: tileId === world.activeTileId, available: Boolean(profile),
+        source: profile?.source ?? null, dailyRevenue: profile?.dailyRevenue ?? null,
+        transitPopulation: profile?.transitPopulation ?? null,
+        evaluatedPops: profile?.evaluatedPops ?? null,
+        skippedPops: profile?.skippedPops ?? null, contextKey: profile?.contextKey ?? null };
+    });
+    return {
+      version: NATIVE_REVENUE_RECOVERY_VERSION, worldId: world.worldId,
+      activeTileId: world.activeTileId, elapsedSeconds: globals?.elapsedSeconds ?? world.elapsedSeconds,
+      networkHash: world.globalNetwork?.hash ?? null, profileNetworkHash: finance?.networkHash ?? null,
+      // Both are representative-day forecasts. The native value uses live
+      // native commute choices; the off-tile value uses our independent router.
+      activeNativeDailyRevenue: native?.dailyRevenue ?? null,
+      activeEstimatedDailyRevenue: finance?.tileRevenueProfiles?.[world.activeTileId]?.dailyRevenue ?? null,
+      inactiveEstimatedDailyRevenue: tiles.filter(tile => !tile.active).reduce((sum, tile) => sum + (tile.dailyRevenue ?? 0), 0),
+      missingTileIds: tiles.filter(tile => !tile.available).map(tile => tile.tileId),
+      pending: this.nativeRevenueCompilation ? {
+        attemptedHour: this.nativeRevenueCompilation.attemptedHour,
+        failed: deepCopy(this.nativeRevenueCompilation.failed),
+        unavailable: [...this.nativeRevenueCompilation.unavailable],
+      } : null,
+      lastPosting: deepCopy(this.lastNativeRevenuePosting),
+      completedNativeHours: deepCopy((globals?.financialHistory?.entries ?? []).slice(-24)),
+      tiles,
+    };
+  }
+
+  async #compileNativeRevenueProfiles(world, tileId, networkProfile) {
+    const networkHash = world.globalNetwork?.hash ?? null;
+    const pending = this.nativeRevenueCompilation;
+    // Retain successful evaluations for a retry, but publish only a complete
+    // set: mixing old and new profiles can permanently underpay a receipted hour.
+    const staged = { ...world, backgroundNativeFinance: deepCopy(
+      pending?.worldId === world.worldId && pending.networkHash === networkHash
+        ? pending.finance : world.backgroundNativeFinance,
+    ) };
+    let compilation;
+    try {
+      compilation = await this.#compileNativeFinanceProfile(staged, tileId, networkProfile);
+    } catch (error) {
+      compilation = { evaluated: 0, cached: 0, unavailable: [],
+        failed: [{ tileId, error: String(error?.message ?? error) }] };
+    }
+    const ready = compilation.failed.length === 0 && compilation.unavailable.length === 0
+      && staged.backgroundNativeFinance.networkHash === networkHash
+      && this.tileIds.every(id => staged.backgroundNativeFinance.tileRevenueProfiles[id]);
+    const status = ready ? 'ready' : 'pending';
+    this.nativeRevenueCompilation = ready ? null : {
+      worldId: world.worldId, networkHash, attemptedHour: Math.floor(world.elapsedSeconds / 3600),
+      finance: staged.backgroundNativeFinance,
+      failed: compilation.failed, unavailable: compilation.unavailable,
+    };
+    if (ready) world.backgroundNativeFinance = staged.backgroundNativeFinance;
+    const result = { ...compilation, status, compiled: ready, networkHash };
+    this.telemetry({ phase: 'native-revenue-profile-recovery',
+      version: NATIVE_REVENUE_RECOVERY_VERSION, hour: Math.floor(world.elapsedSeconds / 3600),
+      ...result });
+    return result;
+  }
+
+  async #recoverNativeRevenueProfiles(world, targetHour) {
+    const pending = this.nativeRevenueCompilation;
+    const finance = world.backgroundNativeFinance;
+    if (!pending && finance?.networkHash && this.tileIds.every(id => finance.tileRevenueProfiles?.[id])) {
+      return { status: 'derived-cache', networkHash: finance.networkHash };
+    }
+    if (pending?.worldId === world.worldId && pending.attemptedHour >= targetHour) {
+      return { status: 'pending', failed: pending.failed, unavailable: pending.unavailable };
+    }
+    return this.#compileNativeRevenueProfiles(world, world.activeTileId, world.tiles[world.activeTileId]?.networkProfile);
+  }
+
   async recalculateCrossTileModeShare({ reason = 'manual', day = null, force = false } = {}) {
     this.#requireBooted();
     return this.#enqueue(async () => {
       const currentContextKey = crossModeShareContextKey(this.world);
       const passiveCacheReady = this.world.crossModeShare?.schemaVersion === CROSS_MODE_SHARE_SCHEMA_VERSION
+        && !this.nativeRevenueCompilation
         && this.world.crossModeShare?.contextKey === currentContextKey
         && this.derivedNetworkInvalidations.size === 0
         && this.world.backgroundNativeFinance?.networkHash === (this.world.globalNetwork?.hash ?? null)
@@ -771,7 +858,7 @@ export class WorldTileRuntime {
         this.telemetry({ phase: 'cross-mode-share', ...result });
         return result;
       }
-      if (!force && reason === 'daily' && day != null && this.world.crossModeShare?.day === day) {
+      if (!force && !this.nativeRevenueCompilation && reason === 'daily' && day != null && this.world.crossModeShare?.day === day) {
         return { status: 'already-current', ...this.world.crossModeShare };
       }
       await this.#captureAuthoritativeGlobals(this.world);
@@ -787,7 +874,7 @@ export class WorldTileRuntime {
       const profile = await this.#captureNetworkProfile(this.world, tileId);
       const previousStructuralSignature = previousProfile?.structuralSignature ?? previousSignature;
       const nextStructuralSignature = profile?.structuralSignature ?? profile?.signature;
-      if (!force && reason === 'network-change' && previousStructuralSignature
+      if (!force && !this.nativeRevenueCompilation && reason === 'network-change' && previousStructuralSignature
         && previousStructuralSignature === nextStructuralSignature) {
         const result = { status: 'network-unchanged', tileId, networkChanged: false, reason, day };
         this.telemetry({ phase: 'cross-mode-share', ...result });
@@ -799,7 +886,7 @@ export class WorldTileRuntime {
         if (commuteRefresh) this.telemetry({ phase: 'commute-refresh', reason: 'native-finance-profile', tileId, ...commuteRefresh });
       }
       const nativeFinanceProfile = this.revenueAccrual
-        ? await this.#compileNativeFinanceProfile(this.world, tileId, profile)
+        ? await this.#compileNativeRevenueProfiles(this.world, tileId, profile)
         : await this.#compileAndCommitFinanceHandoff(
           this.world,
           tileId,
@@ -825,7 +912,7 @@ export class WorldTileRuntime {
         } else this.revenueAccrual.invalidate();
         backgroundFinance = {
           persisted: false,
-          status: 'profiles-replaced',
+          status: nativeFinanceProfile.status === 'pending' ? 'profiles-pending' : 'profiles-replaced',
           revenue: 0,
           expenses: 0,
           profileCount: Object.keys(finance.tileRevenueProfiles ?? {}).length,
@@ -872,6 +959,7 @@ export class WorldTileRuntime {
       const result = {
         status: 'recalculated', tileId,
         networkChanged: previousSignature !== profile?.signature,
+        nativeFinanceProfile,
         backgroundFinance,
         ...metadata,
       };
@@ -887,7 +975,7 @@ export class WorldTileRuntime {
       const nativeAuditChanged = await this.#captureAuthoritativeGlobals(this.world);
       const targetHour = Math.floor(this.world.elapsedSeconds / 3600);
       const nativeFinanceProfile = this.revenueAccrual
-        ? { status: 'derived-cache', networkHash: this.world.globalNetwork?.hash ?? null }
+        ? await this.#recoverNativeRevenueProfiles(this.world, targetHour)
         : await this.#recoverStaleNativeFinanceProfile(
           this.world,
           targetHour,
@@ -1795,6 +1883,7 @@ export class WorldTileRuntime {
       activeTileId: world.activeTileId,
       projection: this.#committedFinanceOwnership(world) ?? { activeTileId: world.activeTileId },
     });
+    this.lastNativeRevenuePosting = { activeTileId: world.activeTileId, ...posting };
     if (Number.isFinite(posting.wallet)) world.wallet = posting.wallet;
     return {
       persisted: false,
