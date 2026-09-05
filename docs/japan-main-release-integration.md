@@ -53,8 +53,18 @@ No NEC packages or saves are replaced by the Japan installer.
 - Read-only preflight locates the installed official 0.5.0 server and validates
   adding all 47 Japan tiles alongside the 34 NEC tiles.
 
-The selected Japan bundle must be rebuilt and installed after integration.
-Installation verification must include release version/author, retained
-boundary/label markers, exact bundle hash and timestamp, the 81-tile shared
-health response, and shutdown of the old 8801 service. In-game reload remains
-the user's step; installed-file checks alone cannot prove renderer execution.
+The selected Japan bundle was rebuilt and installed on 2026-09-05. The installed
+manifest is `local.japan-open-world`, version `0.5.0`, authored by
+`Giancarlo Martinelli (gcm)`. Its bundle SHA-256 is
+`63355DF0ED61658B912D37E8BC10DDB2ACF7130C13B0FBA214F50C0E25B2DA70`, and
+the built and installed bundle timestamps match at
+`2026-09-05T14:43:57.4976772Z`.
+
+Post-install verification matched all 188 Japan assets (47 map packages, 47
+native-demand files, 47 cross-demand files, and 47 cross-commute files), found
+the retained boundary/selection and label markers in the installed bundle, and
+confirmed that the NEC registration was unchanged. The shared v4 server reports
+build `0.5.0` with 81 archives: 34 NEC tiles plus all 47 Japan tiles. The old
+Japan service on port 8801 is stopped, and legacy per-mod server scripts are not
+present in the installed Japan mod. In-game reload remains the user's step;
+installed-file checks alone cannot prove renderer execution.
