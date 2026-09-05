@@ -41,7 +41,7 @@ def is_complete(output: Path, boundary_sha256: str | None = None) -> bool:
         and report.get("workerVersion") == WORKER_VERSION
         and (
             boundary_sha256 is None
-            or report.get("renderBoundary", {}).get("sha256") == boundary_sha256
+            or report.get("computationBoundary", report.get("renderBoundary", {})).get("sha256") == boundary_sha256
         )
     )
 

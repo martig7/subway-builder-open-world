@@ -108,7 +108,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     if cross_mass != sum(int(bucket["mass"]) for bucket in commutes["buckets"]):
         raise ValueError("Cross ledger and commute bucket mass differ")
     if outside:
-        raise ValueError(f"{outside} native demand points are outside rendered boundaries")
+        raise ValueError(f"{outside} native demand points are outside computation boundaries")
     return {
         "valid": True,
         "tileCount": len(selected),

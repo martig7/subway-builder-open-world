@@ -214,13 +214,13 @@ def load_prefecture_boundary(
 
 
 def assign_prefecture(code: str, boundary_index: BoundaryOwnershipIndex) -> tuple[str, str] | None:
-    """Assign a mesh exactly once against the rendered national coverage."""
+    """Assign a mesh once against authoritative computation geometry, never a display LOD."""
     longitude, latitude = mesh_center(code)
     center = Point(longitude, latitude)
     center_hits = boundary_index.all_tree.query(center, predicate="covered_by")
     if len(center_hits):
         pref_code = min(boundary_index.all_codes[int(index)] for index in center_hits)
-        return pref_code, "center-inside-render-boundary"
+        return pref_code, "center-inside-computation-boundary"
     if len(code) == 10:
         half_longitude, half_latitude = 0.0015625, 1 / 960
     elif len(code) == 9:
@@ -242,7 +242,7 @@ def assign_prefecture(code: str, boundary_index: BoundaryOwnershipIndex) -> tupl
     pref_code, overlap_area = max(overlaps.items(), key=lambda item: (item[1], item[0]))
     if overlap_area <= 0:
         return None
-    return pref_code, "maximum-render-boundary-overlap"
+    return pref_code, "maximum-computation-boundary-overlap"
 
 
 def relocate_into_boundary(
@@ -697,10 +697,10 @@ def build_prefecture_evidence(
         "worldId": "JP_NATIONAL_OPEN_WORLD",
         "tileIds": tile_ids,
         "prefectures": prefecture_names,
-        "renderBoundary": {
+        "computationBoundary": {
             "source": str(boundary_source),
             "sha256": sha256(boundary_source),
-            "policy": "authoritative; demand moves inward and render geometry is never changed",
+            "policy": "full-detail computation geometry; independent of display LODs",
             "areaKm2": round(
                 sum(boundary_index.projected_boundary(code)[2].area for code in prefecture_codes) / 1_000_000,
                 2,
@@ -740,9 +740,9 @@ def build_prefecture_evidence(
             "reconciliationDelta": od_reconciliation["reconciliationDelta"],
         },
         "boundaryAssignment": {
-            "policy": "one national rendered-boundary owner per source mesh; no fractional mass",
-            "homeMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-render-boundary-overlap" for row in homes),
-            "jobMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-render-boundary-overlap" for row in jobs),
+            "policy": "one authoritative computation-boundary owner per source mesh; no fractional mass",
+            "homeMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-computation-boundary-overlap" for row in homes),
+            "jobMaximumOverlap": sum(row["boundaryAssignment"] == "maximum-computation-boundary-overlap" for row in jobs),
         },
         "nextStage": "building-footprint allocation and map assets",
     }
@@ -770,7 +770,7 @@ def main(argv: list[str] | None = None) -> None:
         "--boundary-source",
         type=Path,
         default=DEFAULT_BOUNDARY,
-        help="the exact geometry rendered by the world; demand is relocated to match it",
+        help="full-detail authoritative computation geometry; never a display LOD",
     )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--progress-jsonl", type=Path)
