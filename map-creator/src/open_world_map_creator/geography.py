@@ -8,7 +8,7 @@ from pathlib import Path
 
 import shapely
 from pyproj import Transformer
-from shapely.geometry import shape, mapping
+from shapely.geometry import shape, mapping, MultiPolygon, Polygon
 from shapely.ops import transform
 
 REPOSITORY = Path(__file__).resolve().parents[3]
@@ -53,6 +53,48 @@ def ownership_boundary(world_root):
     return target
 
 
+def unowned_boundary_holes(geometries):
+    """Distinguish unfilled water holes from legitimate neighboring enclaves."""
+    geometries = list(geometries)
+    tree = shapely.STRtree(geometries)
+    voids = []
+    for geometry in geometries:
+        for part in shapely.get_parts(geometry):
+            for ring in part.interiors:
+                hole = Polygon(ring)
+                hits = tree.query(hole, predicate='intersects')
+                covered = shapely.union_all([geometries[int(i)] for i in hits])
+                remaining = hole.difference(covered)
+                if remaining.area > 0:
+                    voids.append(remaining)
+    return voids
+
+
+def _visible_islands(geometries, minimum_area):
+    """Cull sub-resolution detached islands only in a display copy.
+
+    Keep the largest part of every owner and all shared-border components, so
+    hiding a small island never erases an entire prefecture or opens a land seam.
+    """
+    if minimum_area <= 0:
+        return geometries, 0
+    tree = shapely.STRtree(geometries)
+    visible, hidden = [], 0
+    for owner, geometry in enumerate(geometries):
+        parts = list(shapely.get_parts(geometry))
+        largest = max(range(len(parts)), key=lambda i: parts[i].area)
+        kept = []
+        for i, part in enumerate(parts):
+            shared = (part.area < minimum_area and i != largest
+                      and any(int(hit) != owner for hit in tree.query(part, predicate='intersects')))
+            if part.area >= minimum_area or i == largest or shared:
+                kept.append(part)
+            else:
+                hidden += 1
+        visible.append(kept[0] if len(kept) == 1 else MultiPolygon(kept))
+    return visible, hidden
+
+
 def display_lods(source, progress=print, metric_crs=METRIC_CRS):
     forward = Transformer.from_crs("EPSG:4326", metric_crs, always_xy=True).transform
     inverse = Transformer.from_crs(metric_crs, "EPSG:4326", always_xy=True).transform
@@ -72,12 +114,14 @@ def display_lods(source, progress=print, metric_crs=METRIC_CRS):
     if not shapely.coverage_is_valid(geometries) or any(g.is_empty for g in geometries):
         raise ValueError("Display source cannot form a valid shared-edge coverage")
     result = {"type": "FeatureCollection", "schemaVersion": 1, "purpose": "display-only",
-              "lodVersion": "precomputed-boundary-lod-v1", "lods": []}
+              "lodVersion": "precomputed-boundary-lod-islands-v2", "lods": []}
     for min_zoom, tolerance in DISPLAY_LEVELS:
         reduced = shapely.coverage_simplify(geometries, tolerance) if tolerance else geometries
+        reduced, hidden = _visible_islands(reduced, tolerance * tolerance)
         if not shapely.coverage_is_valid(reduced):
             raise ValueError(f"Display LOD at zoom {min_zoom} broke shared edges")
         level = {"type": "FeatureCollection", "minZoom": min_zoom, "toleranceMetres": tolerance,
+                 "minimumDetachedIslandAreaM2": tolerance * tolerance, "hiddenSmallIslandCount": hidden,
                  "vertexCount": int(sum(shapely.get_num_coordinates(g) for g in reduced)),
                  "features": [{"type": "Feature", "properties": f["properties"],
                                "geometry": mapping(transform(inverse, g))}

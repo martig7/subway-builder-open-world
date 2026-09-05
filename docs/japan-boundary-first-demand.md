@@ -7,6 +7,14 @@ approved playable outlines. These are distinct from raw administrative/physical
 geometry (`map.computationBoundary`) and zoom-dependent display LODs
 (`tileViews.boundaryOverlay`). Display detail never determines demand membership.
 
+The detailed-boundary builder now defaults to retaining small islands (zero
+minimum island area) while continuing to fill inland-water holes. Display LODs
+alone omit detached components below their squared metre tolerance. The largest
+component of each prefecture and components sharing a border with another
+prefecture are always retained; zoom 13's zero-tolerance level keeps all parts.
+Interior rings occupied by another prefecture are legitimate administrative
+enclaves, not water holes: filling them would introduce overlapping ownership.
+
 Source extraction and final placement share `resolve_cell_ownership`: a cell's
 centre chooses its owner; a coastal cell whose centre misses the polygons uses
 its greatest footprint overlap. Ties are deterministic. Statistical source
@@ -60,7 +68,7 @@ in-game visual confirmation. The pilot test uses the previous package as its
 baseline; after publication, its strict improvement assertion is no longer a
 meaningful comparison without preserving that baseline.
 
-## Publication blocker: excluded land
+## Original publication blocker: excluded land
 
 The nationwide audit covered 795,442 positive home cells and 317,949 positive
 job cells. Of these, 2,963 home and 3,697 job centres are outside the approved
@@ -73,10 +81,50 @@ land components smaller than 1 km² removed from the playable outlines. The othe
 is a four-job Hyogo cell at 135.278125, 34.65625, approximately 1,395 m outside
 both approved and raw geometry; its source needs separate review.
 
-Do not increase the snap limit silently or publish the national package yet.
-The user must choose how demand on excluded inhabited islands should be modeled
-(for example, geographically retained external demand rather than mainland
-relocation). Existing installed demand and completed routing remain untouched.
+The user subsequently chose to restore small islands to detailed ownership
+instead of moving their demand to the mainland. Do not increase the snap limit
+silently. Existing installed demand and completed routing remain untouched until
+a new package passes placement, routing, and publication checks.
 Detailed local audit results are in
 `.analysis/japan-routing/excluded-land-audit.json`; the failed compilation log is
 `.analysis/japan-routing/boundary-first-progress.jsonl`.
+
+## Recheck after island restoration — 2026-09-05
+
+Rebuilt all 47 detailed boundaries and the Tile View catalog from the locked
+raw e-Stat geometry with `--minimum-island-area-km2 0`, then regenerated display
+LODs. All 44 previously flagged island cases are now within the 750 m ownership
+placement limit. The nationwide audit of 1,113,391 positive source cells leaves
+one exception: the four-job Hyogo cell described above, still 1,394.9 m offshore.
+No source cells were deleted, and no placement distance limits were increased.
+
+The shared-edge, overlap, validity, and unowned-water-hole regression checks pass.
+The two new interior rings are wholly occupied by neighboring prefectures
+(Ibaraki inside Tochigi, and Tokyo inside Kanagawa); they must not be filled.
+The Osaka placement pilot retains its previous improvement and conservation
+results. At zoom 0 the display uses 41,725 vertices; at zoom 13 it uses 932,560.
+The detailed display retains all parts, while the coarsest copy hides 3,630
+sub-resolution detached components.
+
+A separate check of building indexes on the restored island components found
+eight source cells without an indexed island building: one home cell in Mie
+(13 home-marginal units), and seven cells in Nagasaki (94 home-marginal units,
+80 job-marginal units). This is a building-input coverage issue, not a reason to
+snap the demand to the mainland. The isolated-island placement pilot also flags
+Mie and Nagasaki; its distances are diagnostic for that limited sample, not
+predicted distances for a full national package.
+
+Reproduce the nationwide source audit from the repository root:
+
+```powershell
+$env:PYTHONPATH='map-creator/src'
+python map-creator/scripts/audit_japan_source_ownership.py `
+  --output .analysis/japan-routing/source-ownership-recheck.json
+```
+
+It currently exits 1 to report the unresolved Hyogo cell. Detailed recheck
+artifacts are under `.analysis/japan-routing/islands-20260905/`, including
+`source-ownership-audit.json`, `restored-island-audit.json`, and
+`island-building-coverage.json`. The updated World geometry is committed source
+data only: no new national demand package, routing run, or mod installation was
+performed during this recheck.

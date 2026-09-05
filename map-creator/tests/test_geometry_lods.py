@@ -5,14 +5,41 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import shapely
-from shapely.geometry import Polygon, mapping, shape
-from open_world_map_creator.geography import computation_boundary, ownership_boundary, display_lods
+from shapely.geometry import Polygon, MultiPolygon, box, mapping, shape
+from open_world_map_creator.geography import computation_boundary, ownership_boundary, display_lods, unowned_boundary_holes
 from open_world_map_creator.demand.estat_japan_prefecture import load_prefecture_boundary
 from open_world_map_creator.routing.prepare_water_land import repair_area_rings
 from open_world_map_creator.routing.repair_water_sources import polygonize_ways
 
 
 class GeometryTests(unittest.TestCase):
+    def test_interior_water_holes_are_not_confused_with_neighboring_enclaves(self):
+        enclave=box(1,1,2,2)
+        surrounding=box(0,0,3,3).difference(enclave)
+        self.assertEqual(sum(g.area for g in unowned_boundary_holes([surrounding])),1)
+        self.assertEqual(unowned_boundary_holes([surrounding,enclave]),[])
+
+    def test_small_islands_are_full_detail_only_without_mutating_ownership(self):
+        source = {'type':'FeatureCollection','features':[{'type':'Feature','properties':{'pref_code':'27'},
+            'geometry':mapping(MultiPolygon([box(135,34,135.1,34.1),box(135.15,34,135.1501,34.0001)]))}]}
+        original=json.dumps(source)
+        result=display_lods(source,lambda _:None)
+        coarse=shape(result['lods'][0]['features'][0]['geometry'])
+        detailed=shape(result['lods'][-1]['features'][0]['geometry'])
+        self.assertEqual(len(shapely.get_parts(coarse)),1)
+        self.assertEqual(len(shapely.get_parts(detailed)),2)
+        self.assertEqual(json.dumps(source),original)
+
+    def test_display_island_filter_keeps_shared_border_components(self):
+        features=[]
+        for code, mainland, island in [('27',box(135,34,135.1,34.1),box(135.15,34,135.16,34.001)),
+                                        ('28',box(135.2,34,135.3,34.1),box(135.16,34,135.17,34.001))]:
+            features.append({'type':'Feature','properties':{'pref_code':code},
+                'geometry':mapping(MultiPolygon([mainland,island]))})
+        coarse=display_lods({'type':'FeatureCollection','features':features},lambda _:None)['lods'][0]
+        self.assertEqual(coarse['hiddenSmallIslandCount'],0)
+        self.assertTrue(all(len(shapely.get_parts(shape(f['geometry'])))==2 for f in coarse['features']))
+
     def test_explicit_ownership_is_independent_of_raw_geometry_and_display_lods(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -14,28 +14,32 @@ python scripts\build_prefecture_boundaries.py `
 
 The source packages use JGD2000 / EPSG:4612. Geometry validity, dissolve, and area calculation use EPSG:6933; the published GeoJSON is EPSG:4326. The result is a statistical-boundary model, not a replacement for a navigable OSM/Depot basemap.
 
-Publish the canonical 47-prefecture coverage as the runtime overlay and rebuild
+Publish the canonical 47-prefecture coverage as full-detail ownership and rebuild
 the Tile View catalog through the centralized map creator. The publisher fills
-inland-water rings, removes islands below 1 km², preserves the shared source seams,
+inland-water rings, retains small islands for full-detail ownership, preserves the shared source seams,
 and applies one topology-preserving 10 m coverage simplification so neighboring
 prefectures retain detailed exclusive arcs without applying a global coastline
 close:
 
 ```powershell
 python map-creator\scripts\build_japan_world_catalog.py `
-  --source map-creator\data\sources\japan\boundaries\japan-prefecture-boundaries.geojson `
+  --source map-creator\data\sources\japan\geography\prefectures-full.geojson `
   --catalog worlds\japan\geography\tile-views.json `
   --overlay worlds\japan\geography\prefectures.geojson `
   --overlay-tolerance-m 10 `
-  --minimum-island-area-km2 1 `
+  --minimum-island-area-km2 0 `
   --seam-closure-m 0
 ```
 
 The ownership source above is the detailed e-Stat dissolve produced by
 `build_prefecture_boundaries.py`; keep it and its manifest in the centralized,
-Git-ignored `map-creator/data/sources/japan/boundaries` store. The smaller
+Git-ignored `map-creator/data/sources/japan/geography` store. The smaller
 `worlds/japan/sources/prefecture-boundaries.geojson` file is a coverage reference
 only and must not be used to assign demand or publish runtime seams.
+
+Generate display LODs separately with `open_world_map_creator.geography`.
+Detached islands below a level's display resolution are hidden only in that
+display copy; the zoom-13 detailed level and demand ownership retain them.
 
 ## Japan Open World consumer
 

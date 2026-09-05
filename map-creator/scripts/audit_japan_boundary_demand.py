@@ -12,7 +12,7 @@ import shapely
 from shapely.geometry import Point, shape
 from shapely.ops import transform
 from shapely.strtree import STRtree
-from open_world_map_creator.geography import ownership_boundary
+from open_world_map_creator.geography import ownership_boundary, unowned_boundary_holes
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -49,7 +49,7 @@ def main() -> int:
     )
     parser.add_argument("--boundary-source", type=Path)
     parser.add_argument("--catalog-source", type=Path)
-    parser.add_argument("--minimum-island-area-km2", type=float, default=1.0)
+    parser.add_argument("--minimum-island-area-km2", type=float, default=0.0)
     parser.add_argument("--maximum-overlap-area-m2", type=float, default=1_000.0)
     parser.add_argument("--maximum-boundary-demand-amplification", type=float, default=1.5)
     parser.add_argument(
@@ -110,6 +110,7 @@ def main() -> int:
         small_island_area_km2 += sum(part.area for part in small_parts) / 1_000_000
 
     overlap_area_m2 = 0.0
+    unowned_hole_area_m2 = sum(hole.area for hole in unowned_boundary_holes(projected_geometries.values()))
     tile_ids = sorted(projected_geometries)
     for index, tile_id in enumerate(tile_ids):
         for other_tile_id in tile_ids[index + 1 :]:
@@ -249,6 +250,7 @@ def main() -> int:
 
     report = {
         "interiorRingCount": interior_ring_count,
+        "unownedInteriorAreaM2": round(unowned_hole_area_m2, 6),
         "landSeamGapCount": len(land_seam_gaps),
         "landSeamGaps": land_seam_gaps,
         "missingLandAdjacencyPairs": missing_land_pairs,
@@ -268,7 +270,7 @@ def main() -> int:
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))
     failures = [
-        interior_ring_count > 0,
+        unowned_hole_area_m2 > 1.0,
         small_island_count > 0,
         bool(land_seam_gaps),
         overlap_area_m2 > args.maximum_overlap_area_m2,

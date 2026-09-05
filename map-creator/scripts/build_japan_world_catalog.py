@@ -13,7 +13,8 @@ from shapely.ops import transform
 COMPATIBLE_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 MANUAL_CORRIDORS = {("01", "02"): "tunnel-or-ferry", ("46", "47"): "ferry-or-air"}
 CATALOG_CRS = "+proj=lcc +lat_1=30 +lat_2=46 +lat_0=38 +lon_0=138 +ellps=GRS80 +units=m +no_defs"
-DEFAULT_MINIMUM_ISLAND_AREA_KM2 = 1.0
+# Ownership includes islands. Visibility/complexity belongs to display LODs.
+DEFAULT_MINIMUM_ISLAND_AREA_KM2 = 0.0
 DEFAULT_SEAM_CLOSURE_M = 0.0
 PREFECTURE_NAMES_JA = {
     "01": "北海道", "02": "青森県", "03": "岩手県", "04": "宮城県", "05": "秋田県",

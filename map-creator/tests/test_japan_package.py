@@ -14,6 +14,7 @@ from shapely.ops import transform
 from pyproj import Transformer
 
 from open_world_map_creator.demand.building_sites import BINARY_MAGIC, HEADER_SIZE, build_tile_sites
+from open_world_map_creator.geography import unowned_boundary_holes
 from open_world_map_creator.demand.package_japan import (
     Site,
     WeightedPicker,
@@ -104,18 +105,17 @@ class JapanPackageTests(unittest.TestCase):
         self.assertTrue(all(geometry.is_valid for geometry in geometries))
         self.assertGreaterEqual(statistics.median(exterior_vertex_counts), 200)
         self.assertGreaterEqual(sum(exterior_vertex_counts), 10_000)
-        self.assertEqual(
-            sum(len(part.interiors) for geometry in geometries for part in shapely.get_parts(geometry)),
-            0,
-        )
 
         projector = Transformer.from_crs("EPSG:4326", "EPSG:6933", always_xy=True).transform
         projected = [transform(projector, geometry) for geometry in geometries]
-        self.assertFalse(any(
+        self.assertLess(sum(void.area for void in unowned_boundary_holes(projected)), 1.0,
+                        'Unowned inland-water holes remain; neighboring enclaves must not be filled')
+        self.assertTrue(any(
             1.0 < part.area < 1_000_000
             for geometry in projected
             for part in shapely.get_parts(geometry)
         ))
+        self.assertTrue(all(feature['properties']['minimum_island_area_km2'] == 0 for feature in value['features']))
 
         tree = shapely.STRtree(projected)
         intersections = tree.query(projected, predicate="intersects")
