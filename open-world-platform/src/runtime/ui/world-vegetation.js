@@ -47,6 +47,12 @@ export function ensureWorldVegetation(map, data, beforeId) {
 
 export function releaseWorldVegetation(map) {
   if (!map) return;
+  // Map.remove()/setStyle(null) keeps Map methods but removes their Style.
+  // Optional method calls do not protect against those methods dereferencing it.
+  if (map._removed || ('style' in map && !map.style)) {
+    delete map.__openWorldVegetation;
+    return;
+  }
   if (map.getLayer?.(WORLD_VEGETATION_LAYER)) map.removeLayer?.(WORLD_VEGETATION_LAYER);
   if (map.getSource?.(WORLD_VEGETATION_SOURCE)) map.removeSource?.(WORLD_VEGETATION_SOURCE);
   delete map.__openWorldVegetation;

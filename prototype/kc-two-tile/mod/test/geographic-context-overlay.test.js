@@ -631,6 +631,54 @@ test('removes stale delegated world-tile listeners left by a hot-reloaded contro
   controller.dispose();
 });
 
+test('late vegetation decode cannot attach to a disposed map', async () => {
+  const map = fixtureMap();
+  let resolve;
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog,
+    worldVegetationLoader: () => new Promise((done) => { resolve = done; }) });
+  controller.attachMap(map);
+  controller.dispose();
+  const count = map.insertions.length;
+  resolve({ type: 'FeatureCollection', features: [] });
+  await controller.worldVegetationPromise;
+  assert.equal(map.insertions.length, count);
+  assert.equal(controller.map, null);
+});
+
+for (const removed of [false, true]) test(`disposes an overlay after MapLibre has destroyed its style (removed=${removed})`, () => {
+  const map = fixtureMap();
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog });
+  controller.attachMap(map);
+  map.style = undefined;
+  if (removed) { delete map.style; map._removed = true; }
+  map.getLayer = function (id) { return this.style.getLayer(id); };
+  map.getSource = function (id) { return this.style.getSource(id); };
+  map.getStyle = function () { return this.style.serialize(); };
+  assert.doesNotThrow(() => controller.dispose());
+  assert.equal(controller.map, null);
+});
+
+test('upgrades legacy cleanup when a shared Deck retains the destroyed map owner', () => {
+  const oldMap = fixtureMap();
+  let unsubscribed = 0;
+  const old = registerGeographicContextOverlay({ tileCatalog: catalog,
+    runtime: { subscribe: () => () => { unsubscribed++; } } });
+  old.attachMap(oldMap);
+  old.cleanupVersion = undefined;
+  oldMap.style = undefined;
+  oldMap.getLayer = function (id) { return this.style.getLayer(id); };
+  const legacyDetach = old.detachMap = function () { this.map.getLayer('open-world-vegetation'); };
+  const nextMap = fixtureMap();
+  nextMap.__deck = oldMap.__deck;
+  const next = registerGeographicContextOverlay({ tileCatalog: catalog });
+  assert.doesNotThrow(() => next.attachMap(nextMap));
+  assert.notEqual(old.detachMap, legacyDetach);
+  assert.equal(old.map, null);
+  assert.equal(unsubscribed, 1);
+  assert.ok(nextMap.getLayer('open-world-land'));
+  next.dispose();
+});
+
 test('replaces the previous geographic overlay controller during a hot reload', () => {
   const map = fixtureMap();
   const listenerSets = new Map();

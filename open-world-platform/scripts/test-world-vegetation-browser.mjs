@@ -93,8 +93,14 @@ try {
   await page.waitForFunction(() => Boolean(map.getLayer('open-world-land') && map.getLayer('open-world-vegetation')), null, { timeout: 3000 });
   assert.deepEqual(await page.evaluate(() => errors), []);
   const pendingSourceRestoreMs = await page.evaluate(() => Math.round(performance.now() - switchStarted));
+  await page.evaluate(() => {
+    map.remove();
+    controller.dispose();
+    controller.dispose();
+    if (controller.map !== null) throw new Error('Disposed controller retained its destroyed map');
+  });
   console.log(JSON.stringify({ status: 'PASS', ...samples, pendingSourceRestoreMs, resubmissions,
-    checks: ['native park validation', 'forest/desert/ocean', 'native theme', 'zoom 10 cutoff', 'style replacement with pending native source'] }));
+    checks: ['native park validation', 'forest/desert/ocean', 'native theme', 'zoom 10 cutoff', 'style replacement with pending native source', 'cleanup after Map.remove'] }));
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

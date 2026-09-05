@@ -48,6 +48,11 @@ export function syncNativeParkLanduse(map) {
 
 export function releaseNativeParkLanduse(map) {
   if (!map?.[STATE] || BUSY.has(map)) return;
+  if (map._removed || ('style' in map && !map.style)) {
+    delete map[STATE];
+    delete map.__openWorldNativeParkLanduse;
+    return;
+  }
   BUSY.add(map);
   try {
     const layers = map.getStyle?.()?.layers ?? [];

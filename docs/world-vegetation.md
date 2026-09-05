@@ -17,6 +17,14 @@ a permanently pending native source during style replacement. Repeated refreshes
 must not resubmit vegetation geometry. Pure mock-layer tests missed the original
 invalid park filter, so real MapLibre validation is required for filter changes.
 
+Cleanup also runs after `Map.remove()` (which deletes the Style), not just before
+map destruction. Park/vegetation release skips removed styles while controller
+cleanup still releases listeners, runtime subscriptions and shared Deck ownership.
+The `disposed-map-cleanup-v2` generation upgrades retained controller cleanup
+methods before disposal: an old bundle's failing closure must not block the new
+map attaching. Regression coverage includes real MapLibre removal, old-owner
+replacement through a shared Deck, and a decode resolving after disposal.
+
 NASA GIBS serves the 2023 MODIS MCD12Q1 v061 IGBP classification. Exact published
 palette values select classes 1–11: forest, shrubland, savanna, grassland and
 wetland. Cropland, urban areas, cropland mosaics, snow, barren land and water

@@ -2324,6 +2324,8 @@ function releaseMovementDeckVisibilityGuard(deck, owner) {
   delete deck[MOVEMENT_DECK_GUARD_KEY];
 }
 
+export const GEOGRAPHIC_CONTEXT_CLEANUP_VERSION = 'disposed-map-cleanup-v2';
+
 function replaceGeographicContextControllerOwner(map, controller) {
   if (!map) return;
   const superseded = new Set();
@@ -2332,7 +2334,18 @@ function replaceGeographicContextControllerOwner(map, controller) {
   for (const owner of map.__deck?.[MOVEMENT_DECK_GUARD_KEY]?.owners ?? []) {
     if (owner && owner !== controller) superseded.add(owner);
   }
-  for (const owner of superseded) owner.dispose?.();
+  for (const owner of superseded) {
+    // Hot reload retains instances/closures from the previous bundle. A shared
+    // Deck can still point at a controller whose Map has already been removed.
+    // Upgrade the known controller cleanup methods before invoking old code.
+    if (owner.cleanupVersion !== GEOGRAPHIC_CONTEXT_CLEANUP_VERSION
+      && typeof owner.detachMap === 'function' && owner.renderDistanceListeners instanceof Set) {
+      owner.detachMap = GeographicContextOverlayController.prototype.detachMap;
+      owner.dispose = GeographicContextOverlayController.prototype.dispose;
+      owner.cleanupVersion = GEOGRAPHIC_CONTEXT_CLEANUP_VERSION;
+    }
+    owner.dispose?.();
+  }
   try {
     Object.defineProperty(map, GEOGRAPHIC_CONTEXT_CONTROLLER_KEY, {
       configurable: true,
@@ -2617,6 +2630,7 @@ export class GeographicContextOverlayController {
     this.onTileSelect = onTileSelect;
     this.worldContextTilesUrl = worldContextTilesUrl;
     this.nativeParkSourceLayer = nativeParkSourceLayer;
+    this.cleanupVersion = GEOGRAPHIC_CONTEXT_CLEANUP_VERSION;
     this.worldVegetationLoader = worldVegetationLoader;
     this.worldVegetationData = null;
     this.worldVegetationPromise = null;
