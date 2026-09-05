@@ -15,7 +15,7 @@ const TILE_BOUNDARY_LAYER_ID = 'open-world-tile-boundaries';
 const WORLD_BOUNDARY_LAYER_ID = 'open-world-country-boundaries';
 const WORLD_CONTEXT_SOURCE_ID = 'open-world-world-context-source';
 export const WORLD_CONTEXT_VERSION = 'independent-world-context-v1';
-export const WORLD_CONTEXT_RESTORE_VERSION = 'theme-context-restoration-v1';
+export const WORLD_CONTEXT_RESTORE_VERSION = 'source-independent-context-restoration-v2';
 const WORLD_LAND_HIGH_ZOOM_LAYER_ID = 'open-world-land-high-zoom';
 const WORLD_BOUNDARY_HIGH_ZOOM_LAYER_ID = 'open-world-country-boundaries-high-zoom';
 const WORLD_OCEAN_SOURCE_ID = 'open-world-ocean-source';
@@ -2371,7 +2371,14 @@ function safeMapSource(map, sourceId) {
 }
 
 function mapStyleLoaded(map) {
-  try { return Boolean(map?.isStyleLoaded?.()); } catch { return false; }
+  // MapLibre's public isStyleLoaded includes every source's pending requests.
+  // Its layer/source mutation guard checks only Style._loaded. Keep this
+  // compatibility seam narrow: never block overview restoration on city data
+  // or the vegetation worker, but still reject an unparsed replacement style.
+  try {
+    if (typeof map?.style?._loaded === 'boolean') return map.style._loaded;
+    return Boolean(map?.isStyleLoaded?.());
+  } catch { return false; }
 }
 
 function contextArtifactsMissing(map) {

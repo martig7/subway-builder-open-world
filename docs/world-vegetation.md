@@ -7,6 +7,16 @@ the overview ocean/land and below native map content; theme/style replacement
 restores it. No gameplay requests go to NASA, and no existing PMTiles, demand,
 boundaries, or routes are changed.
 
+World-layer restoration waits for the parsed style, not for all native source
+requests to complete. MapLibre's `isStyleLoaded()` includes source readiness;
+using it here delayed initial display and could indefinitely block recovery
+after a tile/style switch. The isolated compatibility check uses the same
+`Style._loaded` flag as MapLibre's layer-mutation guard, with a public-method
+fallback. The browser regression enables both native park layers and simulates
+a permanently pending native source during style replacement. Repeated refreshes
+must not resubmit vegetation geometry. Pure mock-layer tests missed the original
+invalid park filter, so real MapLibre validation is required for filter changes.
+
 NASA GIBS serves the 2023 MODIS MCD12Q1 v061 IGBP classification. Exact published
 palette values select classes 1–11: forest, shrubland, savanna, grassland and
 wetland. Cropland, urban areas, cropland mosaics, snow, barren land and water

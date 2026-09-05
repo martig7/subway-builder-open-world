@@ -163,8 +163,26 @@ test('park mapping migrates retained v1 small-park policy to all-large', async (
   map[Symbol.for('open-world.native-park-landuse')] = state;
   syncNativeParkLanduse(map);
   assert.deepEqual(map.getLayer('parks-large').filter, ['==', ['get', 'kind'], 'park']);
-  assert.deepEqual(map.getLayer('parks-small').filter, ['==', 1, 0]);
+  assert.deepEqual(map.getLayer('parks-small').filter, ['==', ['literal', 1], 0]);
   assert.equal(map.__openWorldNativeParkLanduse.sizePolicy, 'all-large');
+});
+
+test('park mapping replaces retained v2 invalid numeric filter', async () => {
+  const { syncNativeParkLanduse, NATIVE_PARK_LANDUSE_VERSION } = await import('../../../../open-world-platform/src/runtime/ui/native-park-landuse.js');
+  const map = fixtureMap();
+  const state = new Map();
+  state.version = 'native-park-landuse-all-large-v2';
+  for (const size of ['large', 'small']) {
+    const filter = [size === 'large' ? '>=' : '<', ['get', 'area'], 100000];
+    const old = size === 'large' ? ['==', ['get', 'kind'], 'park'] : ['==', 1, 0];
+    map.addLayer({ id: `parks-${size}`, source: 'general-tiles', 'source-layer': 'landuse', filter: old });
+    state.set(`parks-${size}`, { sourceLayer: 'parks', filter, mappedFilter: old });
+  }
+  map[Symbol.for('open-world.native-park-landuse')] = state;
+  syncNativeParkLanduse(map);
+  assert.notEqual(map[Symbol.for('open-world.native-park-landuse')], state);
+  assert.equal(map.__openWorldNativeParkLanduse.version, NATIVE_PARK_LANDUSE_VERSION);
+  assert.deepEqual(map.getLayer('parks-small').filter, ['==', ['literal', 1], 0]);
 });
 
 test('opt-in native park mapping filters landuse, retains theme and order, and restores on detach', () => {
@@ -187,7 +205,7 @@ test('opt-in native park mapping filters landuse, retains theme and order, and r
   for (const size of ['large', 'small']) {
     const layer = map.getLayer(`parks-${size}`);
     assert.equal(layer['source-layer'], 'landuse');
-    assert.deepEqual(layer.filter, size === 'large' ? ['==', ['get', 'kind'], 'park'] : ['==', 1, 0]);
+    assert.deepEqual(layer.filter, size === 'large' ? ['==', ['get', 'kind'], 'park'] : ['==', ['literal', 1], 0]);
     assert.deepEqual(layer.paint, original.paint);
     assert.deepEqual(layer.layout, original.layout);
   }
@@ -2071,6 +2089,19 @@ test('captures the actual runtime layer order and source metadata for ocean diag
     [['native-city-labels', 10], ['native-city-labels-secondary', 10]],
   );
   assert.ok(diagnostic.sources.some((source) => source.id === geographicContextLayerIds.worldOceanSource));
+});
+
+test('restores world context while native source data is still pending', () => {
+  const map = fixtureMap();
+  map.style = { _loaded: true };
+  map.isStyleLoaded = () => false;
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog });
+  controller.attachMap(map);
+  assert.ok(map.getLayer(geographicContextLayerIds.worldLand));
+  map.removeLayer(geographicContextLayerIds.worldLand);
+  map.listeners.get('styledata')();
+  assert.ok(map.getLayer(geographicContextLayerIds.worldLand));
+  controller.dispose();
 });
 
 test('installs geographic context when the map becomes idle after an initially unready attach', () => {

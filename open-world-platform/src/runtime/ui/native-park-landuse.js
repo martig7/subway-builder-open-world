@@ -1,4 +1,4 @@
-export const NATIVE_PARK_LANDUSE_VERSION = 'native-park-landuse-all-large-v2';
+export const NATIVE_PARK_LANDUSE_VERSION = 'native-park-landuse-all-large-v3';
 const STATE = Symbol.for('open-world.native-park-landuse');
 const BUSY = new WeakSet();
 
@@ -34,7 +34,7 @@ export function syncNativeParkLanduse(map) {
       if (!layer || layer.source !== 'general-tiles' || layer['source-layer'] !== 'parks') continue;
       // All real park polygons use native large-park visibility. Disable the
       // small pass so alpha blending never paints the same polygon twice.
-      const filter = id === 'parks-large' ? ['==', ['get', 'kind'], 'park'] : ['==', 1, 0];
+      const filter = id === 'parks-large' ? ['==', ['get', 'kind'], 'park'] : ['==', ['literal', 1], 0];
       replaceLayer(map, layers, layer, { ...layer, 'source-layer': 'landuse', filter });
       state.set(id, { sourceLayer: layer['source-layer'], filter: layer.filter, mappedFilter: filter });
     }

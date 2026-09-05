@@ -19,8 +19,10 @@ native-detail gate also hides these layers below zoom 10.
 Current Depot land-use features do not provide `area`. The adapter deliberately
 renders all `kind=park` features through `parks-large`, without inventing stored
 areas. `parks-small` is filtered empty to prevent duplicate painting. This
-removes the small-park fade; airports remain excluded. Retained v1 adapters are
-restored before attaching v2. Below zoom 10, the separate
+removes the small-park fade; airports remain excluded. Retained v1/v2 adapters are
+restored before attaching v3. The always-false small-park filter uses an explicit
+`literal` expression: a bare numeric comparison is interpreted as a legacy
+property filter by MapLibre and rejected. Below zoom 10, the separate
 [world vegetation overview](world-vegetation.md) supplies coarse greenery.
 
 ## Full installed-archive audit, 2026-09-05
