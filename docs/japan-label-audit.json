@@ -1,0 +1,427 @@
+{
+  "counts": {
+    "missingReading": 53322,
+    "sourceRomanized": 8146,
+    "excludedAddress": 91742,
+    "kanaName": 134,
+    "sourceKana": 878,
+    "sourceEnglish": 63649,
+    "alreadyLatin": 7,
+    "ambiguousMatch": 1
+  },
+  "uniqueLocations": 217879,
+  "distinctMissingNames": 41348,
+  "distinctExcludedNames": 71613,
+  "byLayer": {
+    "neighborhood_labels": {
+      "missingReading": 53281,
+      "sourceRomanized": 6229,
+      "excludedAddress": 91742,
+      "kanaName": 134,
+      "sourceKana": 836,
+      "sourceEnglish": 63550,
+      "alreadyLatin": 6,
+      "ambiguousMatch": 1
+    },
+    "city_labels": {
+      "sourceRomanized": 1558,
+      "sourceEnglish": 1
+    },
+    "suburb_labels": {
+      "missingReading": 41,
+      "sourceRomanized": 359,
+      "alreadyLatin": 1,
+      "sourceEnglish": 98,
+      "sourceKana": 42
+    }
+  },
+  "byTile": {
+    "JP_PREF_01": {
+      "missingReading": 2911,
+      "sourceRomanized": 2647,
+      "excludedAddress": 19724,
+      "kanaName": 34,
+      "sourceKana": 2,
+      "sourceEnglish": 1613,
+      "alreadyLatin": 1
+    },
+    "JP_PREF_02": {
+      "sourceEnglish": 1505,
+      "missingReading": 1320,
+      "sourceRomanized": 167,
+      "excludedAddress": 1129,
+      "sourceKana": 2,
+      "kanaName": 1,
+      "alreadyLatin": 2
+    },
+    "JP_PREF_05": {
+      "sourceEnglish": 1368,
+      "missingReading": 3981,
+      "excludedAddress": 499,
+      "sourceRomanized": 319,
+      "sourceKana": 5,
+      "kanaName": 1
+    },
+    "JP_PREF_03": {
+      "missingReading": 1581,
+      "sourceEnglish": 1104,
+      "sourceRomanized": 53,
+      "sourceKana": 1,
+      "excludedAddress": 702
+    },
+    "JP_PREF_04": {
+      "sourceEnglish": 1232,
+      "missingReading": 3357,
+      "excludedAddress": 2443,
+      "sourceRomanized": 101,
+      "kanaName": 2,
+      "sourceKana": 4
+    },
+    "JP_PREF_06": {
+      "sourceEnglish": 825,
+      "missingReading": 2206,
+      "sourceRomanized": 137,
+      "excludedAddress": 1033,
+      "kanaName": 4,
+      "sourceKana": 1
+    },
+    "JP_PREF_07": {
+      "missingReading": 4699,
+      "sourceEnglish": 1613,
+      "excludedAddress": 1386,
+      "sourceRomanized": 97,
+      "alreadyLatin": 1,
+      "kanaName": 3,
+      "sourceKana": 10
+    },
+    "JP_PREF_15": {
+      "sourceEnglish": 2386,
+      "missingReading": 4332,
+      "sourceRomanized": 236,
+      "kanaName": 4,
+      "excludedAddress": 2308,
+      "sourceKana": 4
+    },
+    "JP_PREF_08": {
+      "missingReading": 4160,
+      "sourceEnglish": 2296,
+      "sourceRomanized": 455,
+      "alreadyLatin": 1,
+      "excludedAddress": 6584,
+      "sourceKana": 27,
+      "kanaName": 4
+    },
+    "JP_PREF_09": {
+      "missingReading": 2784,
+      "sourceEnglish": 1003,
+      "sourceRomanized": 67,
+      "alreadyLatin": 1,
+      "kanaName": 1,
+      "excludedAddress": 1189,
+      "sourceKana": 9
+    },
+    "JP_PREF_10": {
+      "missingReading": 3279,
+      "excludedAddress": 1780,
+      "sourceRomanized": 195,
+      "sourceEnglish": 1510,
+      "sourceKana": 7,
+      "kanaName": 14
+    },
+    "JP_PREF_12": {
+      "sourceEnglish": 2827,
+      "excludedAddress": 6262,
+      "sourceRomanized": 685,
+      "missingReading": 2801,
+      "sourceKana": 35,
+      "kanaName": 3
+    },
+    "JP_TOKYO_MAINLAND": {
+      "excludedAddress": 11807,
+      "missingReading": 1899,
+      "sourceEnglish": 2753,
+      "sourceRomanized": 1040,
+      "sourceKana": 131,
+      "kanaName": 2
+    },
+    "JP_PREF_11": {
+      "missingReading": 3139,
+      "sourceEnglish": 1882,
+      "excludedAddress": 5857,
+      "sourceRomanized": 437,
+      "sourceKana": 104,
+      "kanaName": 3
+    },
+    "JP_KANAGAWA_MAINLAND": {
+      "excludedAddress": 7893,
+      "sourceRomanized": 930,
+      "sourceKana": 25,
+      "sourceEnglish": 2355,
+      "missingReading": 552,
+      "kanaName": 1
+    },
+    "JP_PREF_20": {
+      "missingReading": 3526,
+      "kanaName": 33,
+      "sourceRomanized": 195,
+      "sourceEnglish": 2884,
+      "excludedAddress": 955,
+      "sourceKana": 13
+    },
+    "JP_PREF_19": {
+      "missingReading": 950,
+      "kanaName": 6,
+      "sourceRomanized": 124,
+      "sourceEnglish": 1116,
+      "excludedAddress": 471,
+      "sourceKana": 5
+    },
+    "JP_PREF_22": {
+      "sourceEnglish": 2264,
+      "sourceKana": 8,
+      "missingReading": 3117,
+      "sourceRomanized": 131,
+      "excludedAddress": 1572,
+      "kanaName": 17
+    },
+    "JP_PREF_16": {
+      "missingReading": 1357,
+      "sourceEnglish": 1998,
+      "sourceKana": 4,
+      "kanaName": 5,
+      "sourceRomanized": 44,
+      "excludedAddress": 594
+    },
+    "JP_PREF_17": {
+      "sourceEnglish": 3910,
+      "missingReading": 1811,
+      "sourceKana": 3,
+      "kanaName": 5,
+      "sourceRomanized": 64,
+      "excludedAddress": 2038
+    },
+    "JP_PREF_21": {
+      "sourceEnglish": 3260,
+      "missingReading": 5264,
+      "sourceRomanized": 160,
+      "sourceKana": 8,
+      "excludedAddress": 10449,
+      "kanaName": 17
+    },
+    "JP_PREF_18": {
+      "missingReading": 1819,
+      "excludedAddress": 3415,
+      "sourceEnglish": 2104,
+      "sourceRomanized": 62,
+      "kanaName": 1,
+      "sourceKana": 3
+    },
+    "JP_PREF_23": {
+      "missingReading": 5474,
+      "excludedAddress": 14057,
+      "sourceRomanized": 193,
+      "sourceEnglish": 2177,
+      "kanaName": 17,
+      "sourceKana": 5,
+      "alreadyLatin": 1
+    },
+    "JP_PREF_25": {
+      "missingReading": 728,
+      "sourceEnglish": 6717,
+      "sourceRomanized": 281,
+      "sourceKana": 5,
+      "excludedAddress": 1231,
+      "kanaName": 1
+    },
+    "JP_PREF_26": {
+      "sourceEnglish": 10809,
+      "sourceKana": 18,
+      "missingReading": 426,
+      "sourceRomanized": 506,
+      "excludedAddress": 7589,
+      "kanaName": 1
+    },
+    "JP_PREF_28": {
+      "sourceEnglish": 7485,
+      "sourceKana": 51,
+      "missingReading": 1355,
+      "excludedAddress": 7730,
+      "sourceRomanized": 160,
+      "kanaName": 3
+    },
+    "JP_PREF_24": {
+      "excludedAddress": 7368,
+      "sourceEnglish": 4318,
+      "missingReading": 2916,
+      "sourceRomanized": 284,
+      "sourceKana": 2,
+      "kanaName": 2
+    },
+    "JP_PREF_30": {
+      "excludedAddress": 810,
+      "sourceRomanized": 65,
+      "sourceEnglish": 1741,
+      "missingReading": 475,
+      "sourceKana": 1,
+      "alreadyLatin": 2
+    },
+    "JP_PREF_29": {
+      "sourceEnglish": 3766,
+      "sourceRomanized": 154,
+      "missingReading": 562,
+      "excludedAddress": 5201,
+      "kanaName": 1,
+      "sourceKana": 1,
+      "alreadyLatin": 2
+    },
+    "JP_PREF_27": {
+      "excludedAddress": 11117,
+      "missingReading": 165,
+      "sourceEnglish": 9744,
+      "sourceRomanized": 517,
+      "sourceKana": 2
+    },
+    "JP_PREF_31": {
+      "sourceEnglish": 2276,
+      "missingReading": 2233,
+      "sourceKana": 75,
+      "sourceRomanized": 34,
+      "excludedAddress": 359,
+      "kanaName": 5
+    },
+    "JP_PREF_33": {
+      "missingReading": 3392,
+      "sourceEnglish": 2981,
+      "sourceKana": 137,
+      "sourceRomanized": 467,
+      "excludedAddress": 1083,
+      "kanaName": 10
+    },
+    "JP_PREF_36": {
+      "sourceEnglish": 1378,
+      "excludedAddress": 623,
+      "missingReading": 363,
+      "sourceRomanized": 279,
+      "sourceKana": 4
+    },
+    "JP_PREF_32": {
+      "missingReading": 1726,
+      "sourceEnglish": 3011,
+      "sourceRomanized": 133,
+      "excludedAddress": 2140,
+      "sourceKana": 27,
+      "kanaName": 2
+    },
+    "JP_PREF_34": {
+      "sourceEnglish": 2263,
+      "missingReading": 1210,
+      "sourceKana": 16,
+      "sourceRomanized": 129,
+      "excludedAddress": 2741,
+      "kanaName": 1
+    },
+    "JP_PREF_35": {
+      "sourceEnglish": 1322,
+      "excludedAddress": 3437,
+      "missingReading": 2076,
+      "sourceRomanized": 62,
+      "sourceKana": 2,
+      "kanaName": 3
+    },
+    "JP_PREF_38": {
+      "missingReading": 1587,
+      "sourceEnglish": 2447,
+      "excludedAddress": 2329,
+      "sourceRomanized": 189,
+      "kanaName": 1,
+      "sourceKana": 11
+    },
+    "JP_PREF_37": {
+      "missingReading": 404,
+      "sourceEnglish": 1052,
+      "sourceRomanized": 377,
+      "excludedAddress": 577,
+      "kanaName": 6,
+      "sourceKana": 39
+    },
+    "JP_PREF_44": {
+      "missingReading": 579,
+      "sourceRomanized": 337,
+      "kanaName": 2,
+      "excludedAddress": 760,
+      "sourceEnglish": 1578,
+      "sourceKana": 2
+    },
+    "JP_PREF_40": {
+      "missingReading": 1788,
+      "excludedAddress": 4688,
+      "sourceEnglish": 1728,
+      "sourceRomanized": 421,
+      "kanaName": 2,
+      "sourceKana": 431,
+      "ambiguousMatch": 1
+    },
+    "JP_PREF_39": {
+      "sourceEnglish": 1788,
+      "missingReading": 1015,
+      "sourceRomanized": 68,
+      "sourceKana": 3,
+      "excludedAddress": 811
+    },
+    "JP_PREF_43": {
+      "sourceRomanized": 120,
+      "sourceEnglish": 2614,
+      "missingReading": 762,
+      "sourceKana": 106,
+      "excludedAddress": 990,
+      "ambiguousMatch": 1
+    },
+    "JP_PREF_41": {
+      "sourceEnglish": 1330,
+      "excludedAddress": 2249,
+      "missingReading": 851,
+      "sourceRomanized": 370,
+      "sourceKana": 432,
+      "ambiguousMatch": 1
+    },
+    "JP_PREF_42": {
+      "missingReading": 775,
+      "sourceRomanized": 361,
+      "sourceEnglish": 2051,
+      "sourceKana": 432,
+      "excludedAddress": 1105
+    },
+    "JP_PREF_45": {
+      "sourceEnglish": 1836,
+      "sourceRomanized": 66,
+      "missingReading": 306,
+      "sourceKana": 17,
+      "excludedAddress": 1413
+    },
+    "JP_PREF_46": {
+      "sourceEnglish": 2009,
+      "sourceRomanized": 73,
+      "sourceKana": 20,
+      "missingReading": 158,
+      "excludedAddress": 423,
+      "kanaName": 2
+    },
+    "JP_PREF_47": {
+      "sourceEnglish": 697,
+      "sourceRomanized": 86,
+      "excludedAddress": 555,
+      "kanaName": 6,
+      "missingReading": 44
+    }
+  },
+  "recoveredFields": {
+    "name:ja-Latn": 7002,
+    "name": 141,
+    "name:ja-Hira": 878,
+    "name:en": 63649,
+    "name:ja_rm": 1144
+  },
+  "matchingRadiusM": 30,
+  "ambiguousDistanceToleranceM": 2,
+  "note": "OSM supplied readings are recoverable candidates, not independently verified official spellings. Counts deduplicate tile halos and zooms, not different geographic locations."
+}
