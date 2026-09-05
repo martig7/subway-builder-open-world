@@ -12,6 +12,8 @@ param(
     [string]$OsrmCache,
     [string]$PassengerFerryCatalog,
     [double]$FerryTransferSeconds = 300,
+    [string]$WaterLandGeojson,
+    [double]$WaterMaxAccessMetres = 1500,
     [int]$OsrmWorkers = 16,
     [int]$OsrmMaxTableCoordinates = 100,
     [double]$MaxRoutedDirectMetres = 3000000
@@ -53,6 +55,10 @@ try {
     if ($PassengerFerryCatalog) {
         $routingArguments += @('--passenger-ferry-catalog', $PassengerFerryCatalog,
             '--ferry-transfer-seconds', $FerryTransferSeconds)
+    }
+    if ($WaterLandGeojson) {
+        $routingArguments += @('--water-land-geojson', $WaterLandGeojson,
+            '--water-max-access-metres', $WaterMaxAccessMetres)
     }
     if ($RoutingProvider -eq 'osrm') {
         if (-not $OsrmDatasetId) { throw 'OsrmDatasetId is required for OSRM routing' }

@@ -1139,10 +1139,11 @@ def enrich_generated_road_driving(
         else:
             search_counts["recoveredPartitions"] += 1
 
-        # Fixed transfers and port access must not be scaled by a tile-pair
-        # distance ratio. Resolve actual endpoints in ferry-bearing partitions.
+        # Fixed transfers and water/land proportions cannot be extrapolated by
+        # tile-pair distance. The water overlay checks all endpoints, including
+        # island failures not represented by the partition's mainland samples.
         ferry_routes = {}
-        if model.get("passengerFerrySamples"):
+        if model.get("passengerFerrySamples") or getattr(router, "requires_exact_cross_routes", False):
             ferry_routes = _route_many(
                 router,
                 ((i, cross_points[int(cross["pops"][i][pop_fields["homePoint"]])],
@@ -1171,7 +1172,7 @@ def enrich_generated_road_driving(
                     0.0,
                 )
             ferry_route = ferry_routes.get(pop_index)
-            if ferry_route is not None and ferry_route.source == "osrm-passenger-ferry":
+            if ferry_route is not None and ferry_route.source in {"osrm-passenger-ferry", "osrm-straight-water"}:
                 route = ferry_route
             pop[pop_fields["drivingSeconds"]] = route.seconds
             pop[pop_fields["drivingDistance"]] = route.metres

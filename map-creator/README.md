@@ -117,6 +117,61 @@ extra transfers. Timetable waiting and ticket prices are not modeled. The game
 still receives aggregate time/distance and uses its existing distance-based cost;
 accurate ferry/rideshare monetary costs require a separate mode-choice change.
 
+An optional **synthetic straight-water fallback** handles pairs still marked
+`NoRoute` after roads and (when configured) passenger ferries. Add:
+
+```powershell
+  --water-land-geojson <full-detail-wgs84-land-mask.geojson> `
+  --water-max-access-metres 1500
+```
+
+The PowerShell routing launchers accept `-WaterLandGeojson` and
+`-WaterMaxAccessMetres`. Execution location remains a Runner choice. No runtime
+mode is added: the output is still aggregate `drivingSeconds`/`drivingDistance`.
+
+For each remaining failed pair, the planner finds the point on the current
+landmass nearest the final destination, routes to it on OSRM roads, and crosses
+water along a straight line toward the destination at **5 km/h**. At the first
+intervening landfall it stops the water segment, routes across that landmass
+toward its shore nearest the destination, and re-aims the next water crossing.
+This is a bounded greedy approximation, not an optimal path or a real ferry
+service. Straight lines and nearest shores use a regional azimuthal-equidistant
+projection; segment lengths use WGS84 geodesic distances. There is no additional
+synthetic transfer penalty. The base game's existing driving cost still applies
+to aggregate distance; this does not supply a boat fare.
+
+The mask is a regional WGS84 Polygon/MultiPolygon GeoJSON (or FeatureCollection)
+covering **all** possible landfalls, including small islands and inland-water
+holes. Use physical land geometry, not administrative/render boundaries. The
+current `worlds/japan/geography/prefectures.geojson` is deliberately rejected:
+its display metadata records filled inland water and removed islands. Land
+coverage outside the supplied polygons is assumed to be water, so clipped or
+incomplete masks must not be used. No islands or holes are simplified away by
+the router, and touching land polygons are dissolved before planning.
+
+At each land-leg endpoint the eight nearest OSRM candidates are considered.
+Access connectors must stay on that same landmass and be within the configured
+limit; their time is charged at 1.4 m/s. Only successful directed OSRM routes
+between accepted candidates are used. Unreachable roads, out-of-mask demand
+points, same-landmass failures, or nonprogressing paths stay unresolved with an
+explicit reason; they are never silently replaced with high-speed straight
+lines across land. An OSRM service error aborts the run instead of being cached
+as missing connectivity. Demand positions and mass are unchanged.
+
+`straight_water_cache` stores positive and negative attempts, endpoint identities,
+and component times/distances/coordinates. Keys include the backend fingerprint,
+mask contents, routing version, access policy and endpoints. Road, nearest-road,
+and passenger-ferry caches remain separate and reusable. Progress emits mask
+loading, road legs and completed-pair counts. Successful road/ferry results bypass
+the fallback. Cross-tile publication checks actual endpoints even when the
+partition samples contain only mainland routes; repaired water times are never
+scaled using a prefecture-pair average. This may require additional cached OSRM
+queries for cross cohorts that were previously represented only by samples.
+
+Run against a separate copy of completed demand, inspect unresolved reasons and
+component accounting in the cache, and compare source/output demand before
+publishing. Enabling the fallback does not itself rebuild or install a mod.
+
 When a placement repair moves only a known set of endpoints, preserve completed
 work by producing a filtered invalidation sidecar and passing it to routing:
 

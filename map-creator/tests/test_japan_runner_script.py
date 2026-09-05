@@ -12,6 +12,14 @@ OSRM_HANDOFF_SCRIPT = REPOSITORY_ROOT / "map-creator" / "scripts" / "run_japan_o
 
 
 class JapanRunnerScriptTests(unittest.TestCase):
+    def test_water_options_reach_the_location_independent_routing_command(self):
+        script = ROUTING_SCRIPT.read_text(encoding="utf-8")
+        starter = ROUTING_START_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("'--water-land-geojson', $WaterLandGeojson", script)
+        self.assertIn("'--water-max-access-metres', $WaterMaxAccessMetres", script)
+        self.assertIn("'-WaterLandGeojson', $WaterLandGeojson", starter)
+        self.assertIn("'-WaterMaxAccessMetres', $WaterMaxAccessMetres", starter)
+
     def test_downloads_are_resumable_and_only_published_after_success(self) -> None:
         script = RUNNER_SCRIPT.read_text(encoding="utf-8")
 

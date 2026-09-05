@@ -192,6 +192,45 @@ class OsrmRouter:
         self.stats: Counter[str] = Counter()
         self._stats_lock = threading.Lock()
 
+    def nearest_candidates(self, coordinate, number: int = 8):
+        """Cached road-access candidates; callers must validate land ownership.
+
+        Transport/server errors are fatal, not negative connectivity evidence.
+        """
+        canonical = _canonical_coordinate(coordinate)
+        key = hashlib.sha256(json.dumps(
+            [self.dataset_id, self.profile, canonical, number, "nearest-v1"]
+        ).encode()).hexdigest()
+        connection = self.cache.connection
+        connection.execute("CREATE TABLE IF NOT EXISTS road_nearest_cache "
+                           "(cache_key TEXT PRIMARY KEY, result_json TEXT NOT NULL)")
+        cached = connection.execute("SELECT result_json FROM road_nearest_cache WHERE cache_key=?", (key,)).fetchone()
+        if cached:
+            self.stats["nearestCacheHits"] += 1
+            return json.loads(cached[0])
+        url = (f"{self.base_url}/nearest/v1/{urllib.parse.quote(self.profile)}/"
+               f"{_coordinate_text(canonical)}?number={number}")
+        for attempt in range(self.retries + 1):
+            try:
+                with urllib.request.urlopen(url, timeout=self.timeout_seconds) as response:
+                    payload = json.load(response)
+                if payload.get("code") != "Ok":
+                    raise RuntimeError(f"OSRM nearest returned {payload.get('code')}")
+                candidates = payload["waypoints"]
+                for candidate in candidates:
+                    location = candidate["location"]
+                    if len(location) != 2 or not all(math.isfinite(v) for v in location):
+                        raise ValueError("Invalid OSRM nearest coordinate")
+                break
+            except (OSError, ValueError, KeyError, TypeError, RuntimeError):
+                if attempt == self.retries:
+                    raise
+                time.sleep(min(2.0, 0.25 * 2 ** attempt))
+        connection.execute("INSERT OR REPLACE INTO road_nearest_cache VALUES (?, ?)", (key, json.dumps(candidates)))
+        connection.commit()
+        self.stats["nearestRequests"] += 1
+        return candidates
+
     def close(self) -> None:
         self.cache.close()
 

@@ -12,6 +12,8 @@ param(
     [string]$OsrmCache,
     [string]$PassengerFerryCatalog,
     [double]$FerryTransferSeconds = 300,
+    [string]$WaterLandGeojson,
+    [double]$WaterMaxAccessMetres = 1500,
     [int]$OsrmWorkers = 16,
     [int]$OsrmMaxTableCoordinates = 100,
     [double]$MaxRoutedDirectMetres = 3000000
@@ -39,6 +41,10 @@ if ($OsrmCache) { $arguments += @('-OsrmCache', $OsrmCache) }
 if ($PassengerFerryCatalog) {
     $arguments += @('-PassengerFerryCatalog', $PassengerFerryCatalog,
         '-FerryTransferSeconds', $FerryTransferSeconds)
+}
+if ($WaterLandGeojson) {
+    $arguments += @('-WaterLandGeojson', $WaterLandGeojson,
+        '-WaterMaxAccessMetres', $WaterMaxAccessMetres)
 }
 $process = Start-Process `
     -FilePath 'powershell.exe' `

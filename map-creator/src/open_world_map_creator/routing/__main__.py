@@ -63,6 +63,9 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--osrm-timeout-seconds", type=float, default=60.0)
     command.add_argument("--passenger-ferry-catalog", type=Path)
     command.add_argument("--ferry-transfer-seconds", type=float, default=300.0)
+    command.add_argument("--water-land-geojson", type=Path,
+                         help="Full-detail WGS84 land mask for the optional 5 km/h straight-water fallback.")
+    command.add_argument("--water-max-access-metres", type=float, default=1500.0)
     command.add_argument("--max-routed-direct-metres", type=float)
     command.add_argument(
         "--invalidation",
@@ -86,6 +89,8 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit("--osrm-dataset-id is required for durable OSRM cache identity")
     if args.passenger_ferry_catalog and args.routing_provider != "osrm":
         raise SystemExit("--passenger-ferry-catalog requires --routing-provider osrm")
+    if args.water_land_geojson and args.routing_provider != "osrm":
+        raise SystemExit("--water-land-geojson requires --routing-provider osrm")
     if args.progress_jsonl and args.progress_jsonl.exists() and args.no_resume:
         args.progress_jsonl.unlink()
     progress = JsonProgress(args.progress_jsonl)
@@ -110,10 +115,16 @@ def main(argv: list[str] | None = None) -> None:
                 datasetId=args.osrm_dataset_id,
                 cachePath=str(cache_path),
             )
+            road_backend = route_backend
             if args.passenger_ferry_catalog:
                 from .ferries import PassengerFerryRouter
                 route_backend = PassengerFerryRouter(
                     route_backend, args.passenger_ferry_catalog, args.ferry_transfer_seconds
+                )
+            if args.water_land_geojson:
+                from .water import StraightWaterRouter
+                route_backend = StraightWaterRouter(
+                    route_backend, road_backend, args.water_land_geojson, args.water_max_access_metres
                 )
         routing_options: dict[str, Any] = {}
         if args.max_routed_direct_metres is not None:
