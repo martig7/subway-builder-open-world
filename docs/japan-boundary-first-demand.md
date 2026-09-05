@@ -128,3 +128,74 @@ artifacts are under `.analysis/japan-routing/islands-20260905/`, including
 `island-building-coverage.json`. The updated World geometry is committed source
 data only: no new national demand package, routing run, or mod installation was
 performed during this recheck.
+
+## Input repair and physical-land gate — 2026-09-05
+
+The nine remaining input exceptions were reproduced together, then checked
+against the cached OSM extracts and the physical-land mask. The Hyogo jobs cell
+is about 5.3 m from mapped physical land, not 1.4 km from land: the latter was
+distance to the incomplete administrative ownership outline. The reviewed
+component is recorded in `worlds/japan/geography/ownership-additions.geojson`.
+It changes only Hyogo, introduces no overlap with other owners, and follows the
+existing ownership policy of filling water holes. The physical-land mask keeps
+those holes. Rebuilding the catalog must include:
+
+```text
+--ownership-additions worlds/japan/geography/ownership-additions.geojson
+```
+
+The cached OSM extracts have no building ways in the affected Mie and Nagasaki
+island areas. Supplemental footprints come from GSI's public optimal vector
+tiles, layer `BldA`, zoom 16, downloaded using small PMTiles byte ranges rather
+than the national archive. The World stores the selected footprints and anchors,
+source URL, attribution, tile coordinates and tile hashes. Source:
+<https://github.com/gsi-cyberjapan/optimal_bvmap> (国土地理院最適化ベクトルタイル).
+One Hyogo anchor instead uses the land-covered portion of cached OSM building
+way 921932304; its bounding-box centre is over water. No artificial building was
+invented. The original nine-cell placement reproduction now passes.
+
+`supplementalBuildingAnchors` is a declarative demand input. It augments the
+building candidates before the existing shared clustering pass, not afterwards.
+Source weights and the 750 m boundary / 5 km assignment limits remain unchanged.
+The dense candidate pool still uses a 750 m neighborhood. In sparse areas it
+also includes each source cell's nearest eligible real building within the
+existing 5 km assignment cap. Previously the narrow prefilter could discard a
+valid building 1–3 km away, then assign to a distant site or fail. These additional
+candidates enter the same clustering pass; the final 5 km guard still runs after
+clustering. Three isolated one-job Hokkaido cells reproduce this distinction.
+
+Compiler `estat-japan-national-package-v7-land-anchored` also requires Japan's
+hash-pinned `physicalLandMask`. Both generation and independent verification
+check actual serialized points against physical land, independently of the
+water-filled ownership/display outlines. This prevents an in-boundary building
+centre over a river or harbour from passing the placement gate. The mask lives
+in the central source store at `japan/geography/physical-land-repaired.geojson`;
+its SHA-256 is recorded in `worlds/japan/demand.json`. Large source data stays
+outside Git. Existing installed demand is not upgraded by these source edits.
+
+The first national retry exposed an additional Hokkaido assignment exceeding
+9 km. A full source-to-building coverage audit is therefore required before
+publication; the original nine-cell success is not national validation.
+
+The completed baseline building-coverage audit found 4,028 positive source cells
+above the 5 km cap, across 41 owners (5,923 above a 4.5 km preflight margin).
+This includes missing rural building coverage and Tokyo's distant islands absent
+from the old mainland building index. It does not mean those cells' coordinates
+are wrong. Supplement retrieval and merge are centralized scripts:
+
+```powershell
+# Optional dependencies: pip install -e 'map-creator[building-supplements]'
+python map-creator/scripts/fetch_japan_building_supplement.py `
+  --cases .analysis/japan-routing/national-building-gaps.json `
+  --output .analysis/japan-routing/gsi-national-gaps.geojson `
+  --cache .analysis/japan-routing/gsi-range-cache
+python map-creator/scripts/merge_japan_building_supplement.py `
+  --source .analysis/japan-routing/gsi-national-gaps.geojson
+```
+
+The lookup requests public archive byte ranges, not demand uploads. Individual
+responses and tile hashes are retained for resumption/provenance. The merger
+accepts only real building-footprint points covered by both owner and physical
+land. It records imports without changing source weights. A full topology
+validation of the physical mask completed locally; its reusable validity stamp
+is keyed by source bytes and GEOS version. Point membership is never cached away.

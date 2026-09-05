@@ -53,6 +53,26 @@ def ownership_boundary(world_root):
     return target
 
 
+def apply_ownership_additions(source, additions):
+    """Apply reviewed missing-land components without stealing another owner's land."""
+    import copy
+    output = copy.deepcopy(source)
+    features = {f['properties']['pref_code']: f for f in output['features']}
+    geometries = {code: shape(f['geometry']) for code, f in features.items()}
+    for feature in additions['features']:
+        code = feature['properties']['pref_code']
+        addition = shape(feature['geometry'])
+        if code not in geometries or addition.is_empty or not addition.is_valid or addition.geom_type not in ('Polygon','MultiPolygon'):
+            raise ValueError('Invalid ownership addition')
+        for other, geometry in geometries.items():
+            if other != code and addition.intersection(geometry).area > 1e-14:
+                raise ValueError(f'Ownership addition overlaps {other}')
+        if not geometries[code].covers(addition):
+            geometries[code] = shapely.union_all([geometries[code], addition])
+            features[code]['geometry'] = mapping(geometries[code])
+    return output
+
+
 def unowned_boundary_holes(geometries):
     """Distinguish unfilled water holes from legitimate neighboring enclaves."""
     geometries = list(geometries)

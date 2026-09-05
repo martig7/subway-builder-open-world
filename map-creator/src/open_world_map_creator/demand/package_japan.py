@@ -29,7 +29,7 @@ from .owned_ledger import OwnedDemandLedger
 from .estat_japan_prefecture import load_prefecture_boundary
 
 
-COMPILER_VERSION = "estat-japan-national-package-v6-boundary-first"
+COMPILER_VERSION = "estat-japan-national-package-v7-land-anchored"
 SPECIAL_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 
 
@@ -243,6 +243,30 @@ def compile_japan(
     progress = Progress(progress_path)
     catalog = read_json(world_root / "geography" / "tile-views.json")
     demand_policy = read_json(world_root / "demand.json")["cohortPolicy"]
+    supplement_key = read_json(world_root / "demand.json").get("supplementalBuildingAnchors")
+    supplemental_buildings = {}
+    supplement_report = None
+    land_spec = read_json(world_root / 'demand.json').get('physicalLandMask')
+    physical_land = None
+    if land_spec:
+        from ..geography import SOURCE_ROOT
+        from .physical_land import PhysicalLandIndex
+        land_path = (SOURCE_ROOT / land_spec['source']).resolve()
+        if SOURCE_ROOT.resolve() not in land_path.parents or sha256(land_path) != land_spec['sha256']:
+            raise ValueError('Physical-land source path/hash mismatch')
+        progress.emit('physical-land', 'loading')
+        physical_land = PhysicalLandIndex.read(land_path)
+        progress.emit('physical-land', 'complete')
+    if supplement_key:
+        supplement_path = (world_root / supplement_key).resolve()
+        if world_root.resolve() not in supplement_path.parents:
+            raise ValueError('Supplemental building anchors escape the World directory')
+        supplement_data = read_json(supplement_path)
+        if not supplement_data.get('attribution'):
+            raise ValueError('Supplemental buildings require source attribution')
+        supplemental_buildings = supplement_data['byOwner']
+        supplement_report = {'path':str(supplement_path),'sha256':sha256(supplement_path),
+                             'attribution':supplement_data['attribution']}
     codes = [str(tile["prefCode"]) for tile in catalog["tiles"]]
     if codes != [f"{value:02d}" for value in range(1, 48)]:
         raise ValueError("Japan catalog must contain prefecture codes 01..47 in order")
@@ -262,7 +286,8 @@ def compile_japan(
     try:
         rows, placement_report = compile_boundary_sites(boundaries, sources,
             {code: maps_root / tile_id(code) / "buildings_index.bin.gz" for code in codes},
-            demand_policy, lambda message: progress.emit("boundary-sites", "running", message=message))
+            demand_policy, lambda message: progress.emit("boundary-sites", "running", message=message),
+            supplemental_buildings=supplemental_buildings, physical_land=physical_land)
     except ValueError as error:
         progress.emit("boundary-sites", "failed", error=str(error), publicationBlocked=True)
         raise
@@ -376,10 +401,12 @@ def compile_japan(
         "nativeOutsideRenderedBoundary": 0,
         "crossOutsideRenderedBoundaryPointCount": 0,
         "ownershipAudit": ownership_audit,
+        "supplementalBuildingAnchors": supplement_report,
+        "physicalLandMask": land_spec,
         "siteGeometry": site_geometry_reports,
         "aggregation": {
             **demand_policy,
-            "fineSeedSource": "osm-building-index-v1",
+            "fineSeedSource": "building-index-plus-attributed-footprints-v2" if supplement_report else "osm-building-index-v1",
             "unanchoredSiteCount": sum(
                 int(row.get("unanchoredSiteCount", 0))
                 for row in site_geometry_reports.values()

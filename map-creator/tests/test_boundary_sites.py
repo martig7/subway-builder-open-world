@@ -14,6 +14,7 @@ from open_world_map_creator.demand.boundary_sites import compile_boundary_sites
 from open_world_map_creator.demand.owned_ledger import OwnedDemandLedger
 from open_world_map_creator.demand.package_japan import Site, CrossRecord, road_estimate, _local_records, compile_japan, tile_id
 from open_world_map_creator.demand.verify_japan import verify
+from open_world_map_creator.demand.physical_land import PhysicalLandIndex
 
 
 def building_index(path, centers):
@@ -29,6 +30,43 @@ def building_index(path, centers):
 
 
 class BoundarySiteTests(unittest.TestCase):
+    def test_nearest_real_building_can_fill_sparse_coverage_within_existing_assignment_cap(self):
+        boundary=box(135,34,135.2,34.1)
+        sources={'27':{'home':[],'jobs':[{'longitude':135.005,'latitude':34.01,'jobs':1}]}}
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'buildings.gz'
+            building_index(path,[(135.03,34.01)])
+            sites,_=compile_boundary_sites({'27':boundary},sources,{'27':path},{'maximumCellToSiteDistanceM':5000},lambda *_:None)
+            self.assertEqual((sites['27'][0]['longitude'],sites['27'][0]['latitude']),(135.03,34.01))
+            self.assertEqual(sites['27'][0]['job_weight'],1)
+            building_index(path,[(135.1,34.01)])
+            with self.assertRaises(ValueError):
+                compile_boundary_sites({'27':boundary},sources,{'27':path},{'maximumCellToSiteDistanceM':5000},lambda *_:None)
+
+    def test_physical_water_is_rejected_even_when_ownership_fills_it(self):
+        boundary = box(135,34,135.02,34.02)
+        land = boundary.difference(box(135.009,34.009,135.011,34.011))
+        mask = PhysicalLandIndex({'purpose':'physical-land-computation','features':[{'geometry':mapping(land)}]})
+        sources={'27':{'home':[{'longitude':135.01,'latitude':34.01,'commuters':10}],'jobs':[]}}
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'buildings.gz'
+            building_index(path,[(135.01,34.01),(135.012,34.01)])
+            sites,report=compile_boundary_sites({'27':boundary},sources,{'27':path},{},lambda *_:None,physical_land=mask)
+        self.assertEqual((sites['27'][0]['longitude'],sites['27'][0]['latitude']),(135.012,34.01))
+        self.assertEqual(sum(s['home_weight'] for s in sites['27']),10)
+
+    def test_supplemental_buildings_use_shared_clustering_and_conserve_mass(self):
+        boundary = box(135, 34, 135.02, 34.02)
+        sources = {'27': {'home':[{'longitude':135.01,'latitude':34.01,'commuters':13}], 'jobs':[]}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'buildings.gz'
+            building_index(path, [])
+            sites, report = compile_boundary_sites({'27':boundary}, sources, {'27':path}, {}, lambda *_:None,
+                supplemental_buildings={'27':[{'id':'gsi-test-1','location':[135.0101,34.0102]}]})
+        self.assertEqual(sum(s['home_weight'] for s in sites['27']), 13)
+        self.assertEqual((sites['27'][0]['longitude'],sites['27'][0]['latitude']), (135.0101,34.0102))
+        self.assertEqual(report['owners']['27']['supplementalBuildingCount'], 1)
+
     def test_national_package_and_independent_verifier_agree_on_final_ownership(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)

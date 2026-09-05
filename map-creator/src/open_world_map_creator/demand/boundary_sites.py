@@ -13,10 +13,10 @@ from shapely.geometry import Point
 from .building_sites import build_tile_sites, assign_source_weights, _local_metric_crs
 from .estat_japan_prefecture import BoundaryOwnershipIndex, relocate_into_boundary, resolve_cell_ownership
 
-VERSION = 'boundary-first-building-sites-v1'
+VERSION = 'boundary-first-building-sites-v2-land-inputs'
 
 
-def compile_boundary_sites(boundaries, sources, building_paths, policy, progress=print):
+def compile_boundary_sites(boundaries, sources, building_paths, policy, progress=print, *, supplemental_buildings=None, physical_land=None):
     index = BoundaryOwnershipIndex(boundaries, boundaries)
     maximum_coastal = float(policy.get('maximumBoundarySnapDistanceM', 750))
     maximum_assignment = float(policy.get('maximumCellToSiteDistanceM', 5000))
@@ -60,6 +60,9 @@ def compile_boundary_sites(boundaries, sources, building_paths, policy, progress
             radius_m=float(policy.get('pointMergeDistanceM', 350)),
             source_radius_m=float(policy.get('buildingSourceRadiusM', 750)),
             candidate_grid_m=float(policy.get('candidateGridM', 100)),
+            supplemental_buildings=(supplemental_buildings or {}).get(owner, []),
+            physical_land=physical_land,
+            maximum_assignment_m=maximum_assignment,
         )
         if not sites:
             raise ValueError(f'Owner {owner} has demand but no eligible building sites')

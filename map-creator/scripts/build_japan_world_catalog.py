@@ -269,8 +269,12 @@ def build(
     tolerance_m: float = 10.0,
     minimum_island_area_km2: float = DEFAULT_MINIMUM_ISLAND_AREA_KM2,
     seam_closure_m: float = DEFAULT_SEAM_CLOSURE_M,
+    ownership_additions: Path | None = None,
 ) -> tuple[dict, dict]:
     overlay = build_overlay(source, tolerance_m, minimum_island_area_km2, seam_closure_m)
+    if ownership_additions:
+        from open_world_map_creator.geography import apply_ownership_additions
+        overlay = apply_ownership_additions(overlay, json.loads(ownership_additions.read_text(encoding='utf-8')))
     features = overlay["features"]
     geometries = {feature["properties"]["pref_code"]: shape(feature["geometry"]) for feature in features}
     neighbor_models: dict[str, list[tuple[str, str]]] = {code: [] for code in geometries}
@@ -340,12 +344,14 @@ def main() -> None:
     parser.add_argument("--overlay-tolerance-m", type=float, default=10.0)
     parser.add_argument("--minimum-island-area-km2", type=float, default=DEFAULT_MINIMUM_ISLAND_AREA_KM2)
     parser.add_argument("--seam-closure-m", type=float, default=DEFAULT_SEAM_CLOSURE_M)
+    parser.add_argument("--ownership-additions", type=Path)
     args = parser.parse_args()
     catalog, overlay = build(
         args.source,
         args.overlay_tolerance_m,
         args.minimum_island_area_km2,
         args.seam_closure_m,
+        args.ownership_additions,
     )
     for destination, value in ((args.catalog, catalog), (args.overlay, overlay)):
         destination.parent.mkdir(parents=True, exist_ok=True)

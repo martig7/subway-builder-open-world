@@ -102,6 +102,8 @@ def select_building_candidates(
     source_radius_m: float = 750.0,
     candidate_grid_m: float = 100.0,
     chunk_size: int = 250_000,
+    physical_land: Any | None = None,
+    maximum_assignment_m: float | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Choose irregular building anchors independently of the e-Stat lattice."""
     source_cells = [*home_cells, *job_cells]
@@ -116,6 +118,9 @@ def select_building_candidates(
     source_latitudes = np.asarray([cell["latitude"] for cell in source_cells], dtype=np.float64)
     source_x, source_y = transformer.transform(source_longitudes, source_latitudes)
     source_tree = cKDTree(np.column_stack((source_x, source_y)))
+    if maximum_assignment_m is not None and maximum_assignment_m <= 0:
+        raise ValueError('Maximum assignment distance must be positive')
+    search_radius = max(source_radius_m, maximum_assignment_m or source_radius_m)
     retained_parts: list[np.ndarray] = []
     for start in range(0, len(buildings["x"]), chunk_size):
         end = min(start + chunk_size, len(buildings["x"]))
@@ -124,7 +129,7 @@ def select_building_candidates(
             k=1,
             workers=-1,
         )
-        retained_parts.append(np.flatnonzero(distances <= source_radius_m) + start)
+        retained_parts.append(np.flatnonzero(distances <= search_radius) + start)
     retained = np.concatenate(retained_parts)
     inside = shapely.covers(
         boundary,
@@ -132,8 +137,28 @@ def select_building_candidates(
         shapely.points(np.round(buildings["longitudes"][retained], 7), np.round(buildings["latitudes"][retained], 7)),
     )
     retained = retained[np.asarray(inside, dtype=bool)]
+    off_land_count = 0
+    if physical_land is not None:
+        on_land = physical_land.covers(np.column_stack((np.round(buildings['longitudes'][retained],7),
+                                                       np.round(buildings['latitudes'][retained],7))))
+        off_land_count = int((~on_land).sum())
+        retained = retained[on_land]
     if len(retained) == 0:
         raise ValueError(f"{tile_id} has no in-boundary buildings near positive demand sources")
+
+    nearest_fill_count = 0
+    if maximum_assignment_m is not None:
+        coordinates = np.column_stack((buildings['x'][retained], buildings['y'][retained]))
+        near_distances, _ = source_tree.query(coordinates, workers=-1)
+        near = retained[near_distances <= source_radius_m]
+        building_tree = cKDTree(coordinates)
+        distances, indexes = building_tree.query(np.column_stack((source_x,source_y)), workers=-1)
+        # The broad search only contributes each cell's nearest real building;
+        # it does not emit a mesh-centred or off-land fallback. Final clustering
+        # and the caller's assignment cap still apply to every resulting point.
+        nearest = retained[indexes[distances <= maximum_assignment_m]]
+        retained = np.union1d(near, nearest)
+        nearest_fill_count = len(retained) - len(near)
 
     grid_x = np.floor(buildings["x"][retained] / candidate_grid_m).astype(np.int64)
     grid_y = np.floor(buildings["y"][retained] / candidate_grid_m).astype(np.int64)
@@ -148,7 +173,7 @@ def select_building_candidates(
     for building_index in selected_indices:
         source_id = int(buildings["sourceIds"][building_index])
         seeds.append({
-            "id": f"osm-building-{tile_id.lower()}-{source_id}",
+            "id": buildings.get("supplementalIds", {}).get(source_id, f"osm-building-{tile_id.lower()}-{source_id}"),
             "x": float(buildings["x"][building_index]),
             "y": float(buildings["y"][building_index]),
             "longitude": float(buildings["longitudes"][building_index]),
@@ -157,6 +182,8 @@ def select_building_candidates(
         })
     return seeds, {
         "buildingCount": len(buildings["x"]),
+        "rejectedOffLandBuildingCount": off_land_count,
+        "nearestBuildingCoverageFillCount": nearest_fill_count,
         "buildingIndexCellDegrees": buildings["cellSizeDegrees"],
         "homeSourceCellCount": len(home_cells),
         "jobSourceCellCount": len(job_cells),
@@ -286,9 +313,28 @@ def build_tile_sites(
     radius_m: float = 350.0,
     source_radius_m: float = 750.0,
     candidate_grid_m: float = 100.0,
+    supplemental_buildings: list[dict[str, Any]] | None = None,
+    physical_land: Any | None = None,
+    maximum_assignment_m: float | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     transformer = Transformer.from_crs("EPSG:4326", _local_metric_crs(boundary), always_xy=True)
+    shapely.prepare(boundary)
+    if candidate_boundary is not None:
+        shapely.prepare(candidate_boundary)
     buildings = read_building_centers(building_index_path, clip_bounds, transformer)
+    supplements = sorted(supplemental_buildings or [], key=lambda row: row['id'])
+    if len({row['id'] for row in supplements}) != len(supplements):
+        raise ValueError('Duplicate supplemental building IDs')
+    if supplements:
+        coordinates = np.asarray([row['location'] for row in supplements], dtype=float)
+        if coordinates.shape != (len(supplements), 2) or not np.isfinite(coordinates).all():
+            raise ValueError('Invalid supplemental building coordinates')
+        longitudes, latitudes = coordinates.T
+        x, y = transformer.transform(longitudes, latitudes)
+        for key, values in [('longitudes', longitudes), ('latitudes', latitudes), ('x', x), ('y', y),
+                            ('sourceIds', -np.arange(1, len(supplements)+1))]:
+            buildings[key] = np.concatenate((buildings[key], values))
+        buildings['supplementalIds'] = {-i-1: row['id'] for i, row in enumerate(supplements)}
     fine_seeds, fine_report = select_building_candidates(
         tile_id,
         home_cells,
@@ -298,6 +344,8 @@ def build_tile_sites(
         candidate_boundary if candidate_boundary is not None else boundary,
         source_radius_m=source_radius_m,
         candidate_grid_m=candidate_grid_m,
+        physical_land=physical_land,
+        maximum_assignment_m=maximum_assignment_m,
     )
     sites, merge_report = cluster_building_seeds(tile_id, fine_seeds, radius_m)
     home_weights, maximum_home_distance = assign_source_weights(
@@ -319,6 +367,7 @@ def build_tile_sites(
     return populated_sites, {
         **fine_report,
         **merge_report,
+        "supplementalBuildingCount": len(supplements),
         "siteCount": len(populated_sites),
         "mergeRadiusM": radius_m,
         "maximumHomeCellToSiteDistanceM": round(maximum_home_distance, 3),

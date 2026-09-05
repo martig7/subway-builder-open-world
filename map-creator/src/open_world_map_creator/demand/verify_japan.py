@@ -41,6 +41,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     for boundary in boundaries.values():
         prepare(boundary)
     native_mass = 0
+    all_coordinates = []
     native_points = 0
     native_cohorts = 0
     outside = 0
@@ -51,6 +52,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
         if manifest["tileId"] != tile["id"] or manifest["sha256"] != sha256(demand_path):
             raise ValueError(f"Manifest mismatch for {tile['id']}")
         demand = read_gzip_json(demand_path)
+        all_coordinates.extend(point['location'] for point in demand['points'])
         point_ids = [str(point["id"]) for point in demand["points"]]
         pop_ids = [str(pop["id"]) for pop in demand["pops"]]
         if len(point_ids) != len(set(point_ids)) or len(pop_ids) != len(set(pop_ids)):
@@ -79,6 +81,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     cross = read_gzip_json(demand_root / "world" / "cross_demand.json.gz")
     commutes = read_json(demand_root / "world" / "cross_commutes.json")
     point_fields = {name: index for index, name in enumerate(cross["pointFields"])}
+    all_coordinates.extend([row[point_fields['longitude']],row[point_fields['latitude']]] for row in cross['points'])
     pop_fields = {name: index for index, name in enumerate(cross["popFields"])}
     cross_ids = [str(row[pop_fields["id"]]) for row in cross["pops"]]
     if len(cross_ids) != len(set(cross_ids)):
@@ -115,7 +118,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     report = read_json(demand_root / 'reports' / 'japan-national-demand.json')
     if native_mass + cross_mass != report['acceptedMass']:
         raise ValueError('National commute mass differs from accepted source controls')
-    if report.get('compilerVersion') == 'estat-japan-national-package-v6-boundary-first':
+    if report.get('compilerVersion') in ('estat-japan-national-package-v6-boundary-first','estat-japan-national-package-v7-land-anchored'):
         if cross_outside:
             raise ValueError(f'{cross_outside} cross-demand points are outside ownership boundaries')
         if report.get('ownershipBoundary', {}).get('sha256') != sha256(ownership_boundary(world_root)):
@@ -125,6 +128,20 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
             work = cross['points'][int(row[pop_fields['workPoint']])][point_fields['tileId']]
             if home == work:
                 raise ValueError('Same-owner commute was incorrectly retained as cross-tile')
+    land_spec = read_json(world_root / 'demand.json').get('physicalLandMask')
+    off_land = None
+    if land_spec:
+        from ..geography import SOURCE_ROOT
+        from .physical_land import PhysicalLandIndex
+        path = (SOURCE_ROOT / land_spec['source']).resolve()
+        if SOURCE_ROOT.resolve() not in path.parents or sha256(path) != land_spec['sha256']:
+            raise ValueError('Physical-land source path/hash mismatch')
+        if report.get('physicalLandMask') != land_spec:
+            raise ValueError('Demand was compiled with a different physical-land mask')
+        land = PhysicalLandIndex.read(path)
+        off_land = int((~land.covers(all_coordinates)).sum())
+        if off_land:
+            raise ValueError(f'{off_land} demand points are off physical land')
     return {
         "valid": True,
         "tileCount": len(selected),
@@ -137,6 +154,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
         "crossOutsideRenderedBoundaryPointCount": cross_outside,
         "totalMass": native_mass + cross_mass,
         "outsideRenderedBoundary": outside,
+        "offPhysicalLandPointCount": off_land,
     }
 
 

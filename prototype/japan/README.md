@@ -22,12 +22,14 @@ prefectures retain detailed exclusive arcs without applying a global coastline
 close:
 
 ```powershell
+$env:PYTHONPATH='map-creator/src'
 python map-creator\scripts\build_japan_world_catalog.py `
   --source map-creator\data\sources\japan\geography\prefectures-full.geojson `
   --catalog worlds\japan\geography\tile-views.json `
   --overlay worlds\japan\geography\prefectures.geojson `
   --overlay-tolerance-m 10 `
   --minimum-island-area-km2 0 `
+  --ownership-additions worlds\japan\geography\ownership-additions.geojson `
   --seam-closure-m 0
 ```
 
