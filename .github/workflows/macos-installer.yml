@@ -40,6 +40,19 @@ jobs:
       - name: Real NEC GitHub install smoke
         if: matrix.rid == 'osx-arm64'
         run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server" --full-release
+      - name: Live UI backend integration
+        env:
+          UI_SNAPSHOT_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          "$HOME/Applications/Open World Manager.app/Contents/MacOS/OpenWorldManager" --ui-smoke > artifacts/ui-smoke.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" || true' EXIT
+          for i in $(seq 1 30); do
+            test -f "$UI_SNAPSHOT_ROOT/ui-smoke-passed" && break
+            sleep 1
+          done
+          cat "$UI_SNAPSHOT_ROOT/ui-smoke-passed"
       - name: Capture every interface
         if: always()
         env:

@@ -30,6 +30,20 @@ try
     Assert(before.SequenceEqual(File.ReadAllBytes(mod)), "Cancelled repair changed installed mod");
     await host.VerifyAsync("nec-test", CancellationToken.None);
     Console.WriteLine("PASS cancellation leaves installed world intact");
+    using (var cancel = new CancellationTokenSource())
+    {
+        try {
+            await host.InstallAsync(["nec-test"], assets, new Reporter(p => { if (p.CurrentItem.Contains(": ")) cancel.Cancel(); }), cancel.Token);
+            throw new Exception("Map extraction cancellation did not abort");
+        } catch (OperationCanceledException) { }
+    }
+    await host.VerifyAsync("nec-test", CancellationToken.None);
+    Console.WriteLine("PASS cancellation during map extraction preserves prior installation");
+    var added = Path.Combine(Path.GetDirectoryName(mod)!, "user-notes.txt");
+    File.WriteAllText(added, "keep this");
+    await Fails(() => host.InstallAsync(["nec-test"], assets, null, CancellationToken.None));
+    Assert(File.ReadAllText(added) == "keep this", "Repair removed added file"); File.Delete(added);
+    Console.WriteLine("PASS repair preserves user-added files");
     // Simulate process death between replacing a directory and committing its journal.
     var transaction = Path.Combine(root, "manager", "transaction");
     Directory.CreateDirectory(Path.Combine(transaction, "backup", "mods"));

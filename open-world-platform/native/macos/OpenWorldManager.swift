@@ -33,6 +33,7 @@ struct World: Identifiable {
     var logRoot = ""
     var snapshot = false
     var operation = ""
+    let refresh = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     var selectedWorld: String { selected.sorted().first ?? worlds.first?.id ?? "" }
     var installed: Bool { worlds.contains { $0.installed } }
     var chosen: [World] { worlds.filter { selected.contains($0.id) } }
@@ -107,7 +108,12 @@ struct World: Identifiable {
             }
             if selected.isEmpty, let first = worlds.first { selected = [first.id] }
             installing = !installed
-        case "status": serverStatus = object["message"] as? String ?? "Unknown"
+        case "status":
+            serverStatus = object["message"] as? String ?? "Unknown"
+            if CommandLine.arguments.contains("--ui-smoke"), ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true",
+               let root = ProcessInfo.processInfo.environment["UI_SNAPSHOT_ROOT"], !worlds.isEmpty {
+                try? "Signed catalog loaded: \(worlds.count) worlds; server: \(serverStatus)".write(toFile: root + "/ui-smoke-passed", atomically: true, encoding: .utf8)
+            }
         case "progress":
             message = object["message"] as? String ?? "Installing"
             item = object["item"] as? String ?? ""
@@ -142,13 +148,14 @@ struct World: Identifiable {
         selected = [worlds[0].id]; installing = ["installer", "progress", "cancel"].contains(state)
         serverStatus = "Running — 34 tile packages"
         if ["progress", "cancel"].contains(state) { busy = true; operation = "install"; message = "Downloading release files"; item = "nec-map-part-03-of-04-v0.5.0.zip"; fraction = 0.62; transfer = "2.2 GB / 3.5 GB" }
-        if state == "error" { error = "The tile server could not start because port 8799 is already in use. Close the other tile server and try again." }
+        if state == "error" { serverStatus = "Unknown service on port 8799"; error = "The tile server could not start because port 8799 is already in use. Close the other tile server and try again." }
         if state == "complete" { message = "Complete"; serverStatus = "Stopped" }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             if state == "cancel" { self.confirmCancel = true }
             if state == "uninstall" { self.confirmUninstall = true }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            NSApp.activate(ignoringOtherApps: true)
             guard let root = ProcessInfo.processInfo.environment["UI_SNAPSHOT_ROOT"], let window = NSApp.windows.first(where: { $0.isVisible }) else { return }
             try? String(window.windowNumber).write(toFile: root + "/window-id", atomically: true, encoding: .utf8)
         }
@@ -265,6 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var body: some Scene {
         Window("Open World Manager", id: "manager") {
             MainView(model: model).onAppear { AppDelegate.model = model; if model.worlds.isEmpty { model.boot() } }
+                .onReceive(model.refresh) { _ in if !model.busy && !model.snapshot { model.run("status") } }
         }.windowResizability(.contentSize)
         MenuBarExtra("Open World Manager", systemImage: "tram.fill") {
             ManagerMenu(model: model)
