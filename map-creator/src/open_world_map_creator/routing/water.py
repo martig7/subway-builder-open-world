@@ -52,8 +52,15 @@ class LandMask:
         crs = f"+proj=aeqd +lat_0={(y0+y1)/2} +lon_0={(x0+x1)/2} +datum=WGS84 +units=m"
         self.forward = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
         self.inverse = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
-        merged = shapely.union_all([transform(self.forward.transform, g) for g in geometries])
-        self.parts = list(shapely.get_parts(merged))
+        projected = [transform(self.forward.transform, g) for g in geometries]
+        # Our physical-mask compiler already dissolved shared coast fragments
+        # before subtracting water. Do not repeat a national union for every
+        # routing run; generic input masks still need that normalization.
+        if data.get("purpose") == "physical-land-computation":
+            self.parts = [part for g in projected for part in shapely.get_parts(g)]
+        else:
+            self.parts = list(shapely.get_parts(shapely.union_all(projected)))
+        shapely.prepare(self.parts)
         self.tree = shapely.STRtree(self.parts)
         self.crs = crs
 
@@ -171,8 +178,8 @@ class StraightWaterRouter:
                 # Intersection/inverse-projection roundoff can put a shoreline
                 # point micrometres outside its polygon. Permit only 1 mm of
                 # numerical error, not a buffer that could bridge real water.
-                if (metres <= self.max_access_metres and land.distance(snapped) <= .001
-                        and connector.difference(land).length <= .001):
+                if (metres <= self.max_access_metres and (land.covers(connector)
+                        or (land.distance(snapped) <= .001 and connector.difference(land).length <= .001))):
                     accepted.append((coordinate, metres))
             self.access[key] = accepted
         return self.access[key]

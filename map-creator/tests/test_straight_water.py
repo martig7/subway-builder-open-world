@@ -156,6 +156,16 @@ class WaterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Display boundaries"):
             LandMask(json.dumps(data).encode())
 
+    def test_compiled_physical_mask_reuses_dissolved_land_parts(self):
+        data = json.loads(self.raw)
+        data['purpose'] = 'physical-land-computation'
+        with patch('shapely.union_all', side_effect=AssertionError('national union repeated')):
+            land = LandMask(json.dumps(data).encode())
+        self.assertEqual(len(land.parts), 3)
+        plan, reason = land.plan((130.01, 30.01), (130.09, 30.01))
+        self.assertIsNone(reason)
+        self.assertEqual([s[0] for s in plan], ['land', 'water', 'land', 'water', 'land'])
+
     def test_cross_publication_finds_unsampled_water_without_scaling_or_changing_other_routes(self):
         class Backend:
             input_fingerprint = {"water": "test"}
