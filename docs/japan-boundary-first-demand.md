@@ -213,3 +213,48 @@ Supplement imports replace complete files atomically, publishing footprints
 before anchors. Replaying a failed import restores missing footprint provenance
 without duplicating anchors. This addresses a Windows file-write failure seen
 during the final targeted import.
+
+## Completed national regeneration — 2026-09-05
+
+The final v7 run completed all 47 prefectures in 371 seconds. Its independent
+verification passed against the serialized outputs:
+
+| Check | Result |
+| --- | ---: |
+| In-tile point records | 246,431 |
+| Cross-tile point records | 31,420 |
+| In-tile / cross-tile cohorts | 602,807 / 33,553 |
+| Accepted / generated demand mass | 69,466,356 / 69,466,356 |
+| Points outside assigned ownership | 0 |
+| Points outside physical land | 0 |
+| Unanchored sites | 0 |
+| Maximum home / jobs cell-to-site distance | 4,479.214 m / 4,579.736 m |
+| Maximum coastal ownership adjustment | 337.693 m |
+
+Point counts are per dataset, not a distinct-location union: one location can
+participate in both native and cross-tile demand. The legacy verifier fields
+named `outsideRenderedBoundary` check full ownership geometry, not simplified
+display LODs. No placement cap was relaxed and no source demand was discarded.
+
+The staged package is `.analysis/japan-routing/demand-v7-land-anchored`; its
+`reports/verification.json` and `reports/japan-national-demand.json` record the
+audit and source hashes. Progress is retained in
+`.analysis/japan-routing/demand-v7-progress.jsonl`; earlier failed attempts also
+appear in that append-only log. The completed package uses preliminary geometric
+travel times and is **not an OSRM-routed release**. Existing routed demand under
+`prototype/japan/generated/demand`, the installed `local.japan-open-world` mod,
+and tile services were not replaced or restarted. The runnable consumer remains
+`prototype/japan/mod`; routing and installation are separate next steps.
+
+Recheck the staged output:
+
+```powershell
+$env:PYTHONPATH='map-creator/src'
+python -m open_world_map_creator.demand.verify_japan `
+  --world-root worlds/japan `
+  --demand-root .analysis/japan-routing/demand-v7-land-anchored
+```
+
+Validation during this change: map-creator 72 passing tests and one skipped;
+shared platform 486 passing; Japan consumer two passing. The on-disk package
+audit is not an in-game visual confirmation.
