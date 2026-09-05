@@ -85,8 +85,12 @@ try
         var id = catalog.Worlds[0].Product.ManifestId;
         await real.InstallAsync([id], null, new Reporter(p => { if (p.Stage == InstallStage.Installing) Console.WriteLine(p.CurrentItem); }), CancellationToken.None);
         await real.VerifyAsync(id, CancellationToken.None);
+        try {
+            await real.StartAsync();
+            Assert((await real.StatusAsync()).StartsWith("Running"), "Real NEC tile server is not healthy");
+        } finally { await real.StopAsync(); }
         await real.UninstallAsync(id);
-        Console.WriteLine("PASS real GitHub NEC download, hashes, full install, verification and uninstall");
+        Console.WriteLine("PASS real GitHub NEC download, hashes, full install, verification, server health and uninstall");
     }
     ReleaseManifest Fixture(string tile, string id)
     {

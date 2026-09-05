@@ -12,11 +12,11 @@ try
     _ = Task.Run(async () => { while (await Console.In.ReadLineAsync() is { } line) if (line == "cancel") cancellation.Cancel(); });
     switch (command)
     {
-        case "catalog": Emit(new { type = "catalog", data = installation.Describe() }); break;
+        case "catalog": using (installation.Lock()) { installation.Recover(); Emit(new { type = "catalog", data = installation.Describe() }); } break;
         case "status": Emit(new { type = "status", message = await installation.StatusAsync() }); break;
-        case "start": using (installation.Lock()) await installation.StartAsync(); break;
+        case "start": using (installation.Lock()) { installation.Recover(); await installation.StartAsync(); } break;
         case "stop": using (installation.Lock()) await installation.StopAsync(); break;
-        case "restart": using (installation.Lock()) { await installation.StopAsync(); await installation.StartAsync(); } break;
+        case "restart": using (installation.Lock()) { await installation.StopAsync(); installation.Recover(); await installation.StartAsync(); } break;
         case "install":
         case "repair":
             await installation.InstallAsync(args.Skip(1).ToArray(), Environment.GetEnvironmentVariable("OPEN_WORLD_ASSET_ROOT"),
