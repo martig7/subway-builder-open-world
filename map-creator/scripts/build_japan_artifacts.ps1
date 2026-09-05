@@ -52,6 +52,18 @@ if (-not $SkipMaps) {
 }
 
 $env:PYTHONPATH = Join-Path $mapCreatorRoot 'src'
+# A label-only stage: never regenerate demand or routing to change presentation.
+$labelArgs = @(
+    (Join-Path $PSScriptRoot 'publish_japan_labels.py'),
+    '--maps-root', (Join-Path $generatedRoot 'maps'),
+    '--catalog', $catalogPath,
+    '--definition', (Join-Path $worldRoot 'labels.json'),
+    '--sources-root', (Join-Path $dataRoot 'sources'),
+    '--backup-root', (Join-Path $dataRoot 'backups/japan-labels')
+)
+foreach ($tileId in $Tile) { $labelArgs += @('--tile', $tileId) }
+python @labelArgs
+if ($LASTEXITCODE -ne 0) { throw 'Japan label publication failed.' }
 if (-not $SkipDemand) {
     python -m open_world_map_creator.demand.package_japan `
         --output-root (Join-Path $generatedRoot 'demand') `

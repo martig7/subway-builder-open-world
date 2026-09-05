@@ -13,6 +13,7 @@ from shapely.ops import transform
 COMPATIBLE_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 MANUAL_CORRIDORS = {("01", "02"): "tunnel-or-ferry", ("46", "47"): "ferry-or-air"}
 CATALOG_CRS = "+proj=lcc +lat_1=30 +lat_2=46 +lat_0=38 +lon_0=138 +ellps=GRS80 +units=m +no_defs"
+PREFECTURE_DISPLAY_NAMES = json.loads((Path(__file__).resolve().parents[2] / "worlds/japan/geography/prefecture-display-names.json").read_text(encoding="utf-8"))
 # Ownership includes islands. Visibility/complexity belongs to display LODs.
 DEFAULT_MINIMUM_ISLAND_AREA_KM2 = 0.0
 DEFAULT_SEAM_CLOSURE_M = 0.0
@@ -311,7 +312,7 @@ def build(
             "id": identifier,
             "gameCityCode": identifier,
             "prefCode": code,
-            "name": properties["pref_name_ja"],
+            "name": PREFECTURE_DISPLAY_NAMES[code],
             "bounds": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],
             "haloBounds": [round(west - 0.05, 7), round(south - 0.05, 7), round(east + 0.05, 7), round(north + 0.05, 7)],
             "ownershipProjected": [round(value, 3) for value in projected.bounds],

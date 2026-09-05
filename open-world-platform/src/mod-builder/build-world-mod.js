@@ -33,6 +33,13 @@ function moduleSpecifier(fromDirectory, targetPath) {
   return relative.startsWith('.') ? relative : `./${relative}`;
 }
 
+export function assertMapLabelPolicy(definition, manifest, tileId) {
+  const required = definition.map.labelPolicy;
+  if (required && manifest.labelPolicy !== required) {
+    throw new Error(`${tileId}: map label policy ${manifest.labelPolicy ?? '(missing)'} does not match ${required}; run the World's label publication stage`);
+  }
+}
+
 function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definition, worldDefinitionHash }) {
   const runtime = moduleSpecifier(consumerRoot, path.join(platformRoot, 'src', 'runtime', 'start-open-world.js'));
   const worldDefinition = moduleSpecifier(consumerRoot, path.join(worldRoot, 'world.json'));
@@ -100,6 +107,12 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
     if (!(await hasFile(crossCommutesPath))) missing.push('demand/world/cross_commutes.json');
     if (!(await hasFile(crossDemandPath))) missing.push('demand/world/cross_demand.json.gz');
     if (missing.length === 0) {
+      // Validate before replacing any staged packages. Presentation must not
+      // silently regress when a map worker produces fresh, raw source labels.
+      for (const tile of selectedTiles) {
+        const manifest = JSON.parse(await readFile(path.join(mapRoot, tile.id, 'map-manifest.json'), 'utf8'));
+        assertMapLabelPolicy(definition, manifest, tile.id);
+      }
       await rm(packageRoot, { recursive: true, force: true });
       await mkdir(packageRoot, { recursive: true });
       const packageManifest = {

@@ -52,6 +52,7 @@ export function validateWorldDefinition(definition) {
   requireRelativeJsonPath(map.sourceLock, 'map.sourceLock', errors);
   requireString(map.profile, 'map.profile', errors, STABLE_ID);
   requireString(map.basemapRevision, 'map.basemapRevision', errors, STABLE_ID);
+  if (map.labelPolicy != null) requireString(map.labelPolicy, 'map.labelPolicy', errors, STABLE_ID);
 
   const demand = requireObject(root.demand, 'demand', errors);
   if (!SUPPORTED_DEMAND_ADAPTERS.has(demand.adapter)) errors.push(`demand.adapter is unsupported: ${demand.adapter ?? '(missing)'}`);

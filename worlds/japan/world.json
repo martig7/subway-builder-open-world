@@ -21,7 +21,8 @@
     "sourceLock": "sources.lock.json",
     "sourceLayout": "map.json",
     "profile": "osm-depot-world-v1",
-    "basemapRevision": "japan-national-v1"
+    "basemapRevision": "japan-source-romaji-v1",
+    "labelPolicy": "japan-source-romaji-v1"
   },
   "demand": {
     "adapter": "estat-japan",
@@ -35,7 +36,7 @@
     "tileServerPort": 8801,
     "tileBaseGlobal": "JAPAN_OPEN_WORLD_TILE_BASE",
     "diagnosticNamespace": "japan",
-    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-national-v1",
+    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-source-romaji-v1",
     "requiredHostCapabilities": ["native-save-authority-v1", "native-ledger-authority-v1"]
   },
   "release": {
