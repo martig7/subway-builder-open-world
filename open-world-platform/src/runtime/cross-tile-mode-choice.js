@@ -9,6 +9,8 @@ const DEFAULT_WAIT_SECONDS = 5 * 60;
 
 const DEFAULT_RULES = Object.freeze({
   MAX_WALK_TO_FROM_STATION: 30 * 60,
+  MAX_DRIVE_TO_FROM_STATION: 7 * 60,
+  DRIVE_TO_STATION_ACCESS: false,
   DRIVING_COST_PER_KM: 0.65,
   MIN_SENSIBLE_DRIVING_DISTANCE: 1_000,
   PARKING_TIME: 180,
@@ -94,6 +96,7 @@ function hashNetworkValue(value) {
 
 function stableNetworkSignature(profile) {
   return hashNetworkValue({
+    pathfindingRules: profile.pathfindingRules,
     tileId: profile.tileId,
     stations: profile.stations.map((station) => [station.id, station.coords, station.stNodeIds, station.nearbyStations]),
     routes: profile.routes.map((route) => [route.id, route.stNodeIds, route.serviceCount, route.stComboTimings, route.timetableSchedule, route.departureAnchorsByNode]),
@@ -103,6 +106,7 @@ function stableNetworkSignature(profile) {
 
 function structuralNetworkSignature(profile) {
   return hashNetworkValue({
+    pathfindingRules: profile.pathfindingRules,
     tileId: profile.tileId,
     stations: profile.stations.map((station) => [station.id, station.coords, station.stNodeIds, station.nearbyStations]),
     routes: profile.routes.map((route) => [
@@ -516,7 +520,9 @@ function advanceRouteLabel(currentLabel, edge, rules) {
 function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, requestedDepartureSeconds, rules) {
   const waitSeconds = bestLabel.waitSeconds;
   const departureShiftSeconds = bestLabel.departureShiftSeconds;
-  const accessPerceivedSeconds = bestLabel.accessWalkSeconds * rules.PERCEIVED_TIME.WALK_MULTIPLIER;
+  const accessPerceivedSeconds = bestLabel.accessDriveSeconds > 0
+    ? bestLabel.accessDriveSeconds
+    : bestLabel.accessWalkSeconds * rules.PERCEIVED_TIME.WALK_MULTIPLIER;
   const egressPerceivedSeconds = egressWalkSeconds * rules.PERCEIVED_TIME.WALK_MULTIPLIER;
   const result = {
     available: true,
@@ -542,6 +548,8 @@ function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, r
     }),
     usesNetworkConnection: bestLabel.boarded,
     accessWalkSeconds: bestLabel.accessWalkSeconds,
+    accessDriveSeconds: bestLabel.accessDriveSeconds ?? 0,
+    accessMode: bestLabel.accessDriveSeconds > 0 ? 'drive' : 'walk',
     egressWalkSeconds,
     transferWalkSeconds: bestLabel.transferWalkSeconds,
     waitSeconds,
@@ -560,25 +568,38 @@ function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, r
   return result;
 }
 
-function routeLeg(router, origin, destination, preferredTileId, requestedDepartureSeconds = 0, preparedCatchments = null) {
+function routeLeg(router, origin, destination, preferredTileId, requestedDepartureSeconds = 0, preparedCatchments = null, driveAccessSpeedMps = 0) {
   if (!router || router.tileIds.length === 0) return unavailableLeg('network-profile-missing');
   if (router.stations.length === 0) return unavailableLeg('no-constructed-stations');
   const rules = router.rulesByTile[preferredTileId] ?? router.defaultRules;
   const maxWalk = rules.MAX_WALK_TO_FROM_STATION;
   const walkWeight = rules.PERCEIVED_TIME.WALK_MULTIPLIER;
-  const starts = preparedCatchments?.origin?.stations ?? stationCatchment(router, origin, maxWalk).stations;
+  const walkingStarts = preparedCatchments?.origin?.stations ?? stationCatchment(router, origin, maxWalk).stations;
+  const startsById = new Map(walkingStarts.map(([id, seconds]) => [id, {seconds, mode:'walk'}]));
+  if (driveAccessSpeedMps > 0 && rules.DRIVE_TO_STATION_ACCESS === true) {
+    for (const station of router.stations) {
+      const seconds = distanceMetres(origin, station.coords) / driveAccessSpeedMps;
+      // Native park-and-ride chooses the faster access mode per stop. Driving
+      // is allowed only before boarding, never as egress or a gateway transfer.
+      if (seconds <= rules.MAX_DRIVE_TO_FROM_STATION && seconds < (startsById.get(station.id)?.seconds ?? Infinity)) {
+        startsById.set(station.id, {seconds, mode:'drive'});
+      }
+    }
+  }
+  const starts = [...startsById];
   const ends = new Map(preparedCatchments?.destination?.stations ?? stationCatchment(router, destination, maxWalk).stations);
   if (starts.length === 0) return unavailableLeg('origin-outside-walk-range');
   if (ends.size === 0) return unavailableLeg('destination-outside-walk-range');
   const labels = new Map(); const queue = new MinHeap();
-  for (const [id, seconds] of starts) {
-    const perceivedSeconds = seconds * walkWeight;
+  for (const [id, {seconds, mode}] of starts) {
+    const perceivedSeconds = seconds * (mode === 'drive' ? 1 : walkWeight);
     const key = routeStateKey(id, null);
     if (perceivedSeconds >= (labels.get(key)?.perceivedSeconds ?? Infinity)) continue;
     labels.set(key, {
       stationId: id, currentRouteId: null, sourceStationId: id, stationPath: [id], stationRoutes: [],
       actualTime: requestedDepartureSeconds + seconds,
-      perceivedSeconds, accessWalkSeconds: seconds, transferWalkSeconds: 0,
+      perceivedSeconds, accessWalkSeconds: mode === 'walk' ? seconds : 0,
+      accessDriveSeconds: mode === 'drive' ? seconds : 0, transferWalkSeconds: 0,
       waitSeconds: 0, departureShiftSeconds: 0, inVehicleSeconds: 0,
       boarded: false, networkTileIds: [], edgePath: [],
     });
@@ -591,7 +612,7 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
     if (!currentLabel || distance !== currentLabel.perceivedSeconds) continue;
     if (distance >= best) break;
     const endWalk = ends.get(currentLabel.stationId);
-    if (endWalk != null) {
+    if (endWalk != null && (currentLabel.boarded || !(currentLabel.accessDriveSeconds > 0))) {
       const candidate = distance + endWalk * walkWeight;
       if (candidate < best) {
         best = candidate; destinationStationId = currentLabel.stationId;
@@ -685,8 +706,8 @@ function cachedEndpointLeg(router, origin, destination, preferredTileId, request
   return { ...calculated, cacheHit: false, endpointCacheDirection: direction, gatewayId, attemptedNetworkTiles: router.tileIds };
 }
 
-function routeLegAcrossNetworks(router, origin, destination, preferredTileId, { requireNetworkConnection = false, requestedDepartureSeconds = 0 } = {}) {
-  const leg = routeLeg(router, origin, destination, preferredTileId, requestedDepartureSeconds);
+function routeLegAcrossNetworks(router, origin, destination, preferredTileId, { requireNetworkConnection = false, requestedDepartureSeconds = 0, driveAccessSpeedMps = 0 } = {}) {
+  const leg = routeLeg(router, origin, destination, preferredTileId, requestedDepartureSeconds, null, driveAccessSpeedMps);
   if (leg.available && (!requireNetworkConnection || leg.usesNetworkConnection)) {
     return { ...leg, attemptedNetworkTiles: router.tileIds };
   }
@@ -805,15 +826,15 @@ function inspectGatewayChain({ popId, gatewayId, home, work, router, tileCatalog
   };
 }
 
-function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatewayCatalog, tileCatalog, requestedDepartureSeconds = 0 }) {
+function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatewayCatalog, tileCatalog, requestedDepartureSeconds = 0, driveAccessSpeedMps = 0 }) {
   if (!pop) throw new RangeError(`Unknown cross-demand pop index: ${popIndex}`);
   const [popId, , homeIndex, workIndex, gatewayIndex] = pop;
   const home = points[homeIndex]; const work = points[workIndex]; const gatewayId = gateways[gatewayIndex];
-  const chained = inspectGatewayChain({
+  const chained = driveAccessSpeedMps > 0 ? null : inspectGatewayChain({
     popId, gatewayId, home, work, router: routers, tileCatalog, requestedDepartureSeconds,
   });
   if (chained?.available) return chained;
-  const continuousLeg = routeLegAcrossNetworks(routers, home.coords, work.coords, home.tileId, { requireNetworkConnection: true, requestedDepartureSeconds });
+  const continuousLeg = routeLegAcrossNetworks(routers, home.coords, work.coords, home.tileId, { requireNetworkConnection: true, requestedDepartureSeconds, driveAccessSpeedMps });
   if (continuousLeg.available) {
     return {
       popId, gatewayId, available: true, continuous: true, reason: null,
@@ -833,7 +854,7 @@ function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatew
   // A native save owns the route objects it captured, but a route can extend
   // beyond that tile's geographic boundary. Search every saved profile so a
   // cross-boundary line remains usable from either side of the handoff.
-  const homeLeg = routeLegAcrossNetworks(routers, home.coords, gatewayCoords, home.tileId, { requestedDepartureSeconds });
+  const homeLeg = routeLegAcrossNetworks(routers, home.coords, gatewayCoords, home.tileId, { requestedDepartureSeconds, driveAccessSpeedMps });
   const workRequestedDeparture = homeLeg.available
     ? requestedDepartureSeconds + homeLeg.totalClockSeconds - homeLeg.egressWalkSeconds
     : requestedDepartureSeconds;
@@ -855,7 +876,7 @@ function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatew
     gatewaySeconds: 0,
     totalSeconds: available ? homeSegmentSeconds + workSegmentSeconds : null,
     totalClockSeconds: available
-      ? homeLeg.accessWalkSeconds + homeLeg.departureShiftSeconds + homeLeg.waitSeconds
+      ? homeLeg.accessWalkSeconds + (homeLeg.accessDriveSeconds ?? 0) + homeLeg.departureShiftSeconds + homeLeg.waitSeconds
         + homeLeg.transferWalkSeconds + homeLeg.networkSeconds
         + workLeg.transferWalkSeconds + workLeg.networkSeconds + workLeg.egressWalkSeconds
       : null,
@@ -875,7 +896,19 @@ export function inspectCrossTileTransitPath({ crossDemand, popIndex, networkProf
   const pop = crossDemand.pops[popIndex];
   if (!pop) throw new RangeError(`Unknown cross-demand pop index: ${popIndex}`);
   const departureSeconds = popDepartureSeconds(pop, popFields(crossDemand.popFields), requestedDepartureSeconds);
-  return inspectPopTransitPath({ pop, popIndex, points, gateways: crossDemand.gateways, routers, gatewayCatalog, tileCatalog, requestedDepartureSeconds: departureSeconds });
+  const rules = routers.rulesByTile[points[pop[2]].tileId] ?? routers.defaultRules;
+  return inspectPopTransitPath({ pop, popIndex, points, gateways: crossDemand.gateways, routers, gatewayCatalog, tileCatalog, requestedDepartureSeconds: departureSeconds,
+    driveAccessSpeedMps: driveAccessSpeed(pop, crossDemand.popFields, rules, departureSeconds) });
+}
+
+function driveAccessSpeed(pop, fields, rules, departureSeconds) {
+  if (rules.DRIVE_TO_STATION_ACCESS !== true) return 0;
+  const index = fields instanceof Map ? fields : new Map((fields ?? []).map((name, i) => [name, i]));
+  const seconds = pop[index.get('drivingSeconds')];
+  const distance = pop[index.get('drivingDistance')];
+  const congestion = drivingMultiplierAt(departureSeconds, rules);
+  return Number.isFinite(seconds) && seconds > 0 && Number.isFinite(distance) && distance > 0 && congestion > 0
+    ? distance / seconds / congestion : 0;
 }
 
 function inverseNormalCDF(value) {
@@ -1006,7 +1039,8 @@ function inspectPopModeChoice({ pop, popIndex, points, gateways, routers, gatewa
   const departureSeconds = popDepartureSeconds(pop, fields, requestedDepartureSeconds);
   const drivingTimeMultiplier = drivingMultiplierAt(departureSeconds, rules);
   const driving = packagedDrivingInputs(pop, direct, fields, drivingModel);
-  const transitPath = inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatewayCatalog, tileCatalog, requestedDepartureSeconds: departureSeconds });
+  const transitPath = inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatewayCatalog, tileCatalog, requestedDepartureSeconds: departureSeconds,
+    driveAccessSpeedMps: driveAccessSpeed(pop, fields, rules, departureSeconds) });
   const transitTime = transitPath.available ? transitPath.totalSeconds : Infinity;
   const stationRoutes = stationRoutesForTransitPath(transitPath);
   const fareQuote = transitPath.available && stationRoutes.length > 0 && typeof journeyFare === 'function'

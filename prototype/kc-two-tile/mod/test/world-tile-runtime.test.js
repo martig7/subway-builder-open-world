@@ -786,7 +786,7 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
       schemaVersion: 4,
       source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 3,
+      evaluatorSchemaVersion: 4,
       contextKey: `${tileId}:context`,
       evaluationKey: `${tileId}:cached`,
       tileId,
@@ -824,7 +824,7 @@ test('passive mode-share cache invalidates when fare or timetable context change
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
       schemaVersion: 4,
       source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 3,
+      evaluatorSchemaVersion: 4,
       contextKey: `${tileId}:context`,
       evaluationKey: `${tileId}:cached`,
       tileId,

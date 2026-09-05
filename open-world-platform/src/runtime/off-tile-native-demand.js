@@ -6,7 +6,7 @@ import {
   deterministicNativeDepartureTimes,
 } from './native-finance-model.js';
 
-const EVALUATOR_SCHEMA_VERSION = 3;
+const EVALUATOR_SCHEMA_VERSION = 4;
 const POP_FIELDS = Object.freeze([
   'id', 'mass', 'homeIndex', 'workIndex', 'gatewayIndex',
   'drivingSeconds', 'drivingDistance', 'homeDepartureTime', 'workDepartureTime',
@@ -111,6 +111,7 @@ export function offTileNativeDemandContextKey({
     evaluatorSchemaVersion: EVALUATOR_SCHEMA_VERSION,
     tileId,
     network: network.structuralSignature ?? network.signature ?? null,
+    pathfindingRules: network.pathfindingRules ?? {},
     farePolicy: scopedFarePolicy(farePolicy, network),
     financeOwnedRouteIds: [...financeOwnedRouteIds]
       .map(String).filter((routeId) => localRouteIds.has(routeId)).sort(),
@@ -182,7 +183,20 @@ function fareQuoteFor({ stationRoutes, stationById, farePolicy, globalNativeStat
   });
 }
 
-function syntheticNativePops(calculated, sourceById) {
+function syntheticNativePops(calculated, sourceById, returnCalculated) {
+  if (returnCalculated) {
+    const outward = new Map(syntheticNativePops(calculated, sourceById).map(pop => [pop.id, pop]));
+    const homeward = new Map(syntheticNativePops(returnCalculated, sourceById).map(pop => [pop.id, pop]));
+    return [...new Set([...outward.keys(), ...homeward.keys()])].map(id => ({
+      id,
+      homeDepartureTime: sourceById.get(id)?.homeDepartureTime,
+      workDepartureTime: sourceById.get(id)?.workDepartureTime,
+      commutes: {
+        homeToWork: outward.get(id)?.commutes.homeToWork ?? {modeChoice:{transit:0}},
+        workToHome: homeward.get(id)?.commutes.workToHome ?? {modeChoice:{transit:0}},
+      },
+    }));
+  }
   const journeys = [...calculated.transitJourneys.values()].flat();
   return journeys.map((journey) => {
     const source = sourceById.get(String(journey.popId)) ?? {};
@@ -251,8 +265,8 @@ export function evaluateOffTileNativeDemand({
   }
 
   const normalized = normalizeDemand(tileId, demand);
-  const calculated = calculateCrossTileModeShares({
-    crossDemand: normalized.demand,
+  const evaluateDirection = crossDemand => calculateCrossTileModeShares({
+    crossDemand,
     networkProfiles: { [tileId]: network },
     gatewayCatalog: {},
     fare: Number(farePolicy?.fare) || 0,
@@ -260,8 +274,16 @@ export function evaluateOffTileNativeDemand({
       stationRoutes, stationById, farePolicy, globalNativeState,
     }),
   });
+  const calculated = evaluateDirection(normalized.demand);
+  // Native 1.7 permits driving to the first station in either direction but
+  // never driving from the final station. Reusing the outward choice for the
+  // return journey invents riders when the home is beyond walking catchment.
+  const returnCalculated = evaluateDirection({ ...normalized.demand,
+    pops: normalized.demand.pops.map(([id,mass,home,work,gateway,seconds,distance,hd,wd]) =>
+      [id,mass,work,home,gateway,seconds,distance,wd,hd]),
+  });
   const revenue = calculateNativeRevenueProfile(
-    syntheticNativePops(calculated, normalized.sourceById),
+    syntheticNativePops(calculated, normalized.sourceById, returnCalculated),
     {
       financeOwnedRouteIds,
       fareGroups: globalNativeState?.fareGroups ?? farePolicy?.fareGroups ?? [],

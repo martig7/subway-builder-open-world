@@ -1,4 +1,5 @@
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
+import { readDriveToStationAccess } from '../native-routing-settings.js';
 import {
   CANONICAL_NATIVE_NETWORK_MODE,
   mergeSharedTransitNetworkState,
@@ -3353,6 +3354,13 @@ export class SubwayBuilderGameAdapter {
     };
   }
 
+  capturePathfindingRules() {
+    return {
+      ...this.api?.utils?.getPathfindingRules?.() ?? {},
+      DRIVE_TO_STATION_ACCESS: readDriveToStationAccess(),
+    };
+  }
+
   captureCrossTileNetworkProfile(tileId = this.loadedCityCode) {
     const gameState = this.api?.gameState;
     if (!gameState || typeof gameState.getStations !== 'function' || typeof gameState.getRoutes !== 'function' || typeof gameState.getTrains !== 'function') {
@@ -3363,7 +3371,7 @@ export class SubwayBuilderGameAdapter {
       stations: gameState.getStations(),
       routes: gameState.getRoutes(),
       trains: gameState.getTrains(),
-      pathfindingRules: this.api?.utils?.getPathfindingRules?.() ?? {},
+      pathfindingRules: this.capturePathfindingRules(),
     });
   }
 

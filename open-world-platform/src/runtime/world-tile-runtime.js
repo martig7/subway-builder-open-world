@@ -613,6 +613,8 @@ export class WorldTileRuntime {
       };
     }
     const results = { evaluated: 0, cached: 0, unavailable: [], failed: [] };
+    const pathfindingRules = this.game.capturePathfindingRules?.() ?? networkProfile?.pathfindingRules ?? {};
+    finance.routingRulesKey = JSON.stringify(pathfindingRules);
     const globalState = world.globalNetwork?.nativeState ?? null;
     const financeOwnedRouteIds = world.activeProjection?.financeOwnedRouteIds ?? [];
     const hasSpatialTileCatalog = this.tileCatalog?.tiles?.some?.((tile) => Array.isArray(tile?.bounds));
@@ -632,6 +634,7 @@ export class WorldTileRuntime {
               stations: localized.stations,
               routes: localized.routes,
               trains: localized.trains,
+              pathfindingRules,
             })
             : globalState
               ? createNetworkProfile({
@@ -639,6 +642,7 @@ export class WorldTileRuntime {
                 stations: globalState.stations ?? [],
                 routes: globalState.routes ?? [],
                 trains: globalState.trains ?? [],
+                pathfindingRules,
               })
             : (candidateTileId === tileId ? networkProfile : world.tiles?.[candidateTileId]?.networkProfile);
           if (!candidateProfile) { results.unavailable.push(candidateTileId); continue; }
@@ -777,6 +781,7 @@ export class WorldTileRuntime {
     });
     return {
       version: NATIVE_REVENUE_RECOVERY_VERSION, worldId: world.worldId,
+      routingRules: this.game.capturePathfindingRules?.() ?? null,
       activeTileId: world.activeTileId, elapsedSeconds: globals?.elapsedSeconds ?? world.elapsedSeconds,
       networkHash: world.globalNetwork?.hash ?? null, profileNetworkHash: finance?.networkHash ?? null,
       // Both are representative-day forecasts. The native value uses live
@@ -832,7 +837,9 @@ export class WorldTileRuntime {
   async #recoverNativeRevenueProfiles(world, targetHour) {
     const pending = this.nativeRevenueCompilation;
     const finance = world.backgroundNativeFinance;
-    if (!pending && finance?.networkHash && this.tileIds.every(id => finance.tileRevenueProfiles?.[id])) {
+    const rules = this.game.capturePathfindingRules?.();
+    const rulesCurrent = rules == null || finance?.routingRulesKey === JSON.stringify(rules);
+    if (!pending && rulesCurrent && finance?.networkHash && this.tileIds.every(id => finance.tileRevenueProfiles?.[id])) {
       return { status: 'derived-cache', networkHash: finance.networkHash };
     }
     if (pending?.worldId === world.worldId && pending.attemptedHour >= targetHour) {
@@ -844,6 +851,8 @@ export class WorldTileRuntime {
   async recalculateCrossTileModeShare({ reason = 'manual', day = null, force = false } = {}) {
     this.#requireBooted();
     return this.#enqueue(async () => {
+      const rules = this.game.capturePathfindingRules?.();
+      if (rules != null && this.world.backgroundNativeFinance?.routingRulesKey !== JSON.stringify(rules)) force = true;
       const currentContextKey = crossModeShareContextKey(this.world);
       const passiveCacheReady = this.world.crossModeShare?.schemaVersion === CROSS_MODE_SHARE_SCHEMA_VERSION
         && !this.nativeRevenueCompilation
@@ -2246,6 +2255,7 @@ export class WorldTileRuntime {
         stations: state.stations ?? [],
         routes: state.routes ?? [],
         trains: state.trains ?? [],
+        pathfindingRules: this.game.capturePathfindingRules?.() ?? {},
       });
     }
     return this.game.captureCrossTileNetworkProfile?.(tileId) ?? null;
