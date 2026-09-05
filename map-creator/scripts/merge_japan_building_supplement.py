@@ -6,12 +6,23 @@ Anchors must lie within a supplied footprint, physical land and its named owner.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import shapely
 from shapely.geometry import Point, shape
 from open_world_map_creator.demand.physical_land import PhysicalLandIndex
 from open_world_map_creator.geography import SOURCE_ROOT, ownership_boundary
+
+
+def footprint_key(feature):
+    return hashlib.sha256(json.dumps(feature,sort_keys=True,separators=(',',':')).encode()).digest()
+
+
+def write_compact_atomic(path, value):
+    temporary = path.with_name(path.name+'.tmp')
+    temporary.write_text(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+    os.replace(temporary,path)
 
 
 def main():
@@ -39,6 +50,7 @@ def main():
     footprint_path = target.with_name('supplemental-building-footprints.geojson')
     footprints = json.loads(footprint_path.read_text(encoding='utf-8'))
     seen = {tuple(r['location']) for rows in anchors['byOwner'].values() for r in rows}
+    footprint_keys = {footprint_key(feature) for feature in footprints['features']}
     added = {}; rejected = 0
     for i,feature in enumerate(source['features']):
         properties = feature['properties']; owner = properties['prefCode']
@@ -57,12 +69,16 @@ def main():
         location = [round(point.x,7),round(point.y,7)]
         if not geometry.covers(Point(*location)) or not boundaries[owner].covers(Point(*location)) or not land.covers([location])[0]:
             rejected += 1; continue
+        # Replaying an interrupted import must also restore missing provenance.
+        key = footprint_key(feature)
+        if key not in footprint_keys:
+            footprints['features'].append(feature)
+            footprint_keys.add(key)
         if tuple(location) in seen: continue
         seen.add(tuple(location))
         identity = 'gsi-building-'+hashlib.sha256(json.dumps(location).encode()).hexdigest()[:20]
         anchors['byOwner'].setdefault(owner,[]).append({'id':identity,'location':location,
             'sourceTile':properties['tile'],'sourceId':properties.get('sourceId')})
-        footprints['features'].append(feature)
         added[owner] = added.get(owner,0)+1
         if i % 500 == 0: print(f'Processed {i}/{len(source["features"])} footprints',flush=True)
     for rows in anchors['byOwner'].values(): rows.sort(key=lambda row:row['id'])
@@ -70,8 +86,10 @@ def main():
         'source':source['source'],'attribution':source['attribution'],'tiles':source.get('tiles',[]),
         'addedByOwner':added,'rejectedFootprints':rejected})
     footprints['attribution'] = anchors['attribution']
-    for path,value in [(target,anchors),(footprint_path,footprints)]:
-        path.write_text(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+    # Publish provenance first; interruption can leave extra footprints, never
+    # new anchors lacking their source footprint. Each replacement is atomic.
+    for path,value in [(footprint_path,footprints),(target,anchors)]:
+        write_compact_atomic(path,value)
     print(json.dumps({'added':added,'rejected':rejected}),flush=True)
 
 

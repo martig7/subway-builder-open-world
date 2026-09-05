@@ -199,3 +199,17 @@ accepts only real building-footprint points covered by both owner and physical
 land. It records imports without changing source weights. A full topology
 validation of the physical mask completed locally; its reusable validity stamp
 is keyed by source bytes and GEOS version. Point membership is never cached away.
+
+The supplemental input now contains 174,750 verified anchors across 41 owners.
+The national lookup added 172,913 anchors; targeted island, Hokkaido and Kumamoto
+lookups supply the remainder. The final Kumamoto exception represented eight
+jobs, initially 5,989 m from an eligible site. A wider public-footprint lookup
+added 15 valid owned, on-land anchors; the owner now passes the unchanged 5 km
+limit. Prefectures 44–47 had no remaining cells beyond the 4.5 km preflight
+margin. Footprints outside physical land or the requested owner are rejected,
+even when geographically close to the source cell.
+
+Supplement imports replace complete files atomically, publishing footprints
+before anchors. Replaying a failed import restores missing footprint provenance
+without duplicating anchors. This addresses a Windows file-write failure seen
+during the final targeted import.
