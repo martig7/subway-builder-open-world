@@ -959,7 +959,7 @@ function ringFor(tile) {
   return [[west, south], [east, south], [east, north], [west, north], [west, south]];
 }
 
-export const BOUNDARY_LOD_VERSION = 'precomputed-boundary-lod-v1';
+export const BOUNDARY_LOD_VERSION = 'precomputed-boundary-lod-v2';
 
 function boundaryLodFor(tile, zoom) {
   return (tile.boundaryLods ?? []).filter((level) => level.minZoom <= zoom).at(-1);
@@ -1047,12 +1047,16 @@ function syncNativeHoverDelegateGate(map, owner) {
 export function tileBoundaryGeoJson(catalog, activeTileId = null, hoveredTileId = null, zoom = Infinity) {
   return {
     type: 'FeatureCollection',
-    features: (catalog?.tiles ?? []).flatMap((tile) => {
+    features: (catalog?.tiles ?? []).flatMap((tile, featureId) => {
       const geometry = boundaryGeometryFor(tile, zoom);
       if (!geometry) return [];
       return [{
         type: 'Feature',
-        id: tile.id,
+        // The game's GeoJSON tiler drops string Feature.id values unless the
+        // source uses promoteId. Numeric catalog slots also repair retained
+        // sources on hot reload without destroying layers or their delegates.
+        // Keep the World identity in properties.tileId, not this render-only ID.
+        id: featureId,
         properties: {
           tileId: tile.id,
           name: tile.name ?? tile.id,
@@ -2874,6 +2878,7 @@ export class GeographicContextOverlayController {
     const lodKey = this.tileCatalog.tiles.map((tile) => boundaryLodFor(tile, zoom)?.minZoom ?? 'legacy').join(',');
     const stateKey = `${activeTileId}:${this.hoveredTileId}`;
     const unchangedGeometry = this.boundarySubmission?.source === source
+      && this.boundarySubmission?.version === BOUNDARY_LOD_VERSION
       && this.boundarySubmission?.lodKey === lodKey;
     const featureState = typeof this.map?.setFeatureState === 'function';
     if (featureState && (this.map.__openWorldBoundaryLodStyleVersion !== BOUNDARY_LOD_VERSION
@@ -2889,8 +2894,8 @@ export class GeographicContextOverlayController {
     }
     if (unchangedGeometry && this.boundarySubmission.stateKey === stateKey) return;
     if (featureState && unchangedGeometry) {
-      for (const tile of this.tileCatalog.tiles) this.map.setFeatureState(
-        { source: BOUNDARY_SOURCE_ID, id: tile.id },
+      for (const [featureId, tile] of this.tileCatalog.tiles.entries()) this.map.setFeatureState(
+        { source: BOUNDARY_SOURCE_ID, id: featureId },
         { active: tile.id === activeTileId, hovered: tile.id === this.hoveredTileId && tile.id !== activeTileId },
       );
       this.boundarySubmission.stateKey = stateKey;
@@ -2899,8 +2904,8 @@ export class GeographicContextOverlayController {
     this.boundarySubmission = { source, lodKey, stateKey, version: BOUNDARY_LOD_VERSION };
     this.map.__openWorldBoundaryLodDiagnostic = { version: BOUNDARY_LOD_VERSION, lodKey, zoom };
     if (featureState) {
-      for (const tile of this.tileCatalog.tiles) this.map.setFeatureState(
-        { source: BOUNDARY_SOURCE_ID, id: tile.id },
+      for (const [featureId, tile] of this.tileCatalog.tiles.entries()) this.map.setFeatureState(
+        { source: BOUNDARY_SOURCE_ID, id: featureId },
         { active: tile.id === activeTileId, hovered: tile.id === this.hoveredTileId && tile.id !== activeTileId },
       );
     }

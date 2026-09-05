@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
+import { tileBoundaryGeoJson } from '../../../../open-world-platform/src/runtime/ui/geographic-context-overlay.js';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..', '..');
 const worldRoot = path.join(repositoryRoot, 'worlds', 'japan');
@@ -22,7 +23,19 @@ test('Japan separates centrally stored computation geometry from zoom-dependent 
   assert.equal(definition.map.computationBoundary, 'japan/geography/prefectures-full.geojson');
   const display = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.boundaryOverlay), 'utf8'));
   assert.equal(display.purpose, 'display-only');
-  assert.deepEqual(display.lods.map((level) => level.minZoom), [0, 6, 8, 10, 12]);
+  assert.deepEqual(display.lods.map((level) => level.minZoom), [0, 7, 9, 11, 13]);
   assert.ok(display.lods[0].vertexCount < display.lods.at(-1).vertexCount * .06);
   for (const level of display.lods) assert.equal(level.features.length, 47);
+  const tile = { id: 'display-threshold-test', boundaryLods: display.lods.map(level => ({
+    minZoom: level.minZoom, geometry: level.features[0].geometry,
+  })) };
+  for (let i = 1; i < display.lods.length; i++) {
+    const zoom = display.lods[i].minZoom;
+    for (const priorZoom of [zoom - 1, zoom - .001]) {
+      assert.equal(tileBoundaryGeoJson({ tiles: [tile] }, null, null, priorZoom).features[0].geometry,
+        display.lods[i - 1].features[0].geometry);
+    }
+    assert.equal(tileBoundaryGeoJson({ tiles: [tile] }, null, null, zoom).features[0].geometry,
+      display.lods[i].features[0].geometry);
+  }
 });

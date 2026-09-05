@@ -13,7 +13,8 @@ from shapely.ops import transform
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 SOURCE_ROOT = Path(os.environ.get("OW_MAP_DATA_ROOT", REPOSITORY / "map-creator" / "data")) / "sources"
-DISPLAY_LEVELS = ((0, 2000), (6, 500), (8, 100), (10, 25), (12, 0))
+# Keep each simpler level for one more zoom step before adding detail.
+DISPLAY_LEVELS = ((0, 2000), (7, 500), (9, 100), (11, 25), (13, 0))
 METRIC_CRS = "+proj=lcc +lat_1=30 +lat_2=46 +lat_0=38 +lon_0=138 +ellps=GRS80 +units=m"
 
 

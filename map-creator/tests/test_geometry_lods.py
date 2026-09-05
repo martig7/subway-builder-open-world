@@ -40,6 +40,7 @@ class GeometryTests(unittest.TestCase):
             for i, g in enumerate(polygons)]}
         original = json.dumps(source)
         result = display_lods(source, lambda _: None)
+        self.assertEqual([level["minZoom"] for level in result["lods"]], [0, 7, 9, 11, 13])
         self.assertEqual(json.dumps(source), original)
         self.assertLess(result["lods"][0]["vertexCount"], result["lods"][-1]["vertexCount"])
         for level in result["lods"]:
