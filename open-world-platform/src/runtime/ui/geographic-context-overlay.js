@@ -11,6 +11,7 @@ const TILE_SELECTION_LAYER_ID = 'open-world-tile-selection';
 const TILE_BOUNDARY_LAYER_ID = 'open-world-tile-boundaries';
 const WORLD_BOUNDARY_LAYER_ID = 'open-world-country-boundaries';
 const WORLD_CONTEXT_SOURCE_ID = 'open-world-world-context-source';
+export const WORLD_CONTEXT_VERSION = 'independent-world-context-v1';
 const WORLD_LAND_HIGH_ZOOM_LAYER_ID = 'open-world-land-high-zoom';
 const WORLD_BOUNDARY_HIGH_ZOOM_LAYER_ID = 'open-world-country-boundaries-high-zoom';
 const WORLD_OCEAN_SOURCE_ID = 'open-world-ocean-source';
@@ -2339,10 +2340,10 @@ function replaceGeographicContextControllerOwner(map, controller) {
   }
 }
 
-function worldContextSourceDefinition(map) {
+function worldContextSourceDefinition(map, worldContextTilesUrl) {
   const serialized = safeMapStyle(map)?.sources?.['general-tiles'];
   const source = safeMapSource(map, 'general-tiles');
-  const tiles = source?.tiles ?? source?._options?.tiles ?? serialized?.tiles;
+  const tiles = worldContextTilesUrl ? [worldContextTilesUrl] : source?.tiles ?? source?._options?.tiles ?? serialized?.tiles;
   const url = source?._options?.url ?? serialized?.url;
   if (!Array.isArray(tiles) && typeof url !== 'string') return null;
   return {
@@ -2369,15 +2370,31 @@ function mapStyleLoaded(map) {
   try { return Boolean(map?.isStyleLoaded?.()); } catch { return false; }
 }
 
-function ensureWorldContextSource(map) {
-  if (safeMapSource(map, WORLD_CONTEXT_SOURCE_ID)) return true;
-  const definition = worldContextSourceDefinition(map);
+function ensureWorldContextSource(map, worldContextTilesUrl) {
+  const definition = worldContextSourceDefinition(map, worldContextTilesUrl);
   if (!definition) return false;
+  const existing = safeMapSource(map, WORLD_CONTEXT_SOURCE_ID);
+  if (existing) {
+    const serialized = safeMapStyle(map)?.sources?.[WORLD_CONTEXT_SOURCE_ID];
+    const tiles = existing.tiles ?? existing._options?.tiles ?? serialized?.tiles;
+    const maxzoom = existing.maxzoom ?? existing._options?.maxzoom ?? serialized?.maxzoom;
+    if (JSON.stringify(tiles) === JSON.stringify(definition.tiles)
+      && (definition.tiles || (existing.url ?? existing._options?.url ?? serialized?.url) === definition.url)
+      && maxzoom === definition.maxzoom) return true;
+    // A retained source may still point at a city-only archive. Remove its
+    // dependent layers before replacing it; the refresh recreates them below
+    // native map content with the current definition.
+    for (const layer of safeMapStyle(map)?.layers ?? []) {
+      if (layer.source === WORLD_CONTEXT_SOURCE_ID) map.removeLayer?.(layer.id);
+    }
+    map.removeSource?.(WORLD_CONTEXT_SOURCE_ID);
+  }
   try { map.addSource?.(WORLD_CONTEXT_SOURCE_ID, definition); } catch {}
   return Boolean(safeMapSource(map, WORLD_CONTEXT_SOURCE_ID));
 }
 
-function ensureArtifacts(map) {
+function ensureArtifacts(map, worldContextTilesUrl) {
+  map.__openWorldWorldContextVersion = WORLD_CONTEXT_VERSION;
   const worldLayerIds = new Set([
     WORLD_WATER_BACKGROUND_LAYER_ID,
     WORLD_OCEAN_LAYER_ID,
@@ -2422,7 +2439,7 @@ function ensureArtifacts(map) {
     // land until the next full game restart.
     try { map.setLayerZoomRange(WORLD_OCEAN_LAYER_ID, 0, STATION_MARKER_MIN_ZOOM); } catch {}
   }
-  const hasWorldContextSource = ensureWorldContextSource(map);
+  const hasWorldContextSource = ensureWorldContextSource(map, worldContextTilesUrl);
   const worldSourceId = hasWorldContextSource ? WORLD_CONTEXT_SOURCE_ID : 'general-tiles';
   const existingWorldLand = map.getLayer?.(WORLD_LAND_LAYER_ID);
   if (existingWorldLand && existingWorldLand.source !== worldSourceId) {
@@ -2451,7 +2468,8 @@ function ensureArtifacts(map) {
   }
   // These moves are intentional on every refresh: a hot reload may inherit
   // old ordering. Ocean must be below land, but both must cover the native
-  // background and remain below native water/road/rail layers.
+  // background and remain below ALL native content, including native land
+  // fills and interleaved Deck layers, as well as water/road/rail layers.
   try { map.moveLayer?.(WORLD_OCEAN_LAYER_ID, firstNativeContentLayer); } catch {}
   try { map.moveLayer?.(WORLD_LAND_LAYER_ID, firstNativeContentLayer); } catch {}
   try { map.moveLayer?.(WORLD_LAND_HIGH_ZOOM_LAYER_ID, firstNativeContentLayer); } catch {}
@@ -2561,6 +2579,7 @@ export class GeographicContextOverlayController {
     runtime,
     tileCatalog,
     onTileSelect = null,
+    worldContextTilesUrl = null,
     renderDistance = 3,
     renderDistanceStorage = globalThis.localStorage,
     renderDistanceStorageKey = 'open-world:render-distance',
@@ -2568,6 +2587,7 @@ export class GeographicContextOverlayController {
     this.runtime = runtime;
     this.tileCatalog = tileCatalog;
     this.onTileSelect = onTileSelect;
+    this.worldContextTilesUrl = worldContextTilesUrl;
     this.renderDistanceStorage = renderDistanceStorage;
     this.renderDistanceStorageKey = renderDistanceStorageKey;
     let persistedRenderDistance = null;
@@ -2782,7 +2802,7 @@ export class GeographicContextOverlayController {
         this.map,
         this.rendererVirtualization,
       ), { key: 'map-refresh-snapshot', every: 1, first: 100 });
-      mapMovePerfMeasure('overlay.ensure-artifacts', () => ensureArtifacts(this.map));
+      mapMovePerfMeasure('overlay.ensure-artifacts', () => ensureArtifacts(this.map, this.worldContextTilesUrl));
       const activeTileId = this.activeTileId();
       if (this.hoveredTileId === activeTileId) this.setHoveredTile(null);
       this.syncTileBoundaryData(activeTileId);

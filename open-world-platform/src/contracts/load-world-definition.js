@@ -21,6 +21,10 @@ export async function loadWorldDefinition(worldRoot) {
   if (!selectedTiles.some((tile) => tile.id === definition.tileViews.initialTileId)) {
     throw new Error(`Initial Tile View is not selected: ${definition.tileViews.initialTileId}`);
   }
+  if (definition.map.worldContextTileId != null
+    && !selectedTiles.some((tile) => tile.id === definition.map.worldContextTileId)) {
+    throw new Error(`World context Tile Package is not selected: ${definition.map.worldContextTileId}`);
+  }
   return {
     worldRoot: resolvedWorldRoot,
     definitionPath,

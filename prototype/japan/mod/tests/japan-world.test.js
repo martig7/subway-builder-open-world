@@ -3,9 +3,21 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { tileBoundaryGeoJson } from '../../../../open-world-platform/src/runtime/ui/geographic-context-overlay.js';
+import { loadWorldDefinition } from '../../../../open-world-platform/src/contracts/load-world-definition.js';
+import { createOpenWorldCityRegistration } from '../../../../open-world-platform/src/runtime/open-world-city-registration.js';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..', '..');
 const worldRoot = path.join(repositoryRoot, 'worlds', 'japan');
+
+test('Japan world context uses its installed worldwide archive independently of the active prefecture', async () => {
+  const { definition, catalog } = await loadWorldDefinition(worldRoot);
+  const { tileUrl } = createOpenWorldCityRegistration({ definition, tileCatalog: catalog });
+  assert.equal(definition.map.worldContextTileId, 'JP_TOKYO_MAINLAND');
+  const sourceUrl = tileUrl({ tileId: definition.map.worldContextTileId });
+  assert.match(sourceUrl, /^http:\/\/127\.0\.0\.1:8799\/JP_TOKYO_MAINLAND\//);
+  assert.notEqual(sourceUrl, tileUrl({ tileId: 'JP_PREF_27' }));
+  assert.ok(tileUrl({ tileId: definition.map.worldContextTileId }, 'http://localhost:9000').startsWith('http://localhost:9000/'));
+});
 
 test('Japan Open World owns every prefecture through one manifest', async () => {
   const definition = JSON.parse(await readFile(path.join(worldRoot, 'world.json'), 'utf8'));

@@ -76,6 +76,7 @@ export function startOpenWorld({
     registerPilotCities,
     repairPilotMapCamera,
     repairPilotMapTileSource,
+    tileUrl,
   } = createOpenWorldCityRegistration({ definition, tileCatalog });
   const api = subwayBuilderHost;
   if (!api) throw new Error(`${logLabel} SubwayBuilderAPI is unavailable`);
@@ -816,6 +817,9 @@ export function startOpenWorld({
           runtime,
           tileCatalog,
           onTileSelect: switchFromWorldGrid,
+          worldContextTilesUrl: definition.map.worldContextTileId
+            ? tileUrl({ tileId: definition.map.worldContextTileId }, tileBase)
+            : null,
         });
         crossDemandController = registerCrossDemandViewer({
           api,

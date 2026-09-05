@@ -255,6 +255,31 @@ test('rebuilds renderer virtualization when the active tile changes while the ma
   controller.dispose();
 });
 
+test('explicit world context survives prefecture changes and repairs retained source/layer order', () => {
+  const map = fixtureMap();
+  const worldContextTilesUrl = 'http://127.0.0.1:8799/JP_TOKYO_MAINLAND/{z}/{x}/{y}.mvt?v=world-context-test';
+  map.sources.get('general-tiles').tiles = ['http://127.0.0.1:8799/JP_PREF_27/{z}/{x}/{y}.mvt'];
+  map.removeSource = id => map.sources.delete(id);
+  map.addLayer({ id: 'native-land', type: 'fill', source: 'general-tiles', 'source-layer': 'land' }, 'water');
+  const previous = registerGeographicContextOverlay({ tileCatalog: catalog });
+  previous.attachMap(map);
+  // Seed the source/order retained from the old active-city-based implementation.
+  map.moveLayer(geographicContextLayerIds.worldOcean);
+  map.moveLayer(geographicContextLayerIds.worldLand);
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog, worldContextTilesUrl });
+  controller.attachMap(map);
+  assert.deepEqual(map.sources.get(geographicContextLayerIds.worldContextSource).tiles, [worldContextTilesUrl]);
+  assert.equal(map.sources.get(geographicContextLayerIds.worldContextSource).maxzoom, 9);
+  for (const id of [geographicContextLayerIds.worldOcean, geographicContextLayerIds.worldLand, geographicContextLayerIds.worldLandHighZoom]) {
+    assert.ok(map.layerOrder.indexOf(id) < map.layerOrder.indexOf('native-land'), `${id} must be below native land`);
+  }
+  assert.ok(map.layerOrder.indexOf(geographicContextLayerIds.worldOcean) < map.layerOrder.indexOf(geographicContextLayerIds.worldLand));
+  map.sources.get('general-tiles').tiles = ['http://127.0.0.1:8799/JP_PREF_28/{z}/{x}/{y}.mvt'];
+  controller.refresh();
+  assert.deepEqual(map.sources.get(geographicContextLayerIds.worldContextSource).tiles, [worldContextTilesUrl]);
+  controller.dispose();
+});
+
 test('keeps tiled geography on the unified basemap and adds lightweight context sources', () => {
   const map = fixtureMap();
   const controller = registerGeographicContextOverlay({
