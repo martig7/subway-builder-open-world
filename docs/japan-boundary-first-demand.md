@@ -258,3 +258,57 @@ python -m open_world_map_creator.demand.verify_japan `
 Validation during this change: map-creator 72 passing tests and one skipped;
 shared platform 486 passing; Japan consumer two passing. The on-disk package
 audit is not an in-game visual confirmation.
+
+## Completed v7 reroute — 2026-09-05
+
+The regenerated package was rerouted with the existing OSRM MLD dataset
+`geofabrik-japan-8b9165a595130fbe-car-v6`, passenger ferries with a 300-second
+exit transfer, and the existing 5 km/h straight-water fallback. The runner used
+the same hash-verified physical-land source as demand generation, 16 OSRM
+workers, and the durable coordinate-keyed cache. No road graph rebuild or cache
+deletion was needed. Processing finished in 1,120.32 seconds (18m 40s).
+
+All 602,807 native and 33,553 cross-tile cohorts were processed. Cross routing
+retains the existing four-samples-per-directed-pair model (2,023 groups), with
+endpoint-specific ferry/water checks; this is not a new exact-road query for
+every cross-tile cohort. Final route classifications across both datasets:
+
+| Classification | Cohorts |
+| --- | ---: |
+| OSRM | 600,192 |
+| OSRM-derived cross-tile model | 33,543 |
+| Passenger ferry | 758 |
+| Synthetic straight-water | 401 |
+| Unresolved-route estimate | 1,462 |
+| Geometric cross-pair estimate | 4 |
+
+The 1,466 remaining estimate-backed cohorts are about 0.23% of 636,360 cohorts,
+not a population-weighted percentage. Final water attempts reported 1,291
+`no-reachable-land-road` failures and one `same-landmass` failure; attempt counts
+are not cohort counts. These unresolved connections were retained explicitly,
+not claimed as successful routes or removed from demand. The cache recorded
+4,245,099 hits and 2,453,914 misses, including ferry-access intermediate queries.
+
+The downloaded result archive was verified against SHA-256
+`8a56a6a4805c29143683db37bcb6afe93ffc5e0b0a8140e894096830616c16e9`.
+A before/after comparison proved identical point records and identical cohort
+fields other than driving time/distance. The independent national verifier
+again confirmed all 69,466,356 demand units, zero off-land points, and zero points
+outside their assigned ownership. Routing metrics changed for 597,074 native
+cohorts and all 33,553 cross cohorts; unchanged metrics are permitted coincidences
+or minimum-time results, not skipped input cohorts.
+
+The verified 195-file package is now the active generated demand at
+`prototype/japan/generated/demand`. The previous package was preserved at
+`.analysis/japan-routing/reroute-v7-20260905/previous-demand`; the rerouted download,
+audit script, input archive and progress logs remain under the same run folder.
+Reports include `reports/reroute-verification.json` and
+`reports/japan-national-road-routing.json`. For routing completion consult
+`roadRouting.completed` and the routing report; the compiler's older
+`routingStatus` string describes the initial seed stage.
+
+The selected consumer is still `prototype/japan/mod`, manifest
+`local.japan-open-world`. No build, install or tile-service restart was performed;
+the next consumer build will read this new routed package. Routing-related tests
+passed (8 routing, 5 ferry plus one skipped, 12 water). Work is recorded on
+`codex/japan-demand-v7-reroute`.
