@@ -17,6 +17,11 @@ export async function loadWorldDefinition(worldRoot) {
   };
   const catalogPath = resolveContained(definition.tileViews.catalog);
   const catalog = JSON.parse(await readFile(catalogPath, 'utf8'));
+  const ids = new Set();
+  for (const tile of catalog.tiles ?? []) {
+    if (typeof tile.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(tile.id) || ids.has(tile.id)) throw new Error(`Invalid or duplicate Tile View ID: ${tile.id}`);
+    ids.add(tile.id);
+  }
   const selectedTiles = (catalog.tiles ?? []).filter((tile) => tile.status === 'selected');
   if (!selectedTiles.some((tile) => tile.id === definition.tileViews.initialTileId)) {
     throw new Error(`Initial Tile View is not selected: ${definition.tileViews.initialTileId}`);

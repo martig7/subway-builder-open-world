@@ -10,6 +10,13 @@ resumable work, immutable artifacts, and logs in separate subdirectories. Set
 `OW_MAP_DATA_ROOT` to place heavy data elsewhere without changing artifact
 identity.
 
+Install the package with `python -m pip install -e map-creator` from the repository
+root before invoking its commands. The required `jsonschema` dependency validates
+World Definitions against the platform's canonical
+`open-world-platform/contracts/world-definition.schema.json`; release wheels
+include that same schema. Filesystem containment and catalog references are
+checked separately by the loader.
+
 ## Computation geometry versus display geometry
 
 World `map.computationBoundary` is a key under the central source store

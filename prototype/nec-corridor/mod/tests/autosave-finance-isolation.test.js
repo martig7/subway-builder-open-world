@@ -1,3 +1,4 @@
+import { createSubwayBuilderHostState } from '../../../../open-world-platform/testkit/subway-builder-host.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
@@ -33,7 +34,7 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
     toolbarRegistrations: 0,
     unregisteredComponents: [],
   };
-  const state = {
+  const state = createSubwayBuilderHostState({
     cityCode: activeTileId,
     gameSessionId: 'autosave-finance-isolation-session',
     saveName: 'open-world-runtime',
@@ -108,35 +109,8 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
         state.timeConfig = { ...state.timeConfig, elapsedSeconds: data.elapsedSeconds };
       }
     },
-    loadInitialData() {},
-    setCityCode(cityCode) { state.cityCode = cityCode; },
-    setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
-    setGameMode(gameMode) { state.gameMode = gameMode; },
-    setRoutes(routes) { state.routes = routes; },
-    setTracks({ newTracks = state.tracks, newTrackGroups = state.trackGroups } = {}) {
-      state.tracks = newTracks;
-      state.trackGroups = newTrackGroups;
-    },
-    recalculateAllRouteGeojsons: async () => {},
-    setPreviewRoute(route) { state.previewRoute = route; },
-    batchPreviewRouteUpdates: async () => {},
-    confirmRouteChange() {},
-    handleIncrementGameState: async () => {},
-    simulateCommutes: async () => {},
-    calculatePaths: async () => {},
-    setFinancialHistory(value) { state.financialHistory = value; },
-    setRouteFinancials(value) { state.routeFinancials = value; },
-    addRevenue(amount) {
-      state.money += amount;
-      state.financialHistory.currentHourRevenue += amount;
-    },
-    addExpense(amount) {
-      state.money -= amount;
-      state.financialHistory.currentHourExpenses += amount;
-    },
-    recordRouteFinancials() {},
-    setCompletedCommutes(value) { state.completedCommutes = value; },
-  };
+
+  });
   const scopedStorage = memoryStorage();
   const hooks = {};
   const map = {
@@ -177,6 +151,8 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
       onBlueprintPlaced: (callback) => { hooks.blueprintPlaced = callback; return () => {}; },
       onTrackChange: (callback) => { hooks.trackChange = callback; return () => {}; },
       onTrackBuilt: (callback) => { hooks.trackBuilt = callback; return () => {}; },
+      onScheduleChange: (callback) => { hooks.scheduleChange = callback; return () => {}; },
+      onDayChange: (callback) => { hooks.dayChange = callback; return () => {}; },
     }, { get: (target, key) => target[key] ?? (() => () => {}) }),
     ui: {
       addToolbarPanel(definition) { counters.toolbarRegistrations += 1; return definition; },
@@ -198,6 +174,8 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
     },
   };
   const previous = {
+    electron: globalThis.electron,
+    location: globalThis.location,
     api: globalThis.SubwayBuilderAPI,
     callbacks: globalThis.__subwayBuilder_storeCallbacks__,
     fetch: globalThis.fetch,
@@ -235,8 +213,16 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
   console.error = (...args) => { consoleErrors.push(args); };
   console.info = () => {};
   console.log = () => {};
+  let pendingRecovery = null;
+  globalThis.location = { hash: '#/game' };
+  globalThis.electron = {
+    getPendingSave: async () => ({ success: true, data: pendingRecovery }),
+    setPendingSave: async (save) => { pendingRecovery = save; return { success: true }; },
+    reloadWindow() {},
+  };
+  let mod;
   try {
-    startOpenWorld({
+    mod = startOpenWorld({
       definition,
       catalogSource,
       artifacts: {
@@ -264,6 +250,17 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     assert.ok(globalThis.__necCorridorDiagnostics__?.startup, 'fixture must reach a ready runtime');
+
+    globalThis.electron.reloadWindow();
+    await globalThis.__openWorldNativeReloadRecoveryGuard__.flush();
+    const generatedForRecovery = counters.generateSave;
+    state.money += 10;
+    globalThis.electron.reloadWindow();
+    await globalThis.__openWorldNativeReloadRecoveryGuard__.flush();
+    assert.equal(counters.generateSave, generatedForRecovery, 'later recovery must reuse the native snapshot template');
+    assert.equal(pendingRecovery.data.money, state.money, 'template reuse must capture current live state');
+    state.money -= 10;
+    pendingRecovery = null;
 
     const navigationOnlyKey = 'nec-corridor:pending-navigation';
     const destinationTileId = 'NEC_CM01_RM02';
@@ -352,6 +349,7 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
 
     assert.equal(typeof hooks.gameEnd, 'function');
     assert.equal(typeof hooks.gameInit, 'function');
+    const previousRoutes = globalThis.__necCorridorRoutePathRuntimeV1__;
     hooks.gameEnd();
     state.gameSessionId = 'brand-new-native-session';
     state.saveName = null;
@@ -388,7 +386,19 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
       'brand-new-native-session',
       'new-game startup must replace the old runtime world, not merely restore its panels',
     );
+    assert.notEqual(globalThis.__necCorridorRoutePathRuntimeV1__, previousRoutes, 'new games need fresh route resources');
+    assert.ok(globalThis.__necCorridorRoutePathRuntimeV1__);
+    hooks.scheduleChange();
+    hooks.dayChange(2);
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (globalThis.__necCorridorDiagnostics__?.latestCrossModeShare?.reason === 'midnight-change') break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(globalThis.__necCorridorDiagnostics__?.latestCrossModeShare?.reason, 'midnight-change');
   } finally {
+    mod?.dispose();
+    globalThis.electron = previous.electron;
+    globalThis.location = previous.location;
     globalThis.SubwayBuilderAPI = previous.api;
     globalThis.__subwayBuilder_storeCallbacks__ = previous.callbacks;
     globalThis.fetch = previous.fetch;

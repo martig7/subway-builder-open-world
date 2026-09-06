@@ -173,7 +173,8 @@ test('embedded package manifests expose cross-tile runtime data', async () => {
   });
   const pkg = await adapter.prepare('NY_CP00_RP00');
   assert.equal(pkg.manifest.dataFiles.buildingsIndex, 'buildings_index.bin.gz');
-  assert.equal(pkg.manifest.runtimeFiles.crossCommutes.path, 'cross_commutes.json');
+  assert.equal(pkg.manifest.runtimeFiles.crossCommutes.storage, 'bundle');
+  assert.equal(pkg.manifest.runtimeFiles.crossCommutes.path, undefined);
   assert.deepEqual(await adapter.loadCommuteCatalog('NY_CP00_RP00'), {
     schemaVersion: 1,
     tileId: 'NY_CP00_RP00',

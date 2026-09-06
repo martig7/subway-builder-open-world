@@ -54,6 +54,32 @@ test('reads the active tile without constructing a full runtime view', async () 
   assert.equal(runtime.getInterliningRevision(), 7);
 });
 
+test('packaged revenue compilation skips disabled native expense and audit forecasts', async () => {
+  const { runtime, game } = setupProjectedRuntime({ backgroundNativeExpenses: false });
+  runtime.tilePackages.packages.get('T0').nativeDemand = { points: [], pops: [] };
+  await runtime.boot('skip-native-audit', 'T0');
+  const options = [];
+  const original = game.calculateNativeFinanceProfile.bind(game);
+  game.calculateNativeFinanceProfile = (tileId, state, requested) => { options.push(requested); return original(tileId); };
+  await runtime.recalculateCrossTileModeShare({ reason: 'manual', force: true });
+  assert.deepEqual(options, [], 'successful packaged estimates do not calculate the discarded native audit');
+  await runtime.inspectNativeRevenue();
+  assert.deepEqual(options, [{ includeRevenue: true, includeExpenses: false }]);
+});
+
+test('projection notifications retain their summary view without cloning population details', async () => {
+  const { runtime } = setupProjectedRuntime();
+  await runtime.boot('event-only-notifications', 'T0');
+  const events = [];
+  runtime.subscribe((event, view) => events.push({ event, view }));
+  const originalView = runtime.view.bind(runtime);
+  runtime.view = options => { assert.equal(options?.includeDemandDetails, false); return originalView(options); };
+  await runtime.reconcileActiveProjection('notification-audit');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event.type, 'projection-changed');
+  assert.equal(events[0].view.activeTileId, 'T0');
+});
+
 test('dirty service state refreshes from native ground truth only at recalculation', async () => {
   const { game, runtime } = setupProjectedRuntime({ backgroundNativeExpenses: false });
   await runtime.boot('lazy-native-service-refresh', 'T0');

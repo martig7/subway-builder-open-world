@@ -39,7 +39,7 @@ export class TileMapController {
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   #emit() { for (const listener of this.listeners) listener(this.snapshot()); }
 
-  #activeTileId(runtimeView = this.runtime.view()) {
+  #activeTileId(runtimeView = this.runtime.view({ includeDemandDetails: false })) {
     const loadedTileId = this.api.utils?.getCityCode?.();
     return this.catalog.tiles.some((tile) => tile.id === loadedTileId)
       ? loadedTileId
@@ -47,7 +47,7 @@ export class TileMapController {
   }
 
   snapshot() {
-    const runtimeView = this.runtime.view();
+    const runtimeView = this.runtime.view({ includeDemandDetails: false });
     const activeTileId = this.#activeTileId(runtimeView);
     return {
       mapView: { center: [...this.mapView.center], zoom: this.mapView.zoom },

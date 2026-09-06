@@ -391,9 +391,9 @@ export class EmbeddedTilePackageAdapter {
             runwaysTaxiways: 'runways_taxiways.geojson.gz',
           },
           runtimeFiles: {
-            schemaVersion: 1,
-            crossCommutes: { path: 'cross_commutes.json', encoding: 'canonical-json' },
-            crossDemand: { path: 'cross_demand.json.gz', encoding: 'gzip-json' },
+            schemaVersion: 2,
+            crossCommutes: { storage: 'bundle', encoding: 'canonical-json' },
+            crossDemand: { storage: 'bundle', encoding: 'gzip-json' },
           },
           assets: [],
         },

@@ -430,10 +430,16 @@ export function virtualizeDeckLayers(layers, { virtualization, zoom, detailedZoo
   if (!Array.isArray(layers) || !virtualization) return layers;
   const detailed = !Number.isFinite(Number(zoom)) || (zoom >= detailedZoom.min && zoom < detailedZoom.maxExclusive);
   return layers.map((layer) => {
-    const entry = layerData(layer);
     const isMovement = MOVEMENT_LAYER_RE.test(String(layer?.id ?? layer?.props?.id ?? ''));
+    const nativeVisible = (layer?.props?.visible ?? layer?.visible) !== false;
+    if (!nativeVisible || (isMovement && !detailed)) {
+      return typeof layer?.clone === 'function' ? layer.clone({ visible: false })
+        : layer?.props ? { ...layer, props: { ...layer.props, visible: false } }
+          : { ...layer, visible: false };
+    }
+    const entry = layerData(layer);
     const data = entry ? virtualization.renderInputs({ features: entry[1] }, { clip: true }).features : null;
-    const visible = isMovement ? ((layer?.props?.visible ?? layer?.visible ?? true) && detailed) : null;
+    const visible = isMovement ? nativeVisible && detailed : null;
     return entry ? cloneLayer(layer, data, visible) : (isMovement && !detailed ? cloneLayer(layer, undefined, false) : layer);
   });
 }
@@ -490,7 +496,7 @@ function markerDomPosition(map, element) {
 }
 
 const STATION_MARKER_MOVEMENT_BATCH_KEY = Symbol.for('open-world.station-marker-movement-batch');
-const STATION_MARKER_MOVEMENT_BATCH_VERSION = 1;
+const STATION_MARKER_MOVEMENT_BATCH_VERSION = 2;
 
 /**
  * Best-effort reversible adapter for native React/MapLibre markers.  The game
@@ -514,6 +520,7 @@ export function createStationMarkerVisibilityAdapter({
   const positions = new Map();
   const pendingDomElements = new Set();
   const managedMarkers = new Map();
+  const markersByElement = new Map();
   const movingMarkers = new Set();
   let currentVirtualization = virtualization;
   let currentMovementVisible = movementVisible !== false;
@@ -522,11 +529,34 @@ export function createStationMarkerVisibilityAdapter({
   let movementListenersAttached = false;
   let movementReleased = false;
   let movementBatchOwner = null;
+  function retireElement(element) {
+    const original = originals.get(element);
+    if (original && element.style) {
+      element.style.display = original.display;
+      element.style.visibility = original.visibility;
+    }
+    try { if (element?.dataset) delete element.dataset.openWorldSpatialMarker; } catch {}
+    const marker = markersByElement.get(element);
+    if (marker) {
+      const nativeUpdate = managedMarkers.get(marker);
+      managedMarkers.delete(marker);
+      movingMarkers.delete(marker);
+      // A DOM node can be removed before its Marker is detached. Return any
+      // remaining native listener ownership rather than keeping the Marker.
+      if (nativeUpdate && marker._map === nativeMap) {
+        nativeMap?.on?.('move', nativeUpdate);
+        nativeMap?.on?.('moveend', nativeUpdate);
+      }
+    }
+    markersByElement.delete(element);
+    originals.delete(element);
+    positions.delete(element);
+    pendingDomElements.delete(element);
+  }
   function handleMarkerMovement(event) {
     for (const marker of [...movingMarkers]) {
       if (marker?._map !== nativeMap) {
-        movingMarkers.delete(marker);
-        managedMarkers.delete(marker);
+        retireElement(marker?.getElement?.());
         continue;
       }
       const update = managedMarkers.get(marker);
@@ -569,6 +599,7 @@ export function createStationMarkerVisibilityAdapter({
       nativeUpdate.call?.(marker);
     }
     managedMarkers.clear();
+    markersByElement.clear();
     if (nativeMap?.[STATION_MARKER_MOVEMENT_BATCH_KEY] === movementBatchOwner) {
       try { delete nativeMap[STATION_MARKER_MOVEMENT_BATCH_KEY]; } catch {}
     }
@@ -576,7 +607,7 @@ export function createStationMarkerVisibilityAdapter({
   nativeMap?.[STATION_MARKER_MOVEMENT_BATCH_KEY]?.release?.();
   movementBatchOwner = Object.freeze({
     version: STATION_MARKER_MOVEMENT_BATCH_VERSION,
-    release: releaseMarkerMovement,
+    release: () => reset(),
   });
   if (nativeMap) {
     try {
@@ -603,13 +634,21 @@ export function createStationMarkerVisibilityAdapter({
       element.style.visibility = visible ? original.visibility : 'hidden';
     }
     if (element.dataset) element.dataset.openWorldSpatialMarker = visible ? 'visible' : 'hidden';
-    if (marker) manageMarkerMovement(marker, visible);
+    if (marker) {
+      markersByElement.set(element, marker);
+      manageMarkerMovement(marker, visible);
+    }
   };
   const applyUnmeasured = (domElements = null) => {
     if (disposed) return originals.size;
     scheduled = false;
     const processed = new Set();
-    for (const marker of markerCollection(map)) {
+    const markers = markerCollection(map);
+    const liveMarkers = new Set(markers);
+    for (const [element, marker] of markersByElement) {
+      if (!liveMarkers.has(marker)) retireElement(element);
+    }
+    for (const marker of markers) {
       const element = marker?.getElement?.(); const position = marker?.getLngLat?.();
       if (!element || !position || !currentVirtualization) continue;
       processed.add(element);
@@ -617,9 +656,16 @@ export function createStationMarkerVisibilityAdapter({
     }
     for (const element of domElements ?? markerDomCollection(map)) {
       if (processed.has(element)) continue;
+      processed.add(element);
       const point = markerDomPosition(map, element) ?? positions.get(element);
       setVisibility(element, point);
     }
+    if (domElements == null) {
+      for (const element of originals.keys()) {
+        if (!processed.has(element)) retireElement(element);
+      }
+    }
+    syncMovementListeners();
     onApply?.();
     return originals.size;
   };
@@ -629,6 +675,7 @@ export function createStationMarkerVisibilityAdapter({
     })
     : applyUnmeasured(domElements));
   const scheduleApply = (elements = []) => {
+    if (disposed) return;
     for (const element of elements) pendingDomElements.add(element);
     if (scheduled) return;
     scheduled = true;
@@ -646,12 +693,28 @@ export function createStationMarkerVisibilityAdapter({
   const observer = Observer && observerTarget
     ? new Observer((records) => {
       const addedMarkers = [];
+      const removedMarkers = new Set();
       for (const record of records ?? []) {
         for (const node of record?.addedNodes ?? []) {
           addedMarkers.push(...markerDomElementsInNode(node));
         }
+        for (const node of record?.removedNodes ?? []) {
+          for (const element of markerDomElementsInNode(node)) removedMarkers.add(element);
+        }
       }
-      if (addedMarkers.length) scheduleApply(addedMarkers);
+      const reinserted = new Set(addedMarkers);
+      for (const element of removedMarkers) {
+        const attached = typeof observerTarget.contains === 'function'
+          ? observerTarget.contains(element)
+          : reinserted.has(element);
+        if (attached) continue;
+        retireElement(element);
+      }
+      syncMovementListeners();
+      const attachedMarkers = addedMarkers.filter((element) => (
+        typeof observerTarget.contains !== 'function' || observerTarget.contains(element)
+      ));
+      if (attachedMarkers.length) scheduleApply(attachedMarkers);
     })
     : null;
   observer?.observe(observerTarget, { childList: true, subtree: true });
@@ -666,6 +729,7 @@ export function createStationMarkerVisibilityAdapter({
     }
     originals.clear();
     positions.clear();
+    markersByElement.clear();
     pendingDomElements.clear();
   };
   const updateVirtualization = (nextVirtualization) => {

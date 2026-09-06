@@ -367,6 +367,7 @@ function buildGlobalRouter(networkProfiles) {
   }
   return {
     tileIds: profiles.map(([tileId]) => tileId), rulesByTile, stations, stationById, routeById, adjacency, spatialIndex,
+    stationOrdinals: new Map(stations.map((station, index) => [station.id, index])),
     defaultRules: rulesByTile[profiles[0]?.[0]] ?? rulesWithDefaults(),
     networkSignature: hashNetworkValue(profiles.map(([tileId, profile]) => [tileId, profile.signature ?? stableNetworkSignature(profile)])),
     gatewayPathCache: new Map(),
@@ -375,12 +376,13 @@ function buildGlobalRouter(networkProfiles) {
       gatewayPathHits: 0, gatewayPathMisses: 0,
       endpointPathHits: 0, endpointPathMisses: 0,
       catchmentHits: 0, catchmentMisses: 0,
+      driveAccessCandidates: 0,
     },
   };
 }
 
-function nearbyStationTimes(router, coords, maxWalkSeconds) {
-  const maxMetres = maxWalkSeconds * WALK_SPEED_MPS;
+function nearbyStationTimes(router, coords, maxSeconds, speedMps = WALK_SPEED_MPS, onCandidate = null) {
+  const maxMetres = maxSeconds * speedMps;
   const latRadius = maxMetres / 111_320;
   const lonRadius = latRadius / Math.max(0.05, Math.cos(coords[1] * Math.PI / 180));
   const minX = Math.floor((coords[0] - lonRadius) / STATION_INDEX_CELL_DEGREES);
@@ -390,8 +392,9 @@ function nearbyStationTimes(router, coords, maxWalkSeconds) {
   const result = [];
   for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) {
     for (const station of router.spatialIndex.get(`${x}:${y}`) ?? []) {
-      const seconds = distanceMetres(coords, station.coords) / WALK_SPEED_MPS;
-      if (seconds <= maxWalkSeconds) result.push([station.id, seconds]);
+      onCandidate?.();
+      const seconds = distanceMetres(coords, station.coords) / speedMps;
+      if (seconds <= maxSeconds) result.push([station.id, seconds]);
     }
   }
   return result;
@@ -574,22 +577,25 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
   const rules = router.rulesByTile[preferredTileId] ?? router.defaultRules;
   const maxWalk = rules.MAX_WALK_TO_FROM_STATION;
   const walkWeight = rules.PERCEIVED_TIME.WALK_MULTIPLIER;
+  // Driving is access-only: no origin search can rescue an unreachable exit.
+  const ends = new Map(preparedCatchments?.destination?.stations ?? stationCatchment(router, destination, maxWalk).stations);
+  if (ends.size === 0) return unavailableLeg('destination-outside-walk-range');
   const walkingStarts = preparedCatchments?.origin?.stations ?? stationCatchment(router, origin, maxWalk).stations;
   const startsById = new Map(walkingStarts.map(([id, seconds]) => [id, {seconds, mode:'walk'}]));
   if (driveAccessSpeedMps > 0 && rules.DRIVE_TO_STATION_ACCESS === true) {
-    for (const station of router.stations) {
-      const seconds = distanceMetres(origin, station.coords) / driveAccessSpeedMps;
+    for (const [stationId, seconds] of nearbyStationTimes(
+      router, origin, rules.MAX_DRIVE_TO_FROM_STATION, driveAccessSpeedMps,
+      () => { router.routingStats.driveAccessCandidates++; },
+    ).sort(([left], [right]) => router.stationOrdinals.get(left) - router.stationOrdinals.get(right))) {
       // Native park-and-ride chooses the faster access mode per stop. Driving
       // is allowed only before boarding, never as egress or a gateway transfer.
-      if (seconds <= rules.MAX_DRIVE_TO_FROM_STATION && seconds < (startsById.get(station.id)?.seconds ?? Infinity)) {
-        startsById.set(station.id, {seconds, mode:'drive'});
+      if (seconds < (startsById.get(stationId)?.seconds ?? Infinity)) {
+        startsById.set(stationId, {seconds, mode:'drive'});
       }
     }
   }
   const starts = [...startsById];
-  const ends = new Map(preparedCatchments?.destination?.stations ?? stationCatchment(router, destination, maxWalk).stations);
   if (starts.length === 0) return unavailableLeg('origin-outside-walk-range');
-  if (ends.size === 0) return unavailableLeg('destination-outside-walk-range');
   const labels = new Map(); const queue = new MinHeap();
   for (const [id, {seconds, mode}] of starts) {
     const perceivedSeconds = seconds * (mode === 'drive' ? 1 : walkWeight);
@@ -958,6 +964,10 @@ function incomeValueDistribution(population, rules) {
 export function chooseModes({ population, drivingTime, drivingDistance, transitTime, walkTime, transitCost, drivingTimeMultiplier, pathfindingRules = {} }) {
   const rules = rulesWithDefaults(pathfindingRules);
   const metrics = modeChoiceMetrics({ drivingTime, drivingDistance, transitTime, walkTime, transitCost, drivingTimeMultiplier, rules });
+  return chooseModesFromMetrics(population, rules, metrics);
+}
+
+function chooseModesFromMetrics(population, rules, metrics) {
   const result = { driving: 0, walking: 0, transit: 0, unknown: 0 };
   const drivingTimeCost = metrics.driving.perceivedSeconds * metrics.driving.shortTripPenalty;
   const drivingMoneyCost = metrics.driving.moneyCost * metrics.driving.shortTripPenalty;
@@ -1029,7 +1039,7 @@ function stationRoutesForTransitPath(path) {
     );
 }
 
-function inspectPopModeChoice({ pop, popIndex, points, gateways, routers, gatewayCatalog, tileCatalog, fare, journeyFare, requestedDepartureSeconds, popFields, drivingModel }) {
+function preparePopModeChoice({ pop, popIndex, points, gateways, routers, gatewayCatalog, tileCatalog, fare, journeyFare, requestedDepartureSeconds, popFields, drivingModel }) {
   if (!pop) throw new RangeError(`Unknown cross-demand pop index: ${popIndex}`);
   const [popId, mass, homeIndex, workIndex, gatewayIndex] = pop;
   const home = points[homeIndex]; const work = points[workIndex]; const gatewayId = gateways[gatewayIndex];
@@ -1057,8 +1067,19 @@ function inspectPopModeChoice({ pop, popIndex, points, gateways, routers, gatewa
     drivingTimeMultiplier,
     pathfindingRules: rules,
   };
+  return {
+    popId, population: mass, homeTileId: home.tileId, workTileId: work.tileId, gatewayId,
+    requestedDepartureSeconds: departureSeconds, rawInputs, transitPath, stationRoutes,
+    fareQuote: { ...fareQuote, total: transitFare }, drivingEstimator: driving.estimator,
+  };
+}
+
+function inspectPopModeChoice(input) {
+  const prepared = preparePopModeChoice(input);
+  const { population: mass, rawInputs, transitPath, drivingEstimator } = prepared;
+  const rules = rawInputs.pathfindingRules;
   const metrics = modeChoiceMetrics({ ...rawInputs, rules });
-  metrics.driving.estimator = driving.estimator;
+  metrics.driving.estimator = drivingEstimator;
   metrics.transit.clockSeconds = transitPath.available ? transitPath.totalClockSeconds ?? null : null;
   const medianIndex = Math.floor(Math.max(0, mass - 1) / 2);
   const medianIncome = incomeForPerson(medianIndex, mass, rules);
@@ -1069,9 +1090,11 @@ function inspectPopModeChoice({ pop, popIndex, points, gateways, routers, gatewa
     walking: metrics.walking.perceivedSeconds * valuePerSecond,
   };
   return {
-    popId, population: mass, homeTileId: home.tileId, workTileId: work.tileId, gatewayId,
-    requestedDepartureSeconds: departureSeconds,
-    modes: chooseModes(rawInputs), transitPath, stationRoutes, fareQuote: { ...fareQuote, total: transitFare },
+    popId: prepared.popId, population: mass, homeTileId: prepared.homeTileId,
+    workTileId: prepared.workTileId, gatewayId: prepared.gatewayId,
+    requestedDepartureSeconds: prepared.requestedDepartureSeconds,
+    modes: chooseModesFromMetrics(mass, rules, metrics), transitPath,
+    stationRoutes: prepared.stationRoutes, fareQuote: prepared.fareQuote,
     driving: metrics.driving, transit: metrics.transit, walking: metrics.walking,
     representativePerson: { personIndex: medianIndex, annualIncome: medianIncome, valuePerSecond, generalizedCost },
   };
@@ -1088,45 +1111,83 @@ export function inspectCrossTileModeChoice({ crossDemand, popIndex, networkProfi
   });
 }
 
-/** Recalculate every detailed cross-city pop and aggregate results into ledger buckets. */
-export function calculateCrossTileModeShares({ crossDemand, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0 }) {
+function batchContext({ crossDemand, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0 }) {
   if (crossDemand?.schemaVersion !== 1) throw new Error('Unsupported cross-demand data');
   const points = crossDemand.points.map(([id, longitude, latitude, tileId]) => ({ id, coords: [longitude, latitude], tileId }));
   const routers = buildGlobalRouter(networkProfiles);
-  const totals = new Map();
-  const transitJourneys = new Map();
-  const popModeChoices = {};
-  let evaluatedPops = 0; let transitViablePops = 0;
-  for (const [popIndex, pop] of crossDemand.pops.entries()) {
-    const comparison = inspectPopModeChoice({
-      pop, popIndex, points, gateways: crossDemand.gateways, routers, gatewayCatalog, tileCatalog,
-      fare, journeyFare, requestedDepartureSeconds, popFields: crossDemand.popFields, drivingModel: crossDemand.drivingModel,
+  return {
+    points, gateways: crossDemand.gateways, routers, gatewayCatalog, tileCatalog,
+    fare, journeyFare, requestedDepartureSeconds,
+    popFields: popFields(crossDemand.popFields), drivingModel: crossDemand.drivingModel,
+  };
+}
+
+function emptyModeShareResult() {
+  return { totals: new Map(), transitJourneys: new Map(), popModeChoices: {}, evaluatedPops: 0, transitViablePops: 0 };
+}
+
+function addPreparedModeChoice(result, prepared, fareQuote = prepared.fareQuote) {
+  const { rawInputs, stationRoutes } = prepared;
+  const transitFare = Number.isFinite(fareQuote?.total) && fareQuote.total >= 0 ? fareQuote.total : rawInputs.transitCost;
+  const rules = rawInputs.pathfindingRules;
+  const metrics = modeChoiceMetrics({ ...rawInputs, transitCost: transitFare, rules });
+  const modes = chooseModesFromMetrics(prepared.population, rules, metrics);
+  result.popModeChoices[prepared.popId] = modes;
+  const key = `${prepared.homeTileId}|${prepared.workTileId}|${prepared.gatewayId}`;
+  const total = result.totals.get(key) ?? { driving: 0, walking: 0, transit: 0, unknown: 0 };
+  for (const mode of Object.keys(total)) total[mode] += modes[mode];
+  result.totals.set(key, total);
+  result.evaluatedPops++;
+  if (modes.transit > 0 && prepared.transitPath.available && stationRoutes.length > 0) {
+    const journeys = result.transitJourneys.get(key) ?? [];
+    journeys.push({ popId: prepared.popId, transitMass: modes.transit, stationRoutes,
+      totalClockSeconds: prepared.transitPath.totalClockSeconds,
+      fare: transitFare, revenueByRoute: fareQuote?.revenueByRoute,
     });
-    popModeChoices[comparison.popId] = { ...comparison.modes };
-    const key = `${comparison.homeTileId}|${comparison.workTileId}|${comparison.gatewayId}`;
-    const total = totals.get(key) ?? { driving: 0, walking: 0, transit: 0, unknown: 0 };
-    for (const mode of Object.keys(total)) total[mode] += comparison.modes[mode];
-    totals.set(key, total); evaluatedPops++;
-    if (comparison.modes.transit > 0 && comparison.transitPath.available) {
-      const path = comparison.transitPath;
-      const stationRoutes = comparison.stationRoutes;
-      if (stationRoutes.length > 0) {
-        const journeys = transitJourneys.get(key) ?? [];
-        journeys.push({
-          popId: comparison.popId,
-          transitMass: comparison.modes.transit,
-          stationRoutes,
-          totalClockSeconds: path.totalClockSeconds,
-          fare: comparison.fareQuote.total,
-          revenueByRoute: comparison.fareQuote.revenueByRoute,
-        });
-        transitJourneys.set(key, journeys);
+    result.transitJourneys.set(key, journeys);
+  }
+  if (Number.isFinite(metrics.transit.perceivedSeconds)) result.transitViablePops++;
+}
+
+/** Bulk computation shares routing and mode formulas without building inspector explanations. */
+export function calculateCrossTileModeShares(input) {
+  const context = batchContext(input);
+  const result = emptyModeShareResult();
+  for (const [popIndex, pop] of input.crossDemand.pops.entries()) {
+    addPreparedModeChoice(result, preparePopModeChoice({ ...context, pop, popIndex }));
+  }
+  return { ...result, routingStats: { ...context.routers.routingStats } };
+}
+
+/** Route in the worker first; the host supplies authoritative native fare totals in one batch. */
+export function prepareCrossTileModeShares(input) {
+  const context = batchContext({ ...input, journeyFare: null });
+  const entries = [];
+  const requests = new Map();
+  const stationIds = new Set();
+  for (const [popIndex, pop] of input.crossDemand.pops.entries()) {
+    const prepared = preparePopModeChoice({ ...context, pop, popIndex });
+    if (prepared.transitPath.available && prepared.stationRoutes.length > 0) {
+      prepared.fareKey = JSON.stringify(prepared.stationRoutes);
+      if (!requests.has(prepared.fareKey)) {
+        requests.set(prepared.fareKey, { key: prepared.fareKey, stationRoutes: prepared.stationRoutes });
+        for (const route of prepared.stationRoutes) {
+          stationIds.add(route.stationIds[0]); stationIds.add(route.stationIds.at(-1));
+        }
       }
     }
-    if (Number.isFinite(comparison.transit.perceivedSeconds)) transitViablePops++;
+    // Keep only the fields settlement needs while waiting for fare quotes.
+    prepared.transitPath = { available: prepared.transitPath.available, totalClockSeconds: prepared.transitPath.totalClockSeconds };
+    entries.push(prepared);
   }
-  return {
-    totals, transitJourneys, popModeChoices, evaluatedPops, transitViablePops,
-    routingStats: { ...routers.routingStats },
+  return { entries, fareRequests: [...requests.values()],
+    stations: [...stationIds].map(id => { const station = context.routers.stationById.get(id); return [id, { id, coords: station.coords }]; }),
+    routingStats: { ...context.routers.routingStats },
   };
+}
+
+export function finishCrossTileModeShares(prepared, fareQuotes = new Map()) {
+  const result = emptyModeShareResult();
+  for (const entry of prepared.entries) addPreparedModeChoice(result, entry, fareQuotes.get(entry.fareKey) ?? entry.fareQuote);
+  return { ...result, routingStats: prepared.routingStats };
 }

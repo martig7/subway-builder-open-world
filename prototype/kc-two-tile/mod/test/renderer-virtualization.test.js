@@ -166,9 +166,27 @@ test('masks movement Deck layers by zoom and spatially filters their data', () =
   };
   const hidden = virtualizeDeckLayers([layer], { virtualization, zoom: 9 })[0];
   assert.equal(hidden.props.visible, false);
-  assert.deepEqual(hidden.props.data.map((item) => item.id), ['inside']);
+  assert.strictEqual(hidden.props.data, layer.props.data, 'hidden data must not be spatially scanned');
   const visible = virtualizeDeckLayers([layer], { virtualization, zoom: 10 })[0];
   assert.equal(visible.props.visible, true);
+  assert.deepEqual(visible.props.data.map((item) => item.id), ['inside']);
+});
+
+test('hidden native Deck layers defer geometry access until visible', () => {
+  const virtualization = createRendererVirtualization({
+    activeTileId: 'T0', tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
+  });
+  let reads = 0;
+  let point = [2, 2];
+  const data = [{ get coords() { reads++; return point; } }];
+  const layer = { id: 'rail-network', props: { data, visible: false } };
+  virtualizeDeckLayers([layer], { virtualization, zoom: 11 });
+  assert.equal(reads, 0);
+  point = [0.5, 0.5];
+  layer.props.visible = true;
+  const [visible] = virtualizeDeckLayers([layer], { virtualization, zoom: 11 });
+  assert.equal(visible.props.data.length, 1);
+  assert.ok(reads > 0);
 });
 
 test('clips native rail layer coordinates instead of forwarding the full crossing track', () => {
@@ -299,9 +317,15 @@ test('a hot-reloaded marker adapter replaces the previous batch without restorin
   const previous = createStationMarkerVisibilityAdapter({ map, virtualization });
   previous.apply();
   assert.equal(listeners.move.size, 1);
+  const ownerKey = Symbol.for('open-world.station-marker-movement-batch');
+  const previousOwner = nativeMap[ownerKey] = { ...nativeMap[ownerKey], version: 1 };
+  const previousListener = [...listeners.move][0];
 
   const replacement = createStationMarkerVisibilityAdapter({ map, virtualization });
   replacement.apply();
+  assert.notStrictEqual(nativeMap[ownerKey], previousOwner);
+  assert.equal(nativeMap[ownerKey].version, 2);
+  assert.notStrictEqual([...listeners.move][0], previousListener);
   assert.equal(listeners.move.size, 1);
   assert.equal(listeners.moveend.size, 1);
 
@@ -356,6 +380,76 @@ test('clips DOM-backed markers when MapLibre exposes no native marker registry',
   adapter.reset();
   assert.equal(outside.style.display, 'block');
   assert.equal(inside.style.display, 'block');
+});
+
+test('removed marker subtrees release visibility state before the next render', () => {
+  const previousObserver = globalThis.MutationObserver;
+  let notify;
+  globalThis.MutationObserver = class {
+    constructor(callback) { notify = callback; }
+    observe() {}
+    disconnect() {}
+  };
+  const elements = Array.from({ length: 100 }, () => ({
+    style: { display: 'block', visibility: '' }, dataset: {},
+    getBoundingClientRect: () => ({ left: 150, top: 40, width: 10, height: 10 }),
+  }));
+  let live = elements;
+  const container = {
+    querySelectorAll: () => live,
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+  };
+  const map = { getContainer: () => container, unproject: () => ({ lng: 2, lat: 2 }) };
+  const adapter = createStationMarkerVisibilityAdapter({
+    map,
+    virtualization: createRendererVirtualization({
+      activeTileId: 'T0', tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
+    }),
+  });
+  try {
+    assert.equal(adapter.apply(), 100);
+    assert.ok(elements.every((element) => element.style.display === 'none'));
+    live = [];
+    notify([{ removedNodes: [{ querySelectorAll: () => elements }], addedNodes: [] }]);
+    assert.equal(adapter.apply([]), 0, 'removed elements must not survive in the adapter maps');
+    assert.ok(elements.every((element) => element.style.display === 'block'));
+    assert.ok(elements.every((element) => element.dataset.openWorldSpatialMarker === undefined));
+  } finally {
+    adapter.reset();
+    globalThis.MutationObserver = previousObserver;
+  }
+});
+
+test('full marker refresh prunes removed hidden native markers and does not restore their listeners', () => {
+  const listeners = { move: new Set(), moveend: new Set() };
+  const map = {
+    _markers: [],
+    on(event, listener) { listeners[event]?.add(listener); },
+    off(event, listener) { listeners[event]?.delete(listener); },
+  };
+  const element = { style: { display: 'block', visibility: '' }, dataset: {} };
+  const marker = {
+    _map: map, _update() {},
+    getElement: () => element,
+    getLngLat: () => ({ lng: 2, lat: 2 }),
+  };
+  map._markers.push(marker);
+  map.on('move', marker._update);
+  map.on('moveend', marker._update);
+  const adapter = createStationMarkerVisibilityAdapter({
+    map,
+    virtualization: createRendererVirtualization({
+      activeTileId: 'T0', tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
+    }),
+  });
+  assert.equal(adapter.apply(), 1);
+  assert.equal(listeners.move.size, 0);
+  marker._map = null;
+  map._markers.length = 0;
+  assert.equal(adapter.apply(), 0);
+  adapter.reset();
+  assert.equal(listeners.move.size, 0);
+  assert.equal(listeners.moveend.size, 0);
 });
 
 test('returns a presentation object with canonical inputs untouched', () => {

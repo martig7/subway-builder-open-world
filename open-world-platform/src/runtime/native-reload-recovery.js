@@ -3,7 +3,7 @@ const RELOAD_GUARD_KEY = '__openWorldNativeReloadRecoveryGuard__';
 const ORIGINAL_RELOAD_KEY = '__openWorldNativeReloadRecoveryOriginal__';
 const RELOAD_GUARD_VERSION_KEY = '__openWorldNativeReloadRecoveryVersion__';
 
-export const NATIVE_RELOAD_RECOVERY_VERSION = 4;
+export const NATIVE_RELOAD_RECOVERY_VERSION = 5;
 export const NATIVE_RECOVERY_CHECKPOINT_INTERVAL_MS = 15_000;
 
 function nativeSaveData(snapshot) {
@@ -163,16 +163,22 @@ export function installNativeReloadRecoveryGuard({
   let pendingRecovery = null;
   let checkpointTimer = null;
   let snapshotTemplate = null;
+  let routeGeneration = 0;
 
   const prepareRecovery = async () => {
-    if (disposed || bypassDepth > 0 || !currentGameRoute(location)) return { status: 'skipped' };
+    const generation = routeGeneration;
+    const cancelled = () => disposed || bypassDepth > 0
+      || generation !== routeGeneration || !currentGameRoute(location);
+    if (cancelled()) return { status: 'skipped' };
     const existingPendingSave = await readPendingSave(electron);
+    if (cancelled()) return { status: 'skipped' };
     if (existingPendingSave && !recoveryMarker(existingPendingSave)) {
       return { status: 'preserved-explicit-save' };
     }
     const snapshot = await captureSnapshot(
       snapshotTemplate ?? (recoveryMarker(existingPendingSave) ? existingPendingSave : null),
     );
+    if (cancelled()) return { status: 'skipped' };
     const cityCode = getCityCode() ?? snapshot?.cityCode;
     const staged = await stageNativeRecovery({
       electron,
@@ -181,6 +187,10 @@ export function installNativeReloadRecoveryGuard({
       destinationCityCode: cityCode,
       reason: 'renderer-reload',
     });
+    if (cancelled()) {
+      await staged.rollback();
+      return { status: 'skipped' };
+    }
     snapshotTemplate = snapshot;
     return staged;
   };
@@ -235,6 +245,8 @@ export function installNativeReloadRecoveryGuard({
     if (currentGameRoute(location)) {
       return checkpoint();
     } else {
+      routeGeneration += 1;
+      snapshotTemplate = null;
       return clearManagedCheckpoint().catch((error) => {
         logger.error?.('[OpenWorld] native recovery checkpoint cleanup failed', error);
       });

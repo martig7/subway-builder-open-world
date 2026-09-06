@@ -1,0 +1,14 @@
+[
+  { "name": "unknown root property", "path": ["unexpected"], "value": true },
+  { "name": "unknown map property", "path": ["map", "labelPolciy"], "value": "typo-v1" },
+  { "name": "unsupported server", "path": ["runtime", "tileServerProvider"], "value": "unknown" },
+  { "name": "missing server port", "path": ["runtime", "tileServerPort"], "remove": true },
+  { "name": "invalid version", "path": ["identity", "version"], "value": "next" },
+  { "name": "non-string prefix", "path": ["demand", "nativePopPrefixes"], "value": [4] },
+  { "name": "duplicate capabilities", "path": ["runtime", "requiredHostCapabilities"], "value": ["native-save-authority-v1", "native-save-authority-v1"] },
+  { "name": "parent catalog path", "path": ["tileViews", "catalog"], "value": "../catalog.json" },
+  { "name": "Windows parent catalog path", "path": ["tileViews", "catalog"], "value": "..\\catalog.json" },
+  { "name": "nested parent source path", "path": ["map", "sourceLock"], "value": "folder/../sources.json" },
+  { "name": "absolute source path", "path": ["map", "sourceLock"], "value": "C:\\sources.json" },
+  { "name": "invalid health tile", "path": ["runtime", "healthTile"], "value": "missing-tile-path" }
+]

@@ -31,7 +31,7 @@ if (command === 'validate') {
     console.log(`Valid ${definition.identity.name}: ${selectedTiles.length} selected Tile Views`);
   }
 } else if (command === 'build') {
-  const result = await buildWorldMod({ repositoryRoot, worldRoot: resolveArg('world'), modRoot: resolveArg('mod'), artifactsRoot: resolveArg('artifacts') });
+  const result = await buildWorldMod({ repositoryRoot, worldRoot: resolveArg('world'), modRoot: resolveArg('mod'), artifactsRoot: resolveArg('artifacts'), repair: args.has('repair') });
   console.log(`Built ${result.definition.identity.name} with ${result.selectedTiles.length} Tile Packages (${result.platformRelease})`);
 } else if (command === 'verify') {
   const result = await verifyWorldMod({ worldRoot: resolveArg('world'), outputRoot: resolveArg('output') });
@@ -41,9 +41,10 @@ if (command === 'validate') {
     worldRoot: resolveArg('world'),
     outputRoot: resolveArg('output'),
     packageRoot: resolveArg('packages'),
+    repair: args.has('repair'),
   });
   console.log(`Installed ${result.definition.identity.name} to ${result.targetPath}; PMTiles ${result.tileServer.status}`);
 } else {
-  console.log('Usage: ow-mod <validate|build|verify|install> --world <world-dir> [--mod <consumer-mod> --artifacts <artifact-root> | --output <dist> --packages <tile-packages>]');
+  console.log('Usage: ow-mod <validate|build|verify|install> --world <world-dir> [--mod <consumer-mod> --artifacts <artifact-root> | --output <dist> --packages <tile-packages>] [--repair]');
   if (command !== 'help') process.exitCode = 2;
 }

@@ -266,6 +266,68 @@ test('reload guard preserves an explicitly staged native save', async () => {
   assert.equal(reloads, 1);
 });
 
+for (const interruptedStage of ['capture', 'stage']) {
+  test(`leaving gameplay during recovery ${interruptedStage} cannot leave a stale pending save`, async () => {
+    let pending = null;
+    let release;
+    let entered;
+    const started = new Promise(resolve => { entered = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    const listeners = new Map();
+    const location = { hash: '#/game' };
+    const electron = {
+      getPendingSave: async () => ({ success: true, data: pending }),
+      setPendingSave: async save => {
+        if (interruptedStage === 'stage') { entered(); await gate; }
+        pending = save;
+        return { success: true };
+      },
+      clearPendingSave: async () => { pending = null; },
+    };
+    Object.defineProperty(electron, 'reloadWindow', { value() {}, writable: false });
+    const guard = installNativeReloadRecoveryGuard({
+      globalObject: {
+        addEventListener: (type, callback) => listeners.set(type, callback),
+        removeEventListener: type => listeners.delete(type),
+      },
+      electron, location, checkpointIntervalMs: 0,
+      getCityCode: () => 'NEC_A',
+      captureSnapshot: async () => {
+        if (interruptedStage === 'capture') { entered(); await gate; }
+        return nativeSave();
+      },
+    });
+    await started;
+    location.hash = '#/';
+    await listeners.get('hashchange')();
+    // Even returning to gameplay before the IPC finishes cannot revive it.
+    location.hash = '#/game';
+    release();
+    assert.equal((await guard.flush()).status, 'skipped');
+    assert.equal(pending, null);
+    guard.dispose();
+  });
+}
+
+test('disposing recovery while reading pending save prevents a native capture', async () => {
+  let release;
+  let captures = 0;
+  const electron = {
+    reloadWindow() {},
+    getPendingSave: () => new Promise(resolve => { release = resolve; }),
+    setPendingSave: async () => { throw new Error('disposed guard staged a save'); },
+  };
+  const guard = installNativeReloadRecoveryGuard({
+    globalObject: {}, electron, location: { hash: '#/game' },
+    getCityCode: () => 'NEC_A', captureSnapshot: async () => { captures++; return nativeSave(); },
+  });
+  const checkpoint = guard.checkpoint();
+  guard.dispose();
+  release({ success: true, data: null });
+  assert.equal((await checkpoint).status, 'skipped');
+  assert.equal(captures, 0);
+});
+
 test('reload guard replaces a previous hot-reload generation and restores the native method', () => {
   const calls = [];
   const nativeReload = () => calls.push('native');

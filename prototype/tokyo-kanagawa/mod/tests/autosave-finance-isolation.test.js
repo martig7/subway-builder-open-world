@@ -1,3 +1,4 @@
+import { createSubwayBuilderHostState } from '../../../../open-world-platform/testkit/subway-builder-host.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
@@ -34,7 +35,7 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
     toolbarRegistrations: 0,
     unregisteredComponents: [],
   };
-  const state = {
+  const state = createSubwayBuilderHostState({
     cityCode: activeTileId,
     gameSessionId: 'autosave-finance-isolation-session',
     saveName: 'open-world-runtime',
@@ -80,15 +81,8 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
       };
     },
     loadSave() { counters.loadSave += 1; },
-    loadInitialData() {},
-    setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
-    setFinancialHistory(value) { state.financialHistory = value; },
-    setRouteFinancials(value) { state.routeFinancials = value; },
-    addRevenue(amount) {
-      state.money += amount;
-      state.financialHistory.currentHourRevenue += amount;
-    },
-  };
+
+  });
   const scopedStorage = memoryStorage();
   const hooks = {};
   const map = {

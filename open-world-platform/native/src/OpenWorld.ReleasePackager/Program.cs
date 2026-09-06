@@ -42,7 +42,9 @@ var tileDirectories = Directory.EnumerateDirectories(options.TileRoot)
     .ToArray();
 if (tileDirectories.Length != options.ExpectedTiles) throw new InvalidDataException($"Expected {options.ExpectedTiles} {options.ProductName} tile packages; found {tileDirectories.Length}.");
 
-string[] cityFiles = ["demand_data.json.gz", "buildings_index.bin.gz", "roads.geojson.gz", "runways_taxiways.geojson.gz", "cross_commutes.json", "cross_demand.json.gz", "tiles.pmtiles"];
+// Cross-world demand is embedded in the runnable mod. Tile downloads contain
+// only the native assets consumed from the city data directory.
+string[] cityFiles = ["demand_data.json.gz", "buildings_index.bin.gz", "roads.geojson.gz", "runways_taxiways.geojson.gz", "tiles.pmtiles"];
 foreach (var tileDirectory in tileDirectories)
 {
     var tileId = Path.GetFileName(tileDirectory);

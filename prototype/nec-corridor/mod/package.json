@@ -6,8 +6,10 @@
   "scripts": {
     "build": "node scripts/build-mod.mjs",
     "build:release": "node scripts/build-release-mod.mjs",
-    "install": "node scripts/install-mod.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "install:mod": "node scripts/install-mod.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

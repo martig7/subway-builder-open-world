@@ -184,6 +184,24 @@ class MinHeap {
   }
 }
 
+// Worker queries are serialized. Weak ownership releases workspace with an evicted graph.
+const searchWorkspaces = new WeakMap();
+
+function searchWorkspace(graph) {
+  let workspace = searchWorkspaces.get(graph);
+  if (!workspace || workspace.time.length !== graph.nodeCount) {
+    workspace = { time: new Float64Array(graph.nodeCount), seen: new Uint32Array(graph.nodeCount),
+      parent: new Int32Array(graph.nodeCount), generation: 0 };
+    searchWorkspaces.set(graph, workspace);
+  }
+  workspace.generation = (workspace.generation + 1) >>> 0;
+  if (workspace.generation === 0) {
+    workspace.seen.fill(0);
+    workspace.generation = 1;
+  }
+  return workspace;
+}
+
 export function routeGeneratedRoadGraph(graph, origin, destination, {
   speeds = GENERATED_ROAD_SPEEDS_MPS,
   maxSnapMetres = 5_000,
@@ -199,15 +217,13 @@ export function routeGeneratedRoadGraph(graph, origin, destination, {
 
   const speedByClass = [speeds.highway, speeds.major, speeds.minor];
   const maxSpeed = Math.max(...speedByClass);
-  const time = new Float64Array(graph.nodeCount);
-  const seen = new Uint8Array(graph.nodeCount);
-  const parent = new Int32Array(graph.nodeCount).fill(-1);
+  const { time, seen, parent, generation } = searchWorkspace(graph);
   const heap = new MinHeap();
   const heuristic = (node) => haversineMetres(
     [graph.longitude[node], graph.latitude[node]],
     [graph.longitude[to.node], graph.latitude[to.node]],
   ) / maxSpeed;
-  time[from.node] = 0; seen[from.node] = 1; heap.push(heuristic(from.node), from.node);
+  time[from.node] = 0; seen[from.node] = generation; parent[from.node] = -1; heap.push(heuristic(from.node), from.node);
 
   while (heap.size) {
     const current = heap.pop();
@@ -216,13 +232,13 @@ export function routeGeneratedRoadGraph(graph, origin, destination, {
     for (let edge = graph.head[current.node]; edge !== -1; edge = graph.next[edge]) {
       const target = graph.to[edge];
       const candidate = time[current.node] + graph.metres[edge] / speedByClass[graph.roadClass[edge]];
-      if (!seen[target] || candidate < time[target]) {
-        seen[target] = 1; time[target] = candidate; parent[target] = current.node;
+      if (seen[target] !== generation || candidate < time[target]) {
+        seen[target] = generation; time[target] = candidate; parent[target] = current.node;
         heap.push(candidate + heuristic(target), target);
       }
     }
   }
-  if (!seen[to.node] || parent[to.node] === -1) return null;
+  if (seen[to.node] !== generation || parent[to.node] === -1) return null;
   const nodes = [];
   for (let node = to.node; node !== -1; node = parent[node]) {
     nodes.push(node);

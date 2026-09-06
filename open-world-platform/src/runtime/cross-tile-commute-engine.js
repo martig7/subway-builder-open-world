@@ -530,8 +530,13 @@ export function recordObservedDeparture(world, { cohortId, mass, time }) {
 }
 
 export function projectCommutesForTile(world, tileId) {
+  return projectCommutesByTile(world, [tileId])[tileId];
+}
+
+/** Accumulate global gateway totals once, and local totals only for a flow's two endpoints. */
+export function projectCommutesByTile(world, tileIds) {
   migrateCommuteLedger(world);
-  const projection = {
+  const emptyProjection = () => ({
     totalCrossTileWorkers: 0,
     present: 0,
     waitingToLeave: 0,
@@ -540,30 +545,42 @@ export function projectCommutesForTile(world, tileId) {
     globalInTransit: 0,
     globalBacklog: 0,
     gateways: {},
-  };
+  });
+  const projections = Object.fromEntries(tileIds.map(tileId => [tileId, emptyProjection()]));
+  const global = emptyProjection();
   for (const entry of Object.values(world.gatewayLedger)) {
     const toWork = eventMass(entry.toWork);
     const toHome = eventMass(entry.toHome);
-    projection.totalCrossTileWorkers += entry.flow.mass;
-    projection.globalInTransit += toWork + toHome;
-    projection.globalBacklog += entry.queuedToWork + entry.queuedToHome;
-    if (entry.flow.homeTileId === tileId) {
+    global.totalCrossTileWorkers += entry.flow.mass;
+    global.globalInTransit += toWork + toHome;
+    global.globalBacklog += entry.queuedToWork + entry.queuedToHome;
+    const home = projections[entry.flow.homeTileId];
+    const work = projections[entry.flow.workTileId];
+    if (home) {
+      const projection = home;
       projection.present += entry.atHome + entry.queuedToWork;
       projection.waitingToLeave += entry.queuedToWork;
       projection.outboundInTransit += toWork;
       projection.inboundInTransit += toHome;
     }
-    if (entry.flow.workTileId === tileId) {
+    if (work) {
+      const projection = work;
       projection.present += entry.atWork + entry.queuedToHome;
       projection.waitingToLeave += entry.queuedToHome;
       projection.inboundInTransit += toWork;
       projection.outboundInTransit += toHome;
     }
-    const gateway = projection.gateways[entry.flow.gatewayId] ??= { backlog: 0, inTransit: 0 };
+    const gateway = global.gateways[entry.flow.gatewayId] ??= { backlog: 0, inTransit: 0 };
     gateway.backlog += entry.queuedToWork + entry.queuedToHome;
     gateway.inTransit += toWork + toHome;
   }
-  return projection;
+  for (const projection of Object.values(projections)) {
+    projection.totalCrossTileWorkers = global.totalCrossTileWorkers;
+    projection.globalInTransit = global.globalInTransit;
+    projection.globalBacklog = global.globalBacklog;
+    projection.gateways = Object.fromEntries(Object.entries(global.gateways).map(([id, totals]) => [id, { ...totals }]));
+  }
+  return projections;
 }
 
 export const COMMUTE_SCHEDULE = Object.freeze({

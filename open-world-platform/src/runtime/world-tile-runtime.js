@@ -1,5 +1,5 @@
 import { assertWorld, createWorld, deepCopy, migrateWorldTileSet } from './world-model.js';
-import { advanceCommutesTo, applyModeShares, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog } from './cross-tile-commute-engine.js';
+import { advanceCommutesTo, applyModeShares, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog } from './cross-tile-commute-engine.js';
 import { calculateCrossTileModeShares, createNetworkProfile, inspectCrossTileModeChoice, inspectCrossTileTransitPath } from './cross-tile-mode-choice.js';
 import {
   NetworkProjection,
@@ -186,8 +186,9 @@ function createCanonicalNetwork(source, revision = 0) {
 }
 
 export class WorldTileRuntime {
-  constructor({ game, tilePackages, worldState, initialWorld, tileIds = initialWorld?.tileIds ?? tilePackages?.tileIds?.(), tileCatalog = null, revenueAccrual = null, backgroundNativeExpenses = true, now = () => Date.now(), telemetry = () => {} }) {
+  constructor({ game, tilePackages, worldState, initialWorld, tileIds = initialWorld?.tileIds ?? tilePackages?.tileIds?.(), tileCatalog = null, revenueAccrual = null, backgroundNativeExpenses = true, evaluateCrossModeShares = calculateCrossTileModeShares, now = () => Date.now(), telemetry = () => {} }) {
     this.game = game; this.tilePackages = tilePackages; this.worldState = worldState; this.initialWorld = initialWorld;
+    this.evaluateCrossModeShares = evaluateCrossModeShares;
     this.tileIds = Object.freeze([...tileIds]);
     if (!this.tileIds.length || new Set(this.tileIds).size !== this.tileIds.length) throw new Error('Runtime tile IDs must be a non-empty unique list');
     this.tileCatalog = tileCatalog; this.revenueAccrual = revenueAccrual; this.backgroundNativeExpenses = backgroundNativeExpenses !== false; this.now = now; this.telemetry = telemetry; this.world = null; this.viewWorldFallback = null; this.inFlight = new Map(); this.serial = Promise.resolve(); this.listeners = new Set();
@@ -549,7 +550,7 @@ export class WorldTileRuntime {
     const revision = this.game?.getInterliningRevision?.();
     return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
   }
-  view() {
+  view({ includeDemandDetails = true } = {}) {
     const world = this.world ?? this.viewWorldFallback;
     if (!world) throw new Error('WorldTileRuntime.boot must complete first');
     // UI callers need tile status, never the opaque native save bodies.
@@ -559,13 +560,13 @@ export class WorldTileRuntime {
       aggregate: tile.aggregate,
       hasSnapshot: Boolean(tile.snapshot),
     }]));
-    const commutesByTile = Object.fromEntries(this.tileIds.map((tileId) => [tileId, projectCommutesForTile(world, tileId)]));
+    const commutesByTile = projectCommutesByTile(world, this.tileIds);
     const partialRouteIds = world.activeProjection?.partialRouteIds ?? [];
     const partialRouteServices = partialRouteIds
       .map((routeId) => world.globalNetwork?.routeDescriptors?.[routeId])
       .filter(Boolean);
     const lineage = summarizeLineage(world);
-    return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, day: lineage.day, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, fare: lineage.fare, revision: world.revision, routeCount: lineage.routeCount, stationCount: lineage.stationCount, trainCount: lineage.trainCount, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: world.gatewayLedger, crossPopModeChoices: world.crossPopModeChoices ?? {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
+    return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, day: lineage.day, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, fare: lineage.fare, revision: world.revision, routeCount: lineage.routeCount, stationCount: lineage.stationCount, trainCount: lineage.trainCount, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: includeDemandDetails ? world.gatewayLedger : {}, crossPopModeChoices: includeDemandDetails ? world.crossPopModeChoices ?? {} : {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
   }
   projectionOverlay() { return deepCopy((this.world ?? this.viewWorldFallback)?.projectionOverlay ?? { type: 'FeatureCollection', features: [] }); }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -595,14 +596,22 @@ export class WorldTileRuntime {
       requestedDepartureSeconds: this.world.elapsedSeconds,
     });
   }
-  #notify(event) { const view = this.view(); for (const listener of this.listeners) listener(event, view); }
+  #notify(event) {
+    if (this.listeners.size === 0) return;
+    const view = this.view({ includeDemandDetails: false });
+    for (const listener of this.listeners) listener(event, view);
+  }
 
   async #compileNativeFinanceProfile(world, tileId, networkProfile = world.tiles?.[tileId]?.networkProfile) {
-    const nativeFinanceProfile = this.game.calculateNativeFinanceProfile?.(
+    const hasPackagedDemand = typeof this.tilePackages.loadNativeDemand === 'function'
+      || typeof this.tilePackages.evaluateNativeDemand === 'function';
+    let nativeFinanceProfile = this.backgroundNativeExpenses || !hasPackagedDemand
+      ? this.game.calculateNativeFinanceProfile?.(
       tileId,
       world.globalNetwork?.nativeState ?? null,
-      { financeOwnedRouteIds: world.activeProjection?.financeOwnedRouteIds ?? [] },
-    );
+      { financeOwnedRouteIds: world.activeProjection?.financeOwnedRouteIds ?? [],
+        includeExpenses: this.backgroundNativeExpenses, includeRevenue: !hasPackagedDemand },
+      ) : null;
     const finance = this.#ensureBackgroundFinanceClock(world, Math.floor(world.elapsedSeconds / 3600));
     const hadNativeFinanceProfile = Object.keys(finance.tileRevenueProfiles ?? {}).length > 0
       || Boolean(finance.expenseProfile);
@@ -621,8 +630,7 @@ export class WorldTileRuntime {
     const tileIdsByRoute = globalState && hasSpatialTileCatalog
       ? routeTileIdsById(globalState, this.tileCatalog, { guardBandMeters: NATIVE_DEMAND_TILE_GUARD_METERS })
       : null;
-    if (typeof this.tilePackages.loadNativeDemand === 'function'
-      || typeof this.tilePackages.evaluateNativeDemand === 'function') {
+    if (hasPackagedDemand) {
       for (const candidateTileId of this.tileIds) {
         try {
           const localized = globalState && tileIdsByRoute
@@ -732,31 +740,23 @@ export class WorldTileRuntime {
     // A package adapter without native-demand access retains the old active
     // store result as a compatibility fallback. Production adapters use the
     // off-tile evaluator for every tile, including the one being viewed.
-    if (!finance.tileRevenueProfiles[tileId]?.source && nativeFinanceProfile?.tileRevenueProfile) {
-      finance.tileRevenueProfiles[tileId] = {
-        ...deepCopy(nativeFinanceProfile.tileRevenueProfile),
-        networkSignature: networkProfile?.structuralSignature ?? networkProfile?.signature ?? null,
-      };
+    if (!finance.tileRevenueProfiles[tileId]?.source) {
+      if (!nativeFinanceProfile?.tileRevenueProfile) nativeFinanceProfile = this.game.calculateNativeFinanceProfile?.(
+        tileId, world.globalNetwork?.nativeState ?? null,
+        { financeOwnedRouteIds: world.activeProjection?.financeOwnedRouteIds ?? [], includeRevenue: true, includeExpenses: false },
+      );
+      if (nativeFinanceProfile?.tileRevenueProfile) {
+        finance.tileRevenueProfiles[tileId] = {
+          ...deepCopy(nativeFinanceProfile.tileRevenueProfile),
+          networkSignature: networkProfile?.structuralSignature ?? networkProfile?.signature ?? null,
+        };
+      }
     }
     if (!hadNativeFinanceProfile) finance.lastSettledHour = Math.floor(world.elapsedSeconds / 3600);
     if (results.failed.length === 0 && results.unavailable.length === 0) {
       finance.networkHash = world.globalNetwork?.hash ?? null;
     }
     const projected = finance.tileRevenueProfiles[tileId];
-    const nativeDailyRevenue = Number(nativeFinanceProfile?.tileRevenueProfile?.dailyRevenue);
-    const projectedDailyRevenue = Number(projected?.dailyRevenue);
-    if (Number.isFinite(nativeDailyRevenue) && Number.isFinite(projectedDailyRevenue)) {
-      this.telemetry({
-        phase: 'off-tile-native-demand-audit',
-        tileId,
-        nativeDailyRevenue,
-        projectedDailyRevenue,
-        difference: projectedDailyRevenue - nativeDailyRevenue,
-        percentError: nativeDailyRevenue === 0
-          ? (projectedDailyRevenue === 0 ? 0 : null)
-          : (projectedDailyRevenue - nativeDailyRevenue) / nativeDailyRevenue * 100,
-      });
-    }
     return {
       compiled: Boolean(projected || (this.backgroundNativeExpenses && finance.expenseProfile)),
       ...results,
@@ -769,7 +769,7 @@ export class WorldTileRuntime {
     const world = this.world;
     const finance = world.backgroundNativeFinance;
     const native = this.game.calculateNativeFinanceProfile?.(world.activeTileId,
-      world.globalNetwork?.nativeState ?? null)?.tileRevenueProfile;
+      world.globalNetwork?.nativeState ?? null, { includeRevenue: true, includeExpenses: false })?.tileRevenueProfile;
     const globals = await this.game.captureAuthoritativeGlobals?.();
     const tiles = this.tileIds.map(tileId => {
       const profile = finance?.tileRevenueProfiles?.[tileId];
@@ -848,7 +848,7 @@ export class WorldTileRuntime {
     return this.#compileNativeRevenueProfiles(world, world.activeTileId, world.tiles[world.activeTileId]?.networkProfile);
   }
 
-  async recalculateCrossTileModeShare({ reason = 'manual', day = null, force = false } = {}) {
+  async recalculateCrossTileModeShare({ reason = 'manual', day = null, force = false, evaluateCrossModeShares = this.evaluateCrossModeShares } = {}) {
     this.#requireBooted();
     return this.#enqueue(async () => {
       const rules = this.game.capturePathfindingRules?.();
@@ -942,7 +942,7 @@ export class WorldTileRuntime {
         return { status: 'no-cross-demand', reason, day, nativeFinanceProfile, backgroundFinance };
       }
       const networkProfiles = Object.fromEntries(Object.entries(this.world.tiles).map(([id, tile]) => [id, tile.networkProfile]).filter(([, value]) => value));
-      const calculated = calculateCrossTileModeShares({
+      const calculated = await evaluateCrossModeShares({
         crossDemand,
         networkProfiles,
         gatewayCatalog: this.world.gatewayCatalog,

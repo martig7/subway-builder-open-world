@@ -290,6 +290,7 @@ test('replays a cached gateway-to-gateway topology across populations', () => {
   });
 
   assert.deepEqual(calculated.routingStats, {
+    driveAccessCandidates: 0,
     gatewayPathHits: 1, gatewayPathMisses: 1,
     endpointPathHits: 2, endpointPathMisses: 2,
     catchmentHits: 6, catchmentMisses: 4,

@@ -81,7 +81,7 @@ test('registers a native toolbar panel and map-backed cross-demand layers', () =
   };
   const controller = registerCrossDemandViewer({
     api,
-    runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
+    runtime: { getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
     tilePackages: { loadCrossDemand: async () => null },
   });
   controller.attachMap(overlayMap(sources, layers));
@@ -111,7 +111,7 @@ test('keeps demand bubbles at a constant geographic size through high zoom', () 
   };
   const controller = registerCrossDemandViewer({
     api,
-    runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
+    runtime: { getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
     tilePackages: { loadCrossDemand: async () => null },
   });
   controller.attachMap(overlayMap([], layers));
@@ -136,7 +136,7 @@ test('point selection replaces the global demand field with the selected point a
   };
   const controller = registerCrossDemandViewer({
     api,
-    runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
+    runtime: { getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
     tilePackages: { loadCrossDemand: async () => ({
       schemaVersion: 1, tileId: 'KCW', gateways: ['central'],
       points: [
@@ -188,7 +188,7 @@ test('clips cross-demand dots to the live render halo', async () => {
   };
   const controller = registerCrossDemandViewer({
     api,
-    runtime: { view: () => ({ activeTileId: 'near', gatewayLedger: {} }) },
+    runtime: { getActiveTileId: () => 'near', view: () => ({ activeTileId: 'near', gatewayLedger: {} }) },
     rendererVirtualization,
     tilePackages: { loadCrossDemand: async () => ({
       schemaVersion: 1, tileId: 'near', gateways: ['central'],
@@ -248,7 +248,7 @@ test('refreshes displayed colors and details when runtime mode share is recalcul
   const controller = registerCrossDemandViewer({
     api,
     runtime: {
-      view: () => ({ activeTileId: 'KCW', gatewayLedger, crossPopModeChoices }),
+      getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger, crossPopModeChoices }),
       subscribe: (listener) => { runtimeListener = listener; return () => {}; },
     },
     tilePackages: { loadCrossDemand: async () => ({
@@ -282,7 +282,7 @@ test('adds current transit-path diagnostics to the selected pop', async () => {
     utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
   };
   const runtime = {
-    view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }),
+    getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }),
     inspectCrossTileTransitPath: (_data, popIndex) => {
       assert.equal(popIndex, 0);
       return expectedPath;
@@ -313,7 +313,7 @@ test('adds driving and generalized-cost diagnostics to the selected pop', async 
     utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
   };
   const runtime = {
-    view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }),
+    getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }),
     inspectCrossTileTransitPath: () => ({ available: true, totalSeconds: 1_700 }),
     inspectCrossTileModeChoice: () => expectedComparison,
   };
@@ -340,7 +340,7 @@ test('selected cross pops replace the geometric line with the shared asynchronou
   const routeCalls = [];
   const controller = registerCrossDemandViewer({
     api,
-    runtime: { view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
+    runtime: { getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
     tilePackages: { loadCrossDemand: async () => ({
       schemaVersion: 1, tileId: 'KCW', gateways: ['central'],
       points: [['home', -94.66, 39.1, 'KCW', 50, 0], ['work', -94.54, 39.1, 'KCE', 0, 50]],

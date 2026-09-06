@@ -124,8 +124,8 @@ The build step stages the two generated sources into the game-facing package lay
 ```powershell
 Push-Location .\prototype\nec-corridor\mod
 npm run build
-npm run install
+npm run install:mod
 Pop-Location
 ```
 
-`npm run build` waits until every selected tile has both its demand package and its Depot map package. It writes staged packages to `generated/mod/tiles/` and bundles `start-tile-server.ps1` plus its native PMTiles server helper into `mod/dist/`; it does not install anything into the game. `npm run install` is the explicit install step. It copies each PMTiles archive into the installed city data, launches the bundled startup script from the installed mod directory, and uses port `8799` so the NEC service does not collide with the NY canary service on `8798`.
+`npm run build` waits until every selected tile has both its demand package and its Depot map package. It writes staged packages to `generated/mod/tiles/` and bundles `start-tile-server.ps1` plus its native PMTiles server helper into `mod/dist/`; it does not install anything into the game. `npm run install:mod` is the explicit install step. It copies each PMTiles archive into the installed city data, launches the bundled startup script from the installed mod directory, and uses port `8799` so the NEC service does not collide with the NY canary service on `8798`.

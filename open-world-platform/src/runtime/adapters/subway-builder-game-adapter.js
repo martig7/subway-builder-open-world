@@ -3219,28 +3219,31 @@ export class SubwayBuilderGameAdapter {
 
   calculateNativeFinanceProfile(tileId = this.loadedCityCode, globalNativeState = null, options = {}) {
     const state = this.#state();
-    const pops = [...(state.demandData?.popsMap?.values?.() ?? [])];
-    const financeOptions = {
-      ...options,
-      fareGroups: globalNativeState?.fareGroups ?? state.fareGroups ?? [],
-      routes: globalNativeState?.routes ?? state.routes ?? [],
-      legacyFare: Number(state.transitCost) || 0,
-    };
-    let trainTypes = [];
-    try { trainTypes = this.api?.trains?.getTrainTypes?.() ?? []; } catch {}
-    return {
-      tileRevenueProfile: {
+    const result = {};
+    if (options.includeRevenue !== false) {
+      const pops = [...(state.demandData?.popsMap?.values?.() ?? [])];
+      result.tileRevenueProfile = {
         schemaVersion: 3,
         tileId,
         calculatedAtSeconds: state.timeConfig?.elapsedSeconds ?? 0,
-        ...calculateNativeRevenueProfile(pops, financeOptions),
-      },
-      expenseProfile: {
+        ...calculateNativeRevenueProfile(pops, {
+          ...options,
+          fareGroups: globalNativeState?.fareGroups ?? state.fareGroups ?? [],
+          routes: globalNativeState?.routes ?? state.routes ?? [],
+          legacyFare: Number(state.transitCost) || 0,
+        }),
+      };
+    }
+    if (options.includeExpenses !== false) {
+      let trainTypes = [];
+      try { trainTypes = this.api?.trains?.getTrainTypes?.() ?? []; } catch {}
+      result.expenseProfile = {
         schemaVersion: 2,
         calculatedAtSeconds: state.timeConfig?.elapsedSeconds ?? 0,
         ...calculateGlobalExpenseProfile(globalNativeState ?? state, trainTypes, options),
-      },
-    };
+      };
+    }
+    return result;
   }
 
   async postBackgroundNativeFinance(posting) {

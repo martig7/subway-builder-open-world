@@ -1,4 +1,4 @@
-import { copyFile, cp, lstat, mkdir, readFile, rm } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { loadWorldDefinition } from '../contracts/load-world-definition.js';
@@ -6,7 +6,9 @@ import { verifyWorldMod } from '../mod-builder/verify-world-mod.js';
 import { ensureTileServerReady, stopTileServer } from './tile-server-control.js';
 import { prepareSharedServer, registerSharedWorld, startSharedServer, stopSharedServer } from './shared-tile-server-control.js';
 
-const CITY_DATA_FILENAMES = ['demand_data.json.gz', 'buildings_index.bin.gz', 'roads.geojson.gz', 'runways_taxiways.geojson.gz', 'cross_commutes.json', 'cross_demand.json.gz', 'tiles.pmtiles'];
+import { TILE_DATA_FILES, WORLD_DATA_FILES, planArtifactFiles, applyArtifactFiles } from '../mod-builder/artifact-files.js';
+
+const serverControl = { prepareSharedServer, stopSharedServer, registerSharedWorld, startSharedServer, stopTileServer, ensureTileServerReady };
 
 function applicationDataPathForPlatform(platform = process.platform, environment = process.env) {
   if (platform === 'win32') {
@@ -30,7 +32,7 @@ export function resolveInstallTargets({ definition, applicationDataPath = applic
   return { applicationDataPath: appData, modsPath, citiesDataPath, targetPath };
 }
 
-export async function installWorldMod({ worldRoot, outputRoot, packageRoot, applicationDataPath, startServer = true }) {
+export async function installWorldMod({ worldRoot, outputRoot, packageRoot, applicationDataPath, startServer = true, repair = false }, control = serverControl) {
   const { definition, selectedTiles } = await loadWorldDefinition(worldRoot);
   await verifyWorldMod({ worldRoot, outputRoot });
   const targets = resolveInstallTargets({ definition, applicationDataPath });
@@ -40,29 +42,45 @@ export async function installWorldMod({ worldRoot, outputRoot, packageRoot, appl
   const requiredBundleFiles = ['index.js', 'manifest.json', 'world-definition.json', 'world-definition.sha256'];
   if (!shared) requiredBundleFiles.push('start-tile-server.ps1', 'native-pmtiles-server.ps1');
   for (const filename of requiredBundleFiles) await lstat(path.join(distPath, filename));
-  for (const tile of selectedTiles) for (const filename of CITY_DATA_FILENAMES) await lstat(path.join(packagesPath, tile.id, filename));
+  for (const tile of selectedTiles) {
+    const directory = path.resolve(targets.citiesDataPath, tile.id);
+    if (path.dirname(directory) !== targets.citiesDataPath) throw new Error(`Refusing unsafe city target: ${directory}`);
+    for (const candidate of [directory, ...[...TILE_DATA_FILES, ...WORLD_DATA_FILES].map(filename => path.join(directory, filename))]) {
+      try {
+        if ((await lstat(candidate)).isSymbolicLink()) throw new Error(`Refusing linked city target: ${candidate}`);
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+  }
+  const statePath = path.join(targets.targetPath, '.open-world-artifacts.json');
+  let previous = {};
+  try { previous = JSON.parse(await readFile(statePath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
+  const entries = selectedTiles.flatMap(tile => TILE_DATA_FILES.map(filename => ({
+    key: `${tile.id}/${filename}`, source: path.join(packagesPath, tile.id, filename), target: path.join(targets.citiesDataPath, tile.id, filename),
+  })));
+  const artifactPlan = await planArtifactFiles(entries, { previous, repair });
 
   const builtManifest = JSON.parse(await readFile(path.join(distPath, 'manifest.json'), 'utf8'));
-  const sharedContext = shared ? await prepareSharedServer({ definition, selectedTiles, dataRoot: targets.citiesDataPath, version: builtManifest.version }) : null;
-  if (shared) await stopSharedServer(sharedContext);
-  else await stopTileServer({ definition, starterPath: path.join(distPath, 'start-tile-server.ps1'), installRoot: targets.targetPath });
+  const sharedContext = shared ? await control.prepareSharedServer({ definition, selectedTiles, dataRoot: targets.citiesDataPath, version: builtManifest.version }) : null;
+  // Bundle updates leave the running server and unchanged city files alone.
+  if (artifactPlan.files.some(file => file.changed && file.key.endsWith('/tiles.pmtiles'))) {
+    if (shared) await control.stopSharedServer(sharedContext);
+    else await control.stopTileServer({ definition, starterPath: path.join(distPath, 'start-tile-server.ps1'), installRoot: targets.targetPath });
+  }
   await mkdir(targets.modsPath, { recursive: true });
   await rm(targets.targetPath, { recursive: true, force: true });
   await cp(distPath, targets.targetPath, { recursive: true });
   await mkdir(targets.citiesDataPath, { recursive: true });
-  for (const tile of selectedTiles) {
-    const cityTargetPath = path.resolve(targets.citiesDataPath, tile.id);
-    if (path.dirname(cityTargetPath) !== targets.citiesDataPath) throw new Error(`Refusing unsafe city target: ${cityTargetPath}`);
-    await rm(cityTargetPath, { recursive: true, force: true });
-    await mkdir(cityTargetPath, { recursive: true });
-    for (const filename of CITY_DATA_FILENAMES) await copyFile(path.join(packagesPath, tile.id, filename), path.join(cityTargetPath, filename));
-  }
+  const artifactState = await applyArtifactFiles(artifactPlan);
+  // Only these retired mod-owned files are removed; standalone input packages
+  // and the historical HTTP adapter keep their own copies.
+  for (const tile of selectedTiles) for (const filename of WORLD_DATA_FILES) await rm(path.join(targets.citiesDataPath, tile.id, filename), { force: true });
+  await writeFile(statePath, `${JSON.stringify(artifactState, null, 2)}\n`);
   const installedManifest = JSON.parse(await readFile(path.join(targets.targetPath, 'manifest.json'), 'utf8'));
   if (installedManifest.id !== definition.identity.manifestId) throw new Error('Installed manifest verification failed');
-  if (shared) await registerSharedWorld(sharedContext);
+  if (shared) await control.registerSharedWorld(sharedContext);
   const tileServer = startServer
-    ? shared ? await startSharedServer(sharedContext, definition)
-      : await ensureTileServerReady({ definition, starterPath: path.join(targets.targetPath, 'start-tile-server.ps1') })
+    ? shared ? await control.startSharedServer(sharedContext, definition)
+      : await control.ensureTileServerReady({ definition, starterPath: path.join(targets.targetPath, 'start-tile-server.ps1') })
     : { status: 'not-started' };
-  return { ...targets, definition, tileServer };
+  return { ...targets, definition, tileServer, changedArtifactFiles: artifactPlan.changed };
 }

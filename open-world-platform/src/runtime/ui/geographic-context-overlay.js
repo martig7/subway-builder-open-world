@@ -53,7 +53,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 11;
+const MOVEMENT_DECK_GUARD_VERSION = 12;
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
@@ -1233,9 +1233,9 @@ function isNativeRoadLayer(layer) {
   return ROAD_LAYER_ID_RE.test(id) || ROAD_SOURCE_LAYER_RE.test(sourceLayer);
 }
 
-function applyRoadLayerZoomRanges(map) {
+function applyRoadLayerZoomRanges(map, layers) {
   if (typeof map?.setLayerZoomRange !== 'function') return [];
-  const roadLayers = (map.getStyle?.()?.layers ?? []).filter(isNativeRoadLayer);
+  const roadLayers = layers.filter(isNativeRoadLayer);
   for (const layer of roadLayers) {
     const minZoom = roadDetailMinZoom(`${layer.id}-${layer['source-layer'] ?? ''}`);
     if (layer.minzoom === minZoom && layer.maxzoom === GEOGRAPHIC_CONTEXT_MAX_ZOOM) continue;
@@ -1258,9 +1258,9 @@ function preserveMapLayerBelowDetailZoom(layer) {
   return layer?.type === 'line' && isRailLineLayerId(`${id}-${sourceLayer}`);
 }
 
-function applyNativeDetailLayerZoomRanges(map) {
+function applyNativeDetailLayerZoomRanges(map, layers) {
   if (typeof map?.setLayerZoomRange !== 'function') return [];
-  const detailLayers = (map.getStyle?.()?.layers ?? []).filter(
+  const detailLayers = layers.filter(
     (layer) => !preserveMapLayerBelowDetailZoom(layer),
   );
   for (const layer of detailLayers) {
@@ -1276,9 +1276,8 @@ function applyNativeDetailLayerZoomRanges(map) {
   return detailLayers.map((layer) => layer.id);
 }
 
-function applyMovementLayerZoomRanges(map) {
+function applyMovementLayerZoomRanges(map, layers) {
   if (typeof map?.setLayerZoomRange !== 'function') return [];
-  const layers = map.getStyle?.()?.layers ?? [];
   const movementLayers = layers.filter((layer) => isMovementLayerId(layer.id));
   for (const layer of movementLayers) {
     if (
@@ -1294,6 +1293,13 @@ function applyMovementLayerZoomRanges(map) {
     } catch {}
   }
   return movementLayers.map((layer) => layer.id);
+}
+
+function applyNativeLayerZoomRanges(map) {
+  const layers = map?.getStyle?.()?.layers ?? [];
+  applyNativeDetailLayerZoomRanges(map, layers);
+  applyRoadLayerZoomRanges(map, layers);
+  applyMovementLayerZoomRanges(map, layers);
 }
 
 function virtualizationSignature(virtualization) {
@@ -1763,6 +1769,23 @@ function maskMovementDeckLayers(
   const isPortolanRibbon = isPortolanRibbonLayerId(layerId);
   const isStationDeckLayer = typeof layerId === 'string' && STATION_DECK_LAYER_ID_RE.test(layerId);
   const hiddenByOverview = isLowZoomOverview(zoom) && !isRailLine;
+  const nativeVisible = (layers.props?.visible ?? layers.visible) !== false;
+  const hidden = !nativeVisible || hiddenByOverview
+    || ((isMovement || isStationDeckLayer) && !isDetailedMovementZoom(zoom))
+    || (isRoad && !isDetailedRoadZoom(layerId, zoom));
+  if (hidden) {
+    // Retain canonical data in the native layer tree, but never traverse it
+    // while the layer cannot be drawn. Hidden updates may mutate that data in
+    // place, so the next visible pass must build fresh spatial membership.
+    const source = layerData(layers)?.[1];
+    if (source) spatialCache?.delete(source);
+    const nativeData = layers.props?.data;
+    if (nativeData && typeof nativeData === 'object') spatialCache?.delete(nativeData);
+    layerCache?.delete(layerId);
+    movementCache?.delete(String(layerId).toLowerCase());
+    interliningCache?.delete(String(layerId).toLowerCase());
+    return cloneLayerWithOverrides(layers, { visible: false });
+  }
   if (!isMovement && !isRoad && !hiddenByOverview && !virtualization) return layers;
   const overrides = {};
   const dataEntry = layerData(layers);
@@ -1944,20 +1967,12 @@ function maskMovementDeckLayers(
     }
   }
   if (isMovement) {
-    const nativeVisible = layers.props?.visible !== false;
     overrides.visible = nativeVisible && isDetailedMovementZoom(zoom);
   }
   if (isRoad) {
-    const nativeVisible = layers.props?.visible !== false;
     // Preserve highway context while progressively admitting the much larger
     // major/minor road families as the camera approaches street level.
     overrides.visible = nativeVisible && isDetailedRoadZoom(layerId, zoom);
-  }
-  if (hiddenByOverview) {
-    overrides.visible = false;
-  }
-  if (isStationDeckLayer && !isDetailedMovementZoom(zoom)) {
-    overrides.visible = false;
   }
   const maskedLayer = Object.keys(overrides).length ? cloneLayerWithOverrides(layers, overrides) : layers;
   if (
@@ -2076,11 +2091,17 @@ function releaseSpatialSourceVisibilityGuards(map) {
   try { delete map[SPATIAL_SOURCE_GUARD_KEY]; } catch {}
 }
 
-function movementDeckVisibilitySignature(zoom, virtualization, interliningRevision = null) {
+function nativeLayerVisibilitySignature(layers) {
+  return Array.isArray(layers) ? `[${layers.map(nativeLayerVisibilitySignature).join(',')}]`
+    : (layers?.props?.visible ?? layers?.visible) === false ? 'hidden' : 'visible';
+}
+
+function movementDeckVisibilitySignature(zoom, virtualization, interliningRevision, nativeLayers) {
   return `${virtualizationSignature(virtualization)}|overview:${isLowZoomOverview(zoom)}`
     + `|detailed:${isDetailedMovementZoom(zoom)}`
     + `|roads:${roadVisibilityBand(zoom)}`
-    + `|interlining:${interliningRevision ?? 'unknown'}`;
+    + `|interlining:${interliningRevision ?? 'unknown'}`
+    + `|native:${nativeLayerVisibilitySignature(nativeLayers)}`;
 }
 
 function applyMovementDeckVisibility(deck, { force = false } = {}) {
@@ -2090,7 +2111,7 @@ function applyMovementDeckVisibility(deck, { force = false } = {}) {
     const zoom = patch.map?.getZoom?.();
     const virtualization = patch.virtualizationProvider?.();
     const interliningRevision = patch.interliningRevisionProvider?.() ?? null;
-    const signature = movementDeckVisibilitySignature(zoom, virtualization, interliningRevision);
+    const signature = movementDeckVisibilitySignature(zoom, virtualization, interliningRevision, patch.nativeLayers);
     if (
       !force
       && patch.lastAppliedNativeLayers === patch.nativeLayers
@@ -2227,7 +2248,7 @@ function installMovementDeckVisibilityGuard(
             ? nextProps.layers.map(railClipLayerSummary)
             : { type: typeof nextProps.layers },
         }), { key: 'deck-setProps', every: 30 });
-        const signature = movementDeckVisibilitySignature(zoom, virtualization, interliningRevision);
+        const signature = movementDeckVisibilitySignature(zoom, virtualization, interliningRevision, nextProps.layers);
         const canReuseMaskedTree = patch.lastAppliedSignature === signature
           && patch.lastAppliedLayers != null
           && sameNativeLayerTree(patch.lastAppliedNativeLayers, nextProps.layers);
@@ -2326,7 +2347,7 @@ function releaseMovementDeckVisibilityGuard(deck, owner) {
   delete deck[MOVEMENT_DECK_GUARD_KEY];
 }
 
-export const GEOGRAPHIC_CONTEXT_CLEANUP_VERSION = 'retired-renderer-handoff-v3';
+export const GEOGRAPHIC_CONTEXT_CLEANUP_VERSION = 'retired-renderer-handoff-v4';
 
 function replaceGeographicContextControllerOwner(map, controller) {
   if (!map) return;
@@ -2634,6 +2655,12 @@ function ensureArtifacts(map, worldContextTilesUrl, worldVegetationData = null, 
   }
 }
 
+function cancelStyleDataRefresh(controller) {
+  const pending = controller.styleDataRefresh;
+  controller.styleDataRefresh = null;
+  if (pending?.frameId != null) globalThis.cancelAnimationFrame?.(pending.frameId);
+}
+
 export class GeographicContextOverlayController {
   constructor({
     runtime,
@@ -2676,6 +2703,7 @@ export class GeographicContextOverlayController {
     this.nativeHoverDelegateMap = null;
     this.contextRefreshPending = true;
     this.refreshingContext = false;
+    this.styleDataRefresh = null;
     this.handleIdle = () => this.retryContextRefresh();
     this.handleStyle = () => {
       this.boundarySubmission = null;
@@ -2732,36 +2760,42 @@ export class GeographicContextOverlayController {
         });
     };
     this.handleStyleData = () => {
-      if (this.refreshingContext) return;
-      // setStyle can diff away mod layers without another style.load. Also
-      // retry a style.load that arrived before native sources finished loading.
-      this.retryContextRefresh();
-      // Paint edits can arrive while tiles are still loading. Synchronize now,
-      // without rebuilding geometry or waiting for isStyleLoaded()/idle.
-      syncWorldContextTheme(this.map);
+      if (this.refreshingContext || this.styleDataRefresh) return;
+      const pending = { map: this.map, frameId: null };
+      this.styleDataRefresh = pending;
       const refreshMovementRanges = () => {
-        if (!mapStyleLoaded(this.map)) return;
-        mapMovePerfMeasure('map.styledata.work', () => {
-          toolboxRenderDebugLog('styledata', () => toolboxRenderMapSnapshot(
-            this.map,
-            this.rendererVirtualization,
-          ), { key: 'styledata', every: 1, first: 100 });
-          applyNativeDetailLayerZoomRanges(this.map);
-          if (this.nativeParkSourceLayer === 'landuse') syncNativeParkLanduse(this.map);
-          applyRoadLayerZoomRanges(this.map);
-          applyMovementLayerZoomRanges(this.map);
-          mapMovePerfMeasure(
-            'guard.spatial-source.sync',
-            () => this.syncSpatialSourceVisibilityGuard(),
-          );
-          mapMovePerfMeasure(
-            'guard.deck.sync',
-            () => this.syncMovementDeckVisibilityGuard(),
-          );
-          syncNativeHoverDelegateGate(this.map, this);
-        });
+        if (this.styleDataRefresh !== pending) return;
+        try {
+          if (this.map !== pending.map) return;
+          // setStyle can diff away mod layers without another style.load.
+          // Paint synchronization also runs while native tiles are pending.
+          this.retryContextRefresh();
+          syncWorldContextTheme(this.map);
+          if (!mapStyleLoaded(this.map)) return;
+          mapMovePerfMeasure('map.styledata.work', () => {
+            toolboxRenderDebugLog('styledata', () => toolboxRenderMapSnapshot(
+              this.map,
+              this.rendererVirtualization,
+            ), { key: 'styledata', every: 1, first: 100 });
+            applyNativeLayerZoomRanges(this.map);
+            if (this.nativeParkSourceLayer === 'landuse') syncNativeParkLanduse(this.map);
+            mapMovePerfMeasure(
+              'guard.spatial-source.sync',
+              () => this.syncSpatialSourceVisibilityGuard(),
+            );
+            mapMovePerfMeasure(
+              'guard.deck.sync',
+              () => this.syncMovementDeckVisibilityGuard(),
+            );
+            syncNativeHoverDelegateGate(this.map, this);
+          });
+        } finally {
+          if (this.styleDataRefresh === pending) this.styleDataRefresh = null;
+        }
       };
-      globalThis.requestAnimationFrame?.(refreshMovementRanges) ?? refreshMovementRanges();
+      if (typeof globalThis.requestAnimationFrame === 'function') {
+        pending.frameId = globalThis.requestAnimationFrame(refreshMovementRanges);
+      } else refreshMovementRanges();
     };
     this.unsubscribeRuntime = runtime?.subscribe?.((_event, view) => {
       this.runtimeActiveTileId = view?.activeTileId ?? this.readRuntimeActiveTileId();
@@ -2772,6 +2806,7 @@ export class GeographicContextOverlayController {
   attachMap(map) {
     replaceGeographicContextControllerOwner(map, this);
     if (this.map === map) return this.refresh();
+    cancelStyleDataRefresh(this);
     removeStaleTileSelectionDelegates(map);
     if (this.map) {
       if (globalThis[MAP_MOVE_PERF_PROBES]?.map === this.map) {
@@ -2833,9 +2868,7 @@ export class GeographicContextOverlayController {
     map?.on?.('zoom', this.handleZoom);
     ensureStationMarkerStyle();
     updateStationMarkerVisibility(map);
-    applyNativeDetailLayerZoomRanges(map);
-    applyRoadLayerZoomRanges(map);
-    applyMovementLayerZoomRanges(map);
+    applyNativeLayerZoomRanges(map);
     this.syncSpatialSourceVisibilityGuard();
     this.syncMovementDeckVisibilityGuard();
     toolboxRenderDebugLog('map-attached-snapshot', () => toolboxRenderMapSnapshot(
@@ -2890,9 +2923,7 @@ export class GeographicContextOverlayController {
       this.stationMarkerVisibility?.updateVirtualization?.(this.rendererVirtualization);
       mapMovePerfMeasure('marker.visibility', () => updateStationMarkerVisibility(this.map));
       mapMovePerfMeasure('overlay.layer-ranges', () => {
-        applyNativeDetailLayerZoomRanges(this.map);
-        applyRoadLayerZoomRanges(this.map);
-        applyMovementLayerZoomRanges(this.map);
+        applyNativeLayerZoomRanges(this.map);
       });
       mapMovePerfMeasure(
         'guard.spatial-source.sync',
@@ -2922,6 +2953,7 @@ export class GeographicContextOverlayController {
   }
 
   detachMap() {
+    cancelStyleDataRefresh(this);
     const attachedMap = this.map;
     if (!attachedMap) return;
     try { attachedMap.off('style.load', this.handleStyle); } catch {}

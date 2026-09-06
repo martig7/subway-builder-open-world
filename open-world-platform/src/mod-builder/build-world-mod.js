@@ -4,18 +4,10 @@ import path from 'node:path';
 import { loadWorldDefinition } from '../contracts/load-world-definition.js';
 import { OPEN_WORLD_PLATFORM_RELEASE } from '../runtime/start-open-world.js';
 import { loadWorldVegetationArtifact } from './world-vegetation-artifact.js';
+import { TILE_DATA_FILES, WORLD_DATA_FILES, planArtifactFiles, applyArtifactFiles } from './artifact-files.js';
 
 const REQUIRED_MAP_FILES = ['buildings_index.bin.gz', 'roads.geojson.gz', 'runways_taxiways.geojson.gz', 'tiles.pmtiles', 'map-manifest.json'];
 const REQUIRED_DEMAND_FILES = ['demand_data.json.gz'];
-const REQUIRED_PACKAGED_TILE_FILES = [
-  'demand_data.json.gz',
-  'buildings_index.bin.gz',
-  'roads.geojson.gz',
-  'runways_taxiways.geojson.gz',
-  'cross_commutes.json',
-  'cross_demand.json.gz',
-  'tiles.pmtiles',
-];
 
 async function hasFile(filePath) {
   try { return (await stat(filePath)).size > 0; } catch { return false; }
@@ -67,12 +59,13 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     '  workerSources: {',
     '    nativeDemandEvaluator: __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__,',
     '    roadRoute: __OPEN_WORLD_ROAD_ROUTE_WORKER_SOURCE__,',
+    '    crossModeShare: __OPEN_WORLD_CROSS_MODE_SHARE_WORKER_SOURCE__,',
     '  },',
     '});',
   ].join('\n');
 }
 
-export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot = null }) {
+export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot = null, repair = false }) {
   const root = path.resolve(repositoryRoot);
   const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Invalid Open World version: ${version}`);
@@ -88,13 +81,17 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   if (packagedTileRoot != null || definition.release.artifactLayout === 'packaged-tile-directories-v1') {
     packageRoot = packagedTileRoot == null ? generatedRoot : path.resolve(packagedTileRoot);
     for (const tile of selectedTiles) {
-      for (const filename of REQUIRED_PACKAGED_TILE_FILES) {
+      for (const filename of TILE_DATA_FILES) {
         if (!(await hasFile(path.join(packageRoot, tile.id, filename)))) missing.push(`${tile.id}/${filename}`);
       }
     }
     const initialPackage = path.join(packageRoot, definition.tileViews.initialTileId);
-    crossCommutesPath = path.join(initialPackage, 'cross_commutes.json');
-    crossDemandPath = path.join(initialPackage, 'cross_demand.json.gz');
+    // Current embedded packages store World data once; historical standalone
+    // packages keep their per-tile files for the HTTP adapter and fixtures.
+    crossCommutesPath = await hasFile(path.join(packageRoot, 'cross_commutes.json'))
+      ? path.join(packageRoot, 'cross_commutes.json') : path.join(initialPackage, 'cross_commutes.json');
+    crossDemandPath = await hasFile(path.join(packageRoot, 'cross_demand.json.gz'))
+      ? path.join(packageRoot, 'cross_demand.json.gz') : path.join(initialPackage, 'cross_demand.json.gz');
   } else {
     const demandRoot = path.join(generatedRoot, 'demand');
     const mapRoot = path.join(generatedRoot, 'maps', 'tiles');
@@ -118,33 +115,43 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
         const manifest = JSON.parse(await readFile(path.join(mapRoot, tile.id, 'map-manifest.json'), 'utf8'));
         assertMapLabelPolicy(definition, manifest, tile.id);
       }
-      await rm(packageRoot, { recursive: true, force: true });
+      let previousManifest = {};
+      try { previousManifest = JSON.parse(await readFile(path.join(packageRoot, 'package-manifest.json'), 'utf8')); } catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
+      if (!previousManifest || typeof previousManifest !== 'object' || Array.isArray(previousManifest)) previousManifest = {};
       await mkdir(packageRoot, { recursive: true });
+      const entries = WORLD_DATA_FILES.map((filename, index) => ({ key: filename, source: [crossCommutesPath, crossDemandPath][index], target: path.join(packageRoot, filename) }));
       const packageManifest = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         worldId: definition.identity.artifactWorldId,
         tileCount: selectedTiles.length,
         tileIds: selectedTiles.map((tile) => tile.id),
         files: {
-          demandData: 'demand_data.json.gz', crossCommutes: 'cross_commutes.json', crossDemand: 'cross_demand.json.gz',
+          demandData: 'demand_data.json.gz',
           buildingsIndex: 'buildings_index.bin.gz', roads: 'roads.geojson.gz', runwaysTaxiways: 'runways_taxiways.geojson.gz', pmtiles: 'tiles.pmtiles',
         },
+        worldFiles: { crossCommutes: 'cross_commutes.json', crossDemand: 'cross_demand.json.gz' },
         tiles: [],
       };
       for (const tile of selectedTiles) {
         const tilePackageRoot = path.join(packageRoot, tile.id);
-        await mkdir(tilePackageRoot, { recursive: true });
         const demandTileRoot = path.join(demandRoot, 'tiles', tile.id);
         const mapTileRoot = path.join(mapRoot, tile.id);
         const copies = [
           [path.join(demandTileRoot, 'demand_data.json.gz'), 'demand_data.json.gz'],
-          [crossCommutesPath, 'cross_commutes.json'],
-          [crossDemandPath, 'cross_demand.json.gz'],
           ...REQUIRED_MAP_FILES.slice(0, 4).map((filename) => [path.join(mapTileRoot, filename), filename]),
         ];
-        for (const [source, filename] of copies) await copyFile(source, path.join(tilePackageRoot, filename));
+        for (const [source, filename] of copies) entries.push({ key: `${tile.id}/${filename}`, source, target: path.join(tilePackageRoot, filename) });
         const mapManifest = JSON.parse(await readFile(path.join(mapTileRoot, 'map-manifest.json'), 'utf8'));
         packageManifest.tiles.push({ id: tile.id, gameCityCode: tile.gameCityCode ?? tile.id, mapCityCode: mapManifest.cityCode ?? null, mapManifest });
+      }
+      const artifactPlan = await planArtifactFiles(entries, { previous: previousManifest.artifactState, repair });
+      packageManifest.artifactState = await applyArtifactFiles(artifactPlan);
+      for (const tile of selectedTiles) for (const filename of WORLD_DATA_FILES) await rm(path.join(packageRoot, tile.id, filename), { force: true });
+      for (const tileId of previousManifest.tileIds ?? []) {
+        if (packageManifest.tileIds.includes(tileId)) continue;
+        const obsolete = path.resolve(packageRoot, tileId);
+        if (path.dirname(obsolete) !== packageRoot) throw new Error(`Unsafe retired Tile Package: ${tileId}`);
+        await rm(obsolete, { recursive: true, force: true });
       }
       await writeFile(path.join(packageRoot, 'package-manifest.json'), `${JSON.stringify(packageManifest, null, 2)}\n`);
     }
@@ -179,6 +186,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   const workerEntries = {
     nativeDemandEvaluator: './src/workers/native-demand-evaluator-worker.js',
     roadRoute: './src/workers/road-route-worker.js',
+    crossModeShare: './src/workers/cross-mode-share-worker.js',
   };
   const workerSources = {};
   for (const [name, entryPoint] of Object.entries(workerEntries)) {
@@ -208,6 +216,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
       __OPEN_WORLD_VEGETATION_GZIP_BASE64__: JSON.stringify(worldVegetationGzipBase64),
       __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__: JSON.stringify(workerSources.nativeDemandEvaluator),
       __OPEN_WORLD_ROAD_ROUTE_WORKER_SOURCE__: JSON.stringify(workerSources.roadRoute),
+      __OPEN_WORLD_CROSS_MODE_SHARE_WORKER_SOURCE__: JSON.stringify(workerSources.crossModeShare),
     },
   });
   const manifest = {

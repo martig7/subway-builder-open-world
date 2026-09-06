@@ -12,6 +12,6 @@ const artifactsRoot = process.env.NEC_ARTIFACTS_ROOT
 const packagedTileRoot = process.env.NEC_PACKAGED_TILE_ROOT
   ? path.resolve(process.env.NEC_PACKAGED_TILE_ROOT)
   : null;
-const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot });
+const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, packagedTileRoot, repair: process.argv.includes('--repair') });
 await verifyWorldMod({ worldRoot, outputRoot: result.distPath });
 console.log(`Built ${result.definition.identity.name} with ${result.selectedTiles.length} Tile Packages`);

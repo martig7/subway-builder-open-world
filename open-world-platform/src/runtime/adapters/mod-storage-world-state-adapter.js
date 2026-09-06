@@ -33,6 +33,10 @@ const FINANCIAL_TILE_AGGREGATE_FIELDS = [
   'fareRevenue',
   'pendingNativeRevenue',
 ];
+function omitFields(value, fields) {
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).filter(key => !fields.includes(key)).map(key => [key, value[key]]));
+}
 function stripFinanceFromAggregate(aggregate) {
   if (!aggregate || typeof aggregate !== 'object') return aggregate;
   const result = { ...aggregate };
@@ -182,8 +186,21 @@ export class ModStorageWorldStateAdapter {
   #copyToStorage(value) { return this.storage instanceof Map ? deepCopy(value) : value; }
   #financeBlind() { return this.financeMode === 'blind'; }
   #worldForStorage(world) {
-    const topologyFree = stripNativeTopologyFromWorld(deepCopy(world));
-    return this.#financeBlind() ? stripFinanceFromWorld(topologyFree) : topologyFree;
+    const financeBlind = this.#financeBlind();
+    const record = omitFields(world, [
+      'globalNetwork', 'activeProjection', 'projectionOverlay', 'projectionWarning',
+      ...(financeBlind ? FINANCIAL_WORLD_FIELDS : []),
+    ]);
+    if (record.pendingTransition) record.pendingTransition = omitFields(record.pendingTransition, ['nativeSnapshot']);
+    if (record.tiles) record.tiles = Object.fromEntries(Object.entries(record.tiles).map(([id, tile]) => {
+      const retained = omitFields(tile, ['snapshot', ...(financeBlind ? FINANCIAL_TILE_FIELDS : [])]);
+      if (financeBlind && retained && 'aggregate' in retained) retained.aggregate = stripFinanceFromAggregate(retained.aggregate);
+      return [id, retained];
+    }));
+    if (financeBlind && record.gatewayLedger) record.gatewayLedger = Object.fromEntries(
+      Object.entries(record.gatewayLedger).map(([id, entry]) => [id, omitFields(entry, ['fareRevenue'])]),
+    );
+    return deepCopy(record);
   }
   #worldFromStorage(world) {
     if (!world) return world;
@@ -198,7 +215,9 @@ export class ModStorageWorldStateAdapter {
 
   #settlementFromWorld(world) {
     if (!world) return null;
-    const sourceWorld = this.#worldForStorage(world);
+    // Hourly journals do not need native state, demand choices or network profiles.
+    // Select the journal first so neither copying nor serialization visits them.
+    const sourceWorld = world;
     const gatewayPositions = Object.fromEntries(Object.entries(sourceWorld.gatewayLedger ?? {}).map(([id, entry]) => [id, {
       atHome: entry.atHome,
       queuedToWork: entry.queuedToWork,
@@ -211,7 +230,7 @@ export class ModStorageWorldStateAdapter {
     }]));
     const tileClocks = Object.fromEntries(Object.entries(sourceWorld.tiles ?? {}).map(([id, tile]) => [id, {
       lastSimulatedTime: tile.lastSimulatedTime,
-      aggregate: tile.aggregate,
+      aggregate: this.#financeBlind() ? stripFinanceFromAggregate(tile.aggregate) : tile.aggregate,
     }]));
     const settlement = {
       schemaVersion: 2,
@@ -232,7 +251,7 @@ export class ModStorageWorldStateAdapter {
       gatewayPositions,
       tileClocks,
     };
-    return settlement;
+    return deepCopy(settlement);
   }
 
   #applySettlement(world, settlement, baseRevisionId = null) {

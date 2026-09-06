@@ -5,6 +5,7 @@ import { installWorldMod } from '../../../../open-world-platform/src/installer/i
 const modRoot = path.resolve(import.meta.dirname, '..');
 const repositoryRoot = path.resolve(modRoot, '..', '..', '..');
 const result = await installWorldMod({
+  repair: process.argv.includes('--repair'),
   worldRoot: path.join(repositoryRoot, 'worlds', 'japan'),
   outputRoot: path.join(modRoot, 'dist'),
   packageRoot: path.resolve(modRoot, '..', 'generated', 'mod', 'tiles'),

@@ -5,9 +5,29 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { validateWorldDefinition } from '../src/contracts/validate-world-definition.js';
+import { loadWorldDefinition } from '../src/contracts/load-world-definition.js';
 
 const root = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const fixtures = JSON.parse(await readFile(new URL('../testkit/fixtures/frozen-consumer-identities.json', import.meta.url)));
+
+test('every real World Definition passes the shared structural contract and catalog checks', async () => {
+  for (const worldName of ['nec-corridor', 'tokyo-kanagawa', 'ny-state', 'japan']) {
+    const loaded = await loadWorldDefinition(path.join(root, 'worlds', worldName));
+    assert.ok(loaded.selectedTiles.length > 0);
+  }
+});
+
+test('JavaScript rejects the same malformed definitions as the Python loader', async () => {
+  const cases = JSON.parse(await readFile(new URL('../testkit/fixtures/world-definition-cases.json', import.meta.url)));
+  const original = JSON.parse(await readFile(path.join(root, 'worlds/japan/world.json'), 'utf8'));
+  for (const fixture of cases) {
+    const definition = structuredClone(original);
+    const parent = fixture.path.slice(0, -1).reduce((value, key) => value[key], definition);
+    if (fixture.remove) delete parent[fixture.path.at(-1)];
+    else parent[fixture.path.at(-1)] = fixture.value;
+    assert.equal(validateWorldDefinition(definition).valid, false, fixture.name);
+  }
+});
 
 for (const worldName of ['nec-corridor', 'tokyo-kanagawa', 'ny-state']) {
   test(`${worldName} definition is valid and preserves frozen identities`, async () => {

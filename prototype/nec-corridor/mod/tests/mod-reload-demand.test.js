@@ -1,3 +1,4 @@
+import { createSubwayBuilderHostState } from '../../../../open-world-platform/testkit/subway-builder-host.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
@@ -37,7 +38,7 @@ test('hot reload evaluates and caches commute demand when the public city getter
     ],
     idealTrainCount: 2,
   }];
-  const state = {
+  const state = createSubwayBuilderHostState({
     cityCode: activeTileId,
     gameSessionId: 'hot-reload-native-session',
     saveName: 'open-world-runtime',
@@ -82,35 +83,8 @@ test('hot reload evaluates and caches commute demand when the public city getter
       },
     }),
     loadSave() {},
-    loadInitialData() {},
-    setCityCode(cityCode) { state.cityCode = cityCode; },
-    setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
-    setGameMode(gameMode) { state.gameMode = gameMode; },
-    setRoutes(value) { state.routes = value; },
-    setTracks({ newTracks = state.tracks, newTrackGroups = state.trackGroups } = {}) {
-      state.tracks = newTracks;
-      state.trackGroups = newTrackGroups;
-    },
-    recalculateAllRouteGeojsons: async () => {},
-    setPreviewRoute(route) { state.previewRoute = route; },
-    batchPreviewRouteUpdates: async () => {},
-    confirmRouteChange() {},
-    handleIncrementGameState: async () => {},
-    simulateCommutes: async () => {},
-    calculatePaths: async () => {},
-    setFinancialHistory(value) { state.financialHistory = value; },
-    setRouteFinancials(value) { state.routeFinancials = value; },
-    addRevenue(amount) {
-      state.money += amount;
-      state.financialHistory.currentHourRevenue += amount;
-    },
-    addExpense(amount) {
-      state.money -= amount;
-      state.financialHistory.currentHourExpenses += amount;
-    },
-    recordRouteFinancials() {},
-    setCompletedCommutes(value) { state.completedCommutes = value; },
-  };
+
+  });
   const demand = {
     points: [
       { id: 'home', location: [homeLongitude, latitude], residents: 100, jobs: 0, popIds: ['inactive-pop'] },

@@ -29,7 +29,8 @@
       "properties": {
         "catalog": { "$ref": "#/$defs/relativeJsonPath" },
         "initialTileId": { "$ref": "#/$defs/stableId" },
-        "boundaryOverlay": { "$ref": "#/$defs/relativeJsonPath" }
+        "boundaryOverlay": { "$ref": "#/$defs/relativeJsonPath" },
+        "ownershipBoundary": { "$ref": "#/$defs/relativeJsonPath" }
       }
     },
     "map": {
@@ -38,7 +39,11 @@
       "required": ["sourceLock", "profile", "basemapRevision"],
       "properties": {
         "sourceLock": { "$ref": "#/$defs/relativeJsonPath" },
+        "sourceLayout": { "$ref": "#/$defs/relativeJsonPath" },
+        "computationBoundary": { "$ref": "#/$defs/relativeJsonPath" },
         "profile": { "$ref": "#/$defs/stableId" },
+        "labelPolicy": { "$ref": "#/$defs/stableId" },
+        "worldContextTileId": { "$ref": "#/$defs/stableId" },
         "nativeParkSourceLayer": { "enum": ["parks", "landuse"] },
         "worldVegetation": { "enum": ["modis-igbp-2023-v1"] },
         "basemapRevision": { "$ref": "#/$defs/stableId" }
@@ -62,6 +67,7 @@
       "required": ["storageNamespace", "tileServerPort", "tileBaseGlobal", "diagnosticNamespace", "healthTile", "requiredHostCapabilities"],
       "properties": {
         "storageNamespace": { "$ref": "#/$defs/stableId" },
+        "tileServerProvider": { "enum": ["shared-native-v4"] },
         "tileServerPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
         "tileBaseGlobal": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
         "diagnosticNamespace": { "$ref": "#/$defs/stableId" },
@@ -82,6 +88,6 @@
   },
   "$defs": {
     "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
-    "relativeJsonPath": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*(?:^|/)\\.\\.(?:/|$)).+\\.(?:geo)?json$" }
+    "relativeJsonPath": { "type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+\\.(?:geo)?json$" }
   }
 }

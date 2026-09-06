@@ -55,6 +55,50 @@ function revisionKeys(storage, worldId) {
   return [...storage.values.keys()].filter((key) => key.startsWith(`world:${worldId}:revision:`));
 }
 
+test('settlement selects its small journal before touching excluded runtime state', async () => {
+  const storage = new RecordingStorage();
+  const adapter = new ModStorageWorldStateAdapter({ storage, financeMode: 'blind' });
+  const world = createWorld({ worldId: 'narrow-journal', tileIds: ['KCW', 'KCE'] });
+  const excluded = {};
+  Object.defineProperty(excluded, 'nativeData', {
+    enumerable: true, get() { throw new Error('traversed excluded runtime state'); },
+  });
+  world.globalNetwork = excluded;
+  world.crossPopModeChoices = excluded;
+  world.financialHistory = excluded;
+  world.tiles.KCW.snapshot = excluded;
+  world.tiles.KCW.networkProfile = excluded;
+  world.tiles.KCW.aggregate = { riders: 3, revenue: 100 };
+  await adapter.saveSettlement(world);
+  world.tiles.KCW.aggregate.riders = 99;
+  const record = storage.values.get('world:narrow-journal:settlement');
+  assert.deepEqual(record.tileClocks.KCW.aggregate, { riders: 3 });
+  assert.equal(record.financialHistory, undefined);
+});
+
+test('revision selects topology-free fields before cloning and preserves reference isolation', async () => {
+  const storage = new RecordingStorage();
+  const adapter = new ModStorageWorldStateAdapter({ storage, financeMode: 'blind' });
+  const world = createWorld({ worldId: 'narrow-revision', tileIds: ['KCW'] });
+  const excluded = {};
+  Object.defineProperty(excluded, 'nativeData', {
+    enumerable: true, get() { throw new Error('traversed excluded native state'); },
+  });
+  world.globalNetwork = excluded;
+  world.activeProjection = excluded;
+  world.financialHistory = excluded;
+  world.tiles.KCW.snapshot = excluded;
+  world.pendingTransition = { to: 'KCW', nativeSnapshot: excluded };
+  world.tiles.KCW.aggregate = { riders: 3, revenue: 100 };
+  await adapter.save(world);
+  world.tiles.KCW.aggregate.riders = 99;
+  const restored = await adapter.load(world.worldId);
+  assert.deepEqual(restored.tiles.KCW.aggregate, { riders: 3 });
+  assert.equal(restored.pendingTransition.nativeSnapshot, undefined);
+  assert.equal(world.tiles.KCW.snapshot, excluded);
+  assert.equal(world.tiles.KCW.aggregate.revenue, 100);
+});
+
 test('one autosave writes one immutable world revision shared by live and checkpoint pointers', async () => {
   const storage = new RecordingStorage();
   const adapter = new ModStorageWorldStateAdapter({ storage });

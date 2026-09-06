@@ -713,7 +713,7 @@ test('upgrades legacy cleanup when a shared Deck retains the destroyed map owner
   const old = registerGeographicContextOverlay({ tileCatalog: catalog,
     runtime: { subscribe: () => () => { unsubscribed++; } } });
   old.attachMap(oldMap);
-  old.cleanupVersion = undefined;
+  old.cleanupVersion = 'retired-renderer-handoff-v3';
   oldMap.style = undefined;
   oldMap.getLayer = function (id) { return this.style.getLayer(id); };
   const legacyDetach = old.detachMap = function () { this.map.getLayer('open-world-vegetation'); };
@@ -1233,7 +1233,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 4;
+  previousPatch.version = 11;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1243,8 +1243,113 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
+  assert.equal(map.__deck[guardKey].version, 12);
   firstController.dispose();
   reloadedController.dispose();
+});
+
+test('hidden Deck frames skip spatial scans and restore the latest coordinates and native visibility', () => {
+  for (const id of ['trains', 'station-marker-dots', 'buildings']) {
+    const map = fixtureMap();
+    map.setZoom(9);
+    let reads = 0;
+    let point = [-80, 40.5];
+    const source = [{ id: 'moving', get coords() { reads++; return point; } }];
+    map.__deck.props.layers = [fixtureDeckLayer(id, { data: source })];
+    const controller = registerGeographicContextOverlay({
+      runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog,
+    });
+    controller.attachMap(map);
+    for (let frame = 0; frame < 20; frame++) {
+      point = [-74.5, 40.5];
+      map.__deck.setProps({ layers: [fixtureDeckLayer(id, { data: source })] });
+    }
+    assert.equal(reads, 0, `${id}: hidden frames must not read geometry`);
+    map.setZoom(11);
+    map.listeners.get('zoom')();
+    assert.equal(map.__deck.props.layers[0].props.data.length, 1);
+    assert.ok(reads > 0);
+
+    map.__deck.setProps({ layers: [fixtureDeckLayer(id, { data: source, visible: false })] });
+    const beforeHiddenUpdates = reads;
+    point = [-80, 40.5];
+    map.setZoom(9);
+    map.listeners.get('zoom')();
+    map.setZoom(11);
+    map.listeners.get('zoom')();
+    assert.equal(reads, beforeHiddenUpdates, `${id}: native-hidden data must not be read either`);
+    assert.equal(map.__deck.props.layers[0].props.visible, false);
+    map.__deck.setProps({ layers: [fixtureDeckLayer(id, { data: source, visible: true })] });
+    assert.equal(map.__deck.props.layers[0].props.data.length, 0, `${id}: hidden mutations invalidate cached clipping`);
+    const retainedNativeLayer = fixtureDeckLayer(id, { data: source });
+    map.__deck.setProps({ layers: [retainedNativeLayer] });
+    retainedNativeLayer.props.visible = false;
+    map.__deck.setProps({ layers: [retainedNativeLayer] });
+    assert.equal(map.__deck.props.layers[0].props.visible, false);
+    point = [-74.5, 40.5];
+    retainedNativeLayer.props.visible = true;
+    map.__deck.setProps({ layers: [retainedNativeLayer] });
+    assert.equal(map.__deck.props.layers[0].props.visible, true);
+    assert.equal(map.__deck.props.layers[0].props.data.length, 1);
+    controller.dispose();
+  }
+});
+
+test('coalesces styledata bursts and reads one layer snapshot for all range rules', () => {
+  const previousFrame = globalThis.requestAnimationFrame;
+  const previousCancel = globalThis.cancelAnimationFrame;
+  const queued = [];
+  globalThis.requestAnimationFrame = (callback) => { queued.push(callback); return queued.length; };
+  globalThis.cancelAnimationFrame = () => {};
+  const map = fixtureMap();
+  // The shipped style uses this ID, allowing theme lookup without its
+  // fallback scan for alternate style producers.
+  map.addLayer({ id: 'background', type: 'background' });
+  const controller = registerGeographicContextOverlay({
+    runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog,
+  });
+  try {
+    controller.attachMap(map);
+    queued.length = 0;
+    let styleReads = 0;
+    const getStyle = map.getStyle;
+    map.getStyle = () => { styleReads++; return getStyle(); };
+    for (let event = 0; event < 50; event++) map.listeners.get('styledata')();
+    assert.equal(queued.length, 1);
+    queued.shift()();
+    assert.equal(styleReads, 1);
+    map.listeners.get('styledata')();
+    const staleCallback = queued.shift();
+    controller.detachMap();
+    const readsAfterDetach = styleReads;
+    staleCallback();
+    assert.equal(styleReads, readsAfterDetach, 'a queued callback cannot run after its map detaches');
+  } finally {
+    controller.dispose();
+    globalThis.requestAnimationFrame = previousFrame;
+    globalThis.cancelAnimationFrame = previousCancel;
+  }
+});
+
+test('native-hidden binary ribbons invalidate clipping before their next visible frame', () => {
+  const map = fixtureMap();
+  const data = { length: 1, startIndices: new Uint32Array([0, 2]), attributes: {
+    getPath: { size: 2, value: new Float64Array([-74.8, 40.5, -74.2, 40.5]) },
+  } };
+  const layer = fixtureDeckLayer('portolan-ribbons', { data });
+  map.__deck.props.layers = [layer];
+  const controller = registerGeographicContextOverlay({
+    runtime: { getActiveTileId: () => 'A', getInterliningRevision: () => 1 }, tileCatalog: catalog,
+  });
+  controller.attachMap(map);
+  assert.equal(map.__deck.props.layers[0].props.data.length, 1);
+  layer.props.visible = false;
+  map.__deck.setProps({ layers: [layer] });
+  data.attributes.getPath.value.set([-80, 40.5, -79, 40.5]);
+  layer.props.visible = true;
+  map.__deck.setProps({ layers: [layer] });
+  assert.equal(map.__deck.props.layers[0].props.data.length, 0);
+  controller.dispose();
 });
 
 test('profiles a map movement by stage without requiring verbose render diagnostics', () => {

@@ -1,5 +1,4 @@
 import { EventEmitter } from 'node:events';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -88,13 +87,5 @@ test('requests a verified foreground stop through the installed-server controlle
   assert.deepEqual(invocation.options, { stdio: 'ignore', windowsHide: true });
 });
 
-test('stops the tile server before replacing either installed directory', async () => {
-  const source = await readFile(new URL('../../../../open-world-platform/src/installer/install-world-mod.js', import.meta.url), 'utf8');
-  const stopIndex = source.indexOf('await stopTileServer(');
-  const replaceModIndex = source.indexOf('await rm(targets.targetPath');
-  const replaceCityIndex = source.indexOf('await rm(cityTargetPath');
-
-  assert.ok(stopIndex >= 0, 'installer must request tile-server shutdown');
-  assert.ok(stopIndex < replaceModIndex, 'server shutdown must precede mod replacement');
-  assert.ok(stopIndex < replaceCityIndex, 'server shutdown must precede city-data replacement');
-});
+// Installer replacement ordering and unchanged-file reuse are exercised through
+// temporary installs in open-world-platform/tests/artifact-install.test.js.

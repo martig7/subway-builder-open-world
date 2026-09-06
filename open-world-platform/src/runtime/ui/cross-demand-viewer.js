@@ -156,7 +156,7 @@ export class CrossDemandOverlayController {
   async open() {
     this.active = true; this.status = 'loading'; this.error = null; this.#emit(); this.#refreshMap();
     try {
-      const tileId = this.runtime.view().activeTileId;
+      const tileId = this.runtime.getActiveTileId();
       const data = await this.tilePackages.loadCrossDemand(tileId);
       if (!this.active) return;
       this.rawData = data;
@@ -199,7 +199,7 @@ export class CrossDemandOverlayController {
   async #loadDrivingPath(popIndex, request) {
     const pop = this.model?.popDetails(popIndex);
     if (!pop) return;
-    const city = this.runtime.view().activeTileId;
+    const city = this.runtime.getActiveTileId();
     const result = await this.routePaths.resolve(city, pop.id);
     if (request !== this.routeRequest || this.selectedPopIndex !== popIndex) return;
     this.selectedDrivingPath = result?.coordinates ?? null;

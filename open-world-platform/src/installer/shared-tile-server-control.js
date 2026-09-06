@@ -97,10 +97,41 @@ export async function registerSharedWorld(context) {
   await rename(temporary, destination);
 }
 
-export async function startSharedServer(context, definition) {
+async function probeSharedServer(context, definition, tileIds, fetchImpl) {
+  const baseUrl = `http://127.0.0.1:${context.port}`;
+  let response;
+  try {
+    response = await fetchImpl(`${baseUrl}/_health`, { signal: AbortSignal.timeout(2000) });
+  } catch { return null; }
+  const unrecognized = { status: 'unrecognized-service', baseUrl };
+  if (!response.ok || response.headers.get('x-pmtiles-server-version') !== SHARED_SERVER_VERSION) return unrecognized;
+  let health;
+  try { health = await response.json(); } catch { return unrecognized; }
+  if (typeof health?.root !== 'string' || !Array.isArray(health.tileIds) || health.tileIds.some(id => typeof id !== 'string')) return unrecognized;
+  if (path.resolve(health.root).toLowerCase() !== path.resolve(context.registration.dataRoot).toLowerCase()) return unrecognized;
+  if (JSON.stringify([...health.tileIds].sort()) !== JSON.stringify(tileIds)) return { status: 'tile-union-changed', baseUrl };
+  try {
+    const tile = await fetchImpl(`${baseUrl}/${definition.runtime.healthTile}`, { signal: AbortSignal.timeout(5000) });
+    if (tile.ok && (await tile.arrayBuffer()).byteLength > 0) return { status: 'shared-native-running', baseUrl, tileCount: tileIds.length };
+  } catch {}
+  return { status: 'tile-unavailable', baseUrl };
+}
+
+export async function startSharedServer(context, definition, { fetchImpl = globalThis.fetch, spawnImpl = spawn, stopImpl = stopSharedServer } = {}) {
   const registrations = await readRegistrations(context.registryRoot);
   const tileIds = validateRegistrations(registrations, context.port, context.registration.dataRoot);
-  const child = spawn(context.registration.serverExecutablePath, [
+  const existing = await probeSharedServer(context, definition, tileIds, fetchImpl);
+  if (existing?.status === 'shared-native-running') return existing;
+  if (existing?.status === 'tile-union-changed') {
+    // A registered World can change its selected tiles without changing any
+    // archive bytes. Native `serve` cannot replace a bound process. Its `stop`
+    // command alone verifies the PID/start time/executable and instance token;
+    // the health header is a routing hint, never authority to kill a process.
+    await stopImpl(context);
+  } else if (existing) {
+    throw new Error(`Refusing to start a competing tile server at ${existing.baseUrl}: ${existing.status}`);
+  }
+  const child = spawnImpl(context.registration.serverExecutablePath, [
     'serve', '--root', context.registration.dataRoot, '--port', String(context.port),
     '--state-root', context.stateRoot, '--log-root', path.join(context.root, 'logs'),
     '--tiles', tileIds.join(','),
@@ -108,21 +139,11 @@ export async function startSharedServer(context, definition) {
   let failure;
   child.once('error', error => { failure = error; });
   child.unref();
-  const baseUrl = `http://127.0.0.1:${context.port}`;
   for (let attempt = 0; attempt < 120; attempt += 1) {
     if (failure) throw failure;
-    try {
-      const response = await fetch(`${baseUrl}/_health`, { signal: AbortSignal.timeout(2000) });
-      if (response.ok && response.headers.get('x-pmtiles-server-version') === SHARED_SERVER_VERSION) {
-        const health = await response.json();
-        if (path.resolve(health.root).toLowerCase() !== path.resolve(context.registration.dataRoot).toLowerCase()) throw new Error('Shared server has the wrong data directory');
-        if (JSON.stringify([...health.tileIds].sort()) === JSON.stringify(tileIds)) {
-          const tile = await fetch(`${baseUrl}/${definition.runtime.healthTile}`, { signal: AbortSignal.timeout(5000) });
-          if (tile.ok && (await tile.arrayBuffer()).byteLength > 0) return { status: 'shared-native-running', baseUrl, tileCount: tileIds.length };
-        }
-      }
-    } catch {}
+    const ready = await probeSharedServer(context, definition, tileIds, fetchImpl);
+    if (ready?.status === 'shared-native-running') return ready;
     await new Promise(resolve => setTimeout(resolve, 250));
   }
-  throw new Error('Official shared server failed its World-union or Japan tile health check');
+  throw new Error('Official shared server failed its World-union or tile health check');
 }

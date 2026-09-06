@@ -7,6 +7,6 @@ const modRoot = path.resolve(import.meta.dirname, '..');
 const repositoryRoot = path.resolve(modRoot, '..', '..', '..');
 const worldRoot = path.join(repositoryRoot, 'worlds', 'ny-state');
 const artifactsRoot = path.resolve(modRoot, '..', 'generated', 'pilot', 'tiles');
-const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot });
+const result = await buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifactsRoot, repair: process.argv.includes('--repair') });
 await verifyWorldMod({ worldRoot, outputRoot: result.distPath });
 console.log(`Built ${result.definition.identity.name} with ${result.selectedTiles.length} Tile Packages`);

@@ -1,3 +1,4 @@
+import { createSubwayBuilderHostState } from '../../../../open-world-platform/testkit/subway-builder-host.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
@@ -38,7 +39,7 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
     ],
     idealTrainCount: 2,
   }];
-  const state = {
+  const state = createSubwayBuilderHostState({
     cityCode: activeTileId,
     gameSessionId: 'hot-reload-native-session',
     saveName: 'open-world-runtime',
@@ -78,15 +79,8 @@ test('hot reload evaluates inactive demand after the runtime snapshot callback',
       },
     }),
     loadSave() {},
-    loadInitialData() {},
-    setTimeConfig(patch) { state.timeConfig = { ...state.timeConfig, ...patch }; },
-    setFinancialHistory(value) { state.financialHistory = value; },
-    setRouteFinancials(value) { state.routeFinancials = value; },
-    addRevenue(amount) {
-      state.money += amount;
-      state.financialHistory.currentHourRevenue += amount;
-    },
-  };
+
+  });
   const demand = {
     points: [
       { id: 'home', location: [homeLongitude, latitude], residents: 100, jobs: 0, popIds: ['inactive-pop'] },
