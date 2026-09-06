@@ -4,9 +4,9 @@ import { cityDefinitionsFor } from '../src/city-registration.js';
 import { PILOT_TILE_IDS, tileById, tileCatalog } from '../src/tile-catalog.js';
 
 test('NEC mod exposes the complete selected corridor catalog', () => {
-  assert.equal(PILOT_TILE_IDS.length, 34);
-  assert.equal(new Set(PILOT_TILE_IDS).size, 34);
-  assert.equal(tileCatalog.tiles.length, 34);
+  assert.equal(PILOT_TILE_IDS.length, 35);
+  assert.equal(new Set(PILOT_TILE_IDS).size, 35);
+  assert.equal(tileCatalog.tiles.length, 35);
   assert.deepEqual(tileCatalog.initialView.center, [-74.05697022, 40.88652063]);
 });
 

@@ -1,12 +1,12 @@
 {
   "categories": {
     "corridorCrossTile": {
-      "rows": 6383193,
-      "workers": 6627084
+      "rows": 6383542,
+      "workers": 6627460
     },
     "local": {
-      "rows": 15995817,
-      "workers": 17805870
+      "rows": 15995932,
+      "workers": 17806023
     }
   },
   "crosswalk": {
@@ -46,8 +46,8 @@
   "partitions": {
     "aux": {
       "corridorCrossTile": {
-        "rows": 1344672,
-        "workers": 1372202
+        "rows": 1344801,
+        "workers": 1372331
       },
       "local": {
         "rows": 1235449,
@@ -56,19 +56,19 @@
     },
     "main": {
       "corridorCrossTile": {
-        "rows": 5038521,
-        "workers": 5254882
+        "rows": 5038741,
+        "workers": 5255129
       },
       "local": {
-        "rows": 14760368,
-        "workers": 16508853
+        "rows": 14760483,
+        "workers": 16509006
       }
     }
   },
   "schemaVersion": "0.1.0",
   "scope": "selected-tile-pairs",
   "selection": {
-    "tileCount": 34,
+    "tileCount": 35,
     "tileIds": [
       "NEC_CM04_RM03",
       "NEC_CM03_RM03",
@@ -89,6 +89,7 @@
       "NEC_CP00_RP00",
       "NEC_CP01_RP00",
       "NEC_CP02_RP00",
+      "NEC_CP03_RP00",
       "NEC_CP04_RP00",
       "NEC_CM02_RP01",
       "NEC_CM01_RP01",
@@ -115,142 +116,142 @@
   "sources": [
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ct_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ct_od_main_JT01_2023.csv.gz",
       "stateFips": "09"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\dc_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\dc_od_main_JT01_2023.csv.gz",
       "stateFips": "11"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\de_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\de_od_main_JT01_2023.csv.gz",
       "stateFips": "10"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ma_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ma_od_main_JT01_2023.csv.gz",
       "stateFips": "25"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\md_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\md_od_main_JT01_2023.csv.gz",
       "stateFips": "24"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\me_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\me_od_main_JT01_2023.csv.gz",
       "stateFips": "23"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\nh_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\nh_od_main_JT01_2023.csv.gz",
       "stateFips": "33"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\nj_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\nj_od_main_JT01_2023.csv.gz",
       "stateFips": "34"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ny_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ny_od_main_JT01_2023.csv.gz",
       "stateFips": "36"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\pa_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\pa_od_main_JT01_2023.csv.gz",
       "stateFips": "42"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ri_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ri_od_main_JT01_2023.csv.gz",
       "stateFips": "44"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\va_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\va_od_main_JT01_2023.csv.gz",
       "stateFips": "51"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\vt_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\vt_od_main_JT01_2023.csv.gz",
       "stateFips": "50"
     },
     {
       "kind": "main",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\wv_od_main_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\wv_od_main_JT01_2023.csv.gz",
       "stateFips": "54"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ct_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ct_od_aux_JT01_2023.csv.gz",
       "stateFips": "09"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\dc_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\dc_od_aux_JT01_2023.csv.gz",
       "stateFips": "11"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\de_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\de_od_aux_JT01_2023.csv.gz",
       "stateFips": "10"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ma_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ma_od_aux_JT01_2023.csv.gz",
       "stateFips": "25"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\md_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\md_od_aux_JT01_2023.csv.gz",
       "stateFips": "24"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\me_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\me_od_aux_JT01_2023.csv.gz",
       "stateFips": "23"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\nh_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\nh_od_aux_JT01_2023.csv.gz",
       "stateFips": "33"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\nj_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\nj_od_aux_JT01_2023.csv.gz",
       "stateFips": "34"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ny_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ny_od_aux_JT01_2023.csv.gz",
       "stateFips": "36"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\pa_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\pa_od_aux_JT01_2023.csv.gz",
       "stateFips": "42"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\ri_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\ri_od_aux_JT01_2023.csv.gz",
       "stateFips": "44"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\va_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\va_od_aux_JT01_2023.csv.gz",
       "stateFips": "51"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\vt_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\vt_od_aux_JT01_2023.csv.gz",
       "stateFips": "50"
     },
     {
       "kind": "aux",
-      "path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\nec-corridor\\raw-data\\lodes\\wv_od_aux_JT01_2023.csv.gz",
+      "path": "prototype\\nec-corridor\\raw-data\\lodes\\wv_od_aux_JT01_2023.csv.gz",
       "stateFips": "54"
     }
   ],
@@ -1028,6 +1029,12 @@
       "rows": 9,
       "workTileId": "NEC_CP02_RP03",
       "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
+      "rows": 1,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
     },
     {
       "homeTileId": "NEC_CM01_RP00",
@@ -2429,6 +2436,12 @@
     },
     {
       "homeTileId": "NEC_CM03_RM01",
+      "rows": 2,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
       "rows": 57,
       "workTileId": "NEC_CP03_RP01",
       "workers": 57
@@ -3419,6 +3432,12 @@
     },
     {
       "homeTileId": "NEC_CM04_RM02",
+      "rows": 1,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
       "rows": 201,
       "workTileId": "NEC_CP03_RP01",
       "workers": 201
@@ -3623,6 +3642,12 @@
     },
     {
       "homeTileId": "NEC_CM04_RM03",
+      "rows": 1,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
       "rows": 27,
       "workTileId": "NEC_CP03_RP01",
       "workers": 27
@@ -3818,6 +3843,12 @@
       "rows": 12,
       "workTileId": "NEC_CP02_RP03",
       "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
+      "rows": 1,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
     },
     {
       "homeTileId": "NEC_CP00_RM01",
@@ -4025,6 +4056,12 @@
     },
     {
       "homeTileId": "NEC_CP00_RP00",
+      "rows": 8,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP00_RP00",
       "rows": 4425,
       "workTileId": "NEC_CP03_RP01",
       "workers": 4427
@@ -4226,6 +4263,12 @@
       "rows": 55,
       "workTileId": "NEC_CP02_RP03",
       "workers": 55
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "rows": 3,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 3
     },
     {
       "homeTileId": "NEC_CP00_RP01",
@@ -4433,6 +4476,12 @@
     },
     {
       "homeTileId": "NEC_CP00_RP02",
+      "rows": 2,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
       "rows": 325,
       "workTileId": "NEC_CP03_RP01",
       "workers": 325
@@ -4628,6 +4677,12 @@
       "rows": 102,
       "workTileId": "NEC_CP02_RP03",
       "workers": 102
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "rows": 8,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 8
     },
     {
       "homeTileId": "NEC_CP01_RP00",
@@ -4832,6 +4887,12 @@
       "rows": 246,
       "workTileId": "NEC_CP02_RP03",
       "workers": 246
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "rows": 8,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 8
     },
     {
       "homeTileId": "NEC_CP01_RP01",
@@ -5225,6 +5286,12 @@
     },
     {
       "homeTileId": "NEC_CP02_RP00",
+      "rows": 81,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 106
+    },
+    {
+      "homeTileId": "NEC_CP02_RP00",
       "rows": 652,
       "workTileId": "NEC_CP03_RP01",
       "workers": 658
@@ -5429,6 +5496,12 @@
     },
     {
       "homeTileId": "NEC_CP02_RP01",
+      "rows": 31,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
       "rows": 62701,
       "workTileId": "NEC_CP03_RP01",
       "workers": 65299
@@ -5630,6 +5703,12 @@
       "rows": 10019,
       "workTileId": "NEC_CP02_RP03",
       "workers": 10479
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "rows": 3,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 3
     },
     {
       "homeTileId": "NEC_CP02_RP02",
@@ -5866,6 +5945,72 @@
       "workers": 533
     },
     {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 1,
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 2,
+      "workTileId": "NEC_CP00_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 1,
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 3,
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 7,
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 18,
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 3,
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 115,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 153
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 56,
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 56
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 10,
+      "workTileId": "NEC_CP03_RP02",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "rows": 2,
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 2
+    },
+    {
       "homeTileId": "NEC_CP03_RP01",
       "rows": 282,
       "workTileId": "NEC_CM01_RM01",
@@ -6032,6 +6177,12 @@
       "rows": 401,
       "workTileId": "NEC_CP02_RP03",
       "workers": 401
+    },
+    {
+      "homeTileId": "NEC_CP03_RP01",
+      "rows": 87,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 87
     },
     {
       "homeTileId": "NEC_CP03_RP01",
@@ -6239,6 +6390,12 @@
     },
     {
       "homeTileId": "NEC_CP03_RP02",
+      "rows": 5,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
       "rows": 89880,
       "workTileId": "NEC_CP03_RP01",
       "workers": 91485
@@ -6434,6 +6591,12 @@
       "rows": 16080,
       "workTileId": "NEC_CP02_RP03",
       "workers": 17154
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "rows": 2,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
     },
     {
       "homeTileId": "NEC_CP03_RP03",
@@ -6755,6 +6918,12 @@
     },
     {
       "homeTileId": "NEC_CP04_RP01",
+      "rows": 2,
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP04_RP01",
       "rows": 19332,
       "workTileId": "NEC_CP03_RP01",
       "workers": 20481
@@ -7032,15 +7201,15 @@
       "workWorkers": 46361
     },
     {
-      "activityWorkers": 1499281,
-      "corridorCrossTileRows": 760859,
-      "corridorCrossTileWorkers": 784619,
+      "activityWorkers": 1499282,
+      "corridorCrossTileRows": 760860,
+      "corridorCrossTileWorkers": 784620,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 718955,
-      "homeWorkers": 760409,
+      "homeRows": 718956,
+      "homeWorkers": 760410,
       "localRows": 326906,
       "localWorkers": 357331,
       "tileId": "NEC_CM01_RP00",
@@ -7064,9 +7233,9 @@
       "workWorkers": 71509
     },
     {
-      "activityWorkers": 2382000,
-      "corridorCrossTileRows": 807858,
-      "corridorCrossTileWorkers": 840372,
+      "activityWorkers": 2382001,
+      "corridorCrossTileRows": 807859,
+      "corridorCrossTileWorkers": 840373,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
@@ -7076,8 +7245,8 @@
       "localRows": 706037,
       "localWorkers": 770814,
       "tileId": "NEC_CM02_RM01",
-      "workRows": 1118447,
-      "workWorkers": 1198091
+      "workRows": 1118448,
+      "workWorkers": 1198092
     },
     {
       "activityWorkers": 394815,
@@ -7144,15 +7313,15 @@
       "workWorkers": 157350
     },
     {
-      "activityWorkers": 1347988,
-      "corridorCrossTileRows": 349075,
-      "corridorCrossTileWorkers": 354904,
+      "activityWorkers": 1347990,
+      "corridorCrossTileRows": 349077,
+      "corridorCrossTileWorkers": 354906,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 639218,
-      "homeWorkers": 682743,
+      "homeRows": 639220,
+      "homeWorkers": 682745,
       "localRows": 456836,
       "localWorkers": 496542,
       "tileId": "NEC_CM03_RM01",
@@ -7224,15 +7393,15 @@
       "workWorkers": 170856
     },
     {
-      "activityWorkers": 2830207,
-      "corridorCrossTileRows": 822736,
-      "corridorCrossTileWorkers": 886039,
+      "activityWorkers": 2830208,
+      "corridorCrossTileRows": 822737,
+      "corridorCrossTileWorkers": 886040,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 1197325,
-      "homeWorkers": 1387318,
+      "homeRows": 1197326,
+      "homeWorkers": 1387319,
       "localRows": 809594,
       "localWorkers": 972084,
       "tileId": "NEC_CM04_RM02",
@@ -7240,15 +7409,15 @@
       "workWorkers": 1442889
     },
     {
-      "activityWorkers": 468168,
-      "corridorCrossTileRows": 210870,
-      "corridorCrossTileWorkers": 230284,
+      "activityWorkers": 468169,
+      "corridorCrossTileRows": 210871,
+      "corridorCrossTileWorkers": 230285,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 259950,
-      "homeWorkers": 299184,
+      "homeRows": 259951,
+      "homeWorkers": 299185,
       "localRows": 95162,
       "localWorkers": 118942,
       "tileId": "NEC_CM04_RM03",
@@ -7256,15 +7425,15 @@
       "workWorkers": 168984
     },
     {
-      "activityWorkers": 981938,
-      "corridorCrossTileRows": 396300,
-      "corridorCrossTileWorkers": 402194,
+      "activityWorkers": 981939,
+      "corridorCrossTileRows": 396301,
+      "corridorCrossTileWorkers": 402195,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 537311,
-      "homeWorkers": 563126,
+      "homeRows": 537312,
+      "homeWorkers": 563127,
       "localRows": 269016,
       "localWorkers": 289872,
       "tileId": "NEC_CP00_RM01",
@@ -7272,47 +7441,47 @@
       "workWorkers": 418812
     },
     {
-      "activityWorkers": 13069865,
-      "corridorCrossTileRows": 1763533,
-      "corridorCrossTileWorkers": 1798267,
+      "activityWorkers": 13069875,
+      "corridorCrossTileRows": 1763543,
+      "corridorCrossTileWorkers": 1798277,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 5750479,
-      "homeWorkers": 6290879,
+      "homeRows": 5750487,
+      "homeWorkers": 6290887,
       "localRows": 5108133,
       "localWorkers": 5635799,
       "tileId": "NEC_CP00_RP00",
-      "workRows": 6229320,
-      "workWorkers": 6778986
+      "workRows": 6229322,
+      "workWorkers": 6778988
     },
     {
-      "activityWorkers": 613820,
-      "corridorCrossTileRows": 259777,
-      "corridorCrossTileWorkers": 267804,
+      "activityWorkers": 613824,
+      "corridorCrossTileRows": 259781,
+      "corridorCrossTileWorkers": 267808,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 320458,
-      "homeWorkers": 345961,
+      "homeRows": 320461,
+      "homeWorkers": 345964,
       "localRows": 152436,
       "localWorkers": 173008,
       "tileId": "NEC_CP00_RP01",
-      "workRows": 244191,
-      "workWorkers": 267859
+      "workRows": 244192,
+      "workWorkers": 267860
     },
     {
-      "activityWorkers": 760926,
-      "corridorCrossTileRows": 115765,
-      "corridorCrossTileWorkers": 116974,
+      "activityWorkers": 760928,
+      "corridorCrossTileRows": 115767,
+      "corridorCrossTileWorkers": 116976,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 336302,
-      "homeWorkers": 379441,
+      "homeRows": 336304,
+      "homeWorkers": 379443,
       "localRows": 279521,
       "localWorkers": 321976,
       "tileId": "NEC_CP00_RP02",
@@ -7320,15 +7489,15 @@
       "workWorkers": 381485
     },
     {
-      "activityWorkers": 2012052,
-      "corridorCrossTileRows": 737614,
-      "corridorCrossTileWorkers": 762030,
+      "activityWorkers": 2012060,
+      "corridorCrossTileRows": 737622,
+      "corridorCrossTileWorkers": 762038,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 995252,
-      "homeWorkers": 1072339,
+      "homeRows": 995260,
+      "homeWorkers": 1072347,
       "localRows": 560240,
       "localWorkers": 625011,
       "tileId": "NEC_CP01_RP00",
@@ -7336,20 +7505,20 @@
       "workWorkers": 939713
     },
     {
-      "activityWorkers": 1879755,
-      "corridorCrossTileRows": 472528,
-      "corridorCrossTileWorkers": 495807,
+      "activityWorkers": 1879766,
+      "corridorCrossTileRows": 472539,
+      "corridorCrossTileWorkers": 495818,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 854227,
-      "homeWorkers": 939325,
+      "homeRows": 854235,
+      "homeWorkers": 939333,
       "localRows": 619277,
       "localWorkers": 691974,
       "tileId": "NEC_CP01_RP01",
-      "workRows": 856855,
-      "workWorkers": 940430
+      "workRows": 856858,
+      "workWorkers": 940433
     },
     {
       "activityWorkers": 290817,
@@ -7368,52 +7537,52 @@
       "workWorkers": 145041
     },
     {
-      "activityWorkers": 108986,
-      "corridorCrossTileRows": 64865,
-      "corridorCrossTileWorkers": 69184,
+      "activityWorkers": 109101,
+      "corridorCrossTileRows": 64953,
+      "corridorCrossTileWorkers": 69299,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 51825,
-      "homeWorkers": 56902,
+      "homeRows": 51906,
+      "homeWorkers": 57008,
       "localRows": 17474,
       "localWorkers": 19901,
       "tileId": "NEC_CP02_RP00",
-      "workRows": 47988,
-      "workWorkers": 52084
+      "workRows": 47995,
+      "workWorkers": 52093
     },
     {
-      "activityWorkers": 697153,
-      "corridorCrossTileRows": 341696,
-      "corridorCrossTileWorkers": 358379,
+      "activityWorkers": 697202,
+      "corridorCrossTileRows": 341745,
+      "corridorCrossTileWorkers": 358428,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 377780,
-      "homeWorkers": 417625,
+      "homeRows": 377811,
+      "homeWorkers": 417656,
       "localRows": 141142,
       "localWorkers": 169387,
       "tileId": "NEC_CP02_RP01",
-      "workRows": 246200,
-      "workWorkers": 279528
+      "workRows": 246218,
+      "workWorkers": 279546
     },
     {
-      "activityWorkers": 857948,
-      "corridorCrossTileRows": 401500,
-      "corridorCrossTileWorkers": 419650,
+      "activityWorkers": 857954,
+      "corridorCrossTileRows": 401506,
+      "corridorCrossTileWorkers": 419656,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 426735,
-      "homeWorkers": 462707,
+      "homeRows": 426738,
+      "homeWorkers": 462710,
       "localRows": 194320,
       "localWorkers": 219149,
       "tileId": "NEC_CP02_RP02",
-      "workRows": 363405,
-      "workWorkers": 395241
+      "workRows": 363408,
+      "workWorkers": 395244
     },
     {
       "activityWorkers": 255908,
@@ -7432,47 +7601,63 @@
       "workWorkers": 128815
     },
     {
-      "activityWorkers": 1992448,
-      "corridorCrossTileRows": 547542,
-      "corridorCrossTileWorkers": 565604,
+      "activityWorkers": 682,
+      "corridorCrossTileRows": 349,
+      "corridorCrossTileWorkers": 376,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 1000767,
-      "homeWorkers": 1059272,
+      "homeRows": 218,
+      "homeWorkers": 258,
+      "localRows": 115,
+      "localWorkers": 153,
+      "tileId": "NEC_CP03_RP00",
+      "workRows": 361,
+      "workWorkers": 424
+    },
+    {
+      "activityWorkers": 1992591,
+      "corridorCrossTileRows": 547685,
+      "corridorCrossTileWorkers": 565747,
+      "externalInboundRows": 0,
+      "externalInboundWorkers": 0,
+      "externalOutboundRows": 0,
+      "externalOutboundWorkers": 0,
+      "homeRows": 1000854,
+      "homeWorkers": 1059359,
       "localRows": 667425,
       "localWorkers": 713422,
       "tileId": "NEC_CP03_RP01",
-      "workRows": 881625,
-      "workWorkers": 933176
+      "workRows": 881681,
+      "workWorkers": 933232
     },
     {
-      "activityWorkers": 4177771,
-      "corridorCrossTileRows": 828193,
-      "corridorCrossTileWorkers": 859001,
+      "activityWorkers": 4177786,
+      "corridorCrossTileRows": 828208,
+      "corridorCrossTileWorkers": 859016,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 1737301,
-      "homeWorkers": 1918116,
+      "homeRows": 1737306,
+      "homeWorkers": 1918121,
       "localRows": 1485983,
       "localWorkers": 1659385,
       "tileId": "NEC_CP03_RP02",
-      "workRows": 2062858,
-      "workWorkers": 2259655
+      "workRows": 2062868,
+      "workWorkers": 2259665
     },
     {
-      "activityWorkers": 338782,
-      "corridorCrossTileRows": 138423,
-      "corridorCrossTileWorkers": 145554,
+      "activityWorkers": 338784,
+      "corridorCrossTileRows": 138425,
+      "corridorCrossTileWorkers": 145556,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 175592,
-      "homeWorkers": 193335,
+      "homeRows": 175594,
+      "homeWorkers": 193337,
       "localRows": 83699,
       "localWorkers": 96614,
       "tileId": "NEC_CP03_RP03",
@@ -7496,20 +7681,20 @@
       "workWorkers": 3282
     },
     {
-      "activityWorkers": 195049,
-      "corridorCrossTileRows": 69912,
-      "corridorCrossTileWorkers": 72117,
+      "activityWorkers": 195053,
+      "corridorCrossTileRows": 69916,
+      "corridorCrossTileWorkers": 72121,
       "externalInboundRows": 0,
       "externalInboundWorkers": 0,
       "externalOutboundRows": 0,
       "externalOutboundWorkers": 0,
-      "homeRows": 100091,
-      "homeWorkers": 107162,
+      "homeRows": 100093,
+      "homeWorkers": 107164,
       "localRows": 55739,
       "localWorkers": 61466,
       "tileId": "NEC_CP04_RP01",
-      "workRows": 81299,
-      "workWorkers": 87887
+      "workRows": 81301,
+      "workWorkers": 87889
     },
     {
       "activityWorkers": 262865,
@@ -7531,12 +7716,12 @@
   "totals": {
     "classificationRowDelta": 0,
     "classificationWorkerDelta": 0,
-    "classifiedRows": 22379010,
-    "classifiedWorkers": 24432954,
-    "excludedRows": 7120348,
-    "excludedWorkers": 7858159,
-    "inputRows": 22379010,
-    "inputWorkers": 24432954,
+    "classifiedRows": 22379474,
+    "classifiedWorkers": 24433483,
+    "excludedRows": 7119884,
+    "excludedWorkers": 7857630,
+    "inputRows": 22379474,
+    "inputWorkers": 24433483,
     "scannedRows": 29499358,
     "scannedWorkers": 32291113
   },

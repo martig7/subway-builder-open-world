@@ -17,6 +17,13 @@ The background uses [OpenStreetMap](https://www.openstreetmap.org/) tiles and di
 
 ## Implementation started
 
+The current footprint contains 35 tiles. Grid `(3, 0)` (`NEC_CP03_RP00`)
+adds the missing eastern portion of Block Island and connects columns 2 and 4
+along row 0, with a northern neighbor at `(3, 1)`. The authoritative runtime
+catalog is `worlds/nec-corridor/geography/tile-views.json`; the prototype selection
+and generated catalog carry the same footprint for map and demand compilation.
+The milestone totals below describe the original 34-tile build.
+
 The attached selection is now copied to `input/nec-corridor-selection.json` and validated against the New York grid contract. The first compiler slice generates a 34-tile catalog, optional Census state-intersection metadata, and a GeoJSON coverage layer.
 
 From the repository root:

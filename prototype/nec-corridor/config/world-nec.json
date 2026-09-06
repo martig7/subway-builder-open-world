@@ -13,7 +13,7 @@
   },
   "selection": {
     "path": "input/nec-corridor-selection.json",
-    "expectedTileCount": 34
+    "expectedTileCount": 35
   },
   "states": {
     "workplaceJurisdictions": ["CT", "DC", "DE", "MA", "MD", "ME", "NH", "NJ", "NY", "PA", "RI", "VA", "VT", "WV"],

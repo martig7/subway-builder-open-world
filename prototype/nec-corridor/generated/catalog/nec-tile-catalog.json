@@ -44,7 +44,7 @@
       "VT",
       "WV"
     ],
-    "selectedCount": 34,
+    "selectedCount": 35,
     "sourceSchemaVersion": "0.1.0",
     "sourceWorldId": "NEC_CORRIDOR_TILE_PLANNER"
   },
@@ -1597,6 +1597,10 @@
           "tileId": "NEC_CP02_RP01"
         },
         {
+          "direction": "east",
+          "tileId": "NEC_CP03_RP00"
+        },
+        {
           "direction": "west",
           "tileId": "NEC_CP01_RP00"
         }
@@ -1622,6 +1626,86 @@
         {
           "fips": "44",
           "intersectionKm2": 20.805549,
+          "postal": "RI"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "boundary": [
+        [
+          -70.70753659,
+          40.42063487
+        ],
+        [
+          -70.65063451,
+          41.29466159
+        ],
+        [
+          -71.5767446,
+          41.32597745
+        ],
+        [
+          -71.62159484,
+          40.45100565
+        ],
+        [
+          -70.70753659,
+          40.42063487
+        ]
+      ],
+      "bounds": [
+        -71.62159484,
+        40.42063487,
+        -70.65063451,
+        41.32597745
+      ],
+      "column": 3,
+      "gameCityCode": "NEC_CP03_RP00",
+      "haloProjected": [
+        784500.0,
+        4481300.0,
+        866200.0,
+        4582600.0
+      ],
+      "id": "NEC_CP03_RP00",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 40.87402853,
+        "longitude": -71.13911931,
+        "zoom": 9
+      },
+      "name": "Grid 3, 0",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP03_RP01"
+        },
+        {
+          "direction": "east",
+          "tileId": "NEC_CP04_RP00"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP02_RP00"
+        }
+      ],
+      "ownershipProjected": [
+        786500,
+        4483300,
+        864200,
+        4580600
+      ],
+      "row": 0,
+      "stateTouches": [
+        {
+          "fips": "25",
+          "intersectionKm2": 2.517415,
+          "postal": "MA"
+        },
+        {
+          "fips": "44",
+          "intersectionKm2": 18.022768,
           "postal": "RI"
         }
       ],
@@ -1676,6 +1760,10 @@
         {
           "direction": "north",
           "tileId": "NEC_CP04_RP01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CP03_RP00"
         }
       ],
       "ownershipProjected": [
@@ -2165,6 +2253,10 @@
         {
           "direction": "east",
           "tileId": "NEC_CP04_RP01"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP03_RP00"
         },
         {
           "direction": "west",

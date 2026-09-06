@@ -110,7 +110,7 @@ def _validate_contract(grid: GridContract) -> None:
         raise ValueError(f"selection grid does not match the frozen New York contract: {grid}")
 
 
-def validate_selection(raw: dict[str, Any], *, expected_tile_count: int | None = 34) -> Selection:
+def validate_selection(raw: dict[str, Any], *, expected_tile_count: int | None = 35) -> Selection:
     if raw.get("schemaVersion") != SELECTION_SCHEMA:
         raise ValueError(f"expected selection schema {SELECTION_SCHEMA}, got {raw.get('schemaVersion')!r}")
     if raw.get("worldId") != SELECTION_WORLD_ID:
@@ -158,7 +158,7 @@ def validate_selection(raw: dict[str, Any], *, expected_tile_count: int | None =
     )
 
 
-def load_selection(path: str | Path, *, expected_tile_count: int | None = 34) -> Selection:
+def load_selection(path: str | Path, *, expected_tile_count: int | None = 35) -> Selection:
     source = Path(path)
     try:
         raw = json.loads(source.read_text(encoding="utf-8"))

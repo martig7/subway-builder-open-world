@@ -18,7 +18,7 @@ test('NEC PMTiles build preserves world geography at wide zooms', () => {
   );
   const plan = JSON.parse(stdout);
 
-  assert.equal(plan.tileCount, 34);
+  assert.equal(plan.tileCount, 35);
   assert.deepEqual(plan.worldZooms, [0, 9]);
   assert.deepEqual(plan.cityZooms, [10, 15]);
   assert.deepEqual(plan.worldLayers, ['world_land', 'water', 'world_boundaries']);

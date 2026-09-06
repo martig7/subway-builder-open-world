@@ -1,5 +1,8 @@
 # Open World Agent Guide
 
+Before choosing a build Runner, read `.analysis/MEMORY.md` if present for
+machine-local execution conventions. Keep that memory file Git-ignored.
+
 ## Start changes from clean version control
 
 Before starting any new feature or change, run `git status --short`. If the
