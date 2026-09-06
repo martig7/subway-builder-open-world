@@ -16,8 +16,8 @@
     "minimumCohortSize": 50,
     "pointMergeDistanceM": 100
   },
-  "crossTileCohorts": 57531,
-  "crossTileWorkers": 6627084,
+  "crossTileCohorts": 57559,
+  "crossTileWorkers": 6627460,
   "crosswalkRowsByStateFips": {
     "09": 49926,
     "10": 20198,
@@ -34,14 +34,14 @@
     "51": 163491,
     "54": 72558
   },
-  "directedTilePairs": 1087,
-  "elapsedSeconds": 1747.165,
-  "excludedRows": 7120348,
-  "excludedWorkers": 7858159,
-  "inputRows": 22379010,
-  "inputWorkers": 24432954,
-  "localWorkers": 17805870,
-  "peakRssBytesAtFinish": 1022812160,
+  "directedTilePairs": 1114,
+  "elapsedSeconds": 1024.478,
+  "excludedRows": 7119884,
+  "excludedWorkers": 7857630,
+  "inputRows": 22379474,
+  "inputWorkers": 24433483,
+  "localWorkers": 17806023,
+  "peakRssBytesAtFinish": null,
   "prototype": true,
   "roadRouting": {
     "completed": true,
@@ -61,7 +61,7 @@
     {
       "cohortCount": 1011,
       "demandBytes": 121864,
-      "elapsedSeconds": 2.375,
+      "elapsedSeconds": 1.533,
       "localWorkers": 118942,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -71,7 +71,7 @@
     {
       "cohortCount": 562,
       "demandBytes": 65905,
-      "elapsedSeconds": 1.589,
+      "elapsedSeconds": 1.059,
       "localWorkers": 64224,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -81,7 +81,7 @@
     {
       "cohortCount": 525,
       "demandBytes": 64028,
-      "elapsedSeconds": 1.608,
+      "elapsedSeconds": 1.084,
       "localWorkers": 63495,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -91,7 +91,7 @@
     {
       "cohortCount": 187,
       "demandBytes": 20109,
-      "elapsedSeconds": 1.142,
+      "elapsedSeconds": 0.819,
       "localWorkers": 22825,
       "maximumCohort": 199,
       "minimumCohort": 52,
@@ -101,7 +101,7 @@
     {
       "cohortCount": 8380,
       "demandBytes": 977166,
-      "elapsedSeconds": 14.152,
+      "elapsedSeconds": 8.111,
       "localWorkers": 972084,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -111,7 +111,7 @@
     {
       "cohortCount": 13752,
       "demandBytes": 1620744,
-      "elapsedSeconds": 25.872,
+      "elapsedSeconds": 14.411,
       "localWorkers": 1598234,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -121,7 +121,7 @@
     {
       "cohortCount": 812,
       "demandBytes": 101889,
-      "elapsedSeconds": 2.007,
+      "elapsedSeconds": 1.306,
       "localWorkers": 93373,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -131,7 +131,7 @@
     {
       "cohortCount": 1250,
       "demandBytes": 153508,
-      "elapsedSeconds": 2.63,
+      "elapsedSeconds": 1.647,
       "localWorkers": 142102,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -141,7 +141,7 @@
     {
       "cohortCount": 909,
       "demandBytes": 112772,
-      "elapsedSeconds": 2.27,
+      "elapsedSeconds": 1.435,
       "localWorkers": 109698,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -151,7 +151,7 @@
     {
       "cohortCount": 4301,
       "demandBytes": 541376,
-      "elapsedSeconds": 8.325,
+      "elapsedSeconds": 4.671,
       "localWorkers": 496542,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -161,7 +161,7 @@
     {
       "cohortCount": 6638,
       "demandBytes": 835307,
-      "elapsedSeconds": 12.67,
+      "elapsedSeconds": 7.063,
       "localWorkers": 770814,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -171,7 +171,7 @@
     {
       "cohortCount": 12420,
       "demandBytes": 1516915,
-      "elapsedSeconds": 24.157,
+      "elapsedSeconds": 13.387,
       "localWorkers": 1453035,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -181,7 +181,7 @@
     {
       "cohortCount": 2521,
       "demandBytes": 320339,
-      "elapsedSeconds": 5.131,
+      "elapsedSeconds": 2.982,
       "localWorkers": 289872,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -191,7 +191,7 @@
     {
       "cohortCount": 924,
       "demandBytes": 119382,
-      "elapsedSeconds": 2.275,
+      "elapsedSeconds": 1.409,
       "localWorkers": 106936,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -201,7 +201,7 @@
     {
       "cohortCount": 2721,
       "demandBytes": 341349,
-      "elapsedSeconds": 5.71,
+      "elapsedSeconds": 3.146,
       "localWorkers": 322814,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -211,7 +211,7 @@
     {
       "cohortCount": 3082,
       "demandBytes": 392601,
-      "elapsedSeconds": 5.936,
+      "elapsedSeconds": 3.64,
       "localWorkers": 357331,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -220,8 +220,8 @@
     },
     {
       "cohortCount": 48317,
-      "demandBytes": 5272192,
-      "elapsedSeconds": 100.871,
+      "demandBytes": 5272194,
+      "elapsedSeconds": 56.709,
       "localWorkers": 5635799,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -231,7 +231,7 @@
     {
       "cohortCount": 5336,
       "demandBytes": 662323,
-      "elapsedSeconds": 9.91,
+      "elapsedSeconds": 5.803,
       "localWorkers": 625011,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -241,7 +241,7 @@
     {
       "cohortCount": 176,
       "demandBytes": 19090,
-      "elapsedSeconds": 1.093,
+      "elapsedSeconds": 0.814,
       "localWorkers": 19901,
       "maximumCohort": 195,
       "minimumCohort": 50,
@@ -249,9 +249,19 @@
       "tileId": "NEC_CP02_RP00"
     },
     {
+      "cohortCount": 1,
+      "demandBytes": 254,
+      "elapsedSeconds": 0.745,
+      "localWorkers": 153,
+      "maximumCohort": 153,
+      "minimumCohort": 153,
+      "siteCount": 2,
+      "tileId": "NEC_CP03_RP00"
+    },
+    {
       "cohortCount": 19,
       "demandBytes": 1814,
-      "elapsedSeconds": 0.995,
+      "elapsedSeconds": 0.757,
       "localWorkers": 2197,
       "maximumCohort": 195,
       "minimumCohort": 53,
@@ -261,7 +271,7 @@
     {
       "cohortCount": 1011,
       "demandBytes": 127037,
-      "elapsedSeconds": 2.434,
+      "elapsedSeconds": 1.504,
       "localWorkers": 116617,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -271,7 +281,7 @@
     {
       "cohortCount": 325,
       "demandBytes": 39484,
-      "elapsedSeconds": 1.35,
+      "elapsedSeconds": 0.92,
       "localWorkers": 36598,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -281,7 +291,7 @@
     {
       "cohortCount": 1509,
       "demandBytes": 191813,
-      "elapsedSeconds": 3.203,
+      "elapsedSeconds": 1.903,
       "localWorkers": 173008,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -291,7 +301,7 @@
     {
       "cohortCount": 5965,
       "demandBytes": 736462,
-      "elapsedSeconds": 11.083,
+      "elapsedSeconds": 6.19,
       "localWorkers": 691974,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -301,7 +311,7 @@
     {
       "cohortCount": 1463,
       "demandBytes": 184929,
-      "elapsedSeconds": 2.996,
+      "elapsedSeconds": 1.808,
       "localWorkers": 169387,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -311,7 +321,7 @@
     {
       "cohortCount": 6095,
       "demandBytes": 766524,
-      "elapsedSeconds": 12.535,
+      "elapsedSeconds": 6.641,
       "localWorkers": 713422,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -321,7 +331,7 @@
     {
       "cohortCount": 534,
       "demandBytes": 64662,
-      "elapsedSeconds": 1.78,
+      "elapsedSeconds": 1.101,
       "localWorkers": 61466,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -331,7 +341,7 @@
     {
       "cohortCount": 2802,
       "demandBytes": 341953,
-      "elapsedSeconds": 5.132,
+      "elapsedSeconds": 3.198,
       "localWorkers": 321976,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -341,7 +351,7 @@
     {
       "cohortCount": 774,
       "demandBytes": 96955,
-      "elapsedSeconds": 1.911,
+      "elapsedSeconds": 1.253,
       "localWorkers": 90639,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -351,7 +361,7 @@
     {
       "cohortCount": 1916,
       "demandBytes": 245585,
-      "elapsedSeconds": 3.796,
+      "elapsedSeconds": 2.279,
       "localWorkers": 219149,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -360,8 +370,8 @@
     },
     {
       "cohortCount": 14368,
-      "demandBytes": 1679423,
-      "elapsedSeconds": 25.17,
+      "demandBytes": 1679416,
+      "elapsedSeconds": 14.558,
       "localWorkers": 1659385,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -371,7 +381,7 @@
     {
       "cohortCount": 714,
       "demandBytes": 86499,
-      "elapsedSeconds": 1.97,
+      "elapsedSeconds": 1.349,
       "localWorkers": 82522,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -381,7 +391,7 @@
     {
       "cohortCount": 843,
       "demandBytes": 104826,
-      "elapsedSeconds": 2.121,
+      "elapsedSeconds": 1.338,
       "localWorkers": 96614,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -391,7 +401,7 @@
     {
       "cohortCount": 963,
       "demandBytes": 111339,
-      "elapsedSeconds": 2.424,
+      "elapsedSeconds": 1.406,
       "localWorkers": 107884,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -617,6 +627,11 @@
     },
     {
       "homeTileId": "NEC_CM01_RP00",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM01_RP00",
       "workTileId": "NEC_CP03_RP03",
       "workers": 17
     },
@@ -1057,6 +1072,11 @@
     },
     {
       "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
       "workTileId": "NEC_CP03_RP03",
       "workers": 9
     },
@@ -1337,6 +1357,11 @@
     },
     {
       "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
       "workTileId": "NEC_CP03_RP03",
       "workers": 16
     },
@@ -1422,6 +1447,11 @@
     },
     {
       "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
       "workTileId": "NEC_CP03_RP01",
       "workers": 27
     },
@@ -1472,6 +1502,11 @@
     },
     {
       "homeTileId": "NEC_CP00_RM01",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP00_RM01",
       "workTileId": "NEC_CP03_RP03",
       "workers": 15
     },
@@ -1489,6 +1524,11 @@
       "homeTileId": "NEC_CP00_RM01",
       "workTileId": "NEC_CP04_RP03",
       "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP00_RP00",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 8
     },
     {
       "homeTileId": "NEC_CP00_RP00",
@@ -1529,6 +1569,11 @@
       "homeTileId": "NEC_CP00_RP01",
       "workTileId": "NEC_CM04_RM03",
       "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 3
     },
     {
       "homeTileId": "NEC_CP00_RP01",
@@ -1597,6 +1642,11 @@
     },
     {
       "homeTileId": "NEC_CP00_RP02",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP00_RP02",
       "workTileId": "NEC_CP04_RP01",
       "workers": 26
     },
@@ -1624,6 +1674,11 @@
       "homeTileId": "NEC_CP01_RP00",
       "workTileId": "NEC_CM04_RM03",
       "workers": 24
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 8
     },
     {
       "homeTileId": "NEC_CP01_RP00",
@@ -1659,6 +1714,11 @@
       "homeTileId": "NEC_CP01_RP01",
       "workTileId": "NEC_CM04_RM03",
       "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 8
     },
     {
       "homeTileId": "NEC_CP01_RP01",
@@ -1902,6 +1962,11 @@
     },
     {
       "homeTileId": "NEC_CP02_RP01",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CP02_RP01",
       "workTileId": "NEC_CP04_RP00",
       "workers": 29
     },
@@ -1964,6 +2029,11 @@
       "homeTileId": "NEC_CP02_RP02",
       "workTileId": "NEC_CM04_RM03",
       "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP02_RP02",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 3
     },
     {
       "homeTileId": "NEC_CP02_RP02",
@@ -2066,6 +2136,51 @@
       "workers": 1
     },
     {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CM02_RM01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP00_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP02_RP02",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP03_RP02",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP03_RP00",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 2
+    },
+    {
       "homeTileId": "NEC_CP03_RP01",
       "workTileId": "NEC_CM01_RM02",
       "workers": 31
@@ -2151,6 +2266,11 @@
       "workers": 31
     },
     {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 5
+    },
+    {
       "homeTileId": "NEC_CP03_RP03",
       "workTileId": "NEC_CM01_RM02",
       "workers": 11
@@ -2234,6 +2354,11 @@
       "homeTileId": "NEC_CP03_RP03",
       "workTileId": "NEC_CP02_RP00",
       "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP03_RP03",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
     },
     {
       "homeTileId": "NEC_CP03_RP03",
@@ -2401,6 +2526,11 @@
       "workers": 15
     },
     {
+      "homeTileId": "NEC_CP04_RP01",
+      "workTileId": "NEC_CP03_RP00",
+      "workers": 2
+    },
+    {
       "homeTileId": "NEC_CP04_RP03",
       "workTileId": "NEC_CM01_RM01",
       "workers": 37
@@ -2501,6 +2631,6 @@
       "workers": 45
     }
   ],
-  "workDatabaseBytes": 7572238336,
+  "workDatabaseBytes": 7572582400,
   "worldId": "NEC_CORRIDOR_LODES_PROTOTYPE"
 }

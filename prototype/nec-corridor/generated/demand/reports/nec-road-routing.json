@@ -1,10 +1,10 @@
 {
   "consumerManifestId": "local.nec-corridor-open-world",
   "crossSearches": {
-    "generated-road-graph": 1532,
-    "geometric-disconnected": 49,
+    "generated-road-graph": 1534,
+    "geometric-disconnected": 69,
     "geometric-excessive-detour": 8,
-    "searches": 1589
+    "searches": 1611
   },
   "drivingModel": {
     "graphVersion": "generated-roads-v1",
@@ -17,25 +17,25 @@
       "minor": 30.0
     }
   },
-  "elapsedSeconds": 797.471,
+  "elapsedSeconds": 871.61,
   "graph": {
-    "buildSeconds": 153.526,
-    "components": 2596,
-    "directedEdges": 7492110,
+    "buildSeconds": 151.662,
+    "components": 2593,
+    "directedEdges": 7492670,
     "graphVersion": "generated-roads-v1",
     "maximumEdgeMetres": 250.0,
-    "nodes": 3112305,
-    "retainedRawSegments": 19376625,
+    "nodes": 3112560,
+    "retainedRawSegments": 19379621,
     "speedKph": {
       "highway": 85.0,
       "major": 50.0,
       "minor": 30.0
     },
-    "tileCount": 34
+    "tileCount": 35
   },
-  "kind": "generated-road driving-time splice",
+  "kind": "generated-road-graph driving-time splice",
   "policy": {
-    "crossPartitionCount": 1087,
+    "crossPartitionCount": 1114,
     "crossSamplesPerTilePair": 4,
     "maxDetourRatio": 3.0,
     "maxRoutedDirectMetres": 250000.0,
@@ -43,17 +43,28 @@
     "minimumDrivingSeconds": 60
   },
   "routes": {
-    "crossRoutes": 57531,
-    "drivingMetres": 4735348587,
-    "drivingSeconds": 266405860,
-    "generated-road-tile-pair-model": 56127,
-    "geometric-long-distance": 1353,
-    "geometric-tile-pair-fallback": 51,
-    "nativeRoutes": 153125,
-    "recoveredNativeRoutes": 153125,
-    "routes": 210656,
-    "snapMetres": 0
+    "crossRoutes": 57559,
+    "drivingMetres": 4869009587,
+    "drivingSeconds": 274171713,
+    "generated-road-graph": 6408,
+    "generated-road-tile-pair-model": 56130,
+    "geometric-disconnected": 26,
+    "geometric-excessive-detour": 73,
+    "geometric-long-distance": 1359,
+    "geometric-tile-pair-fallback": 70,
+    "nativeRoutes": 153126,
+    "nativeSearches": 5626,
+    "preservedNativeRoutes": 146619,
+    "reusedNativeRoutes": 881,
+    "routes": 210685,
+    "snapMetres": 1235604
   },
   "schemaVersion": 1,
+  "selection": {
+    "crossPartitionCount": 1114,
+    "invalidationSha256": "b8bca5d0a4e7552f91be89a05eb3cfa101cac283e5b277d55d0d41f4ffd35059",
+    "mode": "invalidation",
+    "nativeCohortCount": 6507
+  },
   "status": "complete"
 }

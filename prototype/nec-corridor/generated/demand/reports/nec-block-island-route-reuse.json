@@ -1,0 +1,221 @@
+{
+  "preserved": 146619,
+  "rerouted": 6507,
+  "tiles": {
+    "NEC_CM04_RM03": {
+      "preserved": 1011,
+      "rerouted": 0
+    },
+    "NEC_CM03_RM03": {
+      "preserved": 562,
+      "rerouted": 0
+    },
+    "NEC_CM02_RM03": {
+      "preserved": 525,
+      "rerouted": 0
+    },
+    "NEC_CM01_RM03": {
+      "preserved": 187,
+      "rerouted": 0
+    },
+    "NEC_CM04_RM02": {
+      "preserved": 8380,
+      "rerouted": 0
+    },
+    "NEC_CM03_RM02": {
+      "preserved": 13752,
+      "rerouted": 0
+    },
+    "NEC_CM02_RM02": {
+      "preserved": 812,
+      "rerouted": 0
+    },
+    "NEC_CM01_RM02": {
+      "preserved": 1250,
+      "rerouted": 0
+    },
+    "NEC_CM04_RM01": {
+      "preserved": 909,
+      "rerouted": 0
+    },
+    "NEC_CM03_RM01": {
+      "preserved": 4301,
+      "rerouted": 0
+    },
+    "NEC_CM02_RM01": {
+      "preserved": 6638,
+      "rerouted": 0
+    },
+    "NEC_CM01_RM01": {
+      "preserved": 12420,
+      "rerouted": 0
+    },
+    "NEC_CP00_RM01": {
+      "preserved": 2521,
+      "rerouted": 0
+    },
+    "NEC_CM03_RP00": {
+      "preserved": 924,
+      "rerouted": 0
+    },
+    "NEC_CM02_RP00": {
+      "preserved": 2721,
+      "rerouted": 0
+    },
+    "NEC_CM01_RP00": {
+      "preserved": 3082,
+      "rerouted": 0
+    },
+    "NEC_CP00_RP00": {
+      "preserved": 48185,
+      "rerouted": 132
+    },
+    "NEC_CP01_RP00": {
+      "preserved": 5336,
+      "rerouted": 0
+    },
+    "NEC_CP02_RP00": {
+      "preserved": 0,
+      "rerouted": 176
+    },
+    "NEC_CP03_RP00": {
+      "preserved": 0,
+      "rerouted": 1
+    },
+    "NEC_CP04_RP00": {
+      "preserved": 0,
+      "rerouted": 19
+    },
+    "NEC_CM02_RP01": {
+      "preserved": 1011,
+      "rerouted": 0
+    },
+    "NEC_CM01_RP01": {
+      "preserved": 325,
+      "rerouted": 0
+    },
+    "NEC_CP00_RP01": {
+      "preserved": 1509,
+      "rerouted": 0
+    },
+    "NEC_CP01_RP01": {
+      "preserved": 5965,
+      "rerouted": 0
+    },
+    "NEC_CP02_RP01": {
+      "preserved": 1463,
+      "rerouted": 0
+    },
+    "NEC_CP03_RP01": {
+      "preserved": 0,
+      "rerouted": 6095
+    },
+    "NEC_CP04_RP01": {
+      "preserved": 534,
+      "rerouted": 0
+    },
+    "NEC_CP00_RP02": {
+      "preserved": 2802,
+      "rerouted": 0
+    },
+    "NEC_CP01_RP02": {
+      "preserved": 774,
+      "rerouted": 0
+    },
+    "NEC_CP02_RP02": {
+      "preserved": 1916,
+      "rerouted": 0
+    },
+    "NEC_CP03_RP02": {
+      "preserved": 14284,
+      "rerouted": 84
+    },
+    "NEC_CP02_RP03": {
+      "preserved": 714,
+      "rerouted": 0
+    },
+    "NEC_CP03_RP03": {
+      "preserved": 843,
+      "rerouted": 0
+    },
+    "NEC_CP04_RP03": {
+      "preserved": 963,
+      "rerouted": 0
+    }
+  },
+  "priorProvenance": {
+    "source": "previous validated NEC generated-road demand",
+    "roadHashes": {
+      "NEC_CM01_RM01": "4b1aa46504a00303385d48f1ce25ffe9567a5b0e252789842b1df99395efdb17",
+      "NEC_CM01_RM02": "bc5e2d905824c8424490a5514dad2ea5b2f1f4f08c3722a71d7dd51d4957a43c",
+      "NEC_CM01_RM03": "5d8681a715a1ddea176947995057d65ad0bef38a7770d29288ef3749f38bd168",
+      "NEC_CM01_RP00": "46f2b3dc10e6cf9bbc8f0c7b6fd432f654dc536d7ee5dda9a9b973294493e63d",
+      "NEC_CM01_RP01": "932493785fc66e1614cb58b3eccd62ce707ccca5ea1d247476b898ecfa137d7b",
+      "NEC_CM02_RM01": "45159295cac163167b09c10066da076ee03f98cfb17c844cb4aebb69396c00ca",
+      "NEC_CM02_RM02": "6d90175621eb5c5636e5943f1c12dced1a08d1053d4f22a3b1a4a15182bfe82f",
+      "NEC_CM02_RM03": "ad08ebcf7aeee061e9bbc2174e283edce0ac4dd4eb20d075f4a9c8f02967be1a",
+      "NEC_CM02_RP00": "5d3cfd9fa39c9a48e99ce54bee02ca5dd3548176be46c7441e2a5ae689ceb61f",
+      "NEC_CM02_RP01": "4bf78584acd1afa60f76e7bb06a2f3dc90d42bc921cf2f8c22e9b0b12c8cf89a",
+      "NEC_CM03_RM01": "4d56c0c6e157aa4d8b612796083159820f9516eaaf6472c4a714392b3891a85a",
+      "NEC_CM03_RM02": "4e79db5c2b865eb815c98fc7d438b15abd231a1803ae67a7f60111f5889896bd",
+      "NEC_CM03_RM03": "57272cbad17acb2e87a536a9fb1f4800737ff1c2dbea9c595f6f4fe2f10d4d74",
+      "NEC_CM03_RP00": "3fc6a30f6c21e6308f75021c30f61bf8b62aa5d631df794ff46b2b9d8c7327a6",
+      "NEC_CM04_RM01": "ea96826e571918ff770de9ecfb5599364f824f51967f71a7d10cbb9329107f7a",
+      "NEC_CM04_RM02": "518791a5ca9852ae140e9348e31074a33c297de406bccd9c0bde103e8662f8aa",
+      "NEC_CM04_RM03": "cd6914f210de7fc26664e9dabb6df0d401a3bd5319759a082cc0f8944a3ebbc7",
+      "NEC_CP00_RM01": "1a80a0bb3c1d679bdea71df660b272cfc9751d640bd1008b26c6f09a89499576",
+      "NEC_CP00_RP00": "6c1fdda5a3e93f53abd83278456c4abf48047523a9bc11285a09dc632acd2c5a",
+      "NEC_CP00_RP01": "18b9e16ab0166658d31c14d28a5c450fe57c52bbf7d843a70f062533dae94cb8",
+      "NEC_CP00_RP02": "a6f5e97a86bd0f9866ce50ee35ab4eeffb0e18ab34fd7bf71f2cc14c92594a4b",
+      "NEC_CP01_RP00": "aa687f49a72f526fec3f64b2fd47fb0cf026bfebcd543fda03f65a1e646234cc",
+      "NEC_CP01_RP01": "e836337b2d77140885df46117384c05285b9bacea1e8d8baef5e181b26efc86f",
+      "NEC_CP01_RP02": "ad70bb9c9ebb614c1d245961f938a303ec62f843ef1b27258c750d618222c886",
+      "NEC_CP02_RP00": "1749f40dbdbea03a6e29743131a280ffab2ff06aeaeb39ab76ab5c71224cf0f1",
+      "NEC_CP02_RP01": "80bbfb0119d6b29db0400bb526d7f89faeeab2c463c7addc91952bb55e9ba4aa",
+      "NEC_CP02_RP02": "f6e0f0f0f0624f92350516e1138393a50775adbd4403a439213174b4a2cc89b8",
+      "NEC_CP02_RP03": "ed25c2625adf2d9c637885d0f797506909d83cd47f8276b5a7b524449e811a97",
+      "NEC_CP03_RP01": "daad3856013a157777e0796b316e399deef3f70d5fd0d02f57f65310b213de3f",
+      "NEC_CP03_RP02": "b8cb86ae751e555bfe4a0f0a16ec41ee4e64dd5cc35dadb420d03f81b97472d1",
+      "NEC_CP03_RP03": "16607493f19fb26eb9b55559e03633230998a3065c26aa2f49c4949d3197fdc1",
+      "NEC_CP04_RP00": "e487f01b29bd5c1a5d14764e748088f5d3bb92239b02adf2395290b777df317f",
+      "NEC_CP04_RP01": "3eb696f230defbddbb305fabda097d1b7775c0aecf25ac2daf7b4e380a2fd58f",
+      "NEC_CP04_RP03": "ef6df57e5c9db7f83355708bec1f16b0e55787efa32d9c21f4768439e4c04012"
+    },
+    "nativeHashes": {
+      "NEC_CM01_RM01": "8ca01d0d1634766cab5e124dab02973b867217689c03c0d1cd2e3b781ba98072",
+      "NEC_CM01_RM02": "e139f65d46dd25c879604bba5965137cd83358fb10ded5391222de742830c1e6",
+      "NEC_CM01_RM03": "d9661069180d8ac2a660aec922953477972724824a1bfeae73814b86249b2741",
+      "NEC_CM01_RP00": "78208937701313f14458c6a73eca79bfe03e8259cabdca59bc5f71d65fd8a591",
+      "NEC_CM01_RP01": "4e4e6b50c45beb9e40637ea275c0ae33eb4554594c685aec17ca3a01e6dbe327",
+      "NEC_CM02_RM01": "b15afeb0ea5c4a35d5a982a37d72b1a301f8c7239bc96223c9269aec647b4561",
+      "NEC_CM02_RM02": "469ff0d23aab534f1181b087727ab558792a15f1fd0e6619f76d22aec337c034",
+      "NEC_CM02_RM03": "368b0ac96869ecdd59bcd9ac011b5e89b98287cfddb432ff8e1232dc6d502b6f",
+      "NEC_CM02_RP00": "3fb92d35a0a748b986511f12d1a21e43b5e9d213cb19b7f80ee504159b744345",
+      "NEC_CM02_RP01": "9d6bed03765c6b9fbde2cd1b1a6d308e0d311dbe2e0ca5ed35a0102ccbdbc5b7",
+      "NEC_CM03_RM01": "39cf2434b4805bf9255e7d00d45e2858d9e4c0a39829c5c45bac804045ba21bd",
+      "NEC_CM03_RM02": "c2bffdfd2c8b28428041f9f6c6307f7c8fcf5e7aada6e4f21570d9f2ef16b732",
+      "NEC_CM03_RM03": "6f6d6ebe5124af0d0706106ab3126d9d52b027401540566a820c8acf073af7fa",
+      "NEC_CM03_RP00": "3d0fc040303cbe839b97b59f5bf51164ada7dae70d6c243ed3cbeb1ba78ddd2f",
+      "NEC_CM04_RM01": "396ed72571b507fe52eb39b63165535379d92ffe2d025703fba1eba6eb8333a6",
+      "NEC_CM04_RM02": "e51231efe0da00ab028456392955d42686c20e1a1dda54a0bb4b1752aef46ec0",
+      "NEC_CM04_RM03": "0374c56c7fad4a018098dfd2bc1dcdca58bf1d2f2aa9cf6868b52e26281782a8",
+      "NEC_CP00_RM01": "594c73b7c0c0c96e170d4b774259f6b349272e3b0bc1d8cf07c0a06c8ff6df17",
+      "NEC_CP00_RP00": "138428d8becb0abf95d39496a458cd653ebe870710ef6c9f6d7f0e0e1a0efe00",
+      "NEC_CP00_RP01": "faa409dc69ebab5e9d16535d11d1277422fd5eddd4618367e766d05bb8599cd5",
+      "NEC_CP00_RP02": "f368f7300a122cd051d31d37695a7848136d6b9296dce4b99809c9afbe7f8aed",
+      "NEC_CP01_RP00": "97ecab09a955430dec2ef9132c00079b627226a5297a695d4ab874ff52f185af",
+      "NEC_CP01_RP01": "353620544af8814341db681e4c5f258e446544c0e88ad4839be42696ad5cb089",
+      "NEC_CP01_RP02": "b6572493b048fa5278d44f9d8e556c9a7fd615735efa18bdbe23768937d45b54",
+      "NEC_CP02_RP00": "f6a8b6090e24dd472e32d396ff5f52273fe78480f1328b457b37ddf010180a3e",
+      "NEC_CP02_RP01": "acdf2722042055d83c7228ea7a207cf5ddfa40a7ba510ee34a9f84029db3a7d5",
+      "NEC_CP02_RP02": "40e75249c3087caa9cc787b37d1e12c375f3385ea2b30b6bd60621f4b3abcc95",
+      "NEC_CP02_RP03": "e20633ee261e6c8f6e05d40be2ee7ecf14eb51118f7f7bc26c770b80529b7aa0",
+      "NEC_CP03_RP01": "3d14dfa5ff931931670b55e7f33dae97bd4072836e62cd22d4a717013e6aa105",
+      "NEC_CP03_RP02": "3dedc6c26d2ea28d038f8bd959190cbd1a276eeb827571d78a0a2cb038057511",
+      "NEC_CP03_RP03": "8efda4ba16053cc933ac5f5f77b3d2214f0b03142a0c99a42e325a2f4a9e55c5",
+      "NEC_CP04_RP00": "b135d74538f05d4a6ef4a1950a6fe7917f8236ad898948bcea4edf217539c7b9",
+      "NEC_CP04_RP01": "a0692338ffdb717b94d9f5c6930519213674b8c3679169f688a88975995b887a",
+      "NEC_CP04_RP03": "45bcd495bc65642beb47d80b3aef0463fff1297629f8651f2a98799b0724c9a4"
+    }
+  }
+}
