@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyVersion": "japan-source-romaji-v1",
+  "policyVersion": "japan-source-romaji-v2",
   "matches": "japan/labels/source-matches-20260905.jsonl.gz",
   "matchesSha256": "e4c55f95a0c281edba45523e27d35c3e2de40f1d83d9f915ede8a43d9718c455",
   "unresolvedPolicy": "original-japanese",

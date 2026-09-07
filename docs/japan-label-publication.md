@@ -1,6 +1,6 @@
 # Japan source-backed labels with Japanese fallback
 
-Policy: `japan-source-romaji-v1`. Runnable consumer: `local.japan-open-world`,
+Policy: `japan-source-romaji-v2`. Runnable consumer: `local.japan-open-world`,
 built and installed from `prototype/japan/mod`.
 
 ## Display policy
@@ -14,6 +14,17 @@ built and installed from `prototype/japan/mod`.
   Japanese name and recovered display value: abbreviated names such as 緑町1
   may be identified as `Midoricho 1-chome` by the source data. Thus publication
   removes a few more addresses than the original Japanese-only audit filter.
+- Version 2 also excludes Sakai's numbered `丁` subdivisions (`三宝町五丁`,
+  `Sambo-cho 5-cho`) and macron spellings such as `5-chō` and `1-chōme`.
+  Keep unnumbered district names (`Teppo-cho`, `鉄砲町`) and names with internal
+  numerals (`八丁堀`). Do not remove the entire `place=neighbourhood` category.
+  OSM's Japan tagging guidance groups 丁/丁目 under that place tag:
+  https://wiki.openstreetmap.org/wiki/Japan_tagging
+  The pinned audit identifies Sambo-cho 5-cho as node 2441152120, present in
+  Osaka (`JP_PREF_27`) and Hyogo (`JP_PREF_28`) package halos. The original
+  `source-03.jsonl.gz` confirms `place=neighbourhood` and `source=GSI/KIBAN Block`.
+  Teppo-cho (node 2441152855) has the same place/source tags, so those tags alone
+  cannot distinguish the numbered subdivisions from useful district names.
 - Use the 47 declarative prefecture names in
   `worlds/japan/geography/prefecture-display-names.json` for map selection and
   registration. IDs, boundaries, population, demand locations, and route data
@@ -94,3 +105,34 @@ hashes. The verified Japan PMTiles process was stopped for copying and restarted
 by the installer. Health returned HTTP 200 with
 `X-PMTiles-Server-Version: native-pmtiles-directory-v2`. Game reload and visual
 confirmation remain with the user. No saves were changed.
+
+## Version 2 publication
+
+Reapply the publisher to a separate staging copy of the retained original
+archives, never the already romanized v1 files. Keep the original backup root
+and use a new backup root for this publication. The World's label policy,
+basemap cache revision, and health tile query all advance to
+`japan-source-romaji-v2`; the builder rejects v1 map manifests.
+
+The 2026-09-07 v2 run rebuilt all 47 packages on `richmpc` from hash-verified
+originals. Read-back validation covered 2,123,202 tile records and removed
+18,182 additional label occurrences across zooms and package halos (8,082 in
+Osaka and 7,487 in Hyogo). Non-label layers and surviving label geometry were
+verified unchanged. Source audit comparison identified 806 additional locations.
+Remote working files are under `C:/Users/gianc/japan-cho-labels-20260907`;
+local transfer and validation evidence is in `.analysis/japan-labels/`.
+
+Installation verification: all 47 installed map hashes match the verified
+outputs. Built and installed bundle SHA-256 is
+`dee0923cdca9b08f3af4d21d7372536a3e1c87843c1bee819bf1737fe5aba30c`;
+both timestamps are 2026-09-07T18:03:02.821888Z. The shared service returned
+HTTP 200 with `native-pmtiles-directory-v4`; NEC registration stayed unchanged.
+The game's supported hot-reload API activated Japan generation 2 with policy v2.
+After resetting map diagnostics, both active vector sources used v2 URLs.
+A renderer-side fetch of Osaka tile `14/14357/6512` returned exactly the six
+retained names (including Teppo-cho and Sakai-ku), removing 117 numbered labels
+from the screenshot area. The user's active prefecture remained `JP_PREF_23`.
+
+Validation: 7 label tests, 4 Japan consumer tests, and 572 platform tests passed.
+A pre-existing millisecond-sensitive autosave assertion failed on one full run;
+it passed in isolation and the complete rerun passed. No autosave code changed.

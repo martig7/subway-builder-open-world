@@ -42,7 +42,7 @@ class LabelPublicationTest(unittest.TestCase):
             water.features.add(id=29, type=3, geometry=[9, 2, 4, 15])
             labels = tile.layers.add(name="city_labels", version=2, extent=4096)
             labels.keys.append("name")
-            for i, name in enumerate(("東京", "読み不明", "城南一丁目", "緑町1")):
+            for i, name in enumerate(("東京", "読み不明", "城南一丁目", "緑町1", "三宝町五丁", "Sambo-cho 5-cho", "Teppo-cho")):
                 labels.values.add(string_value=name)
                 labels.features.add(id=i + 1, type=1, tags=[0, i], geometry=[9, 4096, 4096])
             raw = tile.SerializeToString()
@@ -52,8 +52,8 @@ class LabelPublicationTest(unittest.TestCase):
             decoded = vector_tile_pb2.tile()
             decoded.ParseFromString(result)
             self.assertEqual(decoded.layers[0].SerializeToString(), water.SerializeToString())
-            self.assertEqual([v.string_value for v in decoded.layers[1].values], ["Tokyo", "読み不明"])
-            self.assertEqual(counts["removedAddressOccurrences"], 2)
+            self.assertEqual([v.string_value for v in decoded.layers[1].values], ["Tokyo", "読み不明", "Teppo-cho"])
+            self.assertEqual(counts["removedAddressOccurrences"], 4)
             changed = vector_tile_pb2.tile()
             changed.ParseFromString(result)
             changed.layers[0].features[0].id = 30

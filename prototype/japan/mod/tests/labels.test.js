@@ -7,7 +7,7 @@ test('Japan catalog names are romanized without changing prefecture identities',
   const catalog = JSON.parse(await readFile(new URL('geography/tile-views.json', world)));
   const names = JSON.parse(await readFile(new URL('geography/prefecture-display-names.json', world)));
   const definition = JSON.parse(await readFile(new URL('world.json', world)));
-  assert.equal(definition.map.labelPolicy, 'japan-source-romaji-v1');
+  assert.equal(definition.map.labelPolicy, 'japan-source-romaji-v2');
   assert.equal(Object.keys(names).length, 47);
   for (const tile of catalog.tiles) {
     assert.equal(tile.name, names[tile.prefCode]);

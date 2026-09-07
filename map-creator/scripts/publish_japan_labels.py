@@ -21,7 +21,7 @@ import time
 
 from audit_japan_labels import address, digest, emit, kana, latin
 
-VERSION = "japan-source-romaji-v1"
+VERSION = "japan-source-romaji-v2"
 
 
 class LabelLookup:

@@ -18,9 +18,11 @@ import time
 import unicodedata
 
 NUMBER = r"[0-9〇零一二三四五六七八九十百千万壱弐参]+"
+# Sakai uses numbered 丁 (cho) where many other cities use 丁目 (chome).
+# Require a number; unnumbered -cho district names remain useful place labels.
 ADDRESS = re.compile(
-    rf"(?:{NUMBER}(?:丁目|番地?|号|街区|地割)(?:の?{NUMBER})?$|^第?{NUMBER}地割$|^{NUMBER}$)"
-    r"|(?:\bblock\s*\d+\b|\b\d+[- ]?chome\b)", re.IGNORECASE
+    rf"(?:{NUMBER}(?:丁目?|番地?|号|街区|地割)(?:の?{NUMBER})?$|^第?{NUMBER}地割$|^{NUMBER}$)"
+    r"|(?:\bblock\s*\d+\b|\b\d+[- ]?ch[oō](?:me)?\b)", re.IGNORECASE
 )
 LAYER_PLACES = {
     "city_labels": {"city", "borough", "town"},

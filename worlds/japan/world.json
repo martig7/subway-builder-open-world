@@ -24,8 +24,8 @@
     "nativeParkSourceLayer": "landuse",
     "worldVegetation": "modis-igbp-2023-v1",
     "worldContextTileId": "JP_TOKYO_MAINLAND",
-    "basemapRevision": "japan-source-romaji-v1",
-    "labelPolicy": "japan-source-romaji-v1"
+    "basemapRevision": "japan-source-romaji-v2",
+    "labelPolicy": "japan-source-romaji-v2"
   },
   "demand": {
     "adapter": "estat-japan",
@@ -40,7 +40,7 @@
     "tileServerProvider": "shared-native-v4",
     "tileBaseGlobal": "JAPAN_OPEN_WORLD_TILE_BASE",
     "diagnosticNamespace": "japan",
-    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-source-romaji-v1",
+    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-source-romaji-v2",
     "requiredHostCapabilities": ["native-save-authority-v1", "native-ledger-authority-v1"]
   },
   "release": {

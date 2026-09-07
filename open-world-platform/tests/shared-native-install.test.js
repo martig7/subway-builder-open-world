@@ -112,7 +112,7 @@ test('Japan release integration preserves LOD, selection and label inputs', asyn
   assert.equal(world.runtime.tileServerProvider, 'shared-native-v4');
   assert.equal(world.identity.author, 'Giancarlo Martinelli (gcm)');
   assert.equal(world.identity.manifestId, 'local.japan-open-world');
-  assert.equal(world.map.labelPolicy, 'japan-source-romaji-v1');
+  assert.equal(world.map.labelPolicy, 'japan-source-romaji-v2');
   assert.equal(world.tileViews.boundaryOverlay, 'geography/display-boundaries.json');
   const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
   assert.match(version, /^\d+\.\d+\.\d+$/);
