@@ -128,7 +128,7 @@ export class NativeRevenueAccrual {
       revenueByRoute,
       completedCommutes: calculated.completedCommutes,
       hourlyPostings: [{ hour, revenue, revenueByTile, revenueByRoute }],
-    });
+    }, { includeFinancialHistory: false });
     if (typeof adapterResult?.applied !== 'boolean') {
       throw new Error('Native revenue adapter must return an applied receipt result');
     }

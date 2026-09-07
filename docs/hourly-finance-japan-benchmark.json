@@ -1,0 +1,570 @@
+{
+  "date": "2026-09-07",
+  "consumer": "local.japan-open-world",
+  "source": "prototype/japan/mod",
+  "method": "Ten seconds of live cached Ultra simulation per capture. Timed awaited native tick wrapper, classified by crossing a game-hour boundary. Counted structuredClone calls on dashboard and route history shapes. Camera unchanged at Osaka zoom 8.5. Clock preserved, so captures cover different hours and commute counts.",
+  "before": {
+    "mode": {
+      "version": "open-world-cached-simulation-v2",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 177,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2336.7999999970198,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "from": 1834780,
+    "to": 1877260,
+    "wallMs": 12149.20000000298,
+    "recordsBefore": 31797,
+    "recordsAfter": 36462,
+    "hourTicks": {
+      "count": 12,
+      "median": 169.40000000596046,
+      "p95": 346.29999999701977,
+      "max": 346.29999999701977
+    },
+    "ordinaryTicks": {
+      "count": 165,
+      "median": 11.200000002980232,
+      "p95": 14.200000002980232,
+      "max": 24.399999991059303
+    },
+    "frames": {
+      "count": 1184,
+      "median": 3.400000000008731,
+      "p95": 20,
+      "max": 1896.6000000000058
+    },
+    "ledgerCopies": 100,
+    "routeCopies": 48,
+    "save": {
+      "id": "D:\\SubwayBuilder\\_auto__2026_09_07_16_34_30_0d9df0831b9a4e55a3f5b3a6cd212fc7.metro",
+      "name": "[Auto] 2026-09-07_16-34-30"
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    },
+    "hourTickSamples": [
+      {
+        "from": 1835980,
+        "to": 1836220,
+        "ms": 100.79999999701977,
+        "hour": true
+      },
+      {
+        "from": 1839580,
+        "to": 1839820,
+        "ms": 340.5,
+        "hour": true
+      },
+      {
+        "from": 1843180,
+        "to": 1843420,
+        "ms": 346.29999999701977,
+        "hour": true
+      },
+      {
+        "from": 1846780,
+        "to": 1847020,
+        "ms": 192.29999999701977,
+        "hour": true
+      },
+      {
+        "from": 1850380,
+        "to": 1850620,
+        "ms": 169.40000000596046,
+        "hour": true
+      },
+      {
+        "from": 1853980,
+        "to": 1854220,
+        "ms": 166,
+        "hour": true
+      },
+      {
+        "from": 1857580,
+        "to": 1857820,
+        "ms": 157.59999999403954,
+        "hour": true
+      },
+      {
+        "from": 1861180,
+        "to": 1861420,
+        "ms": 163.3999999910593,
+        "hour": true
+      },
+      {
+        "from": 1864780,
+        "to": 1865020,
+        "ms": 157.40000000596046,
+        "hour": true
+      },
+      {
+        "from": 1868380,
+        "to": 1868620,
+        "ms": 164.40000000596046,
+        "hour": true
+      },
+      {
+        "from": 1871980,
+        "to": 1872220,
+        "ms": 338.79999999701977,
+        "hour": true
+      },
+      {
+        "from": 1875580,
+        "to": 1875820,
+        "ms": 300.90000000596046,
+        "hour": true
+      }
+    ]
+  },
+  "afterInitial": {
+    "mode": {
+      "version": "open-world-cached-simulation-v3",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 159,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2254.9000000059605,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "from": 1877260,
+    "to": 1915420,
+    "wallMs": 10459.29999999702,
+    "recordsBefore": 36340,
+    "recordsAfter": 32066,
+    "hourTicks": {
+      "count": 11,
+      "median": 108.79999999701977,
+      "p95": 402.3999999910593,
+      "max": 402.3999999910593
+    },
+    "ordinaryTicks": {
+      "count": 148,
+      "median": 7.0999999940395355,
+      "p95": 11,
+      "max": 13.800000011920929
+    },
+    "frames": {
+      "count": 1289,
+      "median": 3.400000000023283,
+      "p95": 13.400000000023283,
+      "max": 1696.5999999999767
+    },
+    "ledgerCopies": 44,
+    "routeCopies": 22,
+    "save": {
+      "id": "D:\\SubwayBuilder\\_auto__2026_09_07_16_34_30_0d9df0831b9a4e55a3f5b3a6cd212fc7.metro",
+      "name": "[Auto] 2026-09-07_16-34-30"
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    },
+    "hourTickSamples": [
+      {
+        "from": 1879180,
+        "to": 1879420,
+        "ms": 149.79999999701977,
+        "hour": true
+      },
+      {
+        "from": 1882780,
+        "to": 1883020,
+        "ms": 116.79999999701977,
+        "hour": true
+      },
+      {
+        "from": 1886380,
+        "to": 1886620,
+        "ms": 108.79999999701977,
+        "hour": true
+      },
+      {
+        "from": 1889980,
+        "to": 1890220,
+        "ms": 109.20000000298023,
+        "hour": true
+      },
+      {
+        "from": 1893580,
+        "to": 1893820,
+        "ms": 107.29999999701977,
+        "hour": true
+      },
+      {
+        "from": 1897180,
+        "to": 1897420,
+        "ms": 105.8999999910593,
+        "hour": true
+      },
+      {
+        "from": 1900780,
+        "to": 1901020,
+        "ms": 402.3999999910593,
+        "hour": true
+      },
+      {
+        "from": 1904380,
+        "to": 1904620,
+        "ms": 104.5,
+        "hour": true
+      },
+      {
+        "from": 1907980,
+        "to": 1908220,
+        "ms": 103.3999999910593,
+        "hour": true
+      },
+      {
+        "from": 1911580,
+        "to": 1911820,
+        "ms": 105.8999999910593,
+        "hour": true
+      },
+      {
+        "from": 1915180,
+        "to": 1915420,
+        "ms": 350.69999998807907,
+        "hour": true
+      }
+    ]
+  },
+  "afterRepeat": {
+    "mode": {
+      "version": "open-world-cached-simulation-v3",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 317,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2254.9000000059605,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "from": 1915420,
+    "to": 1953340,
+    "wallMs": 10253.79999999702,
+    "recordsBefore": 32066,
+    "recordsAfter": 33569,
+    "hourTicks": {
+      "count": 10,
+      "median": 120.40000000596046,
+      "p95": 245.79999999701977,
+      "max": 245.79999999701977
+    },
+    "ordinaryTicks": {
+      "count": 148,
+      "median": 7.0999999940395355,
+      "p95": 10.299999997019768,
+      "max": 12.099999994039536
+    },
+    "frames": {
+      "count": 1259,
+      "median": 3.400000000023283,
+      "p95": 13.399999999906868,
+      "max": 2160
+    },
+    "ledgerCopies": 42,
+    "routeCopies": 20,
+    "save": {
+      "id": "D:\\SubwayBuilder\\_auto__2026_09_07_16_34_30_0d9df0831b9a4e55a3f5b3a6cd212fc7.metro",
+      "name": "[Auto] 2026-09-07_16-34-30"
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    },
+    "hourTickSamples": [
+      {
+        "from": 1918780,
+        "to": 1919020,
+        "ms": 109.5,
+        "hour": true
+      },
+      {
+        "from": 1922380,
+        "to": 1922620,
+        "ms": 112.80000001192093,
+        "hour": true
+      },
+      {
+        "from": 1925980,
+        "to": 1926220,
+        "ms": 245.79999999701977,
+        "hour": true
+      },
+      {
+        "from": 1929580,
+        "to": 1929820,
+        "ms": 135.3999999910593,
+        "hour": true
+      },
+      {
+        "from": 1933180,
+        "to": 1933420,
+        "ms": 142.5,
+        "hour": true
+      },
+      {
+        "from": 1936780,
+        "to": 1937020,
+        "ms": 127.1000000089407,
+        "hour": true
+      },
+      {
+        "from": 1940380,
+        "to": 1940620,
+        "ms": 118,
+        "hour": true
+      },
+      {
+        "from": 1943980,
+        "to": 1944220,
+        "ms": 115.5,
+        "hour": true
+      },
+      {
+        "from": 1947580,
+        "to": 1947820,
+        "ms": 115.30000001192093,
+        "hour": true
+      },
+      {
+        "from": 1951180,
+        "to": 1951420,
+        "ms": 120.40000000596046,
+        "hour": true
+      }
+    ]
+  },
+  "delivered": {
+    "mode": {
+      "version": "open-world-cached-simulation-v3",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 158,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2378,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "from": 1958868,
+    "to": 1996788,
+    "wallMs": 10252.40000000596,
+    "recordsBefore": 34091,
+    "recordsAfter": 31509,
+    "hourTicks": {
+      "count": 10,
+      "median": 131.79999999701977,
+      "p95": 284.09999999403954,
+      "max": 284.09999999403954
+    },
+    "ordinaryTicks": {
+      "count": 148,
+      "median": 10.599999994039536,
+      "p95": 15.299999997019768,
+      "max": 23
+    },
+    "frames": {
+      "count": 772,
+      "median": 6.699999999953434,
+      "p95": 26.699999999953434,
+      "max": 1860.0999999999767
+    },
+    "ledgerCopies": 42,
+    "routeCopies": 20,
+    "save": {
+      "id": "D:\\SubwayBuilder\\_auto__2026_09_07_16_34_30_0d9df0831b9a4e55a3f5b3a6cd212fc7.metro",
+      "name": "[Auto] 2026-09-07_16-34-30"
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    },
+    "hourTickSamples": [
+      {
+        "from": 1961988,
+        "to": 1962228,
+        "ms": 284.09999999403954,
+        "hour": true
+      },
+      {
+        "from": 1965588,
+        "to": 1965828,
+        "ms": 137,
+        "hour": true
+      },
+      {
+        "from": 1969188,
+        "to": 1969428,
+        "ms": 143.8999999910593,
+        "hour": true
+      },
+      {
+        "from": 1972788,
+        "to": 1973028,
+        "ms": 118.40000000596046,
+        "hour": true
+      },
+      {
+        "from": 1976388,
+        "to": 1976628,
+        "ms": 136,
+        "hour": true
+      },
+      {
+        "from": 1979988,
+        "to": 1980228,
+        "ms": 121.5,
+        "hour": true
+      },
+      {
+        "from": 1983588,
+        "to": 1983828,
+        "ms": 115.5,
+        "hour": true
+      },
+      {
+        "from": 1987188,
+        "to": 1987428,
+        "ms": 131.79999999701977,
+        "hour": true
+      },
+      {
+        "from": 1990788,
+        "to": 1991028,
+        "ms": 112.80000001192093,
+        "hour": true
+      },
+      {
+        "from": 1994388,
+        "to": 1994628,
+        "ms": 111.3999999910593,
+        "hour": true
+      }
+    ]
+  },
+  "initialBuild": {
+    "Bundles": [
+      {
+        "Path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\japan\\mod\\dist\\index.js",
+        "TimestampUtc": "2026-09-07T20:51:38.6996806Z",
+        "Hash": "6201604D099B29AA62D27370D6C068423DA54A6742FFCE0271752874951513BC",
+        "Marker": true
+      },
+      {
+        "Path": "C:\\Users\\darkd\\AppData\\Roaming\\metro-maker4\\mods\\japan-open-world\\index.js",
+        "TimestampUtc": "2026-09-07T20:51:38.6996806Z",
+        "Hash": "6201604D099B29AA62D27370D6C068423DA54A6742FFCE0271752874951513BC",
+        "Marker": true
+      }
+    ],
+    "HealthStatus": 200,
+    "HealthVersion": [
+      "native-pmtiles-directory-v4"
+    ]
+  },
+  "finalBuild": {
+    "Bundles": [
+      {
+        "Path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\japan\\mod\\dist\\index.js",
+        "TimestampUtc": "2026-09-07T20:56:53.0310081Z",
+        "Hash": "0549A979FEAE4C2A9F8B91B5FAA7651F12380EA2B3994B87F3F6C7C453CEE152",
+        "Marker": true
+      },
+      {
+        "Path": "C:\\Users\\darkd\\AppData\\Roaming\\metro-maker4\\mods\\japan-open-world\\index.js",
+        "TimestampUtc": "2026-09-07T20:56:53.0310081Z",
+        "Hash": "0549A979FEAE4C2A9F8B91B5FAA7651F12380EA2B3994B87F3F6C7C453CEE152",
+        "Marker": true
+      }
+    ],
+    "HealthStatus": 200,
+    "HealthVersion": [
+      "native-pmtiles-directory-v4"
+    ]
+  },
+  "smoke": {
+    "generation": 3,
+    "guard": 17,
+    "frozen": true,
+    "synchronous": true,
+    "noDuplicatePosting": true,
+    "invalidAssignments": 0,
+    "transitDirections": 4011,
+    "cached": {
+      "version": "open-world-cached-simulation-v3",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 180,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2378,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "nativeResume": {
+      "seconds": 8,
+      "moved": true
+    },
+    "autosave": {
+      "isSaving": false,
+      "lastSaveTime": 1788814659837,
+      "error": null,
+      "lastSkipReason": null,
+      "consecutiveSkips": 0
+    },
+    "errors": [],
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    },
+    "final": {
+      "version": "open-world-cached-simulation-v3",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 2,
+      "ticks": 180,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2212,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    }
+  },
+  "tests": {
+    "platform": 612,
+    "japan": 4
+  }
+}

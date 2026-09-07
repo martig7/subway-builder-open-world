@@ -2,7 +2,7 @@ import { createOffMainThreadNativeDemandEvaluator } from './embedded-tile-packag
 import { evaluateOffTileNativeDemand } from './off-tile-native-demand.js';
 import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v2';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v3';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -113,13 +113,13 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     const state = getState(), to = state.timeConfig.elapsedSeconds;
     if (!cache || sessionId !== state.gameSessionId || settledAt == null || to <= settledAt) return;
     const posting = cachedSimulationPosting({ ...cache, from: settledAt, to, sessionId });
-    const posted = game.postBackgroundNativeFinanceNow(posting);
+    posting.retainCommutesSince = to - 86400;
+    const posted = game.postBackgroundNativeFinanceNow(posting, { includeFinancialHistory: false });
     settledAt = to;
     // Native population simulation normally prunes these records. Retain one day.
     const latest = getState();
     if (posted.applied !== false) latest.totalLifetimeRidership = (latest.totalLifetimeRidership ?? 0)
       + posting.completedCommutes.reduce((sum, commute) => sum + commute.size, 0);
-    latest.setCompletedCommutes?.((latest.completedCommutes ?? []).filter(c => c.journeyEnd >= to - 86400));
   };
   const refresh = async () => {
     if (refreshPromise) return refreshPromise;

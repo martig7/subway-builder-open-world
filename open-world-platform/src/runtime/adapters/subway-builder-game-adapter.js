@@ -1,4 +1,5 @@
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
+import { NativeCommuteIndex } from '../native-commute-index.js';
 import { readDriveToStationAccess } from '../native-routing-settings.js';
 import {
   CANONICAL_NATIVE_NETWORK_MODE,
@@ -1703,6 +1704,8 @@ export class SubwayBuilderGameAdapter {
     this.expectedApiVersion = expectedApiVersion;
     this.inspectedGameVersion = inspectedGameVersion;
     this.nativeSaveLifecycle = nativeSaveLifecycle;
+    this.nativeFinancePostingVersion = 'native-hourly-finance-v1';
+    this.nativeCommuteIndex = new NativeCommuteIndex();
     this.capability = null;
     this.currentPackage = null;
     this.loadedCityCode = null;
@@ -3188,16 +3191,19 @@ export class SubwayBuilderGameAdapter {
       const canonicalId = canonicalRouteId(routeId);
       revenueByRoute[canonicalId] = (revenueByRoute[canonicalId] ?? 0) + revenue;
     }
-    const completedCommutes = rawCompletedCommutes.map((commute) => ({
-      ...structuredClone(commute),
-      stationRoutes: (commute.stationRoutes ?? []).map((segment) => ({
-        ...structuredClone(segment), routeId: canonicalRouteId(segment.routeId),
-      })),
-    }));
     const existing = Array.isArray(state.completedCommutes) ? state.completedCommutes : [];
-    const known = new Set(existing.map((commute) => commute?.popId));
-    const freshCommutes = completedCommutes.filter((commute) => !known.has(commute.popId));
-    const isRetry = completedCommutes.length > 0 && freshCommutes.length !== completedCommutes.length;
+    const merged = this.nativeCommuteIndex.merge({ records: existing,
+      sessionId: state.gameSessionId, elapsedSeconds: state.timeConfig?.elapsedSeconds,
+      incoming: rawCompletedCommutes,
+      transform: commute => {
+        const next = structuredClone(commute);
+        next.stationRoutes ??= [];
+        for (const segment of next.stationRoutes) segment.routeId = canonicalRouteId(segment.routeId);
+        return next;
+      },
+    });
+    const freshCommutes = merged.fresh;
+    const isRetry = rawCompletedCommutes.length > 0 && freshCommutes.length !== rawCompletedCommutes.length;
     const effectiveAmount = isRetry
       ? freshCommutes.reduce((total, commute) => total + (Number(commute.fareRevenue) || 0), 0)
       : amount;
@@ -3217,10 +3223,7 @@ export class SubwayBuilderGameAdapter {
       state.recordRouteFinancials({ revenueByRoute: effectiveRevenueByRoute, expensesByRoute: {} });
     }
     if (freshCommutes.length > 0) {
-      state.setCompletedCommutes([
-        ...existing,
-        ...freshCommutes,
-      ]);
+      state.setCompletedCommutes(merged.records);
     }
     const updated = this.#state();
     return { wallet: updated.money, financialHistory: structuredClone(updated.financialHistory) };
@@ -3255,14 +3258,14 @@ export class SubwayBuilderGameAdapter {
     return result;
   }
 
-  async postBackgroundNativeFinance(posting) {
+  async postBackgroundNativeFinance(posting, options) {
     await this.assertSupported();
-    return this.postBackgroundNativeFinanceNow(posting);
+    return this.postBackgroundNativeFinanceNow(posting, options);
   }
 
   // The native generateSave action is synchronous. Its cached-mode wrapper
   // must settle the current interval before the save snapshots the ledger.
-  postBackgroundNativeFinanceNow(posting) {
+  postBackgroundNativeFinanceNow(posting, { includeFinancialHistory = true } = {}) {
     const state = this.#state();
     const parentByRoute = new Map((state.routes ?? [])
       .filter((route) => route?.id != null)
@@ -3296,7 +3299,7 @@ export class SubwayBuilderGameAdapter {
       return {
         applied: false,
         wallet: state.money,
-        financialHistory: structuredClone(state.financialHistory),
+        ...(includeFinancialHistory ? { financialHistory: structuredClone(state.financialHistory) } : {}),
       };
     }
     if (revenue > 0 && typeof state.addRevenue !== 'function') throw new Error('Native addRevenue action is unavailable');
@@ -3350,24 +3353,22 @@ export class SubwayBuilderGameAdapter {
         openingRouteFinancials,
         hourlyPostings,
         targetElapsedSeconds,
+        { copy: false },
       ));
     }
     const updated = this.#state();
-    if (completedCommutes.length) {
+    if (completedCommutes.length || Number.isFinite(posting.retainCommutesSince)) {
       const existing = updated.completedCommutes ?? [];
-      const known = new Set(existing.map(commute => commute.popId));
-      const fresh = completedCommutes.filter(commute => {
-        if (known.has(commute.popId)) return false;
-        known.add(commute.popId);
-        return true;
-      }).map(commute => ({
-        ...structuredClone(commute),
-        stationRoutes: commute.stationRoutes.map(segment => ({
-          ...structuredClone(segment),
-          routeId: parentByRoute.get(String(segment.routeId)) ?? segment.routeId,
-        })),
-      }));
-      updated.setCompletedCommutes([...existing, ...fresh]);
+      const merged = this.nativeCommuteIndex.merge({ records: existing,
+        sessionId: updated.gameSessionId, elapsedSeconds: updated.timeConfig?.elapsedSeconds,
+        incoming: completedCommutes, retainSince: posting.retainCommutesSince,
+        transform: commute => {
+          const next = structuredClone(commute);
+          for (const segment of next.stationRoutes) segment.routeId = parentByRoute.get(String(segment.routeId)) ?? segment.routeId;
+          return next;
+        },
+      });
+      if (merged.records !== existing) updated.setCompletedCommutes(merged.records);
     }
     updated.setFinancialHistory(backfillHourlyFinancialHistory(
       openingFinancialHistory,
@@ -3377,6 +3378,7 @@ export class SubwayBuilderGameAdapter {
         openingWallet,
         expensesAffectWallet,
         receiptId: postingId,
+        copy: false,
       },
     ));
     const finalState = this.#state();
@@ -3388,7 +3390,7 @@ export class SubwayBuilderGameAdapter {
       revenue,
       expenses,
       wallet: finalState.money,
-      financialHistory: structuredClone(finalState.financialHistory),
+      ...(includeFinancialHistory ? { financialHistory: structuredClone(finalState.financialHistory) } : {}),
     };
   }
 

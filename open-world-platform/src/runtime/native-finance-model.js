@@ -716,10 +716,12 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
   openingWallet = 0,
   expensesAffectWallet = true,
   receiptId = null,
+  copy = true,
 } = {}) {
   const targetTimestamp = Math.floor(Math.max(0, finite(targetElapsedSeconds, 0)) / FINANCE_HOUR_SECONDS)
     * FINANCE_HOUR_SECONDS;
-  const history = structuredClone(financialHistory ?? {});
+  // copy:false transfers an already detached snapshot from the adapter.
+  const history = copy ? structuredClone(financialHistory ?? {}) : (financialHistory ?? {});
   const knownPostingIds = new Set((history.appliedPostingIds ?? []).map(String));
   const knownReceipts = new Set((history.openWorldBackgroundFinanceReceipts ?? []).map(String));
   if (receiptId && (knownPostingIds.has(String(receiptId)) || knownReceipts.has(String(receiptId)))) return history;
@@ -813,10 +815,10 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
 }
 
 /** Backfill the route detail ledger using the same hourly rows as the dashboard. */
-export function backfillHourlyRouteFinancials(routeFinancials, hourlyPostings, targetElapsedSeconds) {
+export function backfillHourlyRouteFinancials(routeFinancials, hourlyPostings, targetElapsedSeconds, { copy = true } = {}) {
   const targetTimestamp = Math.floor(Math.max(0, finite(targetElapsedSeconds, 0)) / FINANCE_HOUR_SECONDS)
     * FINANCE_HOUR_SECONDS;
-  const result = structuredClone(routeFinancials ?? {});
+  const result = copy ? structuredClone(routeFinancials ?? {}) : (routeFinancials ?? {});
   const byRoute = result.byRoute && typeof result.byRoute === 'object' ? result.byRoute : {};
   let lastHourTimestamp = Math.max(0, finite(result.lastHourTimestamp, targetTimestamp));
   let currentHour = result.currentHour && typeof result.currentHour === 'object' ? result.currentHour : {};
