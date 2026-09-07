@@ -12,6 +12,18 @@ const catalog = {
   ],
 };
 
+test('ledger validation does not compile or clone unchanged journey templates', () => {
+  const world = createWorld({ worldId:'validation', tileIds:['KCW','KCE'] });
+  registerCommuteCatalog(world, catalog);
+  const entry = world.gatewayLedger['a-west-east'];
+  let reads = 0;
+  entry.transitJourneys = [{ transitMass:1, fare:2, get stationRoutes() { reads++; return [{routeId:'r',stationIds:['a','b']}]; } }];
+  assertCommuteLedger(world);
+  assert.equal(reads, 0, 'validation only needs balances and mode conservation');
+  entry.atHome = -1;
+  assert.throws(() => assertCommuteLedger(world), /commute balance/);
+});
+
 test('dispatches gateway-aggregated commutes with shared capacity and exact conservation', () => {
   const world = createWorld({ worldId: 'commute-test', tileIds: ['KCW', 'KCE'] });
   registerCommuteCatalog(world, catalog);

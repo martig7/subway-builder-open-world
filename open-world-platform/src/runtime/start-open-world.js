@@ -36,10 +36,9 @@ import {
 import { createNativeSaveLifecycle } from './autosave-hook-guard.js';
 import { installDrivingRoutePathFetch } from './driving-route-path-server.js';
 import { NativeRevenueAccrual } from './native-revenue-accrual.js';
-import {
-  installNativeReloadRecoveryGuard,
-  stageNativeRecovery,
-} from './native-reload-recovery.js';
+import { stageNativeRecovery } from './native-reload-recovery.js';
+import { installNativeSavedReloadGuard } from './native-saved-reload-guard.js';
+import { findNativeAutosaveRef, installNativeAutosaveIdleGuard } from './native-autosave-idle-guard.js';
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
@@ -275,12 +274,13 @@ export function startOpenWorld({
   });
   const game = new SubwayBuilderGameAdapter({ api, nativeSaveLifecycle });
   const electron = globalThis.window?.electron ?? globalThis.electron;
-  const nativeReloadRecovery = installNativeReloadRecoveryGuard({
+  const nativeReloadRecovery = installNativeSavedReloadGuard({
     globalObject: globalThis,
     electron,
     location: globalThis.location,
-    captureSnapshot: (template) => game.captureSnapshot(template),
+    getSessionId: () => api.gameState.getGameSessionId?.(),
     getCityCode: () => currentCityCode(),
+    getLoadedSave: () => game.nativeSaveReference(),
   });
   const revenueAccrual = new NativeRevenueAccrual({ adapter: game });
   navigation = new HashCityNavigationAdapter({
@@ -299,6 +299,26 @@ export function startOpenWorld({
     nativeDemandWorkerSource: workerSources.nativeDemandEvaluator ?? null,
   });
   let latestMap = api.utils?.getMap?.() ?? null;
+  let autosaveIdleGuard = null, autosaveIdleMap = null;
+  const noteAutosaveMapMovement = () => autosaveIdleGuard?.noteMovement?.();
+  function detachAutosaveIdleGuard() {
+    autosaveIdleMap?.off?.('move', noteAutosaveMapMovement);
+    autosaveIdleGuard?.dispose();
+    autosaveIdleGuard = null;
+    autosaveIdleMap = null;
+  }
+  function attachAutosaveIdleGuard() {
+    if (!latestMap || !ownsCurrentCity()) return;
+    if (autosaveIdleGuard?.installed && autosaveIdleMap === latestMap) return;
+    detachAutosaveIdleGuard();
+    autosaveIdleGuard = installNativeAutosaveIdleGuard({
+      ref: findNativeAutosaveRef(),
+      isMoving: () => Boolean(latestMap?.isMoving?.()),
+      getIdentity: () => ownsCurrentCity() ? `${api.gameState.getGameSessionId?.()}:${currentCityCode()}` : null,
+    });
+    autosaveIdleMap = latestMap;
+    autosaveIdleMap.on?.('move', noteAutosaveMapMovement);
+  }
   let navigationCamera = null;
   function rememberNavigationCamera(pending) {
     if (!pending?.from || !pending.tileId) return;
@@ -986,6 +1006,7 @@ export function startOpenWorld({
   }
 
   async function handleGameLoaded(saveName) {
+    const bootstrapLoad = !ready;
     await cachedSimulation.setEnabled(false);
     if (!ownsCurrentCity()) return;
     loadTrace('hook.game-loaded', {
@@ -1044,6 +1065,7 @@ export function startOpenWorld({
       return;
     }
     // Do not let onMapReady boot against the previous native Zustand state.
+    nativeReloadRecovery.resetForLoad?.({ bootstrap: bootstrapLoad });
     // New-game creation resets gameSessionId during the native load; this hook
     // is the first lifecycle point at which that new identity is authoritative.
     gameLoadObserved = true;
@@ -1153,7 +1175,7 @@ export function startOpenWorld({
     if (diagnostics.autosaves.length > 50) diagnostics.autosaves.splice(0, diagnostics.autosaves.length - 50);
     loadTrace('hook.game-saved.observed', sample);
     let worldId = null;
-    try { worldId = runtime.view({ includeDemandDetails: false }).worldId ?? null; } catch {}
+    try { worldId = runtime.getWorldId(); } catch {}
     recordWorldIdentity({ nativeSessionId: sample.nativeSessionId, worldId }, {
       saveName,
       cityCode: sample.tileId,
@@ -1335,6 +1357,7 @@ export function startOpenWorld({
 
   async function ensureLifecyclePanel() {
     if (!isCurrent()) return;
+    attachAutosaveIdleGuard();
     const loadedCityCode = currentCityCode();
     if (!registration.cities.includes(loadedCityCode)) return;
     if (!gameLoadObserved) {
@@ -1398,6 +1421,7 @@ export function startOpenWorld({
     });
     latestMap = map;
     if (!ownsLoadedCity) {
+      detachAutosaveIdleGuard();
       tileSourceStyleHandler = null;
       return;
     }
@@ -1419,6 +1443,7 @@ export function startOpenWorld({
   registerModeShareInvalidationHooks(ownedHooks, { scheduleChanged, fareChanged });
   ownedHooks.onGameEnd(() => {
     if (!isCurrent()) return;
+    detachAutosaveIdleGuard();
     void cachedSimulation.setEnabled(false);
     const pending = navigation.pending();
     if (pending) {
@@ -1458,7 +1483,9 @@ export function startOpenWorld({
     installed: nativeReloadRecovery.installed,
     version: nativeReloadRecovery.version ?? null,
     mode: nativeReloadRecovery.mode ?? null,
+    snapshot: () => nativeReloadRecovery.snapshot?.() ?? null,
   };
+  diagnostics.nativeAutosaveIdle = { snapshot: () => autosaveIdleGuard?.snapshot?.() ?? { installed: false } };
   console.info(`${logLabel} registered`, registration);
   const controller = Object.freeze({
     cachedSimulation,
@@ -1481,6 +1508,7 @@ export function startOpenWorld({
       }
       session?.dispose();
       nativeReloadRecovery.dispose();
+      detachAutosaveIdleGuard();
       if (latestMap && tileSourceStyleHandler) {
         try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
       }
@@ -1491,5 +1519,6 @@ export function startOpenWorld({
     },
   });
   globalThis[activeRuntimeKey] = controller;
+  attachAutosaveIdleGuard();
   return controller;
 }

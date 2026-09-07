@@ -552,6 +552,7 @@ export class WorldTileRuntime {
     const revision = this.game?.getInterliningRevision?.();
     return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
   }
+  getWorldId() { return (this.world ?? this.viewWorldFallback)?.worldId ?? null; }
   view({ includeDemandDetails = true } = {}) {
     const world = this.world ?? this.viewWorldFallback;
     if (!world) throw new Error('WorldTileRuntime.boot must complete first');
@@ -571,7 +572,13 @@ export class WorldTileRuntime {
     return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, day: lineage.day, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, fare: lineage.fare, revision: world.revision, routeCount: lineage.routeCount, stationCount: lineage.stationCount, trainCount: lineage.trainCount, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: includeDemandDetails ? world.gatewayLedger : {}, crossPopModeChoices: includeDemandDetails ? world.crossPopModeChoices ?? {} : {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
   }
   projectionOverlay() { return deepCopy((this.world ?? this.viewWorldFallback)?.projectionOverlay ?? { type: 'FeatureCollection', features: [] }); }
-  subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  subscribe(listener, { includeView = true } = {}) {
+    this.eventOnlyListeners ??= new WeakSet();
+    if (includeView) this.eventOnlyListeners.delete(listener);
+    else this.eventOnlyListeners.add(listener);
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
   inspectCrossTileTransitPath(crossDemand, popIndex) {
     this.#requireBooted();
     const networkProfiles = Object.fromEntries(Object.entries(this.world.tiles).map(([id, tile]) => [id, tile.networkProfile]).filter(([, profile]) => profile));
@@ -600,7 +607,8 @@ export class WorldTileRuntime {
   }
   #notify(event) {
     if (this.listeners.size === 0) return;
-    const view = this.view({ includeDemandDetails: false });
+    const needsView = [...this.listeners].some(listener => !this.eventOnlyListeners?.has(listener));
+    const view = needsView ? this.view({ includeDemandDetails: false }) : undefined;
     for (const listener of this.listeners) listener(event, view);
   }
 

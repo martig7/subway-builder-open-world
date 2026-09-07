@@ -2850,7 +2850,7 @@ export class GeographicContextOverlayController {
     this.unsubscribeRuntime = runtime?.subscribe?.((_event, view) => {
       this.runtimeActiveTileId = view?.activeTileId ?? this.readRuntimeActiveTileId();
       this.refresh();
-    });
+    }, { includeView: false });
   }
 
   attachMap(map) {

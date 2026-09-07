@@ -65,6 +65,16 @@ async function harness(run) {
   }
 }
 
+test('native save notifications do not materialize the full World view to read identity', async t => {
+  let viewReads = 0;
+  t.mock.method(WorldTileRuntime.prototype, 'view', () => { viewReads++; return { worldId:'world-A' }; });
+  await harness(async ({ hooks, controller }) => {
+    await hooks.get('onGameSaved')('manual-save');
+    assert.equal(controller.diagnostics.latestAutosave.status, 'observed');
+    assert.equal(viewReads, 0, 'save diagnostics must not clone commute and finance payloads');
+  });
+});
+
 test('game end during startup identity lookup prevents boot and UI resurrection', async t => {
   const gate = deferred(); const entered = deferred(); let bootCalls = 0;
   const originalResolve = WorldIdentityResolver.prototype.resolve;

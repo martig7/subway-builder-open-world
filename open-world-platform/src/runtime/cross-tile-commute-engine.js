@@ -126,7 +126,7 @@ export function createCommuteEntry(rawFlow) {
   return entry;
 }
 
-function migrateEntry(entry) {
+function migrateEntry(entry, { compileTemplate = true } = {}) {
   if (entry?.flow) {
     const migrated = {
     ...entry,
@@ -135,7 +135,7 @@ function migrateEntry(entry) {
     transitTrips: finiteNonNegative(entry.transitTrips ?? 0, `transit trips: ${entry.flow.id}`),
     fareRevenue: finiteNonNegative(entry.fareRevenue ?? 0, `fare revenue: ${entry.flow.id}`),
     };
-    migrated.settlementTemplate = compileSettlementTemplate(migrated);
+    if (compileTemplate) migrated.settlementTemplate = compileSettlementTemplate(migrated);
     return migrated;
   }
   if (!entry?.cohort) throw new Error('Invalid legacy commute ledger entry');
@@ -157,7 +157,7 @@ function migrateEntry(entry) {
     transitTrips: 0,
     fareRevenue: 0,
   };
-  migrated.settlementTemplate = compileSettlementTemplate(migrated);
+  if (compileTemplate) migrated.settlementTemplate = compileSettlementTemplate(migrated);
   return migrated;
 }
 
@@ -232,7 +232,7 @@ export function migrateCommuteLedger(world) {
 
 export function assertCommuteLedger(world) {
   for (const [id, rawEntry] of Object.entries(world.gatewayLedger ?? {})) {
-    const entry = migrateEntry(rawEntry);
+    const entry = migrateEntry(rawEntry, { compileTemplate: false });
     const positions = [entry.atHome, entry.queuedToWork, entry.atWork, entry.queuedToHome];
     const events = [...entry.toWork, ...entry.toHome];
     positions.forEach((value) => finiteNonNegative(value, `commute balance: ${id}`));

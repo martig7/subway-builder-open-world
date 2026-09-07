@@ -4,8 +4,9 @@ import { createOffMainThreadNativeDemandEvaluator } from './embedded-tile-packag
 import { evaluateOffTileNativeDemand } from './off-tile-native-demand.js';
 import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
+import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v4';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v5';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -64,6 +65,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   const preparation = createHourlyPostingPreparation({ workerSource: postingWorkerSource,
     prepareNative: (posting, budget) => game.prepareBackgroundNativeFinance?.(posting, { includeFinancialHistory: false }, budget) });
   const snapshot = () => ({ version: CACHED_SIMULATION_VERSION, enabled, status, error,
+    saveReferenceSharing: NATIVE_SAVE_REFERENCE_SHARING_VERSION,
     ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
     assignedPops: cache?.assignments.length ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
     dailyRidership: cache?.profile.hourly.reduce((sum, hour) => sum + (hour.completedCommutes ?? []).reduce((n, c) => n + c.size, 0), 0) ?? 0 });
@@ -236,13 +238,13 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
             const rebaseSave = save => {
               if (!enabled || !save?.data || getState().gameSessionId !== sessionId) return save;
               const elapsed = save.data.elapsedSeconds;
-              return { ...save, data: { ...save.data,
+              return shareNativeSaveReferences({ ...save, data: { ...save.data,
                 ...(Number.isFinite(save.data.lastInfrastructureChargeTime) ? {
                   lastInfrastructureChargeTime: save.data.lastInfrastructureChargeTime + elapsed - startedAt,
                 } : {}),
                 trains: (save.data.trains ?? []).map(train => rebaseCachedTrain(train,
                   elapsed - (frozenTrains.get(train.id)?.at ?? elapsed), elapsed)),
-              } };
+              } });
             };
             const save = original.apply(this, args);
             prefetch();

@@ -1936,6 +1936,14 @@ export class SubwayBuilderGameAdapter {
     };
   }
 
+  /** Identify the selected Native Save without cloning its data. */
+  nativeSaveReference() {
+    const state = this.#state();
+    const save = state.currentSaveInfo;
+    return save?.id ? { path: save.id, name: save.name, autosaveId: save.autosaveId,
+      gameSessionId: state.gameSessionId, cityCode: state.cityCode } : null;
+  }
+
   /** Read-only diagnostic; it does not invoke any mutating game action. */
   probe() {
     const apiVersion = this.api?.version ?? null;

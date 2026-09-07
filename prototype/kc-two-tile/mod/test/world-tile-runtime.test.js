@@ -80,6 +80,18 @@ test('projection notifications retain their summary view without cloning populat
   assert.equal(events[0].view.activeTileId, 'T0');
 });
 
+test('event-only projection subscribers do not construct a discarded World view', async () => {
+  const { runtime } = setupProjectedRuntime();
+  await runtime.boot('event-only-no-copy', 'T0');
+  const events = [];
+  const unsubscribe = runtime.subscribe(event => events.push(event), { includeView: false });
+  runtime.view = () => { throw new Error('discarded World snapshot'); };
+  await runtime.reconcileActiveProjection('notification-audit');
+  assert.equal(events.length, 1); assert.equal(events[0].type, 'projection-changed');
+  unsubscribe(); await runtime.reconcileActiveProjection('after-unsubscribe');
+  assert.equal(events.length, 1);
+});
+
 test('dirty service state refreshes from native ground truth only at recalculation', async () => {
   const { game, runtime } = setupProjectedRuntime({ backgroundNativeExpenses: false });
   await runtime.boot('lazy-native-service-refresh', 'T0');

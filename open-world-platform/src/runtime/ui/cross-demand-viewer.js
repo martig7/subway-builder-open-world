@@ -101,7 +101,7 @@ export class CrossDemandOverlayController {
       const view = this.runtime.view();
       this.model = new CrossDemandModel(this.rawData, view.gatewayLedger, view.crossPopModeChoices);
       this.#emit(); this.#refreshMap();
-    });
+    }, { includeView: false });
     this.unsubscribeRenderDistance = rendererVirtualization?.subscribeRenderDistance?.(
       () => this.#refreshMap(),
     );

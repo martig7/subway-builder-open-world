@@ -46,7 +46,7 @@ export class NetworkProjectionOverlayController {
     this.handleStyle = () => requestAnimationFrame(() => this.refresh());
     this.unsubscribeRuntime = runtime.subscribe?.((event) => {
       if (event?.type === 'projection-changed' || event?.type === 'save-loaded') this.refresh();
-    });
+    }, { includeView: false });
   }
 
   attachMap(map) {

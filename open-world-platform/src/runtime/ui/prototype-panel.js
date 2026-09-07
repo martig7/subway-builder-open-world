@@ -33,7 +33,7 @@ export class TileMapController {
     this.api = api; this.runtime = runtime; this.navigation = navigation; this.catalog = catalog;
     this.mapView = fitBoundsView(catalogBounds(catalog.tiles), TILE_MAP_VIEWPORT, 28, catalog);
     this.hoveredTileId = null; this.switchingTileId = null; this.listeners = new Set();
-    this.unsubscribeRuntime = runtime.subscribe?.(() => this.#emit());
+    this.unsubscribeRuntime = runtime.subscribe?.(() => this.#emit(), { includeView: false });
   }
 
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
