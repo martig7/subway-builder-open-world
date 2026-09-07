@@ -5,6 +5,8 @@ import { startOpenWorld } from '../src/runtime/start-open-world.js';
 import { WorldTileRuntime } from '../src/runtime/world-tile-runtime.js';
 import { WorldIdentityResolver } from '../src/runtime/world-identity.js';
 import { createSubwayBuilderHostState } from '../testkit/subway-builder-host.js';
+import { GeographicContextOverlayController } from '../src/runtime/ui/geographic-context-overlay.js';
+import { HashCityNavigationAdapter } from '../src/runtime/adapters/hash-city-navigation-adapter.js';
 import definition from '../../worlds/tokyo-kanagawa/world.json' with { type: 'json' };
 import catalogSource from '../../worlds/tokyo-kanagawa/geography/tile-views.json' with { type: 'json' };
 
@@ -72,6 +74,49 @@ test('native save notifications do not materialize the full World view to read i
     await hooks.get('onGameSaved')('manual-save');
     assert.equal(controller.diagnostics.latestAutosave.status, 'observed');
     assert.equal(viewReads, 0, 'save diagnostics must not clone commute and finance payloads');
+  });
+});
+
+test('world grid rejects startup clicks without queuing navigation and unlocks after demand finishes', async t => {
+  const calculation = deferred(); const entered = deferred();
+  let grid; let staged = 0; let navigated = 0;
+  const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
+  t.mock.method(GeographicContextOverlayController.prototype, 'readRuntimeActiveTileId', function () {
+    grid = this; return readActive.call(this);
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => {
+    entered.resolve(); return calculation.promise;
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'stageNavigationTransition', async tileId => {
+    staged++; return { worldId: 'world-A', tileId };
+  });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'navigateTo', () => { navigated++; });
+  await harness(async ({ controller, idle, hooks, ui, state }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    const select = grid.onTileSelect;
+    const tileId = 'JP_KANAGAWA_MAINLAND';
+    assert.equal((await select(tileId)).status, 'initializing');
+    idle.shift()(); await entered.promise;
+    assert.equal((await select(tileId)).status, 'initializing');
+    assert.equal(staged, 0, 'a startup click must not enqueue a native save/navigation transaction');
+    assert.equal(navigated, 0);
+    assert.ok(ui.some(item => Array.isArray(item) && /initializ/i.test(item[0])));
+    calculation.resolve({ status: 'cached' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(staged, 0, 'blocked clicks must not replay once startup completes');
+    await select(tileId);
+    assert.equal(staged, 1);
+    assert.equal(navigated, 1);
+    hooks.get('onGameEnd')();
+    assert.equal((await select(tileId)).status, 'initializing');
+    assert.equal(staged, 1, 'a retained grid callback must not resurrect navigation');
+    state.gameSessionId = 'session-B'; state.saveName = 'save-B';
+    await controller.lifecycle.gameLoaded('save-B');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal((await select(tileId)).status, 'initializing');
+    assert.equal(staged, 1, 'an old grid cannot navigate the replacement session');
+    await grid.onTileSelect(tileId);
+    assert.equal(staged, 2, 'the replacement grid is usable');
   });
 });
 

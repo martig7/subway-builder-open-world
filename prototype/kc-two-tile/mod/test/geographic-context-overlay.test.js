@@ -1237,7 +1237,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 16;
+  previousPatch.version = 17;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1247,7 +1247,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
-  assert.equal(map.__deck[guardKey].version, 17);
+  assert.equal(map.__deck[guardKey].version, 18);
   firstController.dispose();
   reloadedController.dispose();
 });
@@ -2451,6 +2451,35 @@ test('native road clock frames reuse buffers but changed colors and zoom opacity
     map.__deck.setProps({ layers: [layer(blue)] });
     assert.deepEqual(map.__deck.props.layers[0].props.getLineColor(), blue);
   } finally { controller.dispose(); }
+});
+
+test('omits empty station icon layers and rebuilds their attributes when labels return', () => {
+  for (const emptyKind of ['native', 'clipped', 'hidden']) {
+    const map = fixtureMap();
+    const controller = registerGeographicContextOverlay({
+      runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog,
+    });
+    controller.attachMap(map); controller.setRenderDistance(0);
+    const populated = fixtureDeckLayer('station-marker-labels', {
+      data: [{ id: 'visible', position: [-74.5, 40.5] }], getPosition: row => row.position,
+    });
+    map.__deck.setProps({ layers: [populated] });
+    const previous = map.__deck.props.layers[0];
+    assert.equal(previous.props.data.length, 1);
+    if (emptyKind === 'hidden') { map.setZoom(8); map.listeners.get('zoom')(); }
+    const data = emptyKind === 'clipped' ? [{ id: 'outside', position: [-72, 40.5] }] : [];
+    const empty = fixtureDeckLayer('station-marker-labels', { data, getPosition: row => row.position });
+    map.__deck.setProps({ layers: [empty] });
+    assert.equal(map.__deck.props.layers[0], null, `${emptyKind}: no zero-instance IconLayer reaches Deck`);
+    assert.strictEqual(map.__deck.__openWorldMovementDeckVisibilityGuard.nativeLayers[0], empty);
+    map.setZoom(11); map.listeners.get('zoom')();
+    map.__deck.setProps({ layers: [populated] });
+    const restored = map.__deck.props.layers[0];
+    assert.equal(restored.props.data.length, 1);
+    assert.notStrictEqual(restored, previous, 'a removed/finalized label layer must not be reused');
+    assert.equal(populated.props.data.length, 1, 'canonical label data remains untouched');
+    controller.dispose();
+  }
 });
 
 test('native tiled roads retain the composite layer across clock updates and refresh style or tile source', () => {

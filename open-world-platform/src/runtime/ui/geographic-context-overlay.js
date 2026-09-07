@@ -53,7 +53,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 17;
+const MOVEMENT_DECK_GUARD_VERSION = 18;
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
@@ -1791,6 +1791,17 @@ function maskMovementDeckLayers(
   }
   if (!layers || typeof layers !== 'object') return layers;
   const layerId = layers?.id ?? layers?.props?.id ?? null;
+  // Deck's IconLayer validates the first frame even when there are no
+  // instances. Its pooled empty buffer can contain NaN. Do not submit an
+  // empty station-label layer; keep its canonical input in patch.nativeLayers.
+  const omitEmptyStationIcons = data => {
+    if (layerId !== 'station-marker-labels' || !Array.isArray(data) || data.length !== 0) return false;
+    // Removing a Deck layer finalizes it. Never reuse that cached instance
+    // when labels return, even if the native input object is unchanged.
+    layerCache?.delete(layerId);
+    return true;
+  };
+  if (omitEmptyStationIcons(layers.props?.data)) return null;
   const isMovement = isMovementLayerId(layerId);
   const isRoad = isRoadDeckLayerId(layerId);
   const isRailLine = isRailLineLayerId(layerId);
@@ -2024,6 +2035,7 @@ function maskMovementDeckLayers(
     // major/minor road families as the camera approaches street level.
     overrides.visible = nativeVisible && isDetailedRoadZoom(layerId, zoom);
   }
+  if (omitEmptyStationIcons(overrides.data)) return null;
   const maskedLayer = Object.keys(overrides).length ? cloneLayerWithOverrides(layers, overrides) : layers;
   if (
     (dataEntry || (isRoad && source))

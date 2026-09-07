@@ -656,9 +656,18 @@ export function startOpenWorld({
     try { return runtime.getActiveTileId(); } catch { return null; }
   }
 
-  async function switchFromWorldGrid(tileId) {
+  async function switchFromWorldGrid(tileId, owner) {
     const tile = tileById.get(tileId);
     if (!tile) throw new Error(`Unknown ${definition.identity.name} Tile View: ${tileId}`);
+    // UI readiness precedes deferred startup demand. Do not enqueue a save
+    // transition behind that work or allow a retained grid to navigate while
+    // its session is loading, ending, or completing another tile transition.
+    if (!isCurrent() || !ready || !ownsSession(owner) || !ownsCurrentCity()
+      || startupModeSharePromise || sessionReloadPromise || navigation.pending()) {
+      diagnostics.latestGridNavigation = { status: 'initializing', tileId, guard: 'startup-navigation-v1' };
+      api.ui?.showNotification?.('Open World is still initializing. Please try again when loading finishes.', 'info', 'Open World');
+      return diagnostics.latestGridNavigation;
+    }
     if (runtimeTileId() === tileId) return { status: 'already-active', tileId };
     if (gridTileSwitchingId) return { status: 'already-switching', tileId: gridTileSwitchingId };
     gridTileSwitchingId = tileId;
@@ -937,14 +946,18 @@ export function startOpenWorld({
         if (!ownsSession(startingSession)) return;
         ready = true;
         settlementReady = false;
-        startupModeSharePromise = deferStartupModeShare('startup', api.gameState.getCurrentDay?.() ?? null, startingSession);
+        const initialDemand = deferStartupModeShare('startup', api.gameState.getCurrentDay?.() ?? null, startingSession);
+        startupModeSharePromise = initialDemand;
+        void initialDemand.finally(() => {
+          if (startupModeSharePromise === initialDemand) startupModeSharePromise = null;
+        });
         finishStage('crossModeShare');
         if (!ownsSession(startingSession)) return;
         if (pending) navigation.complete(pending);
         geographicContextController = registerGeographicContextOverlay({
           runtime,
           tileCatalog,
-          onTileSelect: switchFromWorldGrid,
+          onTileSelect: tileId => switchFromWorldGrid(tileId, startingSession),
           nativeParkSourceLayer: definition.map.nativeParkSourceLayer,
           worldVegetationLoader,
           worldContextTilesUrl: definition.map.worldContextTileId
