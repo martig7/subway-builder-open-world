@@ -53,7 +53,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 12;
+const MOVEMENT_DECK_GUARD_VERSION = 17;
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
@@ -1394,8 +1394,30 @@ function reusableDeckLayer(layer) {
 function sameDeckRenderProps(previous, current) {
   const previousProps = previous?.props ?? {};
   const currentProps = current?.props ?? {};
+  if (isRoadDeckLayerId(current?.id ?? currentProps.id)) {
+    const keys = new Set([...Object.keys(previousProps), ...Object.keys(currentProps)]);
+    for (const key of keys) {
+      if (key === 'data') continue; // Spatial source identity is checked separately.
+      if (key === 'getRoadLineColor' && typeof previousProps[key] === 'function'
+        && typeof currentProps[key] === 'function'
+        && previousProps.colorTrigger != null && currentProps.colorTrigger != null
+        && stableRenderValueEqual(previousProps.colorTrigger, currentProps.colorTrigger)) continue;
+      if (key === 'getLineColor' && typeof previousProps[key] === 'function'
+        && typeof currentProps[key] === 'function'
+        && previousProps.updateTriggers?.getLineColor != null
+        && currentProps.updateTriggers?.getLineColor != null
+        && stableRenderValueEqual(previousProps.updateTriggers.getLineColor, currentProps.updateTriggers.getLineColor)) continue;
+      // Native road layers recreate this constant depth-offset accessor each
+      // frame. Its inputs do not depend on feature data or game time.
+      if (key === 'getPolygonOffset' && typeof previousProps[key] === 'function'
+        && typeof currentProps[key] === 'function'
+        && stableRenderValueEqual(previousProps[key]({ layerIndex: 0 }), currentProps[key]({ layerIndex: 0 }))) continue;
+      if (!stableRenderValueEqual(previousProps[key], currentProps[key])) return false;
+    }
+    return true;
+  }
   for (const key of [
-    'visible', 'beforeId', 'pickable', 'stroked', 'filled', 'extruded',
+    'visible', 'opacity', 'beforeId', 'pickable', 'stroked', 'filled', 'extruded',
     'lineWidthUnits', 'lineWidthMinPixels', 'lineCapRounded', 'lineMiterLimit',
     'onHover', 'onClick', 'getLineColor', 'getLineWidth', 'getPath',
     'getPosition', 'getRadius', 'getColor', 'getFillColor', 'getElevation',
@@ -1705,13 +1727,13 @@ function sameNativeLayerValue(previous, current) {
   }
   if (previous === current) {
     const layerId = previous?.id ?? previous?.props?.id ?? null;
-    return !isVolatileRailLayerId(layerId) && !isMovementLayerId(layerId);
+    return !isVolatileRailLayerId(layerId) && !isMovementLayerId(layerId) && layerId !== 'tracks';
   }
   if (!previous || !current || typeof previous !== 'object' || typeof current !== 'object') return false;
   const previousId = previous.id ?? previous.props?.id ?? null;
   const currentId = current.id ?? current.props?.id ?? null;
   if (previousId !== currentId || previous.count !== current.count) return false;
-  if (isVolatileRailLayerId(currentId) || isMovementLayerId(currentId)) return false;
+  if (isVolatileRailLayerId(currentId) || isMovementLayerId(currentId) || currentId === 'tracks') return false;
   const previousData = layerData(previous);
   const currentData = layerData(current);
   if (Boolean(previousData) !== Boolean(currentData)) return false;
@@ -1724,6 +1746,13 @@ function sameNativeLayerValue(previous, current) {
 
 function sameNativeLayerTree(previous, current) {
   return sameNativeLayerValue(previous, current);
+}
+
+function sameRenderedLayerTree(previous, current) {
+  if (previous === current) return true;
+  return Array.isArray(previous) && Array.isArray(current)
+    && previous.length === current.length
+    && previous.every((layer, index) => sameRenderedLayerTree(layer, current[index]));
 }
 
 function layerMaskSignature(layerId, zoom, virtualization) {
@@ -1781,25 +1810,32 @@ function maskMovementDeckLayers(
     if (source) spatialCache?.delete(source);
     const nativeData = layers.props?.data;
     if (nativeData && typeof nativeData === 'object') spatialCache?.delete(nativeData);
-    layerCache?.delete(layerId);
+    const previousHidden = layerCache?.get(layerId);
     movementCache?.delete(String(layerId).toLowerCase());
     interliningCache?.delete(String(layerId).toLowerCase());
-    return cloneLayerWithOverrides(layers, { visible: false });
+    // Deck updates attributes on invisible layers too. Keep one inert layer
+    // while hidden; patch.nativeLayers separately retains the latest input.
+    // Revealing it always re-clips that input after the invalidations above.
+    if (previousHidden?.hidden && previousHidden.inputLayer.constructor === layers.constructor) return previousHidden.layer;
+    const hiddenLayer = cloneLayerWithOverrides(layers, { visible: false });
+    layerCache?.set(layerId, { hidden: true, inputLayer: layers, layer: hiddenLayer });
+    return hiddenLayer;
   }
   if (!isMovement && !isRoad && !hiddenByOverview && !virtualization) return layers;
   const overrides = {};
   const dataEntry = layerData(layers);
-  const [, source] = dataEntry ?? [];
+  const source = dataEntry?.[1] ?? (isRoad ? layers.props?.tileSource : undefined);
   const portolanBinary = isPortolanRibbon ? portolanBinaryPathData(layers?.props?.data) : null;
   const maskSignature = virtualization
     ? layerMaskSignature(layerId, zoom, virtualization)
     : null;
   const cachedLayer = layerCache?.get(layerId);
   if (
-    dataEntry
+    (dataEntry || (isRoad && source))
     && virtualization
     && !isVolatileRail
     && !isMovement
+    && layerId !== 'tracks'
     && reusableDeckLayer(layers)
     && cachedLayer?.source === source
     && cachedLayer.signature === maskSignature
@@ -1807,7 +1843,7 @@ function maskMovementDeckLayers(
   ) {
     railClipDebugLog('rail-layer-reuse', () => ({
       layerId,
-      dataShape: dataEntry[0],
+      dataShape: dataEntry?.[0] ?? 'tile-source',
       sourceCount: source.length,
     }), { key: `reuse:${layerId}`, every: 60 });
     return cachedLayer.layer;
@@ -1851,7 +1887,17 @@ function maskMovementDeckLayers(
     let interliningPassKey = null;
     let currentMovementSnapshot = null;
     let movementContentHit = false;
-    if (isMovement) {
+    // Native clock updates recreate track and carriage FeatureCollections
+    // even when nothing moved. Preserve the clipped data/buffer identity, but
+    // compare a detached snapshot so geometry and style edits still invalidate.
+    const retainedGeometry = /^(tracks|trains(?:-under)?)$/i.test(String(layerId))
+      && (layerId === 'tracks' || dataShape.endsWith('feature-collection'));
+    if (retainedGeometry) {
+      const previous = interliningCache?.get(String(layerId).toLowerCase());
+      cached = previous?.signature === signature && previous.dataShape === dataShape
+        && sameInterlinedSnapshotValue(source, previous.sourceSnapshot) ? previous : null;
+      cacheHit = cached != null;
+    } else if (isMovement) {
       const movementCacheKey = String(layerId).toLowerCase();
       const movementCached = movementCache?.get(movementCacheKey);
       if (movementCached?.signature === signature && movementCached?.dataShape === dataShape) {
@@ -1929,7 +1975,7 @@ function maskMovementDeckLayers(
       dataShape,
       data: filtered,
       renderedData,
-      ...(isVolatileRail ? {
+      ...(retainedGeometry ? { sourceSnapshot: snapshotInterlinedValue(source) } : isVolatileRail ? {
         interliningRevision,
         sourceSnapshot: interliningRevision == null ? snapshotInterlinedValue(source) : null,
       } : isMovement ? {
@@ -1937,6 +1983,10 @@ function maskMovementDeckLayers(
       } : {}),
     };
     spatialCache?.set(source, cacheEntry);
+    if (retainedGeometry) interliningCache?.set(String(layerId).toLowerCase(), cacheEntry);
+    if (layerId === 'tracks' && cacheHit && cachedLayer?.signature === maskSignature
+      && cachedLayer.layer?.props?.data === renderedData
+      && sameDeckRenderProps(cachedLayer.inputLayer, layers)) return cachedLayer.layer;
     if (isMovement) movementCache?.set(String(layerId).toLowerCase(), cacheEntry);
     if (isVolatileRail) {
       interliningCache?.set(String(layerId).toLowerCase(), cacheEntry);
@@ -1976,7 +2026,7 @@ function maskMovementDeckLayers(
   }
   const maskedLayer = Object.keys(overrides).length ? cloneLayerWithOverrides(layers, overrides) : layers;
   if (
-    dataEntry
+    (dataEntry || (isRoad && source))
     && virtualization
     && layerCache
     && layerId != null
@@ -2279,7 +2329,7 @@ function installMovementDeckVisibilityGuard(
           layers: maskedLayers,
         };
         const onlyLayers = Object.keys(nextProps).every((key) => key === 'layers');
-        if (onlyLayers && this.props?.layers === maskedLayers) {
+        if (onlyLayers && sameRenderedLayerTree(this.props?.layers, maskedLayers)) {
           railClipDebugLog('deck-setProps-skip', () => ({
             reason: canReuseMaskedTree ? 'masked-layer-tree-unchanged' : 'same-masked-layer-reference',
             layerCount: Array.isArray(maskedLayers) ? maskedLayers.length : null,

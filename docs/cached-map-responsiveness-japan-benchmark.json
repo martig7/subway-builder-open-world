@@ -1,0 +1,857 @@
+{
+  "date": "2026-09-07",
+  "consumer": "local.japan-open-world",
+  "source": "prototype/japan/mod",
+  "method": "Two 3-second MapLibre easeTo runs at zoom 10 to 10.3 near Osaka, each followed by a paused run. Same live save, clock preserved; no save reset between versions. Both versions use the existing 10x Ultra multiplier.",
+  "before": {
+    "version": {
+      "version": "open-world-cached-simulation-v1",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 2,
+      "ticks": 2847,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2303.4000000059605,
+      "assignedPops": 28709,
+      "dailyRevenue": 261725075,
+      "dailyRidership": 286822
+    },
+    "runs": [
+      {
+        "running": {
+          "paused": false,
+          "frames": 14,
+          "medianMs": 243.39999999990687,
+          "p95Ms": 703.4000000001397,
+          "over50ms": 12,
+          "wallMs": 3349.5,
+          "simulatedSeconds": 3120,
+          "smooth": false
+        },
+        "paused": {
+          "paused": true,
+          "frames": 6,
+          "medianMs": 136.69999999995343,
+          "p95Ms": 3076.600000000093,
+          "over50ms": 5,
+          "wallMs": 3828.800000011921,
+          "simulatedSeconds": 0,
+          "smooth": false
+        }
+      },
+      {
+        "running": {
+          "paused": false,
+          "frames": 14,
+          "medianMs": 243.4000000001397,
+          "p95Ms": 413.30000000004657,
+          "over50ms": 12,
+          "wallMs": 3285.5,
+          "simulatedSeconds": 3120,
+          "smooth": false
+        },
+        "paused": {
+          "paused": true,
+          "frames": 48,
+          "medianMs": 10,
+          "p95Ms": 190,
+          "over50ms": 15,
+          "wallMs": 3067.7999999970198,
+          "simulatedSeconds": 0,
+          "smooth": false
+        }
+      }
+    ],
+    "stages": {
+      "maplibre.event.movestart": {
+        "count": 19,
+        "totalMs": 0.4000000059604645,
+        "averageMs": 0.021052631892656024,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.map._update": {
+        "count": 1025,
+        "totalMs": 1.2999999523162842,
+        "averageMs": 0.001268292636406131,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.native-setProps": {
+        "count": 194,
+        "totalMs": 7.600000098347664,
+        "averageMs": 0.03917525823890548,
+        "maxMs": 0.20000000298023224,
+        "slowCount": 0,
+        "lastMs": 0.10000000894069672
+      },
+      "maplibre.event.move": {
+        "count": 61,
+        "totalMs": 16.799999997019768,
+        "averageMs": 0.2754098360167175,
+        "maxMs": 0.5,
+        "slowCount": 0,
+        "lastMs": 0.09999999403953552
+      },
+      "maplibre.event.zoomstart": {
+        "count": 14,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.sourcedataloading": {
+        "count": 491,
+        "totalMs": 0.6000000238418579,
+        "averageMs": 0.0012219959752379998,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0.09999999403953552
+      },
+      "maplibre.event.dataloading": {
+        "count": 491,
+        "totalMs": 2.2999999821186066,
+        "averageMs": 0.00468431768252262,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0.09999999403953552
+      },
+      "maplibre.tile-boundary.setData": {
+        "count": 5,
+        "totalMs": 169.8999999910593,
+        "averageMs": 33.97999999821186,
+        "maxMs": 71,
+        "slowCount": 0,
+        "lastMs": 55.69999998807907
+      },
+      "marker.visibility": {
+        "count": 34,
+        "totalMs": 0.30000001192092896,
+        "averageMs": 0.008823529762380263,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0.10000000894069672
+      },
+      "deck.apply.total": {
+        "count": 34,
+        "totalMs": 512.3999999761581,
+        "averageMs": 15.070588234592886,
+        "maxMs": 189,
+        "slowCount": 0,
+        "lastMs": 186.6000000089407
+      },
+      "map.zoom.total": {
+        "count": 34,
+        "totalMs": 684.4999999701977,
+        "averageMs": 20.13235294029993,
+        "maxMs": 242.6000000089407,
+        "slowCount": 0,
+        "lastMs": 242.6000000089407
+      },
+      "maplibre.event.zoom": {
+        "count": 34,
+        "totalMs": 684.9999999701977,
+        "averageMs": 20.147058822652873,
+        "maxMs": 242.6000000089407,
+        "slowCount": 0,
+        "lastMs": 242.6000000089407
+      },
+      "maplibre.event.zoomend": {
+        "count": 14,
+        "totalMs": 0.20000000298023224,
+        "averageMs": 0.014285714498588018,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.moveend": {
+        "count": 14,
+        "totalMs": 3.5,
+        "averageMs": 0.25,
+        "maxMs": 0.4000000059604645,
+        "slowCount": 0,
+        "lastMs": 0.29999999701976776
+      },
+      "deck.spatial.clip": {
+        "count": 511,
+        "totalMs": 5709,
+        "averageMs": 11.172211350293543,
+        "maxMs": 117.40000000596046,
+        "slowCount": 0,
+        "lastMs": 2
+      },
+      "deck.spatial.compare": {
+        "count": 220,
+        "totalMs": 0.19999998807907104,
+        "averageMs": 0.0009090908549048683,
+        "maxMs": 0.09999999403953552,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.mask-layers": {
+        "count": 133,
+        "totalMs": 5895.099999904633,
+        "averageMs": 44.32406014965889,
+        "maxMs": 189,
+        "slowCount": 0,
+        "lastMs": 40
+      },
+      "maplibre.queryRenderedFeatures": {
+        "count": 90,
+        "totalMs": 7.899999991059303,
+        "averageMs": 0.0877777776784367,
+        "maxMs": 0.9000000059604645,
+        "slowCount": 0,
+        "lastMs": 0.20000000298023224
+      },
+      "maplibre.event.mousemove": {
+        "count": 23,
+        "totalMs": 8.700000002980232,
+        "averageMs": 0.3782608696947927,
+        "maxMs": 1.1000000089406967,
+        "slowCount": 0,
+        "lastMs": 0.7000000029802322
+      },
+      "maplibre.event.mousedown": {
+        "count": 5,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.dragstart": {
+        "count": 5,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.drag": {
+        "count": 27,
+        "totalMs": 0.19999998807907104,
+        "averageMs": 0.0074074069658915205,
+        "maxMs": 0.09999999403953552,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.render-task-queue.run": {
+        "count": 93,
+        "totalMs": 241.7000000178814,
+        "averageMs": 2.5989247313750687,
+        "maxMs": 74.5,
+        "slowCount": 0,
+        "lastMs": 0.30000001192092896
+      },
+      "maplibre.event.sourcedata": {
+        "count": 482,
+        "totalMs": 3.799999937415123,
+        "averageMs": 0.00788381729754175,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.data": {
+        "count": 482,
+        "totalMs": 6.599999904632568,
+        "averageMs": 0.013692945860233544,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.style.update": {
+        "count": 46,
+        "totalMs": 9.299999997019768,
+        "averageMs": 0.2021739129786906,
+        "maxMs": 0.4000000059604645,
+        "slowCount": 0,
+        "lastMs": 0.20000000298023224
+      },
+      "maplibre.style._updateSources": {
+        "count": 64,
+        "totalMs": 92.59999999403954,
+        "averageMs": 1.4468749999068677,
+        "maxMs": 7.200000002980232,
+        "slowCount": 0,
+        "lastMs": 0.3999999910593033
+      },
+      "maplibre.painter.render": {
+        "count": 93,
+        "totalMs": 643.1000000089407,
+        "averageMs": 6.915053763536997,
+        "maxMs": 13.099999994039536,
+        "slowCount": 0,
+        "lastMs": 4.600000008940697
+      },
+      "maplibre.event.render": {
+        "count": 93,
+        "totalMs": 2.400000035762787,
+        "averageMs": 0.025806451997449322,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.map._render": {
+        "count": 93,
+        "totalMs": 1069.799999922514,
+        "averageMs": 11.50322580561843,
+        "maxMs": 91.09999999403954,
+        "slowCount": 0,
+        "lastMs": 5.4000000059604645
+      },
+      "deck._pickAndCallback": {
+        "count": 93,
+        "totalMs": 95.69999998807907,
+        "averageMs": 1.029032257936334,
+        "maxMs": 12.700000002980232,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.redraw": {
+        "count": 93,
+        "totalMs": 3.6000000089406967,
+        "averageMs": 0.03870967751549136,
+        "maxMs": 0.20000000298023224,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.animationLoop._renderFrame": {
+        "count": 93,
+        "totalMs": 5628,
+        "averageMs": 60.516129032258064,
+        "maxMs": 387,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.mouseup": {
+        "count": 4,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.dragend": {
+        "count": 5,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.sourcedataabort": {
+        "count": 109,
+        "totalMs": 0.20000000298023224,
+        "averageMs": 0.0018348624126626812,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.dataabort": {
+        "count": 109,
+        "totalMs": 0.5999999940395355,
+        "averageMs": 0.005504587101280142,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "browser.long-task": {
+        "count": 85,
+        "totalMs": 14320,
+        "averageMs": 168.47058823529412,
+        "maxMs": 1823,
+        "slowCount": 0,
+        "lastMs": 139
+      },
+      "browser.long-animation-frame": {
+        "count": 58,
+        "totalMs": 18249.899999976158,
+        "averageMs": 314.653448275451,
+        "maxMs": 3076.3999999910593,
+        "slowCount": 0,
+        "lastMs": 139.29999999701977
+      },
+      "maplibre.event.idle": {
+        "count": 3,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.click": {
+        "count": 1,
+        "totalMs": 0.29999999701976776,
+        "averageMs": 0.29999999701976776,
+        "maxMs": 0.29999999701976776,
+        "slowCount": 0,
+        "lastMs": 0.29999999701976776
+      },
+      "maplibre.event.wheel": {
+        "count": 21,
+        "totalMs": 0.19999998807907104,
+        "averageMs": 0.00952380895614624,
+        "maxMs": 0.09999999403953552,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.mouseout": {
+        "count": 1,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.mouseover": {
+        "count": 1,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "marker.adapter.apply": {
+        "count": 4,
+        "totalMs": 0.09999999403953552,
+        "averageMs": 0.02499999850988388,
+        "maxMs": 0.09999999403953552,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.interlining.clip": {
+        "count": 4,
+        "totalMs": 102.59999999403954,
+        "averageMs": 25.649999998509884,
+        "maxMs": 27.299999997019768,
+        "slowCount": 0,
+        "lastMs": 24.799999997019768
+      }
+    },
+    "original": {
+      "center": {
+        "lng": 134.60716279152757,
+        "lat": 34.17679331899106
+      },
+      "zoom": 11.673197365293298,
+      "paused": true
+    }
+  },
+  "after": {
+    "version": {
+      "version": "open-world-cached-simulation-v2",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 138,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2390.7999999970198,
+      "assignedPops": 28709,
+      "dailyRevenue": 261725075,
+      "dailyRidership": 286822
+    },
+    "runs": [
+      {
+        "running": {
+          "paused": false,
+          "frames": 274,
+          "medianMs": 6.699999999953434,
+          "p95Ms": 26.700000000186265,
+          "over50ms": 4,
+          "wallMs": 3104.7000000029802,
+          "simulatedSeconds": 14400,
+          "smooth": true
+        },
+        "paused": {
+          "paused": true,
+          "frames": 414,
+          "medianMs": 3.3999999999068677,
+          "p95Ms": 6.7000000001862645,
+          "over50ms": 1,
+          "wallMs": 3598.4000000059605,
+          "simulatedSeconds": 0,
+          "smooth": true
+        }
+      },
+      {
+        "running": {
+          "paused": false,
+          "frames": 244,
+          "medianMs": 6.7000000001862645,
+          "p95Ms": 23.399999999906868,
+          "over50ms": 5,
+          "wallMs": 3007.5,
+          "simulatedSeconds": 12720,
+          "smooth": true
+        },
+        "paused": {
+          "paused": true,
+          "frames": 350,
+          "medianMs": 3.3999999999068677,
+          "p95Ms": 6.7000000001862645,
+          "over50ms": 1,
+          "wallMs": 3002.4000000059605,
+          "simulatedSeconds": 0,
+          "smooth": true
+        }
+      }
+    ],
+    "stages": {
+      "maplibre.event.movestart": {
+        "count": 9,
+        "totalMs": 0.5,
+        "averageMs": 0.05555555555555555,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.map._update": {
+        "count": 209,
+        "totalMs": 0.30000001192092896,
+        "averageMs": 0.0014354067556025308,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.native-setProps": {
+        "count": 194,
+        "totalMs": 4.599999979138374,
+        "averageMs": 0.023711340098651414,
+        "maxMs": 0.20000000298023224,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.move": {
+        "count": 9,
+        "totalMs": 3.80000002682209,
+        "averageMs": 0.42222222520245445,
+        "maxMs": 0.7000000029802322,
+        "slowCount": 0,
+        "lastMs": 0.6000000089406967
+      },
+      "maplibre.event.zoomstart": {
+        "count": 9,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.sourcedataloading": {
+        "count": 62,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.dataloading": {
+        "count": 62,
+        "totalMs": 0.20000001788139343,
+        "averageMs": 0.0032258067400224746,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0.10000000894069672
+      },
+      "maplibre.tile-boundary.setData": {
+        "count": 2,
+        "totalMs": 74.8999999910593,
+        "averageMs": 37.44999999552965,
+        "maxMs": 56.599999994039536,
+        "slowCount": 0,
+        "lastMs": 56.599999994039536
+      },
+      "marker.visibility": {
+        "count": 9,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.mask-layers": {
+        "count": 185,
+        "totalMs": 1629.3999999910593,
+        "averageMs": 8.80756756751924,
+        "maxMs": 198.1000000089407,
+        "slowCount": 0,
+        "lastMs": 8.599999994039536
+      },
+      "deck.apply.total": {
+        "count": 9,
+        "totalMs": 205.79999999701977,
+        "averageMs": 22.86666666633553,
+        "maxMs": 198.1000000089407,
+        "slowCount": 0,
+        "lastMs": 198.1000000089407
+      },
+      "map.zoom.total": {
+        "count": 9,
+        "totalMs": 281.49999998509884,
+        "averageMs": 31.277777776122093,
+        "maxMs": 254.79999999701977,
+        "slowCount": 0,
+        "lastMs": 254.79999999701977
+      },
+      "maplibre.event.zoom": {
+        "count": 9,
+        "totalMs": 281.69999998807907,
+        "averageMs": 31.299999998675453,
+        "maxMs": 254.79999999701977,
+        "slowCount": 0,
+        "lastMs": 254.79999999701977
+      },
+      "maplibre.event.zoomend": {
+        "count": 9,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.moveend": {
+        "count": 9,
+        "totalMs": 2.1000000089406967,
+        "averageMs": 0.23333333432674408,
+        "maxMs": 0.5,
+        "slowCount": 0,
+        "lastMs": 0.5
+      },
+      "deck.spatial.clip": {
+        "count": 206,
+        "totalMs": 189.8000000268221,
+        "averageMs": 0.9213592234311752,
+        "maxMs": 179.29999999701977,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck._pickAndCallback": {
+        "count": 1607,
+        "totalMs": 1.2999999523162842,
+        "averageMs": 0.0008089607668427406,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.redraw": {
+        "count": 1607,
+        "totalMs": 28.5,
+        "averageMs": 0.01773490976975731,
+        "maxMs": 0.19999998807907104,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "deck.animationLoop._renderFrame": {
+        "count": 1607,
+        "totalMs": 150.00000010430813,
+        "averageMs": 0.09334163043205235,
+        "maxMs": 32.599999994039536,
+        "slowCount": 0,
+        "lastMs": 0.10000000894069672
+      },
+      "maplibre.render-task-queue.run": {
+        "count": 948,
+        "totalMs": 1.1000000089406967,
+        "averageMs": 0.0011603375621737307,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.sourcedata": {
+        "count": 87,
+        "totalMs": 0.6000000238418579,
+        "averageMs": 0.006896551998182275,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0.10000000894069672
+      },
+      "maplibre.event.data": {
+        "count": 87,
+        "totalMs": 1.100000038743019,
+        "averageMs": 0.012643678606241599,
+        "maxMs": 0.20000000298023224,
+        "slowCount": 0,
+        "lastMs": 0.10000000894069672
+      },
+      "maplibre.style.update": {
+        "count": 28,
+        "totalMs": 4.000000014901161,
+        "averageMs": 0.14285714338932717,
+        "maxMs": 0.4000000059604645,
+        "slowCount": 0,
+        "lastMs": 0.09999999403953552
+      },
+      "maplibre.style._updateSources": {
+        "count": 19,
+        "totalMs": 36.29999998211861,
+        "averageMs": 1.9105263148483478,
+        "maxMs": 7.200000002980232,
+        "slowCount": 0,
+        "lastMs": 0.9000000059604645
+      },
+      "maplibre.painter.render": {
+        "count": 948,
+        "totalMs": 5995.699999943376,
+        "averageMs": 6.3245780590119995,
+        "maxMs": 12.700000002980232,
+        "slowCount": 0,
+        "lastMs": 11.200000002980232
+      },
+      "maplibre.event.render": {
+        "count": 948,
+        "totalMs": 15.89999994635582,
+        "averageMs": 0.01677215184214749,
+        "maxMs": 0.20000000298023224,
+        "slowCount": 0,
+        "lastMs": 0.09999999403953552
+      },
+      "maplibre.map._render": {
+        "count": 948,
+        "totalMs": 6262.199999943376,
+        "averageMs": 6.605696202471915,
+        "maxMs": 18.299999997019768,
+        "slowCount": 0,
+        "lastMs": 15.799999997019768
+      },
+      "browser.long-task": {
+        "count": 11,
+        "totalMs": 3207,
+        "averageMs": 291.54545454545456,
+        "maxMs": 1430,
+        "slowCount": 0,
+        "lastMs": 1430
+      },
+      "maplibre.event.sourcedataabort": {
+        "count": 15,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "maplibre.event.dataabort": {
+        "count": 15,
+        "totalMs": 0,
+        "averageMs": 0,
+        "maxMs": 0,
+        "slowCount": 0,
+        "lastMs": 0
+      },
+      "browser.long-animation-frame": {
+        "count": 14,
+        "totalMs": 5295.200000017881,
+        "averageMs": 378.22857142984867,
+        "maxMs": 1841.7999999970198,
+        "slowCount": 0,
+        "lastMs": 1442.8999999910593
+      },
+      "maplibre.event.idle": {
+        "count": 26,
+        "totalMs": 0.10000000894069672,
+        "averageMs": 0.003846154190026797,
+        "maxMs": 0.10000000894069672,
+        "slowCount": 0,
+        "lastMs": 0
+      }
+    },
+    "original": {
+      "center": {
+        "lng": 135.57085305672274,
+        "lat": 34.64802854122223
+      },
+      "zoom": 12.431768400531347,
+      "paused": true
+    }
+  },
+  "speedup": {
+    "medianFrameInterval": 36.32835820919381,
+    "gameTimeThroughput": 4.717897118748849
+  },
+  "proof": {
+    "Bundles": [
+      {
+        "Path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\japan\\mod\\dist\\index.js",
+        "TimestampUtc": "2026-09-07T20:30:46.1346120Z",
+        "Hash": "3B6DC8D86E1FB3B7784D4F978D94521FED243FD2495A4739C69780816D704651",
+        "Marker": true
+      },
+      {
+        "Path": "C:\\Users\\darkd\\AppData\\Roaming\\metro-maker4\\mods\\japan-open-world\\index.js",
+        "TimestampUtc": "2026-09-07T20:30:46.1346120Z",
+        "Hash": "3B6DC8D86E1FB3B7784D4F978D94521FED243FD2495A4739C69780816D704651",
+        "Marker": true
+      }
+    ],
+    "HealthStatus": 200,
+    "HealthVersion": [
+      "native-pmtiles-directory-v4"
+    ],
+    "OriginalSaveHash": "846B18707C4AA3F82A3F5B060F8637CEF733B57DD12C187B41CDAB18FB5415DF"
+  },
+  "smoke": {
+    "generation": 6,
+    "guard": 17,
+    "frozen": true,
+    "synchronous": true,
+    "noDuplicatePosting": true,
+    "invalidAssignments": 0,
+    "transitDirections": 4011,
+    "cached": {
+      "version": "open-world-cached-simulation-v2",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 159,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2390.7999999970198,
+      "assignedPops": 28709,
+      "dailyRevenue": 261725075,
+      "dailyRidership": 286822
+    },
+    "nativeResume": {
+      "seconds": 136,
+      "moved": true
+    },
+    "autosave": {
+      "isSaving": false,
+      "lastSaveTime": 1788813092725,
+      "error": null,
+      "lastSkipReason": null,
+      "consecutiveSkips": 0
+    },
+    "errors": [],
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    },
+    "final": {
+      "version": "open-world-cached-simulation-v2",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 2,
+      "ticks": 159,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2263.0999999940395,
+      "assignedPops": 28709,
+      "dailyRevenue": 261725075,
+      "dailyRidership": 286822
+    }
+  },
+  "tests": {
+    "platform": 605,
+    "japan": 4
+  }
+}

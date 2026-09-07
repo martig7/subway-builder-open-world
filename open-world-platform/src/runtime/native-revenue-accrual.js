@@ -57,6 +57,8 @@ export class NativeRevenueAccrual {
 
   #networkHash = null;
 
+  #profileSources = null;
+
   constructor({ adapter } = {}) {
     if (typeof adapter?.postBackgroundNativeFinance !== 'function') {
       throw new TypeError('adapter.postBackgroundNativeFinance must be a function');
@@ -64,17 +66,27 @@ export class NativeRevenueAccrual {
     this.#adapter = adapter;
   }
 
-  replaceProfiles({ networkHash, profiles } = {}) {
+  replaceProfiles({ networkHash, profiles, reuseUnchanged = false } = {}) {
     requireNonEmptyString(networkHash, 'networkHash');
     if (!isRecord(profiles)) throw new TypeError('profiles must be an object keyed by tile id');
+    // Runtime compilation replaces each tile profile as a whole. Opt-in
+    // callers may reuse that revision identity; ordinary callers still copy.
+    const entries = Object.entries(profiles);
+    if (reuseUnchanged && networkHash === this.#networkHash
+      && this.#profileSources?.size === entries.length
+      && entries.every(([id, profile]) => this.#profileSources.get(id) === profile)) {
+      return { networkHash, profileCount: entries.length };
+    }
     this.#networkHash = networkHash;
     this.#profiles = structuredClone(profiles);
+    this.#profileSources = new Map(entries);
     return { networkHash, profileCount: Object.keys(profiles).length };
   }
 
   invalidate() {
     this.#profiles = null;
     this.#networkHash = null;
+    this.#profileSources = null;
   }
 
   async postHour({ worldId, hour, activeTileId, projection } = {}) {

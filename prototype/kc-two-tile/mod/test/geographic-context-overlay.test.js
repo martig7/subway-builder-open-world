@@ -1033,11 +1033,12 @@ test('gates repeated native train and pop movement Deck updates with the station
     ],
   });
   assert.equal(layer('trains').props.visible, false);
-  assert.equal(layer('trains').props.data.length, 1);
+  assert.equal(layer('trains').props.data.length, 0, 'hidden buffers retain their prior input');
 
   map.setZoom(10);
   map.listeners.get('zoom')();
   assert.equal(layer('trains').props.visible, true);
+  assert.equal(layer('trains').props.data[0].id, 'new-frame', 'reveal uses the latest native input');
 
   // Respect a native/user-hidden layer when returning to detailed zoom.
   map.__deck.setProps({ layers: [fixtureDeckLayer('trains', { visible: false })] });
@@ -1103,7 +1104,10 @@ test('gates the native Deck road layer families with the station detail zoom', (
   });
   assert.equal(layer('road-lines-major').props.visible, false);
   assert.equal(layer('road-bridge-fill-highway').props.visible, false);
-  assert.equal(layer('road-lines-major').props.data.length, 1);
+  assert.equal(layer('road-lines-major').props.data.length, 0, 'hidden buffers retain their prior input');
+  map.setZoom(14);
+  map.listeners.get('zoom')();
+  assert.equal(layer('road-lines-major').props.data[0].id, 'new-frame');
 
   controller.dispose();
 });
@@ -1233,7 +1237,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 11;
+  previousPatch.version = 16;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1243,7 +1247,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
-  assert.equal(map.__deck[guardKey].version, 12);
+  assert.equal(map.__deck[guardKey].version, 17);
   firstController.dispose();
   reloadedController.dispose();
 });
@@ -2397,4 +2401,91 @@ test('survives styledata while MapLibre temporarily detaches its internal style'
     map.layers.get(geographicContextLayerIds.worldLand).source,
     geographicContextLayerIds.worldContextSource,
   );
+});
+
+test('equivalent native track and train geometry retains clipped buffer identity across ticks', () => {
+  for (const id of ['tracks', 'trains', 'trains-under']) {
+    const map = fixtureMap();
+    const feature = { type: 'Feature', geometry: { type: 'LineString', coordinates: [[-74.5,40.5],[-74.4,40.5]] }, properties: { color: 'red' } };
+    const layer = () => fixtureDeckLayer(id, { data: { type: 'FeatureCollection', features: [structuredClone(feature)] } });
+    map.__deck.props.layers = [layer()];
+    const controller = registerGeographicContextOverlay({ runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog });
+    controller.attachMap(map);
+    try {
+      const first = map.__deck.props.layers[0].props.data;
+      map.__deck.setProps({ layers: [layer()] });
+      assert.strictEqual(map.__deck.props.layers[0].props.data, first, id);
+      feature.properties.color = 'blue';
+      map.__deck.setProps({ layers: [layer()] });
+      assert.notStrictEqual(map.__deck.props.layers[0].props.data, first);
+      assert.equal(map.__deck.props.layers[0].props.data.features[0].properties.color, 'blue');
+      const retained = layer();
+      map.__deck.setProps({ layers: [retained] });
+      retained.props.data.features[0].properties.color = 'green';
+      map.__deck.setProps({ layers: [retained] });
+      assert.equal(map.__deck.props.layers[0].props.data.features[0].properties.color, 'green', 'in-place edits invalidate the snapshot');
+      feature.geometry.coordinates = [[-72,40.5],[-71.9,40.5]];
+      map.__deck.setProps({ layers: [layer()] });
+      assert.equal(map.__deck.props.layers[0].props.data.features.length, 0);
+    } finally { controller.dispose(); }
+  }
+});
+
+
+test('native road clock frames reuse buffers but changed colors and zoom opacity invalidate', () => {
+  const map = fixtureMap();
+  map.setZoom(14);
+  const data = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[-74.5,40.5],[-74.4,40.5]] } }] };
+  const layer = (color, opacity = 1) => fixtureDeckLayer('road-lines-major', { data, opacity, getLineColor: () => color, updateTriggers: { getLineColor: [color] } });
+  const red = [255,0,0];
+  map.__deck.props.layers = [layer(red)];
+  const controller = registerGeographicContextOverlay({ runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog });
+  controller.attachMap(map);
+  try {
+    const first = map.__deck.props.layers[0];
+    map.__deck.setProps({ layers: [layer(red)] });
+    assert.strictEqual(map.__deck.props.layers[0], first);
+    map.__deck.setProps({ layers: [layer(red, 0.5)] });
+    assert.equal(map.__deck.props.layers[0].props.opacity, 0.5);
+    const blue = [0,0,255];
+    map.__deck.setProps({ layers: [layer(blue)] });
+    assert.deepEqual(map.__deck.props.layers[0].props.getLineColor(), blue);
+  } finally { controller.dispose(); }
+});
+
+test('native tiled roads retain the composite layer across clock updates and refresh style or tile source', () => {
+  const map = fixtureMap();
+  map.getZoom = () => 14;
+  const tileSource = { url: 'local-roads' }, red = [255,0,0];
+  const layer = (color = red, source = tileSource) => fixtureDeckLayer('road-lines-minor-tiled', { data: null, tileSource: source, getRoadLineColor: () => color, colorTrigger: [color], opacity: 1 });
+  map.__deck.props.layers = [layer()];
+  const controller = registerGeographicContextOverlay({ runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog });
+  controller.attachMap(map);
+  try {
+    const first = map.__deck.props.layers[0];
+    map.__deck.setProps({ layers: [layer()] });
+    assert.strictEqual(map.__deck.props.layers[0], first);
+    const blue = [0,0,255];
+    map.__deck.setProps({ layers: [layer(blue)] });
+    assert.deepEqual(map.__deck.props.layers[0].props.getRoadLineColor(), blue);
+    const replacement = { url: 'edited-roads' };
+    map.__deck.setProps({ layers: [layer(blue, replacement)] });
+    assert.strictEqual(map.__deck.props.layers[0].props.tileSource, replacement);
+  } finally { controller.dispose(); }
+});
+
+test('hidden road frames retain one inert layer while keeping the latest native input for reveal', () => {
+  const map = fixtureMap(); map.setZoom(10);
+  const layer = x => fixtureDeckLayer('road-lines-minor', { data: [{ coords: [x,40.5] }], getLineColor: () => [255,0,0] });
+  map.__deck.props.layers = [layer(-80)];
+  const controller = registerGeographicContextOverlay({ runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog });
+  controller.attachMap(map);
+  try {
+    const hidden = map.__deck.props.layers[0];
+    for (let i = 0; i < 20; i++) map.__deck.setProps({ layers: [layer(-74.5)] });
+    assert.strictEqual(map.__deck.props.layers[0], hidden, 'hidden buffers must not be rebuilt by clock updates');
+    map.setZoom(14); map.listeners.get('zoom')();
+    assert.equal(map.__deck.props.layers[0].props.visible, true);
+    assert.deepEqual(map.__deck.props.layers[0].props.data[0].coords, [-74.5,40.5]);
+  } finally { controller.dispose(); }
 });

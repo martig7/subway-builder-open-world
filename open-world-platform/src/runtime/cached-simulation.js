@@ -2,7 +2,7 @@ import { createOffMainThreadNativeDemandEvaluator } from './embedded-tile-packag
 import { evaluateOffTileNativeDemand } from './off-tile-native-demand.js';
 import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v1';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v2';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -185,7 +185,9 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       state.setTimeConfig({ elapsedSeconds: to });
       state.processBondInterest?.();
       counters.ticks++;
-      if (to - settledAt >= 300 || Math.floor(from / 3600) !== Math.floor(to / 3600)) await flush();
+      // Publish once per game hour. Saving, disabling and recalculating also
+      // flush the exact partial interval; clock ticks need no ledger copies.
+      if (Math.floor(from / 3600) !== Math.floor(to / 3600)) await flush();
       for (let hour = Math.floor(from / 3600) + 1; hour <= Math.floor(to / 3600); hour++) {
         await onHour(hour % 24, Math.floor(hour / 24) + 1);
         if (hour % 24 === 0) await onDay(Math.floor(hour / 24));

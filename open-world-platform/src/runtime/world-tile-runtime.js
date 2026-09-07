@@ -1548,7 +1548,8 @@ export class WorldTileRuntime {
     }
     const advancement = advanceCommutesTo(world, target);
     if (advancement.activeHours > 0) {
-      for (const [tileId, tile] of Object.entries(world.tiles)) tile.aggregate.backlog = projectCommutesForTile(world, tileId).waitingToLeave;
+      const projections = projectCommutesByTile(world, Object.keys(world.tiles));
+      for (const [tileId, tile] of Object.entries(world.tiles)) tile.aggregate.backlog = projections[tileId].waitingToLeave;
     }
     return advancement;
   }
@@ -1889,6 +1890,7 @@ export class WorldTileRuntime {
       this.revenueAccrual.replaceProfiles({
         networkHash: finance.networkHash,
         profiles: finance.tileRevenueProfiles,
+        reuseUnchanged: true,
       });
     }
     const posting = await this.revenueAccrual.postHour({

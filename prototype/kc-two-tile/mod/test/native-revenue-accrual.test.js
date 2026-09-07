@@ -180,3 +180,25 @@ test('free inactive ridership still receives a native settlement receipt', async
   assert.equal(adapter.postings[0].completedCommutes[0].size,3);
   assert.equal(adapter.balance,100);
 });
+
+test('runtime can reuse immutable tile profiles, with changed tiles and explicit replacement invalidating', () => {
+  const accrual = new NativeRevenueAccrual({ adapter: receiptAdapter() });
+  const profiles = { B: revenueProfile('B', 12) };
+  let copies = 0;
+  const clone = globalThis.structuredClone;
+  globalThis.structuredClone = value => { copies++; return clone(value); };
+  try {
+    accrual.replaceProfiles({ networkHash: 'n', profiles, reuseUnchanged: true });
+    accrual.replaceProfiles({ networkHash: 'n', profiles: { ...profiles }, reuseUnchanged: true });
+    assert.equal(copies, 1);
+    profiles.B = revenueProfile('B', 13);
+    accrual.replaceProfiles({ networkHash: 'n', profiles, reuseUnchanged: true });
+    assert.equal(copies, 2);
+    profiles.B.hourly[0].revenue = 14;
+    accrual.replaceProfiles({ networkHash: 'n', profiles });
+    assert.equal(copies, 3, 'default replacement retains defensive copying semantics');
+    accrual.invalidate();
+    accrual.replaceProfiles({ networkHash: 'n', profiles, reuseUnchanged: true });
+    assert.equal(copies, 4);
+  } finally { globalThis.structuredClone = clone; }
+});

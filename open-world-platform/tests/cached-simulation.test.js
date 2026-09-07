@@ -217,3 +217,21 @@ test('cached expenses use native nested train stats and charge constructed grade
   assert.equal(profile.routeHourly.r[0], 14 * 365);
   assert.deepEqual(profile.infrastructureItems.map(item => [item.category, item.hourlyCost]), [['gradeCrossingMaintenance', 10]]);
 });
+
+test('cached accounting batches within an hour and flushes every remaining second on save', async () => {
+  const f = fixture();
+  f.state.setTimeConfig({ elapsedSeconds: 25200 });
+  await f.controller.setEnabled(true);
+  f.state.setTimeConfig({ paused: false });
+  for (let i = 0; i < 14; i++) await f.state.handleIncrementGameState();
+  assert.equal(f.postings.length, 0, 'no repeated intra-hour ledger cloning');
+  await f.state.handleIncrementGameState();
+  assert.equal(f.postings.length, 1);
+  assert.equal(f.postings[0].targetElapsedSeconds, 28800);
+  await f.state.handleIncrementGameState();
+  f.state.generateSave();
+  assert.equal(f.postings.length, 2);
+  assert.equal(f.postings[1].targetElapsedSeconds, 29040);
+  await f.controller.dispose();
+  assert.equal(f.postings.length, 2);
+});
