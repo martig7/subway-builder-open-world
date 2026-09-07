@@ -132,6 +132,23 @@ test('network/fare edits invalidate the cache before another tick advances time'
   await f.controller.dispose();
 });
 
+test('look-ahead follows speed changes and synchronous saves settle only the elapsed interval', async () => {
+  const f = fixture(), prepared = [];
+  f.game.prepareBackgroundNativeFinance = async posting => { prepared.push(posting); };
+  await f.controller.setEnabled(true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(prepared.at(-1).targetElapsedSeconds, 25240, 'Ultra includes its exact boundary overshoot');
+  f.state.setTimeConfig({ paused: false, timeSpeed: 'fast' });
+  await f.state.handleIncrementGameState();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(prepared.at(-1).targetElapsedSeconds, 25200);
+  const save = f.state.generateSave();
+  assert.equal(save.then, undefined);
+  assert.equal(f.postings.at(-1).targetElapsedSeconds, 25008);
+  assert.equal(f.postings.at(-1).postingId, 'cached-simulation:one:25000:25008');
+  await f.controller.dispose();
+});
+
 test('late worker results cannot mutate another save or a disabled mode', async () => {
   let finish;
   const f = fixture(() => new Promise(resolve => { finish = resolve; }));
@@ -155,10 +172,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  Object.defineProperty(obsolete, owner, { value: { version: 'old', original } });
+  const oldPatch = { version: 'open-world-cached-simulation-v3', original };
+  Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
+  assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v4');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();

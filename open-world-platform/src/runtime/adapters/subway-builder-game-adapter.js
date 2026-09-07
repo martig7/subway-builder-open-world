@@ -1,3 +1,4 @@
+import { runFrameBudgeted } from '../frame-budget.js';
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
 import { NativeCommuteIndex } from '../native-commute-index.js';
 import { readDriveToStationAccess } from '../native-routing-settings.js';
@@ -1704,7 +1705,9 @@ export class SubwayBuilderGameAdapter {
     this.expectedApiVersion = expectedApiVersion;
     this.inspectedGameVersion = inspectedGameVersion;
     this.nativeSaveLifecycle = nativeSaveLifecycle;
-    this.nativeFinancePostingVersion = 'native-hourly-finance-v1';
+    this.nativeFinancePostingVersion = 'native-hourly-finance-v2';
+    this.preparedNativeFinance = new WeakMap();
+    this.nativeFinancePreparationStats = { prepared: 0, hits: 0, misses: 0, stale: 0 };
     this.nativeCommuteIndex = new NativeCommuteIndex();
     this.capability = null;
     this.currentPackage = null;
@@ -3260,13 +3263,53 @@ export class SubwayBuilderGameAdapter {
 
   async postBackgroundNativeFinance(posting, options) {
     await this.assertSupported();
+    await this.prepareBackgroundNativeFinance(posting, options);
     return this.postBackgroundNativeFinanceNow(posting, options);
   }
 
   // The native generateSave action is synchronous. Its cached-mode wrapper
   // must settle the current interval before the save snapshots the ledger.
-  postBackgroundNativeFinanceNow(posting, { includeFinancialHistory = true } = {}) {
+  async prepareBackgroundNativeFinance(posting, options = {}, budget = {}) {
+    const prepared = await runFrameBudgeted(this.#prepareNativeFinanceSteps(posting, options), budget);
+    if (!prepared?.valid()) { this.nativeFinancePreparationStats.stale++; return false; }
+    this.nativeFinancePreparationStats.prepared++;
+    this.preparedNativeFinance.set(posting, { prepared, includeFinancialHistory: options.includeFinancialHistory !== false });
+    return true;
+  }
+
+  postBackgroundNativeFinanceNow(posting, options = {}) {
+    const cached = this.preparedNativeFinance.get(posting);
+    this.preparedNativeFinance.delete(posting);
+    let prepared = cached?.includeFinancialHistory === (options.includeFinancialHistory !== false) && cached.prepared.valid()
+      ? cached.prepared : null;
+    if (!prepared) {
+      this.nativeFinancePreparationStats.misses++;
+      const steps = this.#prepareNativeFinanceSteps(posting, options);
+      let next; do { next = steps.next(); } while (!next.done);
+      prepared = next.value;
+    } else this.nativeFinancePreparationStats.hits++;
+    return prepared.commit();
+  }
+
+  *#prepareNativeFinanceSteps(posting, { includeFinancialHistory = true } = {}) {
     const state = this.#state();
+    const stamp = () => {
+      const live = this.#state(), history = live.financialHistory, route = live.routeFinancials;
+      return [live.gameSessionId, live.cityCode, live.routes, live.gameMode, live.money,
+        history, history?.entries, history?.entries?.length, history?.lastHourTimestamp,
+        history?.currentHourRevenue, history?.currentHourExpenses, JSON.stringify(history?.currentHourExpenseCategories),
+        history?.openWorldBackgroundFinanceReceipts, history?.openWorldBackgroundFinanceReceipts?.length,
+        route, route?.byRoute, route?.lastHourTimestamp, JSON.stringify(route?.currentHour),
+        live.completedCommutes, live.completedCommutes?.length,
+        JSON.stringify((live.routes ?? []).map(row => [row.id, row.tempParentId])),
+        ...Object.values(route?.byRoute ?? {}).flatMap(rows => [rows, rows.length])];
+    };
+    const captured = stamp(), elapsed = state.timeConfig?.elapsedSeconds;
+    const valid = () => {
+      const latest = stamp();
+      return latest.length === captured.length && !(this.#state().timeConfig?.elapsedSeconds < elapsed)
+        && captured.every((value, i) => Object.is(value, latest[i]));
+    };
     const parentByRoute = new Map((state.routes ?? [])
       .filter((route) => route?.id != null)
       .map((route) => [String(route.id), String(route.tempParentId ?? route.id)]));
@@ -3296,11 +3339,11 @@ export class SubwayBuilderGameAdapter {
       ? state.financialHistory.openWorldBackgroundFinanceReceipts
       : [];
     if (receipts.includes(postingId)) {
-      return {
+      return { valid, commit: () => ({
         applied: false,
         wallet: state.money,
         ...(includeFinancialHistory ? { financialHistory: structuredClone(state.financialHistory) } : {}),
-      };
+      }) };
     }
     if (revenue > 0 && typeof state.addRevenue !== 'function') throw new Error('Native addRevenue action is unavailable');
     if (expenses > 0 && typeof state.addExpense !== 'function') throw new Error('Native addExpense action is unavailable');
@@ -3332,45 +3375,51 @@ export class SubwayBuilderGameAdapter {
         expensesByRoute,
       }];
     const openingWallet = Number(state.money) || 0;
-    const openingFinancialHistory = structuredClone(state.financialHistory);
-    const openingRouteFinancials = structuredClone(state.routeFinancials ?? {
+    function* cloneHistory(source, field) {
+      if (!source) return source;
+      const collection = source[field], array = Array.isArray(collection);
+      const result = structuredClone({ ...source, [field]: array ? [] : {} });
+      yield;
+      for (const [key, value] of Object.entries(collection ?? {})) {
+        result[field][key] = structuredClone(value);
+        yield;
+      }
+      return result;
+    }
+    const openingFinancialHistory = yield* cloneHistory(state.financialHistory, 'entries');
+    yield;
+    const openingRouteFinancials = yield* cloneHistory(state.routeFinancials ?? {
       byRoute: {}, lastHourTimestamp: 0, currentHour: {},
-    });
+    }, 'byRoute');
+    yield;
     const expensesAffectWallet = state.gameMode !== 'sandbox';
 
-    if (revenue > 0) state.addRevenue(revenue, true);
-    for (const [category, amount] of Object.entries(expenseCategories)) state.addExpense(amount, category);
-    const expectedWallet = openingWallet + revenue - (expensesAffectWallet ? expenses : 0);
-    const postedWallet = Number(this.#state().money);
-    if (!Number.isFinite(postedWallet) || Math.abs(postedWallet - expectedWallet) > 1e-9) {
-      // The dashboard backfill and balance are one accounting transaction. If
-      // a native action updates only one side, repair the balance before the
-      // history is published rather than displaying profit that was not paid.
-      this.callbacks.setMoney(expectedWallet);
-    }
-    if (hasRouteAccounting) {
-      state.setRouteFinancials(backfillHourlyRouteFinancials(
+    const preparedRoutes = hasRouteAccounting ? backfillHourlyRouteFinancials(
         openingRouteFinancials,
         hourlyPostings,
         targetElapsedSeconds,
         { copy: false },
-      ));
+      ) : null;
+    yield;
+    const preparedCommutes = [];
+    for (const commute of completedCommutes) {
+      const next = structuredClone(commute);
+      for (const segment of next.stationRoutes) segment.routeId = parentByRoute.get(String(segment.routeId)) ?? segment.routeId;
+      preparedCommutes.push(next);
+      yield;
     }
-    const updated = this.#state();
+    const updated = state;
+    let mergedRecords = null;
     if (completedCommutes.length || Number.isFinite(posting.retainCommutesSince)) {
       const existing = updated.completedCommutes ?? [];
       const merged = this.nativeCommuteIndex.merge({ records: existing,
         sessionId: updated.gameSessionId, elapsedSeconds: updated.timeConfig?.elapsedSeconds,
-        incoming: completedCommutes, retainSince: posting.retainCommutesSince,
-        transform: commute => {
-          const next = structuredClone(commute);
-          for (const segment of next.stationRoutes) segment.routeId = parentByRoute.get(String(segment.routeId)) ?? segment.routeId;
-          return next;
-        },
+        incoming: preparedCommutes, retainSince: posting.retainCommutesSince,
       });
-      if (merged.records !== existing) updated.setCompletedCommutes(merged.records);
+      if (merged.records !== existing) mergedRecords = merged.records;
     }
-    updated.setFinancialHistory(backfillHourlyFinancialHistory(
+    yield;
+    const preparedHistory = backfillHourlyFinancialHistory(
       openingFinancialHistory,
       hourlyPostings,
       {
@@ -3380,18 +3429,33 @@ export class SubwayBuilderGameAdapter {
         receiptId: postingId,
         copy: false,
       },
-    ));
-    const finalState = this.#state();
-    if (Math.abs(Number(finalState.money) - expectedWallet) > 1e-9) {
-      throw new Error('Background native finance violated the wallet accounting invariant');
-    }
-    return {
-      applied: true,
-      revenue,
-      expenses,
-      wallet: finalState.money,
-      ...(includeFinancialHistory ? { financialHistory: structuredClone(finalState.financialHistory) } : {}),
-    };
+    );
+    yield;
+    return { valid, commit: () => {
+      if (revenue > 0) state.addRevenue(revenue, true);
+      for (const [category, amount] of Object.entries(expenseCategories)) state.addExpense(amount, category);
+      const expectedWallet = openingWallet + revenue - (expensesAffectWallet ? expenses : 0);
+      const postedWallet = Number(this.#state().money);
+      if (!Number.isFinite(postedWallet) || Math.abs(postedWallet - expectedWallet) > 1e-9) {
+        // The dashboard backfill and balance are one accounting transaction.
+        // Repair native actions that update only one side before publishing.
+        this.callbacks.setMoney(expectedWallet);
+      }
+      if (preparedRoutes) state.setRouteFinancials(preparedRoutes);
+      if (mergedRecords) this.#state().setCompletedCommutes(mergedRecords);
+      this.#state().setFinancialHistory(preparedHistory);
+      const finalState = this.#state();
+      if (Math.abs(Number(finalState.money) - expectedWallet) > 1e-9) {
+        throw new Error('Background native finance violated the wallet accounting invariant');
+      }
+      return {
+        applied: true,
+        revenue,
+        expenses,
+        wallet: finalState.money,
+        ...(includeFinancialHistory ? { financialHistory: structuredClone(finalState.financialHistory) } : {}),
+      };
+    } };
   }
 
   capturePathfindingRules() {

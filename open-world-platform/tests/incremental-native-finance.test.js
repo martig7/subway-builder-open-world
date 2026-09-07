@@ -18,6 +18,55 @@ function fixture() {
 }
 const commute = (id, end, size = 1) => ({ popId: id, journeyEnd: end, journeyStart: end - 60, size, origin: 'home', stationRoutes: [{ routeId: 'r', stationIds: ['a','b'] }] });
 
+test('look-ahead preparation yields without publishing and commits synchronously once', async () => {
+  const f = fixture(); let yields = 0;
+  const posting = { postingId: 'ahead', targetElapsedSeconds: 7200, revenue: 10,
+    completedCommutes: Array.from({ length: 50 }, (_, i) => commute(String(i), 7200)) };
+  const options = { includeFinancialHistory: false };
+  await f.adapter.prepareBackgroundNativeFinance(posting, options, { budgetMs: 0, yieldTask: async () => {
+    yields++; assert.equal(f.state.money, 100); assert.equal(f.state.completedCommutes.length, 0);
+  } });
+  assert.ok(yields > 50);
+  f.state.timeConfig.elapsedSeconds = 7200;
+  const result = f.adapter.postBackgroundNativeFinanceNow(posting, options);
+  assert.equal(result.wallet, 110); assert.equal(result.then, undefined);
+  assert.equal(f.state.completedCommutes.length, 50);
+  assert.equal(f.adapter.nativeFinancePreparationStats.hits, 1);
+  assert.equal(f.adapter.postBackgroundNativeFinanceNow(posting, options).applied, false);
+});
+
+test('prepared postings reject ledger replacement, clock rewind, session change and competing receipt', async () => {
+  for (const edit of [
+    f => { f.state.completedCommutes = [commute('native', 3600)]; },
+    f => { f.state.gameSessionId = 'new'; f.state.money = 200; },
+    f => { f.state.timeConfig.elapsedSeconds = 100; },
+    f => { f.state.financialHistory = structuredClone(f.state.financialHistory); },
+    f => { f.state.financialHistory.openWorldBackgroundFinanceReceipts = ['ahead']; },
+  ]) {
+    const f = fixture(), options = { includeFinancialHistory: false };
+    const posting = { postingId: 'ahead', targetElapsedSeconds: 3600, revenue: 10 };
+    await f.adapter.prepareBackgroundNativeFinance(posting, options);
+    edit(f); const money = f.state.money;
+    const duplicate = f.state.financialHistory.openWorldBackgroundFinanceReceipts?.includes('ahead');
+    f.adapter.postBackgroundNativeFinanceNow(posting, options);
+    assert.equal(f.adapter.nativeFinancePreparationStats.hits, 0);
+    assert.equal(f.state.money, money + (duplicate ? 0 : 10));
+  }
+});
+
+test('in-place native accounting during preparation invalidates the speculative ledger', async () => {
+  const f = fixture(); let edited = false;
+  f.state.financialHistory.lastHourTimestamp = 3600;
+  const posting = { postingId: 'stale', targetElapsedSeconds: 3600, revenue: 10 };
+  const options = { includeFinancialHistory: false };
+  await f.adapter.prepareBackgroundNativeFinance(posting, options, { budgetMs: 0, yieldTask: async () => {
+    if (!edited) { edited = true; f.state.addRevenue(7); }
+  } });
+  f.adapter.postBackgroundNativeFinanceNow(posting, options);
+  assert.equal(f.state.money, 117);
+  assert.equal(f.state.financialHistory.currentHourRevenue, 17);
+});
+
 test('hourly posting copies each native history once and can return just its receipt', () => {
   const f = fixture(); let copies = 0; const clone = globalThis.structuredClone;
   globalThis.structuredClone = value => { if (value && ('entries' in value || 'byRoute' in value) && 'lastHourTimestamp' in value) copies++; return clone(value); };

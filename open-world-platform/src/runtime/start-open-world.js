@@ -541,6 +541,7 @@ export function startOpenWorld({
   const cachedSimulation = createCachedSimulation({
     game, api, getState: () => game.callbacks.getState(),
     workerSource: workerSources.nativeDemandEvaluator,
+    postingWorkerSource: workerSources.hourlyFinance,
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
     onDay: day => session?.modeShareInvalidation.flushAtMidnight(day),

@@ -1,8 +1,11 @@
+import { cachedSimulationPosting } from './cached-simulation-posting.js';
+export { cachedSimulationPosting } from './cached-simulation-posting.js';
 import { createOffMainThreadNativeDemandEvaluator } from './embedded-tile-package-adapter.js';
 import { evaluateOffTileNativeDemand } from './off-tile-native-demand.js';
 import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
+import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v3';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v4';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -46,48 +49,10 @@ export function publishCachedDemand(state, assignments) {
   state.setDemandData({ ...state.demandData, popsMap, points });
 }
 
-/** Integrate cached hourly rates over exactly the interval owned by this mode. */
-export function cachedSimulationPosting({ profile, expenses, from, to, sessionId }) {
-  const result = { revenue: 0, expenseCategories: {}, revenueByRoute: {}, expensesByRoute: {},
-    completedCommutes: [], hourlyPostings: [], targetElapsedSeconds: to,
-    postingId: `cached-simulation:${sessionId}:${from}:${to}` };
-  const add = (target, source, scale) => {
-    for (const [id, amount] of Object.entries(source ?? {})) target[id] = (target[id] ?? 0) + amount * scale;
-  };
-  for (let start = from; start < to;) {
-    const hour = Math.floor(start / 3600), end = Math.min(to, (hour + 1) * 3600);
-    const fraction = (end - start) / 3600, value = profile.hourly[hour % 24];
-    const row = { hour, revenue: (value?.revenue ?? 0) * fraction,
-      revenueByRoute: {}, expensesByRoute: {}, expenseCategories: {} };
-    add(row.revenueByRoute, value?.revenueByRoute, fraction);
-    for (const [id, rates] of Object.entries(expenses?.routeHourly ?? {})) {
-      row.expensesByRoute[id] = (rates[hour % 24] ?? 0) * fraction;
-    }
-    row.expenseCategories.trainOperational = Object.values(row.expensesByRoute).reduce((a, b) => a + b, 0);
-    for (const item of expenses?.infrastructureItems ?? []) {
-      row.expenseCategories[item.category] = (row.expenseCategories[item.category] ?? 0) + item.hourlyCost * fraction;
-    }
-    row.expenses = Object.values(row.expenseCategories).reduce((a, b) => a + b, 0);
-    result.hourlyPostings.push(row);
-    result.revenue += row.revenue;
-    add(result.revenueByRoute, row.revenueByRoute, 1);
-    add(result.expensesByRoute, row.expensesByRoute, 1);
-    add(result.expenseCategories, row.expenseCategories, 1);
-    for (const commute of value?.completedCommutes ?? []) {
-      result.completedCommutes.push({ ...commute, size: commute.size * fraction,
-        popId: `cached-native:${sessionId}:${commute.popId}:${commute.origin}:${start}:${end}`,
-        journeyStart: start, journeyEnd: end,
-      });
-    }
-    start = end;
-  }
-  return result;
-}
-
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
   onHour = async () => {}, onDay = async () => {}, workerSource = null,
-  evaluate = null } = {}) {
+  postingWorkerSource = null, evaluate = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
@@ -96,8 +61,11 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   let revision = 0, cache = null, dependencies = null, settledAt = null, startedAt = null;
   let sessionId = null, status = 'off', error = null;
   const counters = { calculations: 0, ticks: 0, suppressedCommutes: 0, suppressedPathSearches: 0, milliseconds: 0 };
+  const preparation = createHourlyPostingPreparation({ workerSource: postingWorkerSource,
+    prepareNative: (posting, budget) => game.prepareBackgroundNativeFinance?.(posting, { includeFinancialHistory: false }, budget) });
   const snapshot = () => ({ version: CACHED_SIMULATION_VERSION, enabled, status, error,
-    ...counters, assignedPops: cache?.assignments.length ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
+    ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
+    assignedPops: cache?.assignments.length ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
     dailyRidership: cache?.profile.hourly.reduce((sum, hour) => sum + (hour.completedCommutes ?? []).reduce((n, c) => n + c.size, 0), 0) ?? 0 });
   const notify = () => { for (const listener of listeners) listener(snapshot()); };
   const dependencyList = state => [state.gameSessionId, state.cityCode, state.routes, state.stations, state.tracks,
@@ -109,10 +77,22 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     state.setAllStationTrainPopMovements?.({ stations: new Map(), trains: new Map() });
     state.setPopMovementGeojson?.({ type: 'FeatureCollection', features: [] });
   };
+  const tickStep = state => {
+    const speed = state.timeConfig.timeSpeed, rules = api.utils?.getConstants?.() ?? {};
+    const count = rules.TICKS_PER_UPDATE?.[speed]?.gameState ?? ({ fast: 16, ultrafast: 48 }[speed] ?? 1);
+    return 0.5 * Math.min(1000, Math.max(1, Math.floor(count))) * (speed === 'ultrafast' ? 10 : 1);
+  };
+  const prefetch = () => {
+    if (!enabled || disposed || !cache || settledAt == null) return;
+    const state = getState(), from = state.timeConfig.elapsedSeconds, step = tickStep(state);
+    if (sessionId !== state.gameSessionId) return;
+    const boundary = (Math.floor(from / 3600) + 1) * 3600;
+    void preparation.prepare(settledAt, from + Math.ceil((boundary - from) / step) * step);
+  };
   const flush = () => {
     const state = getState(), to = state.timeConfig.elapsedSeconds;
     if (!cache || sessionId !== state.gameSessionId || settledAt == null || to <= settledAt) return;
-    const posting = cachedSimulationPosting({ ...cache, from: settledAt, to, sessionId });
+    const posting = preparation.take(settledAt, to) ?? cachedSimulationPosting({ ...cache, from: settledAt, to, sessionId });
     posting.retainCommutesSince = to - 86400;
     const posted = game.postBackgroundNativeFinanceNow(posting, { includeFinancialHistory: false });
     settledAt = to;
@@ -157,6 +137,8 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       dependencies = dependencyList(getState());
       sessionId = state.gameSessionId;
       settledAt = getState().timeConfig.elapsedSeconds;
+      preparation.setProfile({ profile: cache.profile, expenses: cache.expenses, sessionId });
+      prefetch();
       counters.calculations++; counters.milliseconds = performance.now() - begin;
       status = 'ready'; error = null; notify();
       return true;
@@ -177,10 +159,8 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       }
       const state = getState();
       if (!enabled || disposed || state.timeConfig.paused) return;
-      const from = state.timeConfig.elapsedSeconds, speed = state.timeConfig.timeSpeed;
-      const rules = api.utils?.getConstants?.() ?? {};
-      const count = rules.TICKS_PER_UPDATE?.[speed]?.gameState ?? ({ fast: 16, ultrafast: 48 }[speed] ?? 1);
-      const step = 0.5 * Math.min(1000, Math.max(1, Math.floor(count))) * (speed === 'ultrafast' ? 10 : 1);
+      const from = state.timeConfig.elapsedSeconds;
+      const step = tickStep(state);
       const to = from + step;
       state.setTimeConfig({ elapsedSeconds: to });
       state.processBondInterest?.();
@@ -192,6 +172,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         await onHour(hour % 24, Math.floor(hour / 24) + 1);
         if (hour % 24 === 0) await onDay(Math.floor(hour / 24));
       }
+      prefetch();
     })().catch(fail).finally(() => { busy = null; });
     return busy;
   };
@@ -199,7 +180,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     snapshot,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     invalidate() {
-      revision++; dependencies = null;
+      revision++; dependencies = null; preparation.invalidate();
       if (enabled && !disposed && isReady()) {
         void (async () => {
           while (enabled && !disposed && isReady() && !unchanged(getState())) {
@@ -233,6 +214,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
             = state.lastInfrastructureChargeTime + state.timeConfig.elapsedSeconds - startedAt;
           getState().setTimeConfig({});
         }
+        preparation.invalidate();
         cache = null; dependencies = null; status = 'off'; error = null; notify();
         })();
         try { await stopping; } finally { stopping = null; }
@@ -263,6 +245,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
               } };
             };
             const save = original.apply(this, args);
+            prefetch();
             return typeof save?.then === 'function' ? save.then(rebaseSave) : rebaseSave(save);
           }
           if (name === 'simulateCommutes') { counters.suppressedCommutes++; return Promise.resolve(); }
@@ -281,7 +264,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       disposed = true; revision++;
       const state = getState();
       for (const [name, { original, wrapper }] of wrappers) if (state[name] === wrapper) state[name] = original;
-      worker.dispose(); routingCache.clear(); listeners.clear(); state.setTimeConfig?.({});
+      preparation.dispose(); worker.dispose(); routingCache.clear(); listeners.clear(); state.setTimeConfig?.({});
     },
   };
   controller.attach();

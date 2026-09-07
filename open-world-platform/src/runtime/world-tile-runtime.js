@@ -1,4 +1,5 @@
 import { assertWorld, createWorld, deepCopy, migrateWorldTileSet } from './world-model.js';
+import { createFrameBudget } from './frame-budget.js';
 import { advanceCommutesTo, applyModeShares, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog } from './cross-tile-commute-engine.js';
 import { calculateCrossTileModeShares, createNetworkProfile, inspectCrossTileModeChoice, inspectCrossTileTransitPath, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import {
@@ -985,8 +986,10 @@ export class WorldTileRuntime {
   async settleCrossTileCommutes(reason = 'hourly') {
     this.#requireBooted();
     return this.#enqueue(async () => {
+      const checkpoint = reason === 'cached-simulation' ? createFrameBudget() : async () => {};
       const previousRevenue = this.world.crossTileFinancials?.fareRevenue ?? 0;
       const nativeAuditChanged = await this.#captureAuthoritativeGlobals(this.world);
+      await checkpoint();
       const targetHour = Math.floor(this.world.elapsedSeconds / 3600);
       const nativeFinanceProfile = this.revenueAccrual
         ? await this.#recoverNativeRevenueProfiles(this.world, targetHour)
@@ -995,8 +998,11 @@ export class WorldTileRuntime {
           targetHour,
           reason,
         );
+      await checkpoint();
       const advancement = this.#advanceDraft(this.world, targetHour);
+      await checkpoint();
       const crossFinancialsPosted = await this.#syncCrossTileFinance(this.world);
+      await checkpoint();
       const background = this.revenueAccrual
         ? await this.#postNativeRevenueHour(this.world, targetHour)
         : await this.#syncBackgroundNativeFinance(this.world, targetHour);

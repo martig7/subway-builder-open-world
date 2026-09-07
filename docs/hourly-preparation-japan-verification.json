@@ -1,0 +1,476 @@
+{
+  "date": "2026-09-07",
+  "branch": "codex/hourly-preparation-worker",
+  "baselineCommit": "25bfe5fdaa666718e3dc933fa19f943090fe7e41",
+  "baselineBundleSha256": "f9467556c79617afd1f61c7f7f763479910e61ed133e95e24e3838ec7290d3f5",
+  "tests": {
+    "platform": 621,
+    "japan": 4
+  },
+  "install": {
+    "manifest": "local.japan-open-world",
+    "consumer": "prototype/japan/mod",
+    "builtHash": "6759C486AF181EF668764DAE14D4E8A2D54F52A98ECBFF1488BD5ED378F491ED",
+    "installedHash": "6759C486AF181EF668764DAE14D4E8A2D54F52A98ECBFF1488BD5ED378F491ED",
+    "builtUtc": "2026-09-07T21:36:03.5619355Z",
+    "installedUtc": "2026-09-07T21:36:03.5619355Z",
+    "markers": [
+      {
+        "name": "open-world-cached-simulation-v4",
+        "built": true,
+        "installed": true
+      },
+      {
+        "name": "native-hourly-finance-v2",
+        "built": true,
+        "installed": true
+      },
+      {
+        "name": "createFrameBudget",
+        "built": true,
+        "installed": true
+      },
+      {
+        "name": "cachedSimulationPostingSteps",
+        "built": true,
+        "installed": true
+      },
+      {
+        "name": "globalThis.scheduler.yield",
+        "built": true,
+        "installed": true
+      }
+    ],
+    "health": 200,
+    "serverVersion": [
+      "native-pmtiles-directory-v4"
+    ]
+  },
+  "baseline": {
+    "from": 2140316,
+    "to": 2219036,
+    "wallMs": 20308.79999999702,
+    "before": {
+      "version": "open-world-cached-simulation-v3",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 251,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2391.5,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "after": {
+      "version": "open-world-cached-simulation-v3",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 579,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2391.5,
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "hourTicks": {
+      "count": 22,
+      "median": 118.40000000596046,
+      "p95": 314.59999999403954,
+      "max": 481.59999999403954
+    },
+    "frames": {
+      "count": 2130,
+      "median": 5,
+      "p95": 15,
+      "max": 1949.2999999998137
+    },
+    "hourlyFrames": {
+      "count": 201,
+      "median": 5,
+      "p95": 124.10000000009313,
+      "max": 473
+    },
+    "longTasks": {
+      "count": 23,
+      "median": 118,
+      "p95": 467,
+      "max": 1360
+    },
+    "hourlyLongTasks": {
+      "count": 22,
+      "median": 118,
+      "p95": 314,
+      "max": 467
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    }
+  },
+  "final": {
+    "from": 2365684,
+    "to": 2444404,
+    "wallMs": 20375.20000000298,
+    "before": {
+      "version": "open-world-cached-simulation-v4",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 0,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2327.7000000029802,
+      "preparation": {
+        "workerRequests": 1,
+        "prepared": 1,
+        "hits": 0,
+        "misses": 0,
+        "fallbacks": 0,
+        "slices": 7,
+        "maxSliceMs": 17.400000005960464,
+        "pending": false,
+        "native": {
+          "prepared": 1,
+          "hits": 0,
+          "misses": 0,
+          "stale": 0
+        }
+      },
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "after": {
+      "version": "open-world-cached-simulation-v4",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 328,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2327.7000000029802,
+      "preparation": {
+        "workerRequests": 24,
+        "prepared": 24,
+        "hits": 22,
+        "misses": 1,
+        "fallbacks": 0,
+        "slices": 123,
+        "maxSliceMs": 17.400000005960464,
+        "pending": false,
+        "native": {
+          "prepared": 46,
+          "hits": 44,
+          "misses": 1,
+          "stale": 0
+        }
+      },
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "hourTicks": {
+      "count": 22,
+      "median": 109.79999999701977,
+      "p95": 264.8999999910593,
+      "max": 275.59999999403954
+    },
+    "frames": {
+      "count": 2145,
+      "median": 5,
+      "p95": 15,
+      "max": 2083.399999999907
+    },
+    "hourlyFrames": {
+      "count": 200,
+      "median": 5,
+      "p95": 108.59999999962747,
+      "max": 1592.7000000001863
+    },
+    "longTasks": {
+      "count": 27,
+      "median": 77,
+      "p95": 96,
+      "max": 1589
+    },
+    "hourlyLongTasks": {
+      "count": 25,
+      "median": 77,
+      "p95": 95,
+      "max": 96
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    }
+  },
+  "repeat": {
+    "from": 2444404,
+    "to": 2530804,
+    "wallMs": 20338.70000000298,
+    "before": {
+      "version": "open-world-cached-simulation-v4",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 328,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2327.7000000029802,
+      "preparation": {
+        "workerRequests": 24,
+        "prepared": 24,
+        "hits": 22,
+        "misses": 1,
+        "fallbacks": 0,
+        "slices": 123,
+        "maxSliceMs": 17.400000005960464,
+        "pending": false,
+        "native": {
+          "prepared": 46,
+          "hits": 44,
+          "misses": 1,
+          "stale": 0
+        }
+      },
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "after": {
+      "version": "open-world-cached-simulation-v4",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 688,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2327.7000000029802,
+      "preparation": {
+        "workerRequests": 48,
+        "prepared": 48,
+        "hits": 46,
+        "misses": 1,
+        "fallbacks": 0,
+        "slices": 229,
+        "maxSliceMs": 17.400000005960464,
+        "pending": false,
+        "native": {
+          "prepared": 94,
+          "hits": 92,
+          "misses": 1,
+          "stale": 0
+        }
+      },
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "hourTicks": {
+      "count": 24,
+      "median": 104.40000000596046,
+      "p95": 258.79999999701977,
+      "max": 471.09999999403954
+    },
+    "frames": {
+      "count": 2391,
+      "median": 5,
+      "p95": 15,
+      "max": 1956.3999999999069
+    },
+    "hourlyFrames": {
+      "count": 217,
+      "median": 5,
+      "p95": 109,
+      "max": 189.90000000037253
+    },
+    "longTasks": {
+      "count": 24,
+      "median": 76,
+      "p95": 105,
+      "max": 148
+    },
+    "hourlyLongTasks": {
+      "count": 24,
+      "median": 76,
+      "p95": 105,
+      "max": 148
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    }
+  },
+  "smoke": {
+    "generation": 8,
+    "guard": 17,
+    "frozen": true,
+    "synchronous": true,
+    "noDuplicatePosting": true,
+    "invalidAssignments": 0,
+    "transitDirections": 4011,
+    "cached": {
+      "version": "open-world-cached-simulation-v4",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 710,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2327.7000000029802,
+      "preparation": {
+        "workerRequests": 50,
+        "prepared": 49,
+        "hits": 47,
+        "misses": 2,
+        "fallbacks": 0,
+        "slices": 234,
+        "maxSliceMs": 17.400000005960464,
+        "pending": true,
+        "native": {
+          "prepared": 96,
+          "hits": 94,
+          "misses": 2,
+          "stale": 0
+        }
+      },
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "nativeResume": {
+      "seconds": 168,
+      "moved": true
+    },
+    "autosave": {
+      "isSaving": false,
+      "lastSaveTime": 1788817119548,
+      "error": null,
+      "lastSkipReason": null,
+      "consecutiveSkips": 0
+    },
+    "errors": [],
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    },
+    "final": {
+      "version": "open-world-cached-simulation-v4",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 2,
+      "ticks": 710,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2194.7000000029802,
+      "preparation": {
+        "workerRequests": 51,
+        "prepared": 49,
+        "hits": 47,
+        "misses": 2,
+        "fallbacks": 0,
+        "slices": 234,
+        "maxSliceMs": 17.400000005960464,
+        "pending": true,
+        "native": {
+          "prepared": 96,
+          "hits": 94,
+          "misses": 2,
+          "stale": 0
+        }
+      },
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    }
+  },
+  "finalState": {
+    "generation": 8,
+    "mode": {
+      "version": "open-world-cached-simulation-v4",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 2,
+      "ticks": 710,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2194.7000000029802,
+      "preparation": {
+        "workerRequests": 51,
+        "prepared": 50,
+        "hits": 47,
+        "misses": 2,
+        "fallbacks": 0,
+        "slices": 240,
+        "maxSliceMs": 17.400000005960464,
+        "pending": false,
+        "native": {
+          "prepared": 97,
+          "hits": 94,
+          "misses": 2,
+          "stale": 0
+        }
+      },
+      "assignedPops": 28709,
+      "dailyRevenue": 261722337.5,
+      "dailyRidership": 286819
+    },
+    "paused": true,
+    "time": 2536252,
+    "schedulerYield": "function",
+    "camera": {
+      "center": {
+        "lng": 136.06183980385674,
+        "lat": 34.76332485443746
+      },
+      "zoom": 8.649066672096117
+    },
+    "guard": 17,
+    "perfKeys": [
+      "version",
+      "enabled",
+      "quiet",
+      "slowMs",
+      "frameGapSlowMs",
+      "observers",
+      "probes",
+      "stages",
+      "moves",
+      "slowEvents",
+      "browserEvents",
+      "sources"
+    ],
+    "save": {
+      "name": "[Auto] 2026-09-07_16-34-30"
+    },
+    "autosave": {
+      "isSaving": false,
+      "lastSaveTime": 1788817119548,
+      "error": null,
+      "lastSkipReason": null,
+      "consecutiveSkips": 0
+    },
+    "topology": {
+      "stations": 316,
+      "routes": 53,
+      "tracks": 2294
+    }
+  }
+}

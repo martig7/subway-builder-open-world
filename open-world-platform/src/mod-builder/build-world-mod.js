@@ -60,6 +60,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     '    nativeDemandEvaluator: __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__,',
     '    roadRoute: __OPEN_WORLD_ROAD_ROUTE_WORKER_SOURCE__,',
     '    crossModeShare: __OPEN_WORLD_CROSS_MODE_SHARE_WORKER_SOURCE__,',
+    '    hourlyFinance: __OPEN_WORLD_HOURLY_FINANCE_WORKER_SOURCE__,',
     '  },',
     '});',
   ].join('\n');
@@ -187,6 +188,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
     nativeDemandEvaluator: './src/workers/native-demand-evaluator-worker.js',
     roadRoute: './src/workers/road-route-worker.js',
     crossModeShare: './src/workers/cross-mode-share-worker.js',
+    hourlyFinance: './src/workers/hourly-finance-worker.js',
   };
   const workerSources = {};
   for (const [name, entryPoint] of Object.entries(workerEntries)) {
@@ -217,6 +219,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
       __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__: JSON.stringify(workerSources.nativeDemandEvaluator),
       __OPEN_WORLD_ROAD_ROUTE_WORKER_SOURCE__: JSON.stringify(workerSources.roadRoute),
       __OPEN_WORLD_CROSS_MODE_SHARE_WORKER_SOURCE__: JSON.stringify(workerSources.crossModeShare),
+      __OPEN_WORLD_HOURLY_FINANCE_WORKER_SOURCE__: JSON.stringify(workerSources.hourlyFinance),
     },
   });
   const manifest = {
