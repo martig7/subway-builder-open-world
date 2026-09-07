@@ -1,4 +1,4 @@
-import { calculateCrossTileModeShares } from './cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import { fareSegmentsFromStationRoutes, quoteJourneyFare } from './journey-fare.js';
 import {
   calculateNativeRevenueProfile,
@@ -108,6 +108,7 @@ export function offTileNativeDemandContextKey({
   });
   const localRouteIds = new Set((network.routes ?? []).map((route) => String(route?.id)));
   return hashText(JSON.stringify(stableValue({
+    routingVersion: CROSS_ROUTING_CACHE_VERSION,
     evaluatorSchemaVersion: EVALUATOR_SCHEMA_VERSION,
     tileId,
     network: network.structuralSignature ?? network.signature ?? null,
@@ -237,6 +238,8 @@ function ridershipByRoute(calculated) {
  * Subway Builder's singleton store. The result is compact and cacheable.
  */
 export function evaluateOffTileNativeDemand({
+  worldId,
+  routingCache = createCrossTileRoutingCache(),
   tileId,
   demand,
   networkProfile,
@@ -267,6 +270,7 @@ export function evaluateOffTileNativeDemand({
 
   const normalized = normalizeDemand(tileId, demand);
   const evaluateDirection = crossDemand => calculateCrossTileModeShares({
+    worldId, routingCache,
     crossDemand,
     networkProfiles: { [tileId]: network },
     gatewayCatalog: {},

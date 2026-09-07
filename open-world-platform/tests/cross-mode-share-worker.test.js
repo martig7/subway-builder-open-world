@@ -133,3 +133,21 @@ test('the production handler evaluates across a real worker boundary with host f
     assert.equal(client.diagnostics().fallbackEvaluations, 0);
   } finally { client.dispose(); }
 });
+
+test('worker and synchronous fallback retain routing caches across evaluations and isolate Worlds', async () => {
+  for (const WorkerClass of [HarnessWorker, null]) {
+    const client = evaluator(WorkerClass);
+    const input = { ...fixture(), worldId: 'first-world' };
+    try {
+      const first = await client.evaluate(input);
+      const second = await client.evaluate(structuredClone(input));
+      assert.deepEqual(second.popModeChoices, first.popModeChoices);
+      assert.deepEqual(second.transitJourneys, first.transitJourneys);
+      assert.equal(second.routingStats.graphBuilds, 0);
+      assert.equal(second.routingStats.searches, 0);
+      const other = await client.evaluate({ ...input, worldId: 'second-world' });
+      assert.equal(other.routingStats.graphBuilds, 1);
+      assert.ok(other.routingStats.searches > 0);
+    } finally { client.dispose(); }
+  }
+});

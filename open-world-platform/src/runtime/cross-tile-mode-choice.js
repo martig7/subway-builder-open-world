@@ -1,3 +1,6 @@
+import { RoutingLRU, indexRoutingGraph, compileRoutingCorridors } from './routing-graph-index.js';
+
+export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v1';
 const EARTH_RADIUS_M = 6_371_000;
 // Subway Builder's straight-line station catchment uses RULES.WALKING_SPEED
 // (1 m/s), not WALKING_SPEED_ACCURATE_PATH (1.5 m/s).
@@ -275,6 +278,69 @@ function mergeRoute(existing, candidate) {
   };
 }
 
+function routingStats() {
+  return { gatewayPathHits: 0, gatewayPathMisses: 0, endpointPathHits: 0, endpointPathMisses: 0,
+    catchmentHits: 0, catchmentMisses: 0, driveAccessCandidates: 0,
+    graphBuilds: 0, graphHits: 0, spatialIndexHits: 0, connectivityIndexHits: 0,
+    connectivityRejects: 0, searches: 0, sourceSearchHits: 0, exactPathHits: 0,
+    settledStates: 0, relaxedEdges: 0, corridorEdges: 0, retainedSearchLabels: 0 };
+}
+
+/** Session-owned derived data only. World changes discard every cached dependency. */
+export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 30_000, maxPaths = 8_192, maxCatchments = 65_536 } = {}) {
+  let world = null, previous = null, geometryKey = null, topologyKey = null, topologyIndex = null, regionSequence = 0;
+  const sourceSearches = new RoutingLRU(maxSearchLabels, tree => tree.labels.size);
+  const paths = new RoutingLRU(maxPaths);
+  const regions = new RoutingLRU(256);
+  const clear = () => { previous = null; geometryKey = topologyKey = topologyIndex = null; sourceSearches.clear(); paths.clear(); regions.clear(); };
+  return {
+    clear,
+    getRouter(networkProfiles, worldId = 'evaluation-session') {
+      if (world !== worldId) { clear(); world = worldId; }
+      // Compare exact serialized inputs, not the legacy 32-bit signature or object
+      // identity: worker structured cloning creates fresh objects on every request.
+      const key = JSON.stringify(Object.entries(networkProfiles ?? {}).filter(([,p])=>p).sort(([a],[b])=>a.localeCompare(b)));
+      if (enabled && previous?.key === key) {
+        previous.router.routingStats = { ...routingStats(), graphHits: 1, retainedSearchLabels: sourceSearches.used };
+        return previous.router;
+      }
+      const router = buildGlobalRouter(networkProfiles);
+      router.routingStats.graphBuilds++;
+      const nextGeometry = JSON.stringify(router.stations.map(s=>[s.id,s.coords]));
+      if (enabled && geometryKey === nextGeometry && previous) {
+        router.spatialIndex = previous.router.spatialIndex;
+        router.catchmentCache = previous.router.catchmentCache;
+        router.routingStats.spatialIndexHits++;
+      } else router.catchmentCache = new RoutingLRU(maxCatchments);
+      const nextTopology = JSON.stringify([...router.adjacency].map(([id,edges])=>[id,edges.map(e=>e.to)]));
+      let index;
+      if (enabled && topologyKey === nextTopology && topologyIndex) {
+        index = { ...topologyIndex, corridors: compileRoutingCorridors(router.adjacency) };
+        router.routingStats.connectivityIndexHits++;
+      } else index = indexRoutingGraph(router.stations, router.adjacency);
+      topologyKey = nextTopology; topologyIndex = index; geometryKey = nextGeometry;
+      router.graphIndex = index;
+      router.regionVersions = index.regions.map(ids => {
+        const routeIds = [...new Set(ids.flatMap(id=>(router.adjacency.get(id) ?? []).filter(e=>e.type==='ride').map(e=>e.route.id)))].sort();
+        // Preserve adjacency order too: equal-cost choices determine route fare
+        // attribution, so a reordered profile must match an uncached search.
+        const signature = JSON.stringify([
+          ids.map(id => [router.stationById.get(id), (router.adjacency.get(id) ?? []).map(edge =>
+            [edge.type, edge.to, edge.route?.id, edge.routeStateId, edge.departureNodeId])]),
+          routeIds.map(id => router.routeById.get(id)),
+        ]);
+        let version = regions.get(signature);
+        if (version == null) { version = ++regionSequence; regions.set(signature,version); }
+        return version;
+      });
+      router.sourceSearches = sourceSearches; router.exactPaths = paths; router.cacheEnabled = enabled;
+      router.ruleKeys = new Map(Object.values(router.rulesByTile).concat(router.defaultRules).map(r=>[r,JSON.stringify(r)]));
+      previous = {key,router};
+      return router;
+    },
+  };
+}
+
 /** Compile all saved tile profiles into one deduplicated route-state graph. */
 function buildGlobalRouter(networkProfiles) {
   const profiles = Object.entries(networkProfiles ?? {}).filter(([, profile]) => profile).sort(([left], [right]) => left.localeCompare(right));
@@ -370,14 +436,10 @@ function buildGlobalRouter(networkProfiles) {
     stationOrdinals: new Map(stations.map((station, index) => [station.id, index])),
     defaultRules: rulesByTile[profiles[0]?.[0]] ?? rulesWithDefaults(),
     networkSignature: hashNetworkValue(profiles.map(([tileId, profile]) => [tileId, profile.signature ?? stableNetworkSignature(profile)])),
-    gatewayPathCache: new Map(),
-    endpointPathCache: new Map(), catchmentCache: new Map(),
-    routingStats: {
-      gatewayPathHits: 0, gatewayPathMisses: 0,
-      endpointPathHits: 0, endpointPathMisses: 0,
-      catchmentHits: 0, catchmentMisses: 0,
-      driveAccessCandidates: 0,
-    },
+    gatewayPathCache: new RoutingLRU(2_048),
+    endpointPathCache: new RoutingLRU(8_192), catchmentCache: new RoutingLRU(65_536),
+    gatewayChains: new RoutingLRU(2_048),
+    routingStats: routingStats(),
   };
 }
 
@@ -444,6 +506,7 @@ class MinHeap {
     return root;
   }
   get size() { return this.items.length; }
+  get minimum() { return this.items[0]?.[0] ?? Infinity; }
 }
 
 function unavailableLeg(reason, networkTileId = null) { return { available: false, reason, networkTileId, totalSeconds: null }; }
@@ -478,7 +541,7 @@ function advanceRouteLabel(currentLabel, edge, rules) {
       ...currentLabel,
       stationId: edge.to,
       currentRouteId: null,
-      stationPath: [...currentLabel.stationPath, edge.to],
+      parent: currentLabel, incomingEdge: edge,
       actualTime: currentLabel.actualTime + edge.seconds,
       perceivedSeconds: currentLabel.perceivedSeconds + edge.seconds * rules.PERCEIVED_TIME.WALK_MULTIPLIER,
       transferWalkSeconds: currentLabel.transferWalkSeconds + edge.seconds,
@@ -503,8 +566,7 @@ function advanceRouteLabel(currentLabel, edge, rules) {
     ...currentLabel,
     stationId: edge.to,
     currentRouteId: edge.routeStateId,
-    stationPath: [...currentLabel.stationPath, edge.to],
-    stationRoutes: appendStationRoute(currentLabel.stationRoutes, edge.route.id, currentLabel.stationId, edge.to),
+    parent: currentLabel, incomingEdge: edge,
     actualTime: departure + edge.inVehicleSeconds,
     perceivedSeconds: currentLabel.perceivedSeconds
       + departureShiftSeconds * rules.PERCEIVED_TIME.DEPARTURE_SHIFT_MULTIPLIER
@@ -521,6 +583,16 @@ function advanceRouteLabel(currentLabel, edge, rules) {
 }
 
 function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, requestedDepartureSeconds, rules) {
+  const edges = [];
+  for (let label = bestLabel; label?.incomingEdge; label = label.parent) edges.push(label.incomingEdge);
+  edges.reverse();
+  const stationPath = [bestLabel.sourceStationId];
+  let stationRoutes = [], from = bestLabel.sourceStationId;
+  for (const edge of edges) {
+    stationPath.push(edge.to);
+    if (edge.type === 'ride') stationRoutes = appendStationRoute(stationRoutes, edge.route.id, from, edge.to);
+    from = edge.to;
+  }
   const waitSeconds = bestLabel.waitSeconds;
   const departureShiftSeconds = bestLabel.departureShiftSeconds;
   const accessPerceivedSeconds = bestLabel.accessDriveSeconds > 0
@@ -536,9 +608,9 @@ function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, r
     originStationName: router.stationById.get(bestLabel.sourceStationId)?.name ?? null,
     destinationStationId: bestLabel.stationId,
     destinationStationName: router.stationById.get(bestLabel.stationId)?.name ?? null,
-    stationPath: bestLabel.stationPath,
-    stationRoutes: bestLabel.stationRoutes,
-    routes: bestLabel.stationRoutes.map(({ routeId }) => {
+    stationPath,
+    stationRoutes,
+    routes: stationRoutes.map(({ routeId }) => {
       const route = router.routeById.get(routeId);
       const bullet = route?.bullet ?? null;
       const name = route?.fullName ?? route?.name ?? null;
@@ -566,12 +638,12 @@ function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, r
     totalSeconds: bestLabel.perceivedSeconds + egressPerceivedSeconds,
   };
   Object.defineProperty(result, '_topology', {
-    value: { sourceStationId: bestLabel.sourceStationId, destinationStationId: bestLabel.stationId, edges: bestLabel.edgePath },
+    value: { sourceStationId: bestLabel.sourceStationId, destinationStationId: bestLabel.stationId, edges },
   });
   return result;
 }
 
-function routeLeg(router, origin, destination, preferredTileId, requestedDepartureSeconds = 0, preparedCatchments = null, driveAccessSpeedMps = 0) {
+function routeLeg(router, origin, destination, preferredTileId, requestedDepartureSeconds = 0, preparedCatchments = null, driveAccessSpeedMps = 0, incumbent = null) {
   if (!router || router.tileIds.length === 0) return unavailableLeg('network-profile-missing');
   if (router.stations.length === 0) return unavailableLeg('no-constructed-stations');
   const rules = router.rulesByTile[preferredTileId] ?? router.defaultRules;
@@ -596,48 +668,78 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
   }
   const starts = [...startsById];
   if (starts.length === 0) return unavailableLeg('origin-outside-walk-range');
-  const labels = new Map(); const queue = new MinHeap();
-  for (const [id, {seconds, mode}] of starts) {
+  if (router.cacheEnabled && !router.graphIndex.canReach(starts.map(([id])=>id), ends.keys())) {
+    router.routingStats.connectivityRejects++;
+    return unavailableLeg('stations-disconnected');
+  }
+  const regionVersions = [...new Set(starts.map(([id])=>router.regionVersions[router.graphIndex.region.get(id)]))].sort((a,b)=>a-b);
+  const sourceKey = JSON.stringify([regionVersions,router.ruleKeys.get(rules),requestedDepartureSeconds,starts]);
+  const pathKey = JSON.stringify([sourceKey,[...ends],preferredTileId]);
+  if (router.cacheEnabled) {
+    const cached = router.exactPaths.get(pathKey);
+    if (cached) { router.routingStats.exactPathHits++; return cached; }
+  }
+  let tree = router.cacheEnabled ? router.sourceSearches.get(sourceKey) : null;
+  if (tree) { router.sourceSearches.delete(sourceKey); router.routingStats.sourceSearchHits++; }
+  else { tree = {labels:new Map(),queue:new MinHeap(),settled:new Map()}; router.routingStats.searches++; }
+  const {labels,queue,settled} = tree;
+  if (labels.size === 0) for (const [id, {seconds, mode}] of starts) {
     const perceivedSeconds = seconds * (mode === 'drive' ? 1 : walkWeight);
     const key = routeStateKey(id, null);
     if (perceivedSeconds >= (labels.get(key)?.perceivedSeconds ?? Infinity)) continue;
     labels.set(key, {
-      stationId: id, currentRouteId: null, sourceStationId: id, stationPath: [id], stationRoutes: [],
+      stationId: id, currentRouteId: null, sourceStationId: id,
       actualTime: requestedDepartureSeconds + seconds,
       perceivedSeconds, accessWalkSeconds: mode === 'walk' ? seconds : 0,
       accessDriveSeconds: mode === 'drive' ? seconds : 0, transferWalkSeconds: 0,
       waitSeconds: 0, departureShiftSeconds: 0, inVehicleSeconds: 0,
-      boarded: false, networkTileIds: [], edgePath: [],
+      boarded: false, networkTileIds: [], parent: null, incomingEdge: null,
     });
     queue.push([perceivedSeconds, key]);
   }
-  let destinationStationId = null; let egressWalkSeconds = null; let best = Infinity; let bestLabel = null;
-  while (queue.size > 0) {
+  let egressWalkSeconds = null; let best = incumbent?.available ? incumbent.totalSeconds : Infinity; let bestLabel = null;
+  const consider = label => {
+    const endWalk = ends.get(label.stationId);
+    if (endWalk != null && (label.boarded || !(label.accessDriveSeconds > 0))) {
+      const candidate = label.perceivedSeconds + endWalk * walkWeight;
+      if (candidate < best) { best = candidate; egressWalkSeconds = endWalk; bestLabel = label; }
+    }
+  };
+  for (const label of settled.values()) consider(label);
+  while (queue.size > 0 && queue.minimum < best) {
     const [distance, currentKey] = queue.pop();
     const currentLabel = labels.get(currentKey);
     if (!currentLabel || distance !== currentLabel.perceivedSeconds) continue;
-    if (distance >= best) break;
-    const endWalk = ends.get(currentLabel.stationId);
-    if (endWalk != null && (currentLabel.boarded || !(currentLabel.accessDriveSeconds > 0))) {
-      const candidate = distance + endWalk * walkWeight;
-      if (candidate < best) {
-        best = candidate; destinationStationId = currentLabel.stationId;
-        egressWalkSeconds = endWalk; bestLabel = currentLabel;
-      }
-    }
+    settled.set(currentKey,currentLabel);
+    router.routingStats.settledStates++;
+    consider(currentLabel);
     for (const edge of router.adjacency.get(currentLabel.stationId) ?? []) {
-      const candidate = advanceRouteLabel(currentLabel, edge, rules);
-      if (!candidate) continue;
-      candidate.edgePath = [...currentLabel.edgePath, edge];
-      const candidateKey = routeStateKey(candidate.stationId, candidate.currentRouteId);
-      if (candidate.perceivedSeconds < (labels.get(candidateKey)?.perceivedSeconds ?? Infinity)) {
+      const chain = router.cacheEnabled ? router.graphIndex.corridors.get(edge) ?? [edge] : [edge];
+      let previousLabel = currentLabel;
+      for (let index = 0; index < chain.length; index++) {
+        const candidate = advanceRouteLabel(previousLabel, chain[index], rules);
+        router.routingStats.relaxedEdges++;
+        if (!candidate) break;
+        const candidateKey = routeStateKey(candidate.stationId, candidate.currentRouteId);
+        if (candidate.perceivedSeconds >= (labels.get(candidateKey)?.perceivedSeconds ?? Infinity)) break;
         labels.set(candidateKey, candidate);
-        queue.push([candidate.perceivedSeconds, candidateKey]);
+        // Stop contraction at query destinations. Intermediate states remain
+        // available to later destinations sharing this source search.
+        if (index === chain.length-1 || ends.has(candidate.stationId)) {
+          queue.push([candidate.perceivedSeconds,candidateKey]); break;
+        }
+        settled.set(candidateKey,candidate);
+        router.routingStats.corridorEdges++;
+        previousLabel = candidate;
       }
     }
   }
-  if (!Number.isFinite(best) || destinationStationId == null) return unavailableLeg('stations-disconnected');
-  return finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, requestedDepartureSeconds, rules);
+  const result = bestLabel
+    ? finishRouteLeg(router,bestLabel,egressWalkSeconds,preferredTileId,requestedDepartureSeconds,rules)
+    : incumbent?.available ? incumbent : unavailableLeg('stations-disconnected');
+  if (router.cacheEnabled) { router.sourceSearches.set(sourceKey,tree); router.exactPaths.set(pathKey,result); }
+  router.routingStats.retainedSearchLabels = router.sourceSearches.used;
+  return result;
 }
 
 function replayRouteTopology(router, topology, origin, destination, preferredTileId, requestedDepartureSeconds) {
@@ -651,11 +753,11 @@ function replayRouteTopology(router, topology, origin, destination, preferredTil
     return unavailableLeg('cached-station-outside-walk-range');
   }
   let label = {
-    stationId: source.id, currentRouteId: null, sourceStationId: source.id, stationPath: [source.id], stationRoutes: [],
+    stationId: source.id, currentRouteId: null, sourceStationId: source.id, parent: null, incomingEdge: null,
     actualTime: requestedDepartureSeconds + accessWalkSeconds,
     perceivedSeconds: accessWalkSeconds * rules.PERCEIVED_TIME.WALK_MULTIPLIER,
     accessWalkSeconds, transferWalkSeconds: 0, waitSeconds: 0, departureShiftSeconds: 0, inVehicleSeconds: 0,
-    boarded: false, networkTileIds: [], edgePath: topology.edges,
+    boarded: false, networkTileIds: [],
   };
   for (const edge of topology.edges) {
     label = advanceRouteLabel(label, edge, rules);
@@ -674,7 +776,9 @@ function cachedGatewayLeg(router, fromGateway, toGateway, preferredTileId, reque
     );
     if (replayed.available) {
       router.routingStats.gatewayPathHits++;
-      return { ...replayed, cacheHit: true, fromGatewayId: fromGateway.id, toGatewayId: toGateway.id };
+      const exact = routeLeg(router,fromGateway.location,toGateway.location,preferredTileId,requestedDepartureSeconds,null,0,replayed);
+      if (exact._topology) router.gatewayPathCache.set(key,exact._topology);
+      return { ...exact, cacheHit: true, fromGatewayId: fromGateway.id, toGatewayId: toGateway.id };
     }
     router.gatewayPathCache.delete(key);
   }
@@ -700,7 +804,9 @@ function cachedEndpointLeg(router, origin, destination, preferredTileId, request
     const replayed = replayRouteTopology(router, cached, origin, destination, preferredTileId, requestedDepartureSeconds);
     if (replayed.available) {
       router.routingStats.endpointPathHits++;
-      return { ...replayed, cacheHit: true, endpointCacheDirection: direction, gatewayId, attemptedNetworkTiles: router.tileIds };
+      const exact = routeLeg(router,origin,destination,preferredTileId,requestedDepartureSeconds,{origin:originCatchment,destination:destinationCatchment},0,replayed);
+      if (exact._topology) router.endpointPathCache.set(key,exact._topology);
+      return { ...exact, cacheHit: true, endpointCacheDirection: direction, gatewayId, attemptedNetworkTiles: router.tileIds };
     }
     router.endpointPathCache.delete(key);
   }
@@ -782,7 +888,9 @@ function runtimeGatewayChain(tileCatalog, homeTileId, workTileId) {
 }
 
 function inspectGatewayChain({ popId, gatewayId, home, work, router, tileCatalog, requestedDepartureSeconds }) {
-  const path = runtimeGatewayChain(tileCatalog, home.tileId, work.tileId);
+  const key = JSON.stringify([home.tileId,work.tileId]);
+  let path = router.gatewayChains.get(key);
+  if (!path) { path = runtimeGatewayChain(tileCatalog, home.tileId, work.tileId); router.gatewayChains.set(key,path); }
   if (path.length < 1) return null;
   const pathIds = path.map(({ id }) => id);
   const firstGateway = path[0]; const lastGateway = path.at(-1);
@@ -898,7 +1006,7 @@ function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatew
 export function inspectCrossTileTransitPath({ crossDemand, popIndex, networkProfiles, gatewayCatalog, tileCatalog, requestedDepartureSeconds = 0 }) {
   if (crossDemand?.schemaVersion !== 1) throw new Error('Unsupported cross-demand data');
   const points = crossDemand.points.map(([id, longitude, latitude, tileId]) => ({ id, coords: [longitude, latitude], tileId }));
-  const routers = buildGlobalRouter(networkProfiles);
+  const routers = createCrossTileRoutingCache().getRouter(networkProfiles);
   const pop = crossDemand.pops[popIndex];
   if (!pop) throw new RangeError(`Unknown cross-demand pop index: ${popIndex}`);
   const departureSeconds = popDepartureSeconds(pop, popFields(crossDemand.popFields), requestedDepartureSeconds);
@@ -1104,17 +1212,19 @@ function inspectPopModeChoice(input) {
 export function inspectCrossTileModeChoice({ crossDemand, popIndex, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0 }) {
   if (crossDemand?.schemaVersion !== 1) throw new Error('Unsupported cross-demand data');
   const points = crossDemand.points.map(([id, longitude, latitude, tileId]) => ({ id, coords: [longitude, latitude], tileId }));
-  const routers = buildGlobalRouter(networkProfiles);
+  const routers = createCrossTileRoutingCache().getRouter(networkProfiles);
   return inspectPopModeChoice({
     pop: crossDemand.pops[popIndex], popIndex, points, gateways: crossDemand.gateways, routers, gatewayCatalog, tileCatalog,
     fare, journeyFare, requestedDepartureSeconds, popFields: popFields(crossDemand.popFields), drivingModel: crossDemand.drivingModel,
   });
 }
 
-function batchContext({ crossDemand, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0 }) {
+function batchContext({ crossDemand, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0, worldId, routingCache = createCrossTileRoutingCache() }) {
   if (crossDemand?.schemaVersion !== 1) throw new Error('Unsupported cross-demand data');
   const points = crossDemand.points.map(([id, longitude, latitude, tileId]) => ({ id, coords: [longitude, latitude], tileId }));
-  const routers = buildGlobalRouter(networkProfiles);
+  const routers = routingCache.getRouter(networkProfiles,worldId);
+  const catalogKey = JSON.stringify(tileCatalog?.tiles?.map(t=>[t.id,t.bounds,t.neighbors?.map(n=>n.tileId)]));
+  if (routers.catalogKey !== catalogKey) { routers.gatewayChains.clear(); routers.catalogKey = catalogKey; }
   return {
     points, gateways: crossDemand.gateways, routers, gatewayCatalog, tileCatalog,
     fare, journeyFare, requestedDepartureSeconds,

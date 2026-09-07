@@ -1,6 +1,6 @@
 import { assertWorld, createWorld, deepCopy, migrateWorldTileSet } from './world-model.js';
 import { advanceCommutesTo, applyModeShares, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog } from './cross-tile-commute-engine.js';
-import { calculateCrossTileModeShares, createNetworkProfile, inspectCrossTileModeChoice, inspectCrossTileTransitPath } from './cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, createNetworkProfile, inspectCrossTileModeChoice, inspectCrossTileTransitPath, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import {
   NetworkProjection,
   createNativeNetworkSnapshot,
@@ -113,6 +113,7 @@ export function crossModeShareContextKey(world) {
     .sort(([left], [right]) => left.localeCompare(right)));
   const elapsedSeconds = Number.isFinite(world.elapsedSeconds) ? world.elapsedSeconds : 0;
   const contextHash = hashAuditValue({
+    routingVersion: CROSS_ROUTING_CACHE_VERSION,
     schemaVersion: CROSS_MODE_SHARE_SCHEMA_VERSION,
     commuteCatalogBuildHash: world.commuteCatalogBuildHash ?? null,
     globalNetworkHash: world.globalNetwork?.hash ?? null,
@@ -690,6 +691,7 @@ export class WorldTileRuntime {
             && existingProfile == null
             && this.tilePackages.canSkipNativeDemandForUnservedTile?.(candidateTileId) === true;
           const evaluationInput = {
+            worldId: world.worldId,
             tileId: candidateTileId,
             networkProfile: candidateProfile,
             farePolicy: localFarePolicy,
@@ -945,6 +947,7 @@ export class WorldTileRuntime {
       }
       const networkProfiles = Object.fromEntries(Object.entries(this.world.tiles).map(([id, tile]) => [id, tile.networkProfile]).filter(([, value]) => value));
       const calculated = await evaluateCrossModeShares({
+        worldId: this.world.worldId,
         crossDemand,
         networkProfiles,
         gatewayCatalog: this.world.gatewayCatalog,

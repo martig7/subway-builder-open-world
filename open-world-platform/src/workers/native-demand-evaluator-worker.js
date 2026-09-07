@@ -1,6 +1,8 @@
 import { evaluateOffTileNativeDemand } from '../runtime/off-tile-native-demand.js';
+import { createCrossTileRoutingCache } from '../runtime/cross-tile-mode-choice.js';
 
 const WORKER_MARKER = 'open-world-native-demand-worker-evaluator-v1';
+const routingCache = createCrossTileRoutingCache();
 
 async function decodeDemand(bytes, gzip) {
   const input = new Uint8Array(bytes);
@@ -21,7 +23,7 @@ self.onmessage = async ({ data }) => {
   const { id, bytes, gzip, input } = data ?? {};
   try {
     const demand = await decodeDemand(bytes, gzip);
-    const value = evaluateOffTileNativeDemand({ ...input, demand });
+    const value = evaluateOffTileNativeDemand({ ...input, demand, routingCache });
     self.postMessage({ id, ok: true, value });
   } catch (error) {
     self.postMessage({

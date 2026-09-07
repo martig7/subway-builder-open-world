@@ -289,12 +289,14 @@ test('replays a cached gateway-to-gateway topology across populations', () => {
     fare: 0,
   });
 
-  assert.deepEqual(calculated.routingStats, {
+  const expectedStats = {
     driveAccessCandidates: 0,
     gatewayPathHits: 1, gatewayPathMisses: 1,
     endpointPathHits: 2, endpointPathMisses: 2,
-    catchmentHits: 6, catchmentMisses: 4,
-  });
+    catchmentHits: 8, catchmentMisses: 4,
+  };
+  for (const [key,value] of Object.entries(expectedStats)) assert.equal(calculated.routingStats[key],value,key);
+  assert.equal(calculated.routingStats.exactPathHits,3);
   assert.ok(calculated.transitViablePops > 0);
   assert.deepEqual(demand, demandBefore);
 });

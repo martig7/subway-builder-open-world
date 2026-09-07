@@ -1,4 +1,4 @@
-import { calculateCrossTileModeShares } from './cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 
 /** One session owns one worker; unavailable workers preserve the synchronous calculation. */
 export function createCrossModeShareEvaluator({
@@ -14,7 +14,8 @@ export function createCrossModeShareEvaluator({
   let disposed = false;
   let sequence = 0;
   const pending = new Map();
-  const stats = { workerEvaluations: 0, fallbackEvaluations: 0, latestError: null };
+  const routingCache = createCrossTileRoutingCache();
+  const stats = { version: CROSS_ROUTING_CACHE_VERSION, workerEvaluations: 0, fallbackEvaluations: 0, latestError: null, latestRoutingStats: null };
 
   const release = () => {
     worker?.terminate?.(); worker = null;
@@ -89,6 +90,7 @@ export function createCrossModeShareEvaluator({
             catch (error) { pending.delete(id); reject(error); }
           });
           stats.workerEvaluations++;
+          stats.latestRoutingStats = value.routingStats;
           return value;
         } catch (error) {
           if (disposed) throw error;
@@ -97,12 +99,15 @@ export function createCrossModeShareEvaluator({
       }
       if (disposed) throw new Error('Cross-mode share evaluator was disposed');
       stats.fallbackEvaluations++;
-      return calculateCrossTileModeShares(input);
+      const value = calculateCrossTileModeShares({ ...input, routingCache });
+      stats.latestRoutingStats = value.routingStats;
+      return value;
     },
     diagnostics: () => ({ ...stats, pending: pending.size }),
     dispose() {
       if (disposed) return;
       disposed = true;
+      routingCache.clear();
       release();
       for (const request of pending.values()) request.reject(new Error('Cross-mode share evaluator was disposed'));
       pending.clear();

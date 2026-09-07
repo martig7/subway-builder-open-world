@@ -1,10 +1,11 @@
-import { calculateCrossTileModeShares, prepareCrossTileModeShares, finishCrossTileModeShares } from '../runtime/cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, prepareCrossTileModeShares, finishCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from '../runtime/cross-tile-mode-choice.js';
 
-export const CROSS_MODE_SHARE_WORKER_MARKER = 'open-world-cross-mode-share-worker-v1';
+export const CROSS_MODE_SHARE_WORKER_MARKER = CROSS_ROUTING_CACHE_VERSION;
 
 /** Fare callbacks remain on the native host; only their compact results cross back. */
 export function createCrossModeShareWorkerHandler(postMessage) {
   const prepared = new Map();
+  const routingCache = createCrossTileRoutingCache();
   return (message) => {
     const { id, type, input } = message ?? {};
     try {
@@ -16,7 +17,7 @@ export function createCrossModeShareWorkerHandler(postMessage) {
         prepared.delete(id);
         value = finishCrossTileModeShares(batch, new Map(message.quotes));
       } else if (type === 'evaluate' && message.quoteFares) {
-        const batch = prepareCrossTileModeShares(input);
+        const batch = prepareCrossTileModeShares({ ...input, routingCache });
         if (batch.fareRequests.length) {
           prepared.set(id, batch);
           postMessage({ id, type: 'fare-requests', requests: batch.fareRequests, stations: batch.stations });
@@ -24,7 +25,7 @@ export function createCrossModeShareWorkerHandler(postMessage) {
         }
         value = finishCrossTileModeShares(batch);
       } else if (type === 'evaluate') {
-        value = calculateCrossTileModeShares(input);
+        value = calculateCrossTileModeShares({ ...input, routingCache });
       } else return;
       postMessage({ id, ok: true, value });
     } catch (error) {
