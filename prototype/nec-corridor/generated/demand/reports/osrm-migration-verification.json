@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "nativeRoutes": 153126,
+  "nativeChanged": 152814,
+  "crossRoutes": 57559,
+  "crossChanged": 57559,
+  "assetsVerified": 105,
+  "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+  "routes": {
+    "crossRoutes": 57559,
+    "drivingMetres": 7667459651,
+    "drivingSeconds": 451950210,
+    "nativeRoutes": 153126,
+    "nativeSearches": 133712,
+    "osrm": 210685,
+    "reusedNativeRoutes": 19414,
+    "routes": 210685,
+    "snapMetres": 0
+  }
+}

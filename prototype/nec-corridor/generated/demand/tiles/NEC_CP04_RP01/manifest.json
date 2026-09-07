@@ -1,19 +1,19 @@
 {
   "assets": [
     {
-      "bytes": 419397,
+      "bytes": 420227,
       "path": "cross_commutes.json",
-      "sha256": "439b426e2b971f3804b1271e005482aad4c528920d60f0708b7bc76781930106"
+      "sha256": "05ee1c9a899ee0f3fea5f07470d9e6c5a9e76d97988ef3af0d43003f42c59b30"
     },
     {
-      "bytes": 4399545,
+      "bytes": 4401731,
       "path": "cross_demand.json.gz",
-      "sha256": "f3c020598031b7601f15902e75d2ddd8e8cac696137c2ef055e91a3c415b5bec"
+      "sha256": "93a740d893c6df567a91792ffc0eded9becedab113daf59c7926c147f8abe744"
     },
     {
-      "bytes": 64727,
+      "bytes": 64725,
       "path": "demand_data.json.gz",
-      "sha256": "a0692338ffdb717b94d9f5c6930519213674b8c3679169f688a88975995b887a"
+      "sha256": "cb2ba7c3d1f011f78e7071e7c2da6b1a40160396b147cde652410147af97e71a"
     }
   ],
   "cityCode": "NEC_CP04_RP01",
@@ -21,14 +21,28 @@
     "demandData": "demand_data.json.gz"
   },
   "drivingModel": {
-    "graphVersion": "generated-roads-v1",
-    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
-    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
-    "provider": "generated-road-graph",
-    "speedKph": {
-      "highway": 85.0,
-      "major": 50.0,
-      "minor": 30.0
+    "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
+    "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
+    "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
+    "passengerFerry": {
+      "catalogId": "fdae73efc51988f5b3cded79903c6a2ee4f885581dc99927a202c1e359acfa1d",
+      "costModel": "existing distance-based game cost; ferry fares not supplied",
+      "scheduleWaitSeconds": 0,
+      "transferSeconds": 300.0,
+      "version": "passenger-ferry-v1"
+    },
+    "profile": "driving",
+    "provider": "osrm",
+    "straightWater": {
+      "costModel": "existing game driving-distance cost; not a real ferry service",
+      "landMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
+      "maxShoreAccessMetres": 1500.0,
+      "shoreAccessSpeedMps": 1.4,
+      "synthetic": true,
+      "transferSeconds": 0,
+      "version": "straight-water-v1",
+      "waterSpeedKph": 5.0
     }
   },
   "runtimeFiles": {
@@ -45,6 +59,6 @@
     "schemaVersion": 1
   },
   "schemaVersion": 1,
-  "sha256": "a0692338ffdb717b94d9f5c6930519213674b8c3679169f688a88975995b887a",
+  "sha256": "cb2ba7c3d1f011f78e7071e7c2da6b1a40160396b147cde652410147af97e71a",
   "tileId": "NEC_CP04_RP01"
 }

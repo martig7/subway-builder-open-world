@@ -1,0 +1,33 @@
+{
+  "status": "complete",
+  "polygons": 27555,
+  "inlandWaters": 203314,
+  "vertices": 11206767,
+  "sha256": {
+    "coast": "967e87f0234b887e33ce08f403e9d42899f8a54ea75c6193f094cb23816f79f6",
+    "pbf": "fa3341c01012db3c79d966463622ac5421da361c2d4d75ebb0d83ad8a074a610",
+    "output": "e18c7c316b1595cd1fa6177a9dfd17d3e600b6c0efff1efba3149871e47e461f"
+  },
+  "bounds": [
+    -78.5074123,
+    37.3696921,
+    -69.1083374,
+    44.4514323
+  ],
+  "repairedAreaIds": [
+    40026575
+  ],
+  "unusableAreaIds": [],
+  "sourceWayRepairs": [
+    {
+      "areaId": 40026575,
+      "outer": [
+        39849055,
+        39849021
+      ],
+      "inner": []
+    }
+  ],
+  "patchedLandParts": 1,
+  "previousOutputSha256": "5b6e5d1d935092d68c1f469a0a348ef75f578aadea7968542308612b72cd48eb"
+}

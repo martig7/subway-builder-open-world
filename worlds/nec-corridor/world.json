@@ -24,7 +24,7 @@
   "demand": {
     "adapter": "lodes-us",
     "definition": "demand.json",
-    "routingProfile": "generated-roads-v1",
+    "routingProfile": "osrm-driving-v1",
     "nativePopPrefixes": ["nec-native-pop-"],
     "crossPopPrefixes": ["nec-cross-pop-"]
   },

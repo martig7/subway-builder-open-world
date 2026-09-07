@@ -1,70 +1,76 @@
 {
   "consumerManifestId": "local.nec-corridor-open-world",
   "crossSearches": {
-    "generated-road-graph": 1534,
-    "geometric-disconnected": 69,
-    "geometric-excessive-detour": 8,
-    "searches": 1611
+    "osrm": 57559,
+    "searches": 57559
   },
   "drivingModel": {
-    "graphVersion": "generated-roads-v1",
-    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
-    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
-    "provider": "generated-road-graph",
-    "speedKph": {
-      "highway": 85.0,
-      "major": 50.0,
-      "minor": 30.0
+    "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
+    "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
+    "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
+    "passengerFerry": {
+      "catalogId": "fdae73efc51988f5b3cded79903c6a2ee4f885581dc99927a202c1e359acfa1d",
+      "costModel": "existing distance-based game cost; ferry fares not supplied",
+      "scheduleWaitSeconds": 0,
+      "transferSeconds": 300.0,
+      "version": "passenger-ferry-v1"
+    },
+    "profile": "driving",
+    "provider": "osrm",
+    "straightWater": {
+      "costModel": "existing game driving-distance cost; not a real ferry service",
+      "landMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
+      "maxShoreAccessMetres": 1500.0,
+      "shoreAccessSpeedMps": 1.4,
+      "synthetic": true,
+      "transferSeconds": 0,
+      "version": "straight-water-v1",
+      "waterSpeedKph": 5.0
     }
   },
-  "elapsedSeconds": 871.61,
+  "elapsedSeconds": 109.642,
   "graph": {
-    "buildSeconds": 151.662,
-    "components": 2593,
-    "directedEdges": 7492670,
-    "graphVersion": "generated-roads-v1",
-    "maximumEdgeMetres": 250.0,
-    "nodes": 3112560,
-    "retainedRawSegments": 19379621,
-    "speedKph": {
-      "highway": 85.0,
-      "major": 50.0,
-      "minor": 30.0
-    },
-    "tileCount": 35
+    "algorithm": "mld",
+    "cacheHits": 0,
+    "cacheMisses": 183317,
+    "cachePath": "C:\\Users\\gianc\\nec-osrm-20260907\\cache\\osrm-routes.sqlite3",
+    "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+    "ferryCatalogId": "fdae73efc51988f5b3cded79903c6a2ee4f885581dc99927a202c1e359acfa1d",
+    "httpAttempts": 147911,
+    "httpRequests": 147911,
+    "logicalRoutes": 191271,
+    "matrixElements": 183317,
+    "maxTableCoordinates": 100,
+    "osrmRoutes": 183317,
+    "passengerFerry": {},
+    "profile": "driving",
+    "provider": "osrm",
+    "straightWater": {},
+    "waterLandMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
+    "workers": 16
   },
-  "kind": "generated-road-graph driving-time splice",
+  "kind": "osrm driving-time splice",
   "policy": {
     "crossPartitionCount": 1114,
+    "crossPublication": "individual-osrm-cross-v1",
     "crossSamplesPerTilePair": 4,
     "maxDetourRatio": 3.0,
-    "maxRoutedDirectMetres": 250000.0,
+    "maxRoutedDirectMetres": 3000000.0,
     "maxSnapMetres": 5000.0,
     "minimumDrivingSeconds": 60
   },
   "routes": {
     "crossRoutes": 57559,
-    "drivingMetres": 4869009587,
-    "drivingSeconds": 274171713,
-    "generated-road-graph": 6408,
-    "generated-road-tile-pair-model": 56130,
-    "geometric-disconnected": 26,
-    "geometric-excessive-detour": 73,
-    "geometric-long-distance": 1359,
-    "geometric-tile-pair-fallback": 70,
+    "drivingMetres": 7667459651,
+    "drivingSeconds": 451950210,
     "nativeRoutes": 153126,
-    "nativeSearches": 5626,
-    "preservedNativeRoutes": 146619,
-    "reusedNativeRoutes": 881,
+    "nativeSearches": 133712,
+    "osrm": 210685,
+    "reusedNativeRoutes": 19414,
     "routes": 210685,
-    "snapMetres": 1235604
+    "snapMetres": 0
   },
   "schemaVersion": 1,
-  "selection": {
-    "crossPartitionCount": 1114,
-    "invalidationSha256": "b8bca5d0a4e7552f91be89a05eb3cfa101cac283e5b277d55d0d41f4ffd35059",
-    "mode": "invalidation",
-    "nativeCohortCount": 6507
-  },
   "status": "complete"
 }

@@ -163,6 +163,16 @@ policy. This preserves native demand files byte-for-byte, reuses cached endpoint
 results, and refreshes cross demand, commute averages, and asset hashes. It cannot
 be combined with `--invalidation`.
 
+NEC uses this same OSRM provider and individual cross-tile publication. Its first
+migration must omit `--cross-only` and `--invalidation`, since its native routes
+also came from the generated-road graph. Use `--report-namespace nec`,
+`--consumer-manifest-id local.nec-corridor-open-world`, and an NEC-specific OSRM
+dataset/cache; never route NEC coordinates against the Japan graph. Build the
+regional graph with the same OSRM v6 car profile and MLD preparation. Retain the
+14 regional OSM extracts' hashes and the merged PBF hash as dataset provenance.
+Use the shared ferry-catalog and physical-land preparation tools with that PBF
+for the same ferry/water fallback policy, and a 3,000,000 m direct-distance limit.
+
 Passenger ferries can repair OSRM `NoRoute` pairs without changing the car graph
 or invalidating successful road routes. Install the `ferries` extra and extract
 a catalog from the same PBF used to prepare OSRM:

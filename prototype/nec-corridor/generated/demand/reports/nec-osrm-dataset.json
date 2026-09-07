@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+  "pbfSha256": "fa3341c01012db3c79d966463622ac5421da361c2d4d75ebb0d83ad8a074a610",
+  "image": "ghcr.io/project-osrm/osrm-backend:v6.0.0",
+  "port": 5001,
+  "sources": [
+    {
+      "file": "connecticut-latest.osm.pbf",
+      "sha256": "db523bd4ac87e8a5f974ed2792f31d418f4cdbb0dcb47875d37a748917799109",
+      "bytes": 216317774
+    },
+    {
+      "file": "delaware-latest.osm.pbf",
+      "sha256": "9db86719f9f834a8cd7ec193425e01f90791ab84bfe4cdbbd1b239615dea9c7d",
+      "bytes": 21995589
+    },
+    {
+      "file": "district-of-columbia-latest.osm.pbf",
+      "sha256": "541e843b7a65dea67db5c312beb91b6646bca732ad31179a0b511961d7856e88",
+      "bytes": 20934950
+    },
+    {
+      "file": "maine-latest.osm.pbf",
+      "sha256": "54de9fec11cc7d7756f2a6a8a6f120f80d33867dd44c764d8a70c7c64900851f",
+      "bytes": 90543920
+    },
+    {
+      "file": "maryland-latest.osm.pbf",
+      "sha256": "f87e3e88d1a38e0acb9b2a6ff065e0c656ddcfbe474726a48220de7f62165dad",
+      "bytes": 213569287
+    },
+    {
+      "file": "massachusetts-latest.osm.pbf",
+      "sha256": "7cd54af58207dcbd2fed3c8cd9dc5ecd50e45930e78886edf4e1b6a8b660f514",
+      "bytes": 309336186
+    },
+    {
+      "file": "new-hampshire-latest.osm.pbf",
+      "sha256": "6c62c95fb03172c7bea566bf94aed92aa494952dacf3d5fcf5df15515ccbe123",
+      "bytes": 71013630
+    },
+    {
+      "file": "new-jersey-latest.osm.pbf",
+      "sha256": "dbdb711a4bced5a39ccd1aab2083e45761d913d1d61fcd74db389cb3e4065775",
+      "bytes": 162756065
+    },
+    {
+      "file": "new-york-latest.osm.pbf",
+      "sha256": "ce9b9e9b995f0b22d84804a88a36ffe853bbc09ee4b42438c419f8e3e234af63",
+      "bytes": 494936299
+    },
+    {
+      "file": "pennsylvania-latest.osm.pbf",
+      "sha256": "cd418278992de3e8f77b64eaed3dda03333c6961719f13719f2bcfca376e7d11",
+      "bytes": 344636786
+    },
+    {
+      "file": "rhode-island-latest.osm.pbf",
+      "sha256": "5e322d25977310f4c37548e6e1edcac1ef44326e4bd52deb5d2b8d4cc50b1c82",
+      "bytes": 51952039
+    },
+    {
+      "file": "vermont-latest.osm.pbf",
+      "sha256": "2ea768c5b63aa78bb0005cf2bdc01131e9ce9cdc93826ff042c9317eb7b4e807",
+      "bytes": 45772791
+    },
+    {
+      "file": "virginia-latest.osm.pbf",
+      "sha256": "76f62dfc6ec59b6c9a96f308d2a343ae1ee161241aa26265ed190261c35c0c55",
+      "bytes": 426461810
+    },
+    {
+      "file": "west-virginia-latest.osm.pbf",
+      "sha256": "98b053b1eb85581719f6c50278e0d725dea92b753913653a8194d69e7a574dd5",
+      "bytes": 98284754
+    }
+  ],
+  "probe": {
+    "legs": [
+      {
+        "steps": [],
+        "weight": 16897.9,
+        "summary": "",
+        "duration": 16877,
+        "distance": 343777.4
+      }
+    ],
+    "weight_name": "routability",
+    "weight": 16897.9,
+    "duration": 16877,
+    "distance": 343777.4
+  }
+}
