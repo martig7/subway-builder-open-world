@@ -95,7 +95,7 @@ export class NativeRevenueAccrual {
       nativeTopologyComplete: true,
     });
     const revenue = Math.max(0, Number(calculated.revenue) || 0);
-    if (!(revenue > 0)) {
+    if (!(revenue > 0) && !calculated.completedCommutes?.length) {
       return result({
         status: 'no-revenue',
         networkHash: this.#networkHash,
@@ -114,6 +114,7 @@ export class NativeRevenueAccrual {
       revenue,
       revenueByTile,
       revenueByRoute,
+      completedCommutes: calculated.completedCommutes,
       hourlyPostings: [{ hour, revenue, revenueByTile, revenueByRoute }],
     });
     if (typeof adapterResult?.applied !== 'boolean') {

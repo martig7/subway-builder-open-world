@@ -6,7 +6,7 @@ import {
   deterministicNativeDepartureTimes,
 } from './native-finance-model.js';
 
-const EVALUATOR_SCHEMA_VERSION = 4;
+const EVALUATOR_SCHEMA_VERSION = 5;
 const POP_FIELDS = Object.freeze([
   'id', 'mass', 'homeIndex', 'workIndex', 'gatewayIndex',
   'drivingSeconds', 'drivingDistance', 'homeDepartureTime', 'workDepartureTime',
@@ -203,6 +203,7 @@ function syntheticNativePops(calculated, sourceById, returnCalculated) {
     const commute = {
       modeChoice: calculated.popModeChoices[journey.popId] ?? { transit: journey.transitMass },
       transitCost: journey.fare,
+      transitTime: journey.totalClockSeconds,
       transitPaths: [{
         fareCost: journey.fare,
         segments: journey.stationRoutes.map(({ routeId, stationIds }) => ({ routeId, stationIds })),

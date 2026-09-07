@@ -353,6 +353,28 @@ export function calculateNativeRevenueProfile(pops = [], {
       dailyRevenue += oneWayRevenue;
       const routeRevenue = Object.fromEntries(Object.entries(fareByRoute)
         .map(([routeId, routeFare]) => [routeId, transitMass * routeFare * NATIVE_ANNUALIZATION]));
+      // Keep native-shaped journeys alongside fares. Ridership is people,
+      // never the annualized money multiplier, and includes free journeys.
+      const stationRoutes = (path?.segments ?? []).filter(segment => segment.routeId
+        && !segment.isWalking && !segment.isDriving && segment.routeId !== 'walking' && segment.routeId !== 'driving')
+        .map(segment => ({ ...segment, stationIds: segment.stationIds
+          ?? [segment.fromStopId, segment.toStopId] }))
+        .filter(segment => segment.stationIds.length >= 2 && segment.stationIds.every(Boolean))
+        .map(({ routeId, stationIds }) => ({ routeId, stationIds: [...stationIds] }));
+      if (stationRoutes.length) {
+        const departure = direction === 'homeToWork' ? pop.homeDepartureTime : pop.workDepartureTime;
+        for (const [hour, probability] of departureDistribution(departure,
+          direction === 'homeToWork' ? NATIVE_HOME_DEPARTURE_PROBABILITIES : NATIVE_WORK_DEPARTURE_PROBABILITIES)) {
+          hourly[hour].completedCommutes ??= [];
+          hourly[hour].completedCommutes.push({
+            popId: String(pop.id), size: transitMass * probability, stationRoutes,
+            journeyStart: hour * 3600 + (Number.isFinite(departure) ? departure % 3600 : 0),
+            journeyEnd: hour * 3600 + (Number.isFinite(departure) ? departure % 3600 : 0)
+              + Math.max(0, finite(path?.totalClockSeconds, finite(path?.totalTime, finite(summary?.transitTime, 0)))),
+            origin: direction === 'homeToWork' ? 'home' : 'work',
+          });
+        }
+      }
       addRevenueToDistribution(
         hourly,
         departureDistribution(
@@ -472,10 +494,20 @@ export function backgroundFinanceForHour({
   const revenueByRoute = {};
   let revenue = 0;
   const revenueByTile = {};
+  const completedCommutes = [];
   for (const [tileId, profile] of Object.entries(finance?.tileRevenueProfiles ?? {})) {
     const value = profile?.hourly?.[hour % HOURS_PER_DAY];
     if (!value) continue;
     const active = tileId === activeTileId;
+    if (!active) {
+      const dayStart = Math.floor(hour / HOURS_PER_DAY) * 86400;
+      for (const commute of value.completedCommutes ?? []) completedCommutes.push({
+        ...structuredClone(commute),
+        popId: `off-tile-native:${encodeURIComponent(tileId)}:${encodeURIComponent(commute.popId)}:${commute.origin}:${hour}`,
+        journeyStart: dayStart + commute.journeyStart,
+        journeyEnd: dayStart + commute.journeyEnd,
+      });
+    }
     // The active native save already settles all native pop revenue, including
     // journeys using cross-tile routes.  Custom cross-tile commuter fares are
     // posted through creditCrossTileFareRevenue, not this cached profile.
@@ -496,6 +528,7 @@ export function backgroundFinanceForHour({
   if (nativeOwnsExpenses) {
     return {
       revenue,
+      completedCommutes,
       expenses: 0,
       revenueByTile,
       revenueByRoute,
@@ -531,7 +564,7 @@ export function backgroundFinanceForHour({
   }
   const expenses = Object.values(expenseCategories).reduce((sum, amount) => sum + amount, 0);
   return {
-    revenue, expenses, revenueByTile, revenueByRoute, expensesByRoute, expenseCategories,
+    revenue, expenses, revenueByTile, revenueByRoute, expensesByRoute, expenseCategories, completedCommutes,
     accountingOwnership: ownershipPolicy ?? null,
     nativeExpensesOmitted: false,
   };

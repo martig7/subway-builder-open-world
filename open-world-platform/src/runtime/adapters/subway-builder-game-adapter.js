@@ -1644,7 +1644,6 @@ const DEMAND_STATE_KEYS = Object.freeze([
   'compressedDemandData',
   'savedDemandData',
   'popMovementsMap',
-  'completedCommutes',
 ]);
 
 /**
@@ -1659,6 +1658,14 @@ const DEMAND_STATE_KEYS = Object.freeze([
 export function compactNativeSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return snapshot;
   const data = { ...(snapshot.data ?? {}) };
+  // Demand is reloadable; journey statistics are native-save history.
+  // Preserve compressed native records when constructing a tile transition.
+  if (!Array.isArray(data.completedCommutes) && Array.isArray(data.compressedDemandData?.c)) {
+    data.completedCommutes = data.compressedDemandData.c.map(row => ({
+      popId: row.p, size: row.s, stationRoutes: row.sr,
+      journeyStart: row.js, journeyEnd: row.je, origin: row.o,
+    }));
+  }
   for (const key of DEMAND_STATE_KEYS) delete data[key];
   return {
     ...snapshot,
@@ -3009,6 +3016,7 @@ export class SubwayBuilderGameAdapter {
       'tracks', 'trains', 'routes', 'timeConfig', 'trackGroups', 'signals',
       'stNodes', 'stations', 'money', 'transitCost', 'fareGroups',
       'financialHistory', 'routeFinancials', 'bonds', 'gameMode',
+      'completedCommutes',
       'ownedTrainCount', 'ownedCarsByType', 'playTimeSeconds',
       'totalLifetimeRidership', 'dailyStats', 'stationsDemolishedAllTime',
       'buildingDemolitionSpendAllTime', 'everDemolishedBuilding',
@@ -3120,6 +3128,7 @@ export class SubwayBuilderGameAdapter {
       throw new Error('Cannot merge transit network from an invalid native snapshot');
     }
     const data = mergeSharedTransitNetworkState(destinationSnapshot.data, sourceSnapshot.data);
+    data.completedCommutes = structuredClone(compactNativeSnapshot(sourceSnapshot).data.completedCommutes ?? []);
     return compactNativeSnapshot({
       ...structuredClone(destinationSnapshot),
       data,
@@ -3291,6 +3300,10 @@ export class SubwayBuilderGameAdapter {
       throw new Error('Native setRouteFinancials action is unavailable');
     }
     if (typeof state.setFinancialHistory !== 'function') throw new Error('Native setFinancialHistory action is unavailable');
+    const completedCommutes = posting.completedCommutes ?? [];
+    if (completedCommutes.length && typeof state.setCompletedCommutes !== 'function') {
+      throw new Error('Native setCompletedCommutes action is unavailable');
+    }
 
     const targetElapsedSeconds = Number(posting.targetElapsedSeconds) || 0;
     const targetHour = Math.floor(Math.max(0, targetElapsedSeconds) / 3_600);
@@ -3334,6 +3347,22 @@ export class SubwayBuilderGameAdapter {
       ));
     }
     const updated = this.#state();
+    if (completedCommutes.length) {
+      const existing = updated.completedCommutes ?? [];
+      const known = new Set(existing.map(commute => commute.popId));
+      const fresh = completedCommutes.filter(commute => {
+        if (known.has(commute.popId)) return false;
+        known.add(commute.popId);
+        return true;
+      }).map(commute => ({
+        ...structuredClone(commute),
+        stationRoutes: commute.stationRoutes.map(segment => ({
+          ...structuredClone(segment),
+          routeId: parentByRoute.get(String(segment.routeId)) ?? segment.routeId,
+        })),
+      }));
+      updated.setCompletedCommutes([...existing, ...fresh]);
+    }
     updated.setFinancialHistory(backfillHourlyFinancialHistory(
       openingFinancialHistory,
       hourlyPostings,
@@ -3437,6 +3466,11 @@ export class SubwayBuilderGameAdapter {
       expectedCity,
       expectedCityUid,
     );
+    if (authoritativeFinanceSnapshot) {
+      destinationSnapshot.data.completedCommutes = structuredClone(
+        compactNativeSnapshot({ data: authoritativeFinanceState }).data.completedCommutes ?? [],
+      );
+    }
     const {
       nativeSnapshot,
       deferredRouteDefinitions,

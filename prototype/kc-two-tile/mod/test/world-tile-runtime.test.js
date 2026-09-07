@@ -812,7 +812,7 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
       schemaVersion: 4,
       source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 4,
+      evaluatorSchemaVersion: 5,
       contextKey: `${tileId}:context`,
       evaluationKey: `${tileId}:cached`,
       tileId,
@@ -850,7 +850,7 @@ test('passive mode-share cache invalidates when fare or timetable context change
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
       schemaVersion: 4,
       source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 4,
+      evaluatorSchemaVersion: 5,
       contextKey: `${tileId}:context`,
       evaluationKey: `${tileId}:cached`,
       tileId,
@@ -2878,6 +2878,7 @@ test('tile snapshot restore transfers every native financial field from the sour
   const sourceFinance = {
     gameMode: 'easy',
     money: 842_500,
+    completedCommutes: [{popId:'cross-pop:home:7',size:3,stationRoutes:[{routeId:'R1',stationIds:['s','t']}],journeyStart:25200,journeyEnd:25500,origin:'home'}],
     transitCost: 4.75,
     fareGroups: [{ id: 'express-fares', routeIds: ['R1'], fare: 7.5 }],
     financialHistory: {
@@ -5794,4 +5795,20 @@ test('HTTP tile packages register game data through the native /data city route'
     demandData: '/data/KCW/demand_data.json.gz',
   });
   assert.doesNotThrow(() => new URL(`http://127.0.0.1:58290${registered.buildingsIndex}?useDownloaded=true`));
+});
+
+test('free off-tile journeys persist native route attribution once', async () => {
+  const fixture = realSeamFixture(); const adapter = new SubwayBuilderGameAdapter(fixture);
+  fixture.state.routes = [{id:'temporary',tempParentId:'route-a'}];
+  const commute = {popId:'off-tile-native:B:p:home:7',size:2.5,stationRoutes:[{routeId:'temporary',stationIds:['s1','s2']}],journeyStart:25200,journeyEnd:25800,origin:'home'};
+  const posting = {postingId:'ridership-hour-7',targetElapsedSeconds:25200,revenue:0,completedCommutes:[commute]};
+  await adapter.postBackgroundNativeFinance(posting);
+  await adapter.postBackgroundNativeFinance(posting);
+  assert.equal(fixture.state.completedCommutes.length,1);
+  assert.equal(fixture.state.completedCommutes[0].stationRoutes[0].routeId,'route-a');
+  assert.equal(fixture.state.completedCommutes[0].size,2.5);
+  assert.equal(fixture.state.money,50);
+  const row = fixture.state.completedCommutes[0];
+  const compact = compactNativeSnapshot({data:{compressedDemandData:{v:2,p:[],d:[],c:[{p:row.popId,s:row.size,sr:row.stationRoutes,js:row.journeyStart,je:row.journeyEnd,o:row.origin}]}}});
+  assert.deepEqual(JSON.parse(JSON.stringify(compact)).data.completedCommutes,[row]);
 });

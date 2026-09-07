@@ -776,11 +776,13 @@ export class WorldTileRuntime {
       return { tileId, active: tileId === world.activeTileId, available: Boolean(profile),
         source: profile?.source ?? null, dailyRevenue: profile?.dailyRevenue ?? null,
         transitPopulation: profile?.transitPopulation ?? null,
+        nativeStatsJourneyCount: (profile?.hourly ?? []).reduce((sum, bucket) => sum + (bucket.completedCommutes?.length ?? 0), 0),
         evaluatedPops: profile?.evaluatedPops ?? null,
         skippedPops: profile?.skippedPops ?? null, contextKey: profile?.contextKey ?? null };
     });
     return {
       version: NATIVE_REVENUE_RECOVERY_VERSION, worldId: world.worldId,
+      nativeRouteRidershipVersion: 'native-route-ridership-v1',
       routingRules: this.game.capturePathfindingRules?.() ?? null,
       activeTileId: world.activeTileId, elapsedSeconds: globals?.elapsedSeconds ?? world.elapsedSeconds,
       networkHash: world.globalNetwork?.hash ?? null, profileNetworkHash: finance?.networkHash ?? null,
@@ -1974,6 +1976,7 @@ export class WorldTileRuntime {
       expensesByRoute: {},
       expenseCategories: {},
       hourlyPostings: [],
+      completedCommutes: [],
     };
     const firstPendingHour = Math.min(
       revenuePending ? revenueStartHour + 1 : Number.POSITIVE_INFINITY,
@@ -1993,6 +1996,7 @@ export class WorldTileRuntime {
         hour,
       });
       aggregate.hourlyPostings.push({ hour, ...posting });
+      aggregate.completedCommutes.push(...(posting.completedCommutes ?? []));
       aggregate.revenue += posting.revenue;
       aggregate.expenses += posting.expenses;
       for (const field of ['revenueByTile', 'revenueByRoute', 'expensesByRoute', 'expenseCategories']) {
@@ -2001,7 +2005,7 @@ export class WorldTileRuntime {
         }
       }
     }
-    const hasPosting = aggregate.revenue > 0 || aggregate.expenses > 0
+    const hasPosting = aggregate.completedCommutes.length > 0 || aggregate.revenue > 0 || aggregate.expenses > 0
       || Object.keys(aggregate.revenueByRoute).length > 0
       || Object.keys(aggregate.expensesByRoute).length > 0;
     let applied = false;

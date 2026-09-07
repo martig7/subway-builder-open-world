@@ -62,6 +62,7 @@ test('posts only inactive-tile revenue through the injected adapter', async () =
     revenue: 20,
     revenueByTile: { A: 0, B: 20 },
     revenueByRoute: { remote: 20 },
+    completedCommutes: [],
     hourlyPostings: [{
       hour: 7,
       revenue: 20,
@@ -166,4 +167,16 @@ test('rejects invalid interface inputs before reaching the adapter', async () =>
     accrual.postHour({ worldId: 'world', hour: 1.5, activeTileId: 'A', projection: {} }),
     /hour/,
   );
+});
+
+test('free inactive ridership still receives a native settlement receipt', async () => {
+  const adapter = receiptAdapter(); const accrual = new NativeRevenueAccrual({adapter});
+  const profile = revenueProfile('B',0);
+  profile.hourly[7].completedCommutes=[{popId:'p',size:3,stationRoutes:[{routeId:'r',stationIds:['s','t']}],journeyStart:25200,journeyEnd:25500,origin:'home'}];
+  accrual.replaceProfiles({networkHash:'n',profiles:{B:profile}});
+  const args={worldId:'w',hour:7,activeTileId:'A',projection:{activeTileId:'A'}};
+  assert.equal((await accrual.postHour(args)).status,'posted');
+  assert.equal((await accrual.postHour(args)).status,'already-posted');
+  assert.equal(adapter.postings[0].completedCommutes[0].size,3);
+  assert.equal(adapter.balance,100);
 });

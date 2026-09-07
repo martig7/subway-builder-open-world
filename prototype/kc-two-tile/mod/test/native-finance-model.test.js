@@ -371,3 +371,28 @@ test('revenue cache invalidation is tile/route scoped and migration preserves to
   assert.ok(invalidated.finance.tileRevenueProfiles.T0);
   assert.equal(invalidated.finance.tileRevenueProfiles.T1, undefined);
 });
+
+test('inactive native journeys retain counts, direction, transfers and absolute day', () => {
+  const profile = calculateNativeRevenueProfile([{id:'p',homeDepartureTime:25200,workDepartureTime:61200,commutes:{
+    homeToWork:{modeChoice:{transit:2.5},transitCost:0,transitPaths:[{fareCost:0,segments:[{routeId:'a',stationIds:['a1','a2']},{routeId:'b',stationIds:['b1','b2']}]}]},
+    workToHome:{modeChoice:{transit:1},transitCost:0,transitPaths:[{fareCost:0,segments:[{routeId:'c',stationIds:['c2','c1']}]}]},
+  }}]);
+  const finance = {tileRevenueProfiles:{A:profile,B:profile}};
+  const outward = backgroundFinanceForHour({finance,activeTileId:'A',hour:31,nativeTopologyComplete:true});
+  assert.equal(outward.revenue,0);
+  assert.equal(outward.completedCommutes.length,1);
+  assert.equal(outward.completedCommutes[0].size,2.5);
+  assert.equal(outward.completedCommutes[0].origin,'home');
+  assert.equal(outward.completedCommutes[0].journeyStart,111600);
+  assert.equal(outward.completedCommutes[0].stationRoutes.length,2);
+  const homeward = backgroundFinanceForHour({finance,activeTileId:'A',hour:41,nativeTopologyComplete:true});
+  assert.equal(homeward.completedCommutes[0].size,1);
+  assert.equal(homeward.completedCommutes[0].origin,'work');
+  assert.notEqual(outward.completedCommutes[0].popId,homeward.completedCommutes[0].popId);
+});
+
+test('native stop-based paths produce route stats without walking legs', () => {
+  const profile=calculateNativeRevenueProfile([{id:'p',homeDepartureTime:0,commutes:{homeToWork:{modeChoice:{transit:4},transitCost:0,transitPaths:[{fareCost:0,totalTime:600,segments:[{routeId:'walking',isWalking:true,fromStopId:'origin',toStopId:'s'},{routeId:'r',fromStopId:'s',toStopId:'t'}]}]}}}]);
+  assert.deepEqual(profile.hourly[0].completedCommutes[0].stationRoutes,[{routeId:'r',stationIds:['s','t']}]);
+  assert.equal(profile.hourly[0].completedCommutes[0].journeyEnd,600);
+});

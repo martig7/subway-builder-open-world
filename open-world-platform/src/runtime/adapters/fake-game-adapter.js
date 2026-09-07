@@ -125,6 +125,11 @@ export class FakeGameAdapter {
         expensesByRoute: posting.expensesByRoute,
       }];
     this.native.wallet += revenue - expenses;
+    const knownCommutes = new Set(this.native.completedCommutes.map(commute => commute.popId));
+    for (const commute of posting.completedCommutes ?? []) {
+      if (!knownCommutes.has(commute.popId)) this.native.completedCommutes.push(deepCopy(commute));
+      knownCommutes.add(commute.popId);
+    }
     this.native.financialHistory = backfillHourlyFinancialHistory(
       this.native.financialHistory,
       hourlyPostings,
