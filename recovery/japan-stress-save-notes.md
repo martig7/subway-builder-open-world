@@ -1,6 +1,7 @@
 # Japan save construction experiment
 
-Status on 2026-09-07: experimental candidate, not a validated playable network.
+Status on 2026-09-07: imported, played, corrected, switched between Tokyo and
+Kanagawa, and saved natively. See `japan-stress-playtest-report.md` for results.
 Active installed mod: `local.japan-open-world` v0.5.0, consumer `prototype/japan/mod`.
 No mod bundle was changed or installed during this experiment.
 
@@ -28,6 +29,9 @@ whose meaning has not been established.
 | 392 | metadata JSON; full reserved boundary remains unverified |
 
 The payload decompresses to `{mainSave, autosaves}`. `mainSave.version` is 4.
+Track length must use the native great-circle model (Earth radius 6371008.8 m),
+not a fixed meters-per-degree approximation. Runtime speed-cache endpoints matched
+that model to sub-nanometer floating-point differences in the sampled game state.
 Topology lives in `mainSave.data`: tracks, track groups, stations, station groups,
 platform nodes (`stNodes`), signals, routes and trains. Route path steps refer to
 track IDs, lengths and signals. The known eight-station route has 14 travel legs
@@ -52,7 +56,7 @@ and need native validation. Separate cloned lines do not yet have explicit merge
 interchange station groups. Cross-tile route geometry does not prove actual
 cross-tile transit use.
 
-## Import observations and remaining validation
+## Initial import observations
 
 Local outputs are ignored under `.analysis/`:
 
@@ -71,13 +75,14 @@ native runtime correctness. The white screen's cause is unresolved: it could be
 another generated data inconsistency, native loading behavior, or mod behavior.
 It must not be reported as a confirmed mod defect.
 
+These were intermediate findings. A fresh diagnostic instance loaded v2; the
+subsequent distance repair removed the train speed warnings. The final native
+save is `Japan Kanto 192 Stations Validated` in `D:/SubwayBuilder`.
+
 The original Tokyo playtest remains at
 `D:/SubwayBuilder/codex_tokyo_playtest_2026_09_06_06f526b7352541d390813e64a323ce65.metro`.
-No gameplay took place after candidate import. Automatic approval review denied
-closing/restarting the blank game pending explicit user authorization.
-
-Next: recover with runtime diagnostics, validate the load against the native
-schema and loader, verify all routes survive validation and trains move, measure
-actual morning-peak ridership and cross-tile journeys, then measure simulation
-throughput, memory, UI responsiveness and mod diagnostics. No performance or
-strong-use conclusion is available yet.
+The user authorized discarding active state for recovery. No original save was
+overwritten. `repair-metro-distances.py` reproduces the distance correction on a
+separate output, retaining lifetime totals but clearing live trains and compressed
+commute state. This interrupts in-flight trips; the native scheduler recreates
+trains. It is a repair tool for these generated saves, not a general migration.

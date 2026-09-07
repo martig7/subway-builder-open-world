@@ -29,7 +29,10 @@ def decode(path):
 
 
 def distance(a, b):
-    return math.hypot((a[0]-b[0])*90500, (a[1]-b[1])*111195)
+    lat1,lat2=math.radians(a[1]),math.radians(b[1])
+    dlat,dlon=lat2-lat1,math.radians(b[0]-a[0])
+    h=math.sin(dlat/2)**2+math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
+    return 2*6371008.8*math.asin(math.sqrt(min(1,h)))
 
 
 def encode(template, save):
