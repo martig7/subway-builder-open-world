@@ -73,6 +73,8 @@ def parser() -> argparse.ArgumentParser:
         help="Reroute only native cohorts and cross partitions named by this sidecar.",
     )
     command.add_argument("--cross-samples-per-tile-pair", type=int, default=4)
+    command.add_argument("--cross-only", action="store_true",
+                         help="Republish cross-tile routes only; preserve every native demand file byte-for-byte.")
     command.add_argument("--no-resume", action="store_true")
     return command
 
@@ -139,6 +141,7 @@ def main(argv: list[str] | None = None) -> None:
             build_hash_prefix=args.build_hash_prefix,
             cross_samples_per_tile_pair=args.cross_samples_per_tile_pair,
             invalidation_path=args.invalidation,
+            cross_only=args.cross_only,
             route_backend=route_backend,
             resume=not args.no_resume,
             progress=progress,

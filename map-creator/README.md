@@ -154,6 +154,15 @@ sidecar to rewrite only the affected cohorts and cross-tile partitions. Changing
 the OSRM dataset ID intentionally invalidates the complete cache without deleting
 older entries.
 
+OSRM cross-tile publication uses each endpoint pair's individual road, ferry,
+water, or unresolved fallback result (`individual-osrm-cross-v1`). It does not
+scale sampled tile-pair routes. Generated-road routing retains its sampled model.
+To migrate an existing OSRM demand package, add `--cross-only` to the same routing
+command and retain the dataset, cache, ferry catalog, land mask, and routing
+policy. This preserves native demand files byte-for-byte, reuses cached endpoint
+results, and refreshes cross demand, commute averages, and asset hashes. It cannot
+be combined with `--invalidation`.
+
 Passenger ferries can repair OSRM `NoRoute` pairs without changing the car graph
 or invalidating successful road routes. Install the `ferries` extra and extract
 a catalog from the same PBF used to prepare OSRM:

@@ -21,6 +21,7 @@ from scipy.spatial import cKDTree
 
 
 GRAPH_VERSION = "generated-roads-v1"
+CROSS_OSRM_PUBLICATION = "individual-osrm-cross-v1"
 SPEED_KPH = {"highway": 85.0, "major": 50.0, "minor": 30.0}
 SPEED_MPS = {road_class: speed / 3.6 for road_class, speed in SPEED_KPH.items()}
 MAX_SPEED_MPS = max(SPEED_MPS.values())
@@ -845,6 +846,7 @@ def enrich_generated_road_driving(
     max_detour_ratio: float = DEFAULT_MAX_DETOUR_RATIO,
     cross_samples_per_tile_pair: int = DEFAULT_CROSS_SAMPLES_PER_TILE_PAIR,
     invalidation_path: str | Path | None = None,
+    cross_only: bool = False,
     route_backend: Any | None = None,
     resume: bool = True,
     progress: Any = print,
@@ -857,11 +859,22 @@ def enrich_generated_road_driving(
     build_hash_prefix = build_hash_prefix or f"{report_namespace}-road-v1"
     started = time.perf_counter()
     demand = Path(demand_dir)
+    if cross_only and invalidation_path is not None:
+        raise ValueError("cross_only and invalidation_path are mutually exclusive")
     selective_plan = (
         _selective_routing_plan(demand, Path(invalidation_path))
         if invalidation_path is not None
         else None
     )
+    if cross_only:
+        cross_input = _read_gzip_json(demand / "world" / "cross_demand.json.gz")
+        pf = {name: index for index, name in enumerate(cross_input["pointFields"])}
+        cf = {name: index for index, name in enumerate(cross_input["popFields"])}
+        selective_plan = {"nativePopIds": {}, "crossPartitions": {
+            (str(cross_input["points"][int(pop[cf["homePoint"]])][pf["tileId"]]),
+             str(cross_input["points"][int(pop[cf["workPoint"]])][pf["tileId"]]))
+            for pop in cross_input["pops"]
+        }}
     if selective_plan is not None:
         progress(
             "[road-routing] selective plan validated "
@@ -896,8 +909,12 @@ def enrich_generated_road_driving(
             "[road-routing] using external routing backend "
             f"{driving_model['provider']} ({driving_model.get('datasetId', 'unversioned')})"
         )
+    individual_cross = driving_model["provider"] == "osrm"
+    cross_publication = CROSS_OSRM_PUBLICATION if individual_cross else "sampled-tile-pair-v1"
     stage = demand.parent / f".{demand.name}-road-routing-stage"
     input_fingerprint = {
+        "crossPublication": cross_publication,
+        "crossOnly": cross_only,
         "catalog": _sha256(Path(catalog_path)),
         "routingBackend": routing_fingerprint,
         "nativeDemand": {
@@ -962,6 +979,11 @@ def enrich_generated_road_driving(
             counts["routes"] += preserved
             counts["nativeRoutes"] += preserved
             counts["preservedNativeRoutes"] += preserved
+        if selected_pop_ids is not None and not selected_pops:
+            staged_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_path, staged_path)
+            progress(f"[road-routing] preserved native file {tile_id}")
+            continue
         unique_requests: dict[
             tuple[str, str], tuple[tuple[float, float], tuple[float, float]]
         ] = {}
@@ -1064,6 +1086,30 @@ def enrich_generated_road_driving(
             continue
         if selective_plan is not None and partition not in completed_selective_partitions:
             models.pop(cache_key, None)
+        if individual_cross:
+            routes = _route_many(
+                router,
+                ((i, cross_points[int(cross["pops"][i][pop_fields["homePoint"]])],
+                  cross_points[int(cross["pops"][i][pop_fields["workPoint"]])]) for i in indices),
+                route_options=route_options,
+                fallback_speed_mps=CROSS_FALLBACK_SPEED_MPS,
+                fallback_circuity=CROSS_FALLBACK_CIRCUITY,
+                progress=progress,
+            )
+            for i in indices:
+                route = routes[i]
+                cross["pops"][i][pop_fields["drivingSeconds"]] = route.seconds
+                cross["pops"][i][pop_fields["drivingDistance"]] = route.metres
+                _route_counter(counts, route)
+                counts["crossRoutes"] += 1
+                search_counts[route.source] += 1
+                search_counts["searches"] += 1
+            models[cache_key] = {"provider": cross_publication, "routes": len(indices)}
+            if selective_plan is not None:
+                completed_selective_partitions.add(partition)
+            progress(f"[road-routing] individual cross partition {partition_number}/{len(partition_items)} "
+                     f"{cache_key} ({len(indices)} cohorts)")
+            continue
         model = models.get(cache_key)
         if model is None:
             sample_count = min(max(1, cross_samples_per_tile_pair), len(indices))
@@ -1252,6 +1298,7 @@ def enrich_generated_road_driving(
         "graph": dict(router.report()) if route_backend is not None else graph_report,
         "drivingModel": driving_model,
         "policy": {
+            "crossPublication": cross_publication,
             "maxRoutedDirectMetres": max_routed_direct_metres,
             "maxSnapMetres": max_snap_metres,
             "maxDetourRatio": max_detour_ratio,
@@ -1265,8 +1312,8 @@ def enrich_generated_road_driving(
     }
     if selective_plan is not None:
         routing_report["selection"] = {
-            "mode": "invalidation",
-            "invalidationSha256": _sha256(Path(invalidation_path)),
+            "mode": "cross-only" if cross_only else "invalidation",
+            **({"invalidationSha256": _sha256(Path(invalidation_path))} if invalidation_path is not None else {}),
             "nativeCohortCount": sum(map(len, selective_plan["nativePopIds"].values())),
             "crossPartitionCount": len(selective_plan["crossPartitions"]),
         }
