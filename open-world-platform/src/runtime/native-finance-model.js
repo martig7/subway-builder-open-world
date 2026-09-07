@@ -222,11 +222,12 @@ function trainTypeTable(trainTypes) {
     ? trainTypes.map((type) => [type?.id ?? type?.trainType ?? type?.type, type])
     : Object.entries(trainTypes ?? {});
   return new Map(entries.filter(([id, type]) => id && type).map(([id, type]) => [String(id), {
-    train: finite(type.trainOperationalCostPerHour, NaN),
-    car: finite(type.carOperationalCostPerHour, NaN),
-    fallbackCars: finite(type.carsPerCarSet, NaN),
-    track: finite(type.trackMaintenanceCostPerMeter, NaN),
-    station: finite(type.stationMaintenanceCostPerYear, NaN),
+    train: finite((type.stats ?? type).trainOperationalCostPerHour, NaN),
+    car: finite((type.stats ?? type).carOperationalCostPerHour, NaN),
+    fallbackCars: finite((type.stats ?? type).carsPerCarSet, NaN),
+    track: finite((type.stats ?? type).trackMaintenanceCostPerMeter, NaN),
+    station: finite((type.stats ?? type).stationMaintenanceCostPerYear, NaN),
+    crossing: finite(type.gradeCrossingMaintenancePerDay, 0),
   }]));
 }
 
@@ -474,6 +475,15 @@ export function calculateGlobalExpenseProfile(
         financeOwned: financeOwnedTrackIds.has(String(track.id)),
       });
     }
+  }
+  for (const crossing of nativeState.gradeCrossings ?? []) {
+    const track = trackById.get(crossing.trackId);
+    if (track?.buildType !== 'constructed') continue;
+    const cost = liveTypes.get(String(track.trackType))?.crossing ?? 0;
+    if (cost > 0) infrastructureItems.push({ id: `crossing:${crossing.id}`,
+      category: 'gradeCrossingMaintenance', hourlyCost: cost / HOURS_PER_DAY,
+      trackIds: [track.id], financeOwned: financeOwnedTrackIds.has(String(track.id)),
+    });
   }
   return {
     routeHourly,

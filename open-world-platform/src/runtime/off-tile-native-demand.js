@@ -119,7 +119,7 @@ export function offTileNativeDemandContextKey({
   })));
 }
 
-function normalizeDemand(tileId, demand) {
+function normalizeDemand(tileId, demand, preserveDepartures = false) {
   const pointIndex = new Map();
   const points = [];
   for (const point of demand?.points ?? []) {
@@ -142,6 +142,11 @@ function normalizeDemand(tileId, demand) {
       continue;
     }
     const departures = deterministicNativeDepartureTimes(pop.id);
+    if (preserveDepartures) {
+      for (const key of ['homeDepartureTime', 'workDepartureTime']) {
+        if (Number.isFinite(pop[key])) departures[key] = pop[key];
+      }
+    }
     pops.push([
       String(pop.id), mass, homeIndex, workIndex, 0,
       Number(pop.drivingSeconds), Number(pop.drivingDistance),
@@ -247,6 +252,7 @@ export function evaluateOffTileNativeDemand({
   globalNativeState = null,
   financeOwnedRouteIds = [],
   existingProfile = null,
+  includeAssignments = false,
 }) {
   if (!tileId) throw new Error('Off-tile native demand requires a tile id');
   if (!Array.isArray(demand?.points) || !Array.isArray(demand?.pops)) {
@@ -263,14 +269,15 @@ export function evaluateOffTileNativeDemand({
     contextKey,
     demand: demandFingerprint(demand),
   })));
-  if (existingProfile?.source === 'off-tile-estimator'
+  if (!includeAssignments && existingProfile?.source === 'off-tile-estimator'
     && existingProfile?.evaluationKey === evaluationKey) {
     return { status: 'cached', profile: structuredClone(existingProfile) };
   }
 
-  const normalized = normalizeDemand(tileId, demand);
+  const normalized = normalizeDemand(tileId, demand, includeAssignments);
   const evaluateDirection = crossDemand => calculateCrossTileModeShares({
     worldId, routingCache,
+    includeJourneyDetails: includeAssignments,
     crossDemand,
     networkProfiles: { [tileId]: network },
     gatewayCatalog: {},
@@ -312,7 +319,64 @@ export function evaluateOffTileNativeDemand({
     routingStats: calculated.routingStats,
     accountingOwnership: createNativeTopologyFinancePolicy(),
   };
-  return { status: 'evaluated', profile };
+  return { status: 'evaluated', profile,
+    ...(includeAssignments ? { assignments: nativeDemandAssignments(demand, normalized.sourceById, calculated, returnCalculated) } : {}),
+  };
+}
+
+// Native demand cards and map highlights consume these fields directly. Keep
+// both directions, including walking/driving-only pops and access/transfer legs.
+function nativeDemandAssignments(demand, sources, outward, homeward) {
+  const points = new Map(demand.points.map(point => [String(point.id), point.location]));
+  return demand.pops.map(pop => {
+    const source = sources.get(String(pop.id)) ?? pop;
+    const commutes = {};
+    for (const [direction, result] of [['homeToWork', outward], ['workToHome', homeward]]) {
+      const home = direction === 'homeToWork';
+      const origin = points.get(String(home ? pop.residenceId : pop.jobId));
+      const destination = points.get(String(home ? pop.jobId : pop.residenceId));
+      const leg = result.journeyDetails?.[pop.id];
+      const choiceInputs = result.choiceInputs?.[pop.id];
+      const departure = source[home ? 'homeDepartureTime' : 'workDepartureTime'] ?? 0;
+      const segments = [];
+      for (const segment of leg?.segments ?? []) {
+        const previous = segments.at(-1);
+        if (previous && !segment.isWalking && !segment.isDriving && previous.routeId === segment.routeId
+          && previous.toStopId === segment.fromStopId) {
+          previous.toStopId = segment.toStopId;
+          previous.toStopCoords = segment.toStopCoords;
+          previous.arrivalTime = segment.arrivalTime;
+          previous.stationIds.push(segment.toStopId);
+        } else segments.push({ ...segment, stationIds: [segment.fromStopId, segment.toStopId] });
+      }
+      if (segments.length) {
+        const first = segments[0], last = segments.at(-1);
+        const access = leg.accessDriveSeconds || leg.accessWalkSeconds;
+        segments.unshift({ routeId: leg.accessDriveSeconds ? 'driving' : 'walking',
+          fromStopId: 'origin', toStopId: first.fromStopId,
+          fromStopCoords: origin, toStopCoords: first.fromStopCoords,
+          departureTime: departure, arrivalTime: departure + access,
+          isWalking: !leg.accessDriveSeconds, isDriving: Boolean(leg.accessDriveSeconds) });
+        segments.push({ routeId: 'walking', fromStopId: last.toStopId, toStopId: 'destination',
+          fromStopCoords: last.toStopCoords, toStopCoords: destination,
+          departureTime: last.arrivalTime, arrivalTime: last.arrivalTime + leg.egressWalkSeconds,
+          isWalking: true, isDriving: false });
+      }
+      commutes[direction] = {
+        modeChoice: result.popModeChoices[pop.id] ?? { walking: 0, driving: 0, transit: 0, unknown: pop.size },
+        walking: { time: choiceInputs?.walkingTime ?? 0, distance: choiceInputs?.walkingDistance ?? 0 },
+        transitTime: leg?.totalSeconds ?? null, transitCost: leg?.fare ?? null,
+        drivingTimeMultiplier: choiceInputs?.drivingTimeMultiplier ?? 1,
+        transitPaths: segments.length ? [{ segments, totalTime: leg.totalClockSeconds,
+          perceivedTime: leg.totalSeconds, fareCost: leg.fare,
+          transfers: Math.max(0, leg.stationRoutes.length - 1),
+          timeBreakdown: { inVehicle: leg.networkSeconds, walk: leg.accessWalkSeconds + leg.transferWalkSeconds + leg.egressWalkSeconds,
+            drive: leg.accessDriveSeconds, wait: leg.waitSeconds, departureShift: leg.departureShiftSeconds },
+        }] : [],
+      };
+    }
+    return { id: pop.id, homeDepartureTime: source.homeDepartureTime, workDepartureTime: source.workDepartureTime, commutes };
+  });
 }
 
 export function isCurrentOffTileNativeDemandProfile(profile) {

@@ -58,3 +58,22 @@ test('registers the render-distance slider as a map rendering toolbar panel', ()
   assert.equal(renderDistanceLabel(8), '7 × 7 plus five tiles on each side');
   assert.equal(renderDistanceLabel(9), '9 × 9 tiles');
 });
+
+test('map rendering exposes the cached simulation toggle and its calculation status', () => {
+  let requested;
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: value => [typeof value === 'function' ? value() : value, () => {}],
+    useEffect: effect => effect(),
+  };
+  const simulation = { snapshot: () => ({ enabled: true, status: 'calculating' }),
+    subscribe: () => () => {}, setEnabled: value => { requested = value; } };
+  const panel = RenderDistancePanel({ React, simulation,
+    controller: { getRenderDistance: () => 3, subscribeRenderDistance: () => () => {} } });
+  const nodes = function* (node) { if (!node || typeof node !== 'object') return; yield node; for (const child of node.children ?? []) yield* nodes(child); };
+  const toggle = [...nodes(panel)].find(node => node.props.role === 'switch');
+  assert.equal(toggle.props.checked, true);
+  toggle.props.onChange({ target: { checked: false } });
+  assert.equal(requested, false);
+  assert.match(JSON.stringify(panel), /Calculating journeys/);
+});

@@ -43,6 +43,7 @@ import {
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
+import { createCachedSimulation } from './cached-simulation.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
 
@@ -528,13 +529,23 @@ export function startOpenWorld({
     runtime.markDerivedNetworkDirty(reason);
     revenueAccrual.invalidate();
     session?.modeShareInvalidation.markDirty(reason);
+    cachedSimulation.invalidate();
   };
   const scheduleChanged = () => serviceChanged('schedule-change');
   const fareChanged = () => {
     if (!ready || !isCurrent() || !ownsCurrentCity()) return;
     revenueAccrual.invalidate();
     session?.modeShareInvalidation.markDirty('fare-change');
+    cachedSimulation.invalidate();
   };
+  const cachedSimulation = createCachedSimulation({
+    game, api, getState: () => game.callbacks.getState(),
+    workerSource: workerSources.nativeDemandEvaluator,
+    isReady: () => ready && isCurrent() && ownsCurrentCity(),
+    onHour: () => settleCrossTileCommutes('cached-simulation'),
+    onDay: day => session?.modeShareInvalidation.flushAtMidnight(day),
+  });
+  diagnostics.cachedSimulation = cachedSimulation.snapshot;
   function ensureSession() {
     if (session) return session;
     const routePaths = createOpenWorldRoutePaths({
@@ -601,6 +612,7 @@ export function startOpenWorld({
       renderDistanceToolbarRegistered = Boolean(registerRenderDistanceToolbar({
         api,
         controller: geographicContextController,
+        simulation: cachedSimulation,
         panelId: `${namespace}-render-distance`,
       }));
     }
@@ -973,6 +985,7 @@ export function startOpenWorld({
   }
 
   async function handleGameLoaded(saveName) {
+    await cachedSimulation.setEnabled(false);
     if (!ownsCurrentCity()) return;
     loadTrace('hook.game-loaded', {
       saveName,
@@ -1405,6 +1418,7 @@ export function startOpenWorld({
   registerModeShareInvalidationHooks(ownedHooks, { scheduleChanged, fareChanged });
   ownedHooks.onGameEnd(() => {
     if (!isCurrent()) return;
+    void cachedSimulation.setEnabled(false);
     const pending = navigation.pending();
     if (pending) {
       // Route navigation briefly presents as a native game end/init pair.
@@ -1446,6 +1460,7 @@ export function startOpenWorld({
   };
   console.info(`${logLabel} registered`, registration);
   const controller = Object.freeze({
+    cachedSimulation,
     platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
     definition,
     diagnostics,
@@ -1459,6 +1474,7 @@ export function startOpenWorld({
     dispose() {
       if (moduleDisposed) return;
       moduleDisposed = true;
+      void cachedSimulation.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {
         try { unsubscribe(); } catch {}
       }

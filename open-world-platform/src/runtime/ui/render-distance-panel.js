@@ -1,6 +1,6 @@
 import { RENDER_DISTANCE, normalizeRenderDistance } from './renderer-virtualization.js';
 
-export const RENDER_DISTANCE_CONTROL_VERSION = 'open-world-render-distance-v1';
+export const RENDER_DISTANCE_CONTROL_VERSION = 'open-world-render-distance-v2';
 
 const FOOTPRINT_LABELS = Object.freeze({
   1: 'Selected tile only',
@@ -18,9 +18,11 @@ export function renderDistanceLabel(value) {
   return FOOTPRINT_LABELS[normalizeRenderDistance(value)];
 }
 
-export function RenderDistancePanel({ React, controller }) {
+export function RenderDistancePanel({ React, controller, simulation }) {
   const h = React.createElement;
   const [distance, setDistance] = React.useState(controller.getRenderDistance());
+  const [simulationState, setSimulationState] = React.useState(() => simulation?.snapshot());
+  React.useEffect(() => simulation?.subscribe(setSimulationState), [simulation]);
   React.useEffect(
     () => controller.subscribeRenderDistance((value) => setDistance(value)),
     [controller],
@@ -49,12 +51,26 @@ export function RenderDistancePanel({ React, controller }) {
     ...Array.from({ length: RENDER_DISTANCE.max }, (_, index) => h('span', { key: index + 1 }, String(index + 1)))),
   h('div', { className: 'rounded-md border p-2 text-xs text-muted-foreground' }, renderDistanceLabel(distance)),
   h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
-    'Higher distances draw more neighboring tiles and may reduce map performance.'));
+    'Higher distances draw more neighboring tiles and may reduce map performance.'),
+  simulation && h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
+    h('label', { className: 'flex items-center gap-2 text-sm font-medium' },
+      h('input', { type: 'checkbox', role: 'switch', id: 'open-world-cached-simulation',
+        checked: simulationState?.enabled ?? false,
+        onChange: event => { void simulation.setEnabled(event.target.checked); },
+        'aria-label': 'Ultra-high-speed cached simulation' }),
+      'Ultra-high-speed mode'),
+    h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
+      'Uses calculated ridership and finances. Trains, signals, crowds, and passenger movements stop simulating. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster.'),
+    h('div', { className: 'text-xs', role: 'status', 'aria-live': 'polite' },
+      simulationState?.error ?? (simulationState?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'
+        : simulationState?.enabled ? `${simulationState.assignedPops.toLocaleString()} pop groups assigned · ${Math.round(simulationState.dailyRidership).toLocaleString()} estimated daily rides`
+          : 'Native simulation'))));
 }
 
 export function registerRenderDistanceToolbar({
   api,
   controller,
+  simulation,
   panelId = 'open-world-render-distance',
 } = {}) {
   if (typeof api?.ui?.addToolbarPanel !== 'function') return null;
@@ -64,10 +80,10 @@ export function registerRenderDistanceToolbar({
   const registration = api.ui.addToolbarPanel({
     id: panelId,
     icon: 'SlidersHorizontal',
-    tooltip: 'Map render distance',
+    tooltip: 'Map rendering',
     title: 'Map rendering',
     width: 340,
-    render: () => React.createElement(RenderDistancePanel, { React, controller }),
+    render: () => React.createElement(RenderDistancePanel, { React, controller, simulation }),
   });
   return { registration, panelId };
 }

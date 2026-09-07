@@ -584,7 +584,20 @@ function advanceRouteLabel(currentLabel, edge, rules) {
 
 function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, requestedDepartureSeconds, rules) {
   const edges = [];
-  for (let label = bestLabel; label?.incomingEdge; label = label.parent) edges.push(label.incomingEdge);
+  const nativeSegments = [];
+  for (let label = bestLabel; label?.incomingEdge; label = label.parent) {
+    const edge = label.incomingEdge;
+    edges.push(edge);
+    nativeSegments.push({
+      routeId: edge.type === 'ride' ? edge.route.id : 'walking',
+      fromStopId: label.parent.stationId, toStopId: label.stationId,
+      fromStopCoords: router.stationById.get(label.parent.stationId)?.coords,
+      toStopCoords: router.stationById.get(label.stationId)?.coords,
+      departureTime: label.actualTime - (edge.type === 'ride' ? edge.inVehicleSeconds : edge.seconds),
+      arrivalTime: label.actualTime, isWalking: edge.type === 'walk', isDriving: false,
+    });
+  }
+  nativeSegments.reverse();
   edges.reverse();
   const stationPath = [bestLabel.sourceStationId];
   let stationRoutes = [], from = bestLabel.sourceStationId;
@@ -640,6 +653,7 @@ function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, r
   Object.defineProperty(result, '_topology', {
     value: { sourceStationId: bestLabel.sourceStationId, destinationStationId: bestLabel.stationId, edges },
   });
+  Object.defineProperty(result, '_nativeSegments', { value: nativeSegments });
   return result;
 }
 
@@ -821,7 +835,9 @@ function cachedEndpointLeg(router, origin, destination, preferredTileId, request
 function routeLegAcrossNetworks(router, origin, destination, preferredTileId, { requireNetworkConnection = false, requestedDepartureSeconds = 0, driveAccessSpeedMps = 0 } = {}) {
   const leg = routeLeg(router, origin, destination, preferredTileId, requestedDepartureSeconds, null, driveAccessSpeedMps);
   if (leg.available && (!requireNetworkConnection || leg.usesNetworkConnection)) {
-    return { ...leg, attemptedNetworkTiles: router.tileIds };
+    const result = { ...leg, attemptedNetworkTiles: router.tileIds };
+    Object.defineProperty(result, '_nativeSegments', { value: leg._nativeSegments });
+    return result;
   }
   if (requireNetworkConnection && leg.available) {
     return { ...unavailableLeg('no-through-service'), attemptedNetworkTiles: router.tileIds };
@@ -1263,8 +1279,20 @@ function addPreparedModeChoice(result, prepared, fareQuote = prepared.fareQuote)
 export function calculateCrossTileModeShares(input) {
   const context = batchContext(input);
   const result = emptyModeShareResult();
+  if (input.includeJourneyDetails) { result.journeyDetails = {}; result.choiceInputs = {}; }
   for (const [popIndex, pop] of input.crossDemand.pops.entries()) {
-    addPreparedModeChoice(result, preparePopModeChoice({ ...context, pop, popIndex }));
+    const prepared = preparePopModeChoice({ ...context, pop, popIndex });
+    addPreparedModeChoice(result, prepared);
+    if (input.includeJourneyDetails) result.choiceInputs[prepared.popId] = {
+      walkingTime: prepared.rawInputs.walkTime, walkingDistance: prepared.rawInputs.walkTime * WALK_SPEED_MPS,
+      drivingTimeMultiplier: prepared.rawInputs.drivingTimeMultiplier,
+    };
+    const leg = prepared.transitPath.continuousLeg;
+    if (input.includeJourneyDetails && leg?.available) {
+      result.journeyDetails[prepared.popId] = {
+        ...leg, segments: leg._nativeSegments, fare: prepared.fareQuote?.total ?? prepared.rawInputs.transitCost,
+      };
+    }
   }
   return { ...result, routingStats: { ...context.routers.routingStats } };
 }

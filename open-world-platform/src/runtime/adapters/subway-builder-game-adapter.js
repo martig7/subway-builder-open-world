@@ -3257,6 +3257,12 @@ export class SubwayBuilderGameAdapter {
 
   async postBackgroundNativeFinance(posting) {
     await this.assertSupported();
+    return this.postBackgroundNativeFinanceNow(posting);
+  }
+
+  // The native generateSave action is synchronous. Its cached-mode wrapper
+  // must settle the current interval before the save snapshots the ledger.
+  postBackgroundNativeFinanceNow(posting) {
     const state = this.#state();
     const parentByRoute = new Map((state.routes ?? [])
       .filter((route) => route?.id != null)

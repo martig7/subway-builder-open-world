@@ -1,0 +1,200 @@
+{
+  "benchmark": {
+    "generation": 7,
+    "native": {
+      "from": 90560,
+      "to": 91688,
+      "wallMs": 6117.29999999702,
+      "simulatedSeconds": 1128,
+      "updates": 47,
+      "medianUpdateMs": 55.29999999701977,
+      "totalUpdateMs": 2924.9999999701977,
+      "pausedAfter": true
+    },
+    "cached": {
+      "from": 91688,
+      "to": 109928,
+      "wallMs": 6093.20000000298,
+      "simulatedSeconds": 18240,
+      "updates": 76,
+      "medianUpdateMs": 22.5,
+      "totalUpdateMs": 2683.2999999970198,
+      "pausedAfter": true
+    },
+    "ready": {
+      "version": "open-world-cached-simulation-v1",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 0,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2223,
+      "assignedPops": 28709,
+      "dailyRevenue": 260965875,
+      "dailyRidership": 285990
+    },
+    "verification": {
+      "frozen": true,
+      "popMovements": 0,
+      "saveSynchronous": true,
+      "topology": {
+        "stations": 316,
+        "routes": 53,
+        "tracks": 2294
+      },
+      "mode": {
+        "version": "open-world-cached-simulation-v1",
+        "enabled": true,
+        "status": "ready",
+        "error": null,
+        "calculations": 1,
+        "ticks": 76,
+        "suppressedCommutes": 0,
+        "suppressedPathSearches": 0,
+        "milliseconds": 2223,
+        "assignedPops": 28709,
+        "dailyRevenue": 260965875,
+        "dailyRidership": 285990
+      },
+      "errors": []
+    },
+    "throughputRatio": 16.23416965684614,
+    "medianUpdateRatio": 2.457777777645323
+  },
+  "benchmarkBuild": [
+    {
+      "Path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\japan\\mod\\dist\\index.js",
+      "TimestampUtc": "2026-09-07T19:51:32.4652181Z",
+      "Hash": "5B41B0553D84FB706AC32A18F2C7A65549514D9E58E5D2A0C85BD84069AB64EB",
+      "Marker": true
+    },
+    {
+      "Path": "C:\\Users\\darkd\\AppData\\Roaming\\metro-maker4\\mods\\japan-open-world\\index.js",
+      "TimestampUtc": "2026-09-07T19:51:32.4652181Z",
+      "Hash": "5B41B0553D84FB706AC32A18F2C7A65549514D9E58E5D2A0C85BD84069AB64EB",
+      "Marker": true
+    }
+  ],
+  "finalInstall": {
+    "Bundles": [
+      {
+        "Path": "C:\\Users\\darkd\\OneDrive\\Documents\\ChatGPT\\Subway Builder Open World\\prototype\\japan\\mod\\dist\\index.js",
+        "TimestampUtc": "2026-09-07T19:58:53.3775873Z",
+        "Hash": "437DF0D7245E063B7AD3992952A8A356093B4EF347B8DEDD992B8F64DEE64F59",
+        "Marker": true
+      },
+      {
+        "Path": "C:\\Users\\darkd\\AppData\\Roaming\\metro-maker4\\mods\\japan-open-world\\index.js",
+        "TimestampUtc": "2026-09-07T19:58:53.3775873Z",
+        "Hash": "437DF0D7245E063B7AD3992952A8A356093B4EF347B8DEDD992B8F64DEE64F59",
+        "Marker": true
+      }
+    ],
+    "HealthStatus": 200,
+    "HealthVersion": [
+      "native-pmtiles-directory-v4"
+    ],
+    "OriginalSaveHash": "846B18707C4AA3F82A3F5B060F8637CEF733B57DD12C187B41CDAB18FB5415DF"
+  },
+  "nativeResume": {
+    "smoke": {
+      "simulatedSeconds": 328,
+      "trainsMoved": true,
+      "paused": true,
+      "errors": [],
+      "autosave": {
+        "isSaving": false,
+        "lastSaveTime": 1788810860314,
+        "error": null,
+        "lastSkipReason": null,
+        "consecutiveSkips": 0
+      },
+      "topology": {
+        "stations": 316,
+        "routes": 53,
+        "tracks": 2294
+      },
+      "gradeCrossings": 1527
+    },
+    "mode": {
+      "version": "open-world-cached-simulation-v1",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 2,
+      "ticks": 76,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2208.8999999910593,
+      "assignedPops": 28709,
+      "dailyRevenue": 260965875,
+      "dailyRidership": 285990
+    },
+    "time": {
+      "paused": true,
+      "timeSpeed": "ultrafast",
+      "elapsedSeconds": 110256
+    },
+    "body": "9 min walk\n\nRiding\n\n25m\n\nWalking (x1.39)\n\n1h 9m\n\nWaiting (x1.37)\n\n15m\n\nLeaving later (x0.4)\n\n1m\n\nPerceived time\n\ni\n\n1h 50m\nHow commuters choose journeys\nDriving\n\nDriving time (home → work)\n\ni\n\n37m 52s\n\nDriving time (work → home)\n\ni\n\n1h 3m 6s\n\nTime to park\n\ni\n\n6m 0s\n\nPerceived time (home → work)\n\ni\n\n47m 28s\n\nPerceived time (work → home)\n\ni\n\n1h 23m 7s\n\nCongestion (home → work)\n\ni\n\n0%\n\nCongestion (work → home)\n\ni\n\n50%\n\nDriving distance\n\n30.05km\n\nDriving cost\n\n$19.53\n\nParking cost\n\n$5.00\nWalking\n\nWalking time\n\n6h 47m 4s\n\nWalking distance\n\n24.42km\nHome point\nWork point\n\nHome departure time\n\n04:39\n\nWork departure time\n\n16:26\nToolbox\nAnalysis\n\nDay 2\n\n06:37:36AM\n\n$75,748,306,461\n+$34.40M\n174\nToggle theme\nMap Layers\nTrack Visualization\nDefault Tracks\nTrack Speeds\nTrack Elevations\nTrack Types\nTrack TPH\nTrain Visualization\nTrains (Default Color)\nTrains (Route Color)\nRoute Visualization\nRoutes\nRoute Load Profile\nOther Layers\nTrack Base\nTrack Arrows\nSignals\nStation Dots\nStation Labels\nPop Movements\nStation Platforms\nBuilding Foundation Depth\nOcean Floor Depth\nRoads\nRoad Labels\nBridges\nNeighborhood Labels\nCommercial & College Areas\nAnnotations\nGrade Crossings\nTravel Demand\nAll Modes\n\nDriving\n\nWalking\n\nTransit\n\n3D\nMap rendering\nRender distance\n2\n1\n2\n3\n4\n5\n6\n7\n8\n9\nSelected tile plus directly bordering tiles\n\nHigher distances draw more neighboring tiles and may reduce map performance.\n\nUltra-high-speed mode\n\nUses calculated ridership and finances. Trains, signals, crowds, and passenger movements stop simulating. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster.\n\n28,709 pop groups assigned · 285,990 estimated daily rides"
+  },
+  "finalReload": {
+    "generation": 2,
+    "name": "open-world-runtime",
+    "mode": {
+      "version": "open-world-cached-simulation-v1",
+      "enabled": true,
+      "status": "ready",
+      "error": null,
+      "calculations": 1,
+      "ticks": 0,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2320.7000000029802,
+      "assignedPops": 28709,
+      "dailyRevenue": 261725075,
+      "dailyRidership": 286822
+    },
+    "time": {
+      "paused": true,
+      "timeSpeed": "ultrafast",
+      "elapsedSeconds": 110256
+    },
+    "autosave": {
+      "isSaving": false,
+      "lastSaveTime": 1788811232668,
+      "error": null,
+      "lastSkipReason": null,
+      "consecutiveSkips": 0
+    },
+    "saveSynchronous": true,
+    "finalMode": {
+      "version": "open-world-cached-simulation-v1",
+      "enabled": false,
+      "status": "off",
+      "error": null,
+      "calculations": 1,
+      "ticks": 0,
+      "suppressedCommutes": 0,
+      "suppressedPathSearches": 0,
+      "milliseconds": 2320.7000000029802,
+      "assignedPops": 0,
+      "dailyRevenue": 0,
+      "dailyRidership": 0
+    },
+    "finalTime": {
+      "paused": true,
+      "timeSpeed": "ultrafast",
+      "elapsedSeconds": 110256
+    }
+  },
+  "platformTests": 599,
+  "consumerTests": 4,
+  "notes": [
+    "Benchmark includes the intentional 10x clock multiplier at Ultra speed.",
+    "Timed run preceded final grade-crossing maintenance coverage; final installation and native save generation were reverified.",
+    "User interacted with pause and play during the broader session. Timed intervals and frozen-state comparisons are recorded separately.",
+    "Final live game clock and topology were preserved; the cached-mode toggle is off, matching the user state before installation."
+  ]
+}
