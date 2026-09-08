@@ -1,6 +1,12 @@
 import { RENDER_DISTANCE } from './renderer-virtualization.js';
 
-export const RENDER_DISTANCE_CONTROL_VERSION = 'open-world-render-distance-km-v3';
+export const RENDER_DISTANCE_CONTROL_VERSION = 'open-world-render-distance-km-v4';
+
+// Native option popups otherwise retain a light background in the dark theme.
+const SHAPE_SELECT_STYLE = Object.freeze({
+  color: 'hsl(var(--foreground))',
+  backgroundColor: 'hsl(var(--background))',
+});
 
 export function renderDistanceLabel(value) {
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
@@ -41,8 +47,10 @@ export function RenderDistancePanel({ React, controller, simulation }) {
     h('span', null, renderDistanceLabel(limits.min)), h('span', null, renderDistanceLabel(limits.max))),
   h('label', { className: 'flex items-center justify-between text-sm' }, 'Shape',
     h('select', { value: shape, 'aria-label': 'Render distance shape',
+      className: 'rounded-md border px-2 py-1', style: SHAPE_SELECT_STYLE,
       onChange: event => { controller.setRenderShape(event.target.value); setSettings({ distance: controller.getRenderDistance(), shape: event.target.value }); } },
-      h('option', { value: 'circle' }, 'Circle'), h('option', { value: 'square' }, 'Square'))),
+      h('option', { value: 'circle', style: SHAPE_SELECT_STYLE }, 'Circle'),
+      h('option', { value: 'square', style: SHAPE_SELECT_STYLE }, 'Square'))),
   h('div', { className: 'rounded-md border p-2 text-xs text-muted-foreground' },
     shape === 'circle' ? 'Radius from the selected tile center.' : 'Half the side length, centered on the selected tile.'),
   h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
