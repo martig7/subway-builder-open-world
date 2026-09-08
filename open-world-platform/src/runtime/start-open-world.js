@@ -2,6 +2,7 @@ import { LOAD_DIAGNOSTICS_VERSION, WorldTileRuntime } from './world-tile-runtime
 import {
   readLiveSubwayBuilderCityCode,
   SUBWAY_BUILDER_CITY_AUTHORITY_VERSION,
+  NATIVE_TILE_SNAPSHOT_COPY_VERSION,
   SubwayBuilderGameAdapter,
 } from './adapters/subway-builder-game-adapter.js';
 import { ModStorageWorldStateAdapter } from './adapters/mod-storage-world-state-adapter.js';
@@ -350,6 +351,7 @@ export function startOpenWorld({
     latestAutosave: null,
     authoritativeLoads: [],
     identityBindingVersion: WORLD_IDENTITY_BINDING_VERSION,
+    snapshotCopyVersion: NATIVE_TILE_SNAPSHOT_COPY_VERSION,
     latestAuthoritativeLoad: null,
     latest: null,
   };

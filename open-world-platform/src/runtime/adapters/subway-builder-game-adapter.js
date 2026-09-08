@@ -132,6 +132,7 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
 ]);
 
 export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v6';
+export const NATIVE_TILE_SNAPSHOT_COPY_VERSION = 'native-tile-snapshot-copy-v1';
 
 /**
  * Read the current city from the live Zustand snapshot.
@@ -158,9 +159,9 @@ export function readLiveSubwayBuilderCityCode({
   }
 }
 
-function normalizeNativeRouteFinancialsEnvelope(value, financialHistory = null) {
+function normalizeNativeRouteFinancialsEnvelope(value, financialHistory = null, { copy = true } = {}) {
   const source = value && typeof value === 'object' && !Array.isArray(value)
-    ? structuredClone(value)
+    ? (copy ? structuredClone(value) : value)
     : {};
   const isRouteMap = (candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate);
   const legacyByRoute = Object.fromEntries(Object.entries(source)
@@ -177,24 +178,43 @@ function normalizeNativeRouteFinancialsEnvelope(value, financialHistory = null) 
   };
 }
 
-function preserveNativeFinancialStateInSnapshot(snapshot, preferredState, fallbackState = preferredState) {
-  const result = structuredClone(snapshot);
-  result.data = { ...(result.data ?? {}) };
-  for (const key of NATIVE_FINANCIAL_STATE_KEYS) {
-    const value = preferredState?.[key] !== undefined
-      ? preferredState[key]
-      : fallbackState?.[key];
-    if (value === undefined) delete result.data[key];
-    else result.data[key] = structuredClone(value);
+/** Assemble overrides first; clone the final native payload once. No draft
+ * escapes this synchronous function or shares mutable data with the loader. */
+export function prepareNativeTileRestoreSnapshot(snapshot, {
+  cityCode, cityUid = cityCode,
+  preserveNativeFinance = false,
+  authoritativeFinanceState = null,
+  fallbackState = authoritativeFinanceState,
+  preserveCompletedCommutes = false,
+} = {}) {
+  const draft = { ...snapshot, data: { ...(snapshot.data ?? {}) } };
+  if (snapshot.metadata && typeof snapshot.metadata === 'object') draft.metadata = { ...snapshot.metadata };
+  if (preserveNativeFinance) {
+    for (const key of NATIVE_FINANCIAL_STATE_KEYS) {
+      const value = authoritativeFinanceState?.[key] !== undefined
+        ? authoritativeFinanceState[key] : fallbackState?.[key];
+      if (value === undefined) delete draft.data[key];
+      else draft.data[key] = value;
+    }
+    if (draft.metadata && typeof draft.metadata === 'object') draft.metadata.money = draft.data.money;
   }
-  if (result.data.routeFinancials !== undefined) {
+  if (preserveCompletedCommutes) {
+    draft.data.completedCommutes = compactNativeSnapshot({ data: authoritativeFinanceState }).data.completedCommutes ?? [];
+  }
+  if (cityCode) {
+    const uid = cityUid || cityCode;
+    draft.cityCode = cityCode;
+    draft.cityUid = uid;
+    for (const target of [draft.data, draft.metadata]) {
+      if (target && Object.hasOwn(target, 'cityCode')) target.cityCode = cityCode;
+      if (target && Object.hasOwn(target, 'cityUid')) target.cityUid = uid;
+    }
+  }
+  const result = structuredClone(draft);
+  if (preserveNativeFinance && result.data.routeFinancials !== undefined) {
     result.data.routeFinancials = normalizeNativeRouteFinancialsEnvelope(
-      result.data.routeFinancials,
-      result.data.financialHistory,
+      result.data.routeFinancials, result.data.financialHistory, { copy: false },
     );
-  }
-  if (result.metadata && typeof result.metadata === 'object') {
-    result.metadata = { ...result.metadata, money: result.data.money };
   }
   return result;
 }
@@ -3053,7 +3073,7 @@ export class SubwayBuilderGameAdapter {
     data.elapsedSeconds = state.timeConfig?.elapsedSeconds ?? data.elapsedSeconds ?? 0;
 
     const timestamp = Date.now();
-    return bindSnapshotToCity(structuredClone(stampOpenWorldRuntimeSnapshot(compactNativeSnapshot({
+    return prepareNativeTileRestoreSnapshot(stampOpenWorldRuntimeSnapshot(compactNativeSnapshot({
       ...template,
       id: globalThis.crypto?.randomUUID?.() ?? `${state.cityCode ?? 'tile'}-${timestamp}`,
       timestamp,
@@ -3068,7 +3088,7 @@ export class SubwayBuilderGameAdapter {
       },
       viewport: state.mapViewport ?? template.viewport,
       data,
-    }))), this.loadedCityCode, state.cityCode === this.loadedCityCode ? state.cityUid : this.loadedCityCode);
+    })), { cityCode: this.loadedCityCode, cityUid: state.cityCode === this.loadedCityCode ? state.cityUid : this.loadedCityCode });
   }
 
   /** Read live network slices without entering the native generateSave path. */
@@ -3540,18 +3560,11 @@ export class SubwayBuilderGameAdapter {
     const authoritativeFinanceState = authoritativeFinanceSnapshot?.data
       ?? authoritativeFinanceSnapshot
       ?? stateBefore;
-    const destinationSnapshot = bindSnapshotToCity(
-      preserveNativeFinance
-        ? preserveNativeFinancialStateInSnapshot(snapshot, authoritativeFinanceState, stateBefore)
-        : snapshot,
-      expectedCity,
-      expectedCityUid,
-    );
-    if (authoritativeFinanceSnapshot) {
-      destinationSnapshot.data.completedCommutes = structuredClone(
-        compactNativeSnapshot({ data: authoritativeFinanceState }).data.completedCommutes ?? [],
-      );
-    }
+    const destinationSnapshot = prepareNativeTileRestoreSnapshot(snapshot, {
+      cityCode: expectedCity, cityUid: expectedCityUid,
+      preserveNativeFinance, authoritativeFinanceState, fallbackState: stateBefore,
+      preserveCompletedCommutes: Boolean(authoritativeFinanceSnapshot),
+    });
     const {
       nativeSnapshot,
       deferredRouteDefinitions,
