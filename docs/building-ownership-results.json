@@ -1,0 +1,111 @@
+{
+  "version": "ownership-building-filter-v1",
+  "measuredAt": "2026-09-08",
+  "runner": "richmpc",
+  "consumer": "local.japan-open-world",
+  "consumerDirectory": "prototype/japan/mod",
+  "bundleSha256": "638386c3532f48cdf807b0833316e964d4f1350891ded98f2e246306e79172ec",
+  "basemapRevision": "japan-owned-buildings-v1",
+  "packages": [
+    {
+      "version": "ownership-building-filter-v1",
+      "tileId": "JP_TOKYO_MAINLAND",
+      "boundarySha256": "3d1ecc401413d71c0f8cc94531378a9da382dd15aec368093a49901121aac503",
+      "sourceIndexSha256": "765d18c8af0f76965e5284cbe17dd5bdf7058a06dabb2a005331f7b441d2439e",
+      "inputBuildings": 3448574,
+      "retainedBuildings": 1263776,
+      "inputDecodedBytes": 487978628,
+      "outputDecodedBytes": 179601564,
+      "indexSha256": "a141bbdc000f31d4b53fb6e2a170ef4c8fdb9a0c43cc4837029e4eb5667b7399",
+      "indexBytes": 59839694,
+      "seconds": 177.26499999995576,
+      "map": {
+        "tiles": 161465,
+        "inputFeatures": 10514599,
+        "removedFeatures": 6628415,
+        "retainedFeatures": 3886184,
+        "sourceSha256": "5afee0acebb3693c92fc9b13bf6d51847301f4543f9a4259a976b74a7c59558d",
+        "sha256": "4d314415a05d598b5b71cfb6ec49a5486d5433b30392d28c028f085acbc538d8",
+        "sourceBytes": 198310141,
+        "bytes": 115471803,
+        "nonBuildingDigest": "f44511ad38f0aea14e69b98c69ed8f644d11dc1cb9125616a3f020c2891a2ab6"
+      },
+      "ownershipGeometrySha256": "97897c846da7a301c16169c6cd1b8b5542f6962f3e539ef1afa14740f5e17eb8"
+    },
+    {
+      "version": "ownership-building-filter-v1",
+      "tileId": "JP_KANAGAWA_MAINLAND",
+      "boundarySha256": "3d1ecc401413d71c0f8cc94531378a9da382dd15aec368093a49901121aac503",
+      "sourceIndexSha256": "55d78ad592cb0ef24e4daf32e90a430162c0d2f6261d97530ac4c28ac4f274f9",
+      "inputBuildings": 2594570,
+      "retainedBuildings": 1419050,
+      "inputDecodedBytes": 367008180,
+      "outputDecodedBytes": 200022752,
+      "indexSha256": "7a757aeac7bc05cc2370e745879aac495e5ee809b1405fac64921a0ca80cda42",
+      "indexBytes": 65798572,
+      "seconds": 162.56300000002375,
+      "map": {
+        "tiles": 160699,
+        "inputFeatures": 7916783,
+        "removedFeatures": 3657870,
+        "retainedFeatures": 4258913,
+        "sourceSha256": "fc4cd6d374f29fcbb1572121bd6894de30f96de319d9be460b59829669162510",
+        "sha256": "3ad57db4af3f7e1866dcc74f875cf9935545df1233c055cf4edf56c7b33b00af",
+        "sourceBytes": 158106339,
+        "bytes": 112520485,
+        "nonBuildingDigest": "435a1c2d89844076552f47ccd086f9a829df45f4237654d028e751ab667eda21"
+      },
+      "ownershipGeometrySha256": "bafe0ba221b1d3ebc759451f976876e2c1ef6f465439dcd8b1db060ad1a37721"
+    }
+  ],
+  "live": {
+    "restored": true,
+    "invariantsUnchanged": [
+      "session",
+      "money",
+      "elapsed",
+      "paused",
+      "stations",
+      "routes",
+      "tracks",
+      "trains",
+      "stationIds",
+      "routeIds",
+      "trackIds",
+      "trainIds"
+    ],
+    "rendererReloaded": false,
+    "steps": [
+      {
+        "city": "JP_TOKYO_MAINLAND",
+        "nativeBuildings": 1263776,
+        "rendered": {
+          "loaded": true,
+          "features": 18920
+        },
+        "switchMilliseconds": 24989,
+        "heap": {
+          "usedSize": 1296327564,
+          "totalSize": 1512345600,
+          "embedderHeapUsedSize": 9704656,
+          "backingStorageSize": 478911599
+        }
+      },
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "nativeBuildings": 1419050,
+        "rendered": {
+          "loaded": true,
+          "features": 26970
+        },
+        "switchMilliseconds": 24714,
+        "heap": {
+          "usedSize": 1325069804,
+          "totalSize": 1582362624,
+          "embedderHeapUsedSize": 7054632,
+          "backingStorageSize": 541426239
+        }
+      }
+    ]
+  }
+}

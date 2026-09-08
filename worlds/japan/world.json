@@ -25,7 +25,7 @@
     "worldVegetation": "modis-igbp-2023-v1",
     "worldVegetationDetail": "world",
     "worldContextTileId": "JP_TOKYO_MAINLAND",
-    "basemapRevision": "japan-source-romaji-v2",
+    "basemapRevision": "japan-owned-buildings-v1",
     "labelPolicy": "japan-source-romaji-v2"
   },
   "demand": {
@@ -41,7 +41,7 @@
     "tileServerProvider": "shared-native-v4",
     "tileBaseGlobal": "JAPAN_OPEN_WORLD_TILE_BASE",
     "diagnosticNamespace": "japan",
-    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-source-romaji-v2",
+    "healthTile": "JP_TOKYO_MAINLAND/8/227/100.mvt?v=japan-owned-buildings-v1",
     "requiredHostCapabilities": ["native-save-authority-v1", "native-ledger-authority-v1"]
   },
   "release": {

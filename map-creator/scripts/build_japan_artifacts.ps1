@@ -64,6 +64,26 @@ $labelArgs = @(
 foreach ($tileId in $Tile) { $labelArgs += @('--tile', $tileId) }
 python @labelArgs
 if ($LASTEXITCODE -ne 0) { throw 'Japan label publication failed.' }
+if (-not $SkipMaps) {
+    # Filter both collision and rendered building data before demand placement.
+    # Keep full route/label/water layers, and retain the original map packages.
+    $buildingRun = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $buildingCatalog = Get-Content -Raw -LiteralPath $catalogPath | ConvertFrom-Json
+    $buildingTiles = if ($Tile) { $Tile } else { @($buildingCatalog.tiles.id) }
+    foreach ($tileId in $buildingTiles) {
+        $package = Join-Path $generatedRoot "maps/tiles/$tileId"
+        $buildingTile = @($buildingCatalog.tiles | Where-Object id -EQ $tileId)
+        if ($buildingTile.Count -ne 1) { throw "Unknown building package $tileId" }
+        $boundaryTileId = "JP_PREF_$($buildingTile[0].prefCode)"
+        python -m open_world_map_creator.maps.building_boundary `
+            --boundary (Join-Path $dataRoot 'sources/japan/geography/prefectures-full.geojson') `
+            --tile $tileId --boundary-tile $boundaryTileId --index (Join-Path $package 'buildings_index.bin.gz') `
+            --pmtiles (Join-Path $package 'tiles.pmtiles') `
+            --output (Join-Path $generatedRoot "maps/ownership-filtered/$buildingRun/$tileId") `
+            --publish-to $package --backup-root (Join-Path $dataRoot "backups/building-ownership/$buildingRun")
+        if ($LASTEXITCODE -ne 0) { throw "Building ownership filtering failed for $tileId" }
+    }
+}
 if (-not $SkipDemand) {
     python -m open_world_map_creator.demand.package_japan `
         --output-root (Join-Path $generatedRoot 'demand') `
