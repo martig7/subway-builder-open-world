@@ -9,6 +9,7 @@ import { readWorldContextTheme, syncWorldContextTheme } from './world-context-th
 import { syncNativeParkLanduse, releaseNativeParkLanduse } from './native-park-landuse.js';
 import { ensureWorldVegetation, releaseWorldVegetation, WORLD_VEGETATION_LAYER } from './world-vegetation.js';
 import { LandSelection } from './land-selection.js';
+import { attachGlyphWarmup } from './glyph-warmup.js';
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const BOUNDARY_SOURCE_ID = 'open-world-tile-boundaries-source';
 const TILE_SELECTION_LAYER_ID = 'open-world-tile-selection';
@@ -2929,7 +2930,11 @@ export class GeographicContextOverlayController {
     this.spatialSourceVisibility = null;
     this.stationMarkerVisibility?.reset?.();
     this.stationMarkerVisibility = null;
+    this.glyphWarmup?.dispose();
     this.map = map;
+    this.glyphWarmup = attachGlyphWarmup(map, {
+      text: (this.tileCatalog?.tiles ?? []).map(tile => tile.name ?? '').join('').slice(0, 512),
+    });
     this.contextRefreshPending = true;
     this.runtimeActiveTileId = this.readRuntimeActiveTileId();
     this.rendererVirtualization = this.createRendererVirtualization();
@@ -3057,6 +3062,8 @@ export class GeographicContextOverlayController {
     cancelStyleDataRefresh(this);
     const attachedMap = this.map;
     if (!attachedMap) return;
+    this.glyphWarmup?.dispose();
+    this.glyphWarmup = null;
     this.landSelection?.dispose();
     this.landSelection = null;
     try { attachedMap.off('style.load', this.handleStyle); } catch {}
