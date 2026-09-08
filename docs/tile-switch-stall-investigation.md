@@ -91,3 +91,58 @@ restoration and commute refresh still make complete tile switches take roughly
 28–32 seconds; no substantial end-to-end speedup is claimed.
 Raw CPU profiles, exception capture, benchmark output and baseline camera are in the
 Git-ignored `.analysis/tile-stall-*` artifacts.
+
+## Retired rendering resources: live check, 2026-09-08
+
+Consumer: `prototype/japan/mod`, manifest `local.japan-open-world`; live bundle
+marker `compact-native-load-diagnostics-v1`. This check changes no runtime code.
+
+The first Tokyo-to-Kanagawa attempt crashed before transition completion and
+before the requested post-switch collection. Chromium recorded another
+`V8 javascript OOM (CALL_AND_RETRY_LAST)` at 14:13:58. Starting CDP heap used was
+1,539 MB. The native reload guard recovered Kanagawa with all 316 stations and
+53 routes. No heap snapshot was taken.
+
+From the fresh renderer, forced collection reduced initial heap used from 623 MB
+to 582 MB. Weak references were then attached to selected old resources; the
+probe kept only weak references and scalar metadata. Kanagawa-to-Tokyo completed
+in 27,374 ms. Eight seconds later, followed by explicit CDP collection, the
+following old resources remained:
+
+| Resource tracked before switch | Observation after collection |
+| --- | --- |
+| Native road GeoJSON, features, road RBush and root | All four remained; none was the current store object |
+| Native runway GeoJSON and features | Both remained; neither was current |
+| Old MapLibre map and style | Both remained; map marked removed |
+| Old Deck instance | Remained; layer/event managers and animation loop disposed |
+| Source caches | 12 of 15 remained; their active tile maps were empty |
+| Active tile objects | 107 of 107 remained; this does not mean their payloads remained |
+| Sampled MapLibre geometry buckets | 0 of 17 remained |
+| Old road layers | 18 of 18 remained, marked finalized and awaiting collection |
+| Road attribute ArrayBuffers | 40 remained, 19.33 MB total; two buffers totaling 1.95 MB were also used by current layers |
+| Road GPU buffer wrappers | 18 remained, but all were marked destroyed; former allocation was 19.33 MB |
+| Old minor-road tile source | Worker terminated, cache empty, notify callback cleared |
+
+The tracked retired-only CPU backing buffers account for **17.38 MB**. Their
+typed-array views are the same backing allocations and must not be added again.
+This excludes object-heavy road geometry and the spatial index: their retained
+sizes were not measured. Former GPU buffer sizes are not live GPU usage.
+
+Repeated collections over several minutes, clearing console history, and a
+camera update did not release these objects. Heap used stayed around 1,253–1,256
+MB after collection. The difference from the initial Kanagawa heap cannot be
+called the leak size: Tokyo has different live city data, and loading also
+changes native and mod state.
+
+This establishes retention of retired CPU resources, not its owning root or
+unbounded growth. Bounded inspection of accessible mod globals and React fibers
+did not find the owning reference. Closure inspection was stopped because it
+required too much debugger work. The evidence does not justify indiscriminately
+clearing native state or assigning the retention to a particular mod wrapper.
+The next repair needs to locate the retaining owner and release its old-city
+references; forced GC alone cannot collect reachable objects.
+
+Tokyo, original camera, paused state, 316 stations and 53 routes were restored.
+Temporary browser probes were removed. Diagnostic helpers and raw results remain
+under the Git-ignored `.analysis/render-retention-*` prefix. No production fix,
+new build, or performance speedup is claimed by this inspection.
