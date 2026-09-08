@@ -31,6 +31,7 @@ import {
 } from './ui/city-scoped-map-controllers.js';
 import {
   WorldIdentityResolver,
+  WORLD_IDENTITY_BINDING_VERSION,
   worldIdentityLoadOptions,
 } from './world-identity.js';
 import { createNativeSaveLifecycle } from './autosave-hook-guard.js';
@@ -348,6 +349,7 @@ export function startOpenWorld({
     autosaves: [],
     latestAutosave: null,
     authoritativeLoads: [],
+    identityBindingVersion: WORLD_IDENTITY_BINDING_VERSION,
     latestAuthoritativeLoad: null,
     latest: null,
   };

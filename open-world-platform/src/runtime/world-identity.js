@@ -1,5 +1,6 @@
 const ALIAS_PREFIX = 'identity:session:';
 const CANONICAL_WORLD_KEY = 'identity:canonical-world';
+export const WORLD_IDENTITY_BINDING_VERSION = 'direct-native-save-binding-v1';
 
 function createIsolatedWorldId(prefix) {
   const suffix = globalThis.crypto?.randomUUID?.()
@@ -187,7 +188,10 @@ export class WorldIdentityResolver {
     if (typeof nativeSessionId !== 'string' || !nativeSessionId
       || typeof worldId !== 'string' || !worldId) return false;
     const key = `${ALIAS_PREFIX}${nativeSessionId}`;
-    const existing = !force && this.canonicalAliases.has(nativeSessionId)
+    // Explicit navigation already authorizes replacement. Reading a newly
+    // generated session first misses IDB and decodes the entire legacy store.
+    // Write directly, then retain the existing read-back verification below.
+    const existing = force ? null : this.canonicalAliases.has(nativeSessionId)
       ? this.canonicalAliases.get(nativeSessionId)
       : await this.storage?.get?.(key, null);
     if (existing === worldId) {
