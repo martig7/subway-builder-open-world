@@ -3,7 +3,7 @@ const ORIGINAL = '__openWorldNativeReloadRecoveryOriginal__';
 const VERSION = '__openWorldNativeReloadRecoveryVersion__';
 const SAVED_FILE = '__openWorldSavedReloadFile__';
 const SAVE_TIMELINE = '__openWorldSavedReloadTimeline__';
-export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v3';
+export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v4';
 const inGame = location => location?.pathname === '/game' || location?.hash?.replace(/^#/, '').split('?')[0] === '/game';
 const pendingSave = result => result?.save ?? result?.data ?? null;
 const sameSave = (save, file) => {
@@ -78,7 +78,11 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
     // loads an older one from the same native session. Only new saves from this
     // load's timeline can replace the selected file or our owned checkpoint.
     const ownedFile = globalObject[SAVED_FILE];
-    const fallback = ownedFile?.gameSessionId === session && ownedFile?.cityCode === city ? ownedFile : loadedSave;
+    const fallbackCandidate = ownedFile?.gameSessionId === session && ownedFile?.cityCode === city ? ownedFile : loadedSave;
+    // Tile navigation sets currentSaveInfo to an in-memory UUID. Only a real
+    // native file can be decoded by loadAndSetPendingSave as a fallback.
+    const fallback = /\.(metro|json)$/i.test(fallbackCandidate?.path ?? fallbackCandidate?.id ?? '')
+      ? fallbackCandidate : null;
     const file=(result?.saves??[]).filter(f=>f.gameSessionId===session && f.cityCode===city
       && f.timestamp >= globalObject[SAVE_TIMELINE].since && typeof (f.path??f.id)==='string')
       .sort((a,b)=>b.timestamp-a.timestamp)[0] ?? fallback;

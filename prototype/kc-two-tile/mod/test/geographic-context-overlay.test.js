@@ -1,6 +1,7 @@
 import { renderDistanceMetadata } from '../../../../open-world-platform/src/runtime/render-distance.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { LandSelection } from '../../../../open-world-platform/src/runtime/ui/land-selection.js';
 import { renderedWaterColor } from '../../../../open-world-platform/src/runtime/ui/world-context-theme.js';
 
 import {
@@ -710,13 +711,29 @@ test('tile switch never resubmits finalized layers from the previous map to a sh
   next.dispose();
 });
 
+test('tile switch releases the selection helper owned by the previous map', () => {
+  const oldMap = fixtureMap(), nextMap = fixtureMap();
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog });
+  controller.attachMap(oldMap);
+  const selection = controller.landSelection = new LandSelection(oldMap);
+  oldMap.style = undefined;
+  oldMap.getSource = () => { throw new Error('retired style'); };
+  controller.attachMap(nextMap);
+  assert.equal(selection.disposed, true);
+  assert.notEqual(controller.landSelection, selection);
+  assert.ok(!controller.landSelection || controller.landSelection.map === nextMap);
+  controller.dispose();
+});
+
 test('upgrades legacy cleanup when a shared Deck retains the destroyed map owner', () => {
   const oldMap = fixtureMap();
   let unsubscribed = 0;
   const old = registerGeographicContextOverlay({ tileCatalog: catalog,
     runtime: { subscribe: () => () => { unsubscribed++; } } });
   old.attachMap(oldMap);
-  old.cleanupVersion = 'retired-renderer-handoff-v3';
+  old.cleanupVersion = 'retired-renderer-handoff-v4';
+  const selection = old.landSelection = new LandSelection(oldMap);
+  selection.dispose = () => { throw new Error('legacy cleanup queries retired style'); };
   oldMap.style = undefined;
   oldMap.getLayer = function (id) { return this.style.getLayer(id); };
   const legacyDetach = old.detachMap = function () { this.map.getLayer('open-world-vegetation'); };
@@ -726,6 +743,7 @@ test('upgrades legacy cleanup when a shared Deck retains the destroyed map owner
   assert.doesNotThrow(() => next.attachMap(nextMap));
   assert.notEqual(old.detachMap, legacyDetach);
   assert.equal(old.map, null);
+  assert.equal(selection.disposed, true);
   assert.equal(unsubscribed, 1);
   assert.ok(nextMap.getLayer('open-world-land'));
   next.dispose();

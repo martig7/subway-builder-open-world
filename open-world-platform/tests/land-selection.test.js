@@ -27,7 +27,7 @@ test('mask is bounded, dormant between changes and during movement, refreshed fo
   let moving = false, queries = 0, plays = 0, pauses = 0;
   const map = { getZoom: () => 7, isMoving: () => moving, getCanvas: () => ({ width: 4000, height: 2000 }),
     getBounds: () => ({ getWest: () => 0, getEast: () => 10, getNorth: () => 10, getSouth: () => 0 }),
-    querySourceFeatures() { queries++; return []; }, getLayer: id => layers.get(id), getSource: id => sources.get(id),
+    querySourceFeatures() { queries++; return []; }, getLayer: id => layers.get(id), getSource: id => id === 'open-world-world-context-source' ? {} : sources.get(id),
     addSource(id) { sources.set(id, { setCoordinates() {}, play() { plays++; }, pause() { pauses++; } }); },
     addLayer(layer) { layers.set(layer.id, layer); }, removeLayer: id => layers.delete(id), removeSource: id => sources.delete(id),
     setLayoutProperty(id, name, value) { layers.get(id)[name] = value; },
@@ -49,4 +49,17 @@ test('mask is bounded, dormant between changes and during movement, refreshed fo
   mask.dispose();
   assert.equal(sources.size, 0); assert.equal(layers.size, 0); assert.equal(listeners.size, 0);
   assert.ok(canvases.every(item => item.width === 1 && item.height === 1));
+});
+
+test('retired maps and late callbacks never query a removed style', () => {
+  const listeners = new Map();
+  const fail = () => { throw new TypeError("Cannot read properties of undefined (reading 'querySourceFeatures')"); };
+  const map = { style: undefined, getZoom: () => 7, getLayer: fail, getSource: fail, querySourceFeatures: fail,
+    getCanvas: fail, getBounds: fail, on: (name, fn) => listeners.set(name, fn), off: name => listeners.delete(name) };
+  const mask = new LandSelection(map, canvas), settle = mask.settle, hide = mask.hide;
+  assert.doesNotThrow(() => mask.update({ active: square(0,0,10) }));
+  assert.doesNotThrow(() => hide());
+  assert.doesNotThrow(() => mask.dispose());
+  assert.doesNotThrow(() => settle());
+  assert.equal(listeners.size, 0);
 });

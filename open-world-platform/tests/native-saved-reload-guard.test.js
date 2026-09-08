@@ -31,6 +31,22 @@ function fixture({ frozen = true, pending = null } = {}) {
     setSession: value => { session = value; } };
 }
 
+test('tile transition UUIDs wait for a completed native file instead of being decoded as paths', async () => {
+  const f = fixture();
+  f.files.length = 0;
+  f.options.getLoadedSave = () => ({ path: '926b7cad-2a4d-4d2f-b5ff-b9a0bb6058c9',
+    name: 'open-world-runtime', gameSessionId: 'session', cityCode: 'JP_A' });
+  f.options.now = () => 20;
+  const guard = installNativeSavedReloadGuard(f.options);
+  await guard.flush();
+  assert.deepEqual(f.calls.loads, []);
+  assert.equal((await guard.checkpoint()).status, 'waiting-for-native-save');
+  f.files.push({ path: 'after-switch.metro', timestamp: 21, gameSessionId: 'session', cityCode: 'JP_A' });
+  await guard.checkpoint();
+  assert.deepEqual(f.calls.loads, ['after-switch.metro']);
+  guard.dispose();
+});
+
 test('frozen bridge stages completed files without repeatedly copying pending or live saves', async () => {
   const f = fixture(), guard = installNativeSavedReloadGuard(f.options);
   await guard.flush();

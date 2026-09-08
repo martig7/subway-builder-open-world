@@ -1,10 +1,12 @@
 // A single viewport mask, made from the same loaded vector tiles as the map.
 // No coastline copy or per-frame geographic intersection is retained.
-export const LAND_SELECTION_VERSION = 'native-land-selection-v1';
+export const LAND_SELECTION_VERSION = 'native-land-selection-v2';
 export const LAND_SELECTION_LAYER = 'open-world-land-selection';
 const SOURCE = 'open-world-land-selection-source';
 const CONTEXT = 'open-world-world-context-source';
 const MAX_SIZE = 1024;
+// MapLibre keeps its methods after remove(), but destroys their backing style.
+const hasStyle = map => map && !map._removed && (!('style' in map) || Boolean(map.style));
 const mercatorY = latitude => Math.log(Math.tan(Math.PI / 4 + Math.max(-85.051129, Math.min(85.051129, latitude)) * Math.PI / 360));
 
 export function traceSelectionGeometry(context, geometry, project) {
@@ -56,6 +58,7 @@ export class LandSelection {
     this.createCanvas = createCanvas;
     this.dirty = true;
     this.hide = () => {
+      if (this.disposed || !hasStyle(map)) return;
       this.dirty = true;
       if (map.getLayer?.(LAND_SELECTION_LAYER)) map.setLayoutProperty(LAND_SELECTION_LAYER, 'visibility', 'none');
     };
@@ -68,11 +71,14 @@ export class LandSelection {
   }
 
   update(selection) {
-    if (!selection) return;
+    if (this.disposed || !selection) return;
     const changed = this.selection?.active !== selection.active || this.selection?.hovered !== selection.hovered;
     this.selection = selection;
     const map = this.map;
+    if (!hasStyle(map)) { this.dirty = true; return; }
+    if (this.style !== map.style) { this.style = map.style; this.dirty = true; }
     if (!map.querySourceFeatures || !map.getBounds || !map.getCanvas) return;
+    if (!map.getSource?.(CONTEXT)) { this.dirty = true; return; }
     if (map.getZoom() >= 10 || (!selection.active && !selection.hovered)) {
       this.hide();
       return;
@@ -107,7 +113,10 @@ export class LandSelection {
     // Upload exactly one changed frame; a paused CanvasSource does no ongoing work.
     source.play();
     if (this.pauseUpload) map.off('render', this.pauseUpload);
-    this.pauseUpload = () => { source.pause(); this.pauseUpload = null; };
+    this.pauseUpload = () => {
+      if (!this.disposed && hasStyle(map) && map.getSource(SOURCE) === source) source.pause();
+      this.pauseUpload = null;
+    };
     map.once('render', this.pauseUpload);
     map.setLayoutProperty(LAND_SELECTION_LAYER, 'visibility', 'visible');
     this.dirty = false;
@@ -116,15 +125,20 @@ export class LandSelection {
   }
 
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     const map = this.map;
     map.off?.('movestart', this.hide);
     map.off?.('moveend', this.settle);
     map.off?.('sourcedata', this.invalidate);
     map.off?.('idle', this.settle);
     if (this.pauseUpload) map.off('render', this.pauseUpload);
-    map.getSource?.(SOURCE)?.pause?.();
-    if (map.getLayer?.(LAND_SELECTION_LAYER)) map.removeLayer(LAND_SELECTION_LAYER);
-    if (map.getSource?.(SOURCE)) map.removeSource(SOURCE);
+    this.pauseUpload = null;
+    if (hasStyle(map)) {
+      map.getSource?.(SOURCE)?.pause?.();
+      if (map.getLayer?.(LAND_SELECTION_LAYER)) map.removeLayer(LAND_SELECTION_LAYER);
+      if (map.getSource?.(SOURCE)) map.removeSource(SOURCE);
+    }
     for (const canvas of [this.canvas, this.mask]) if (canvas) { canvas.width = 1; canvas.height = 1; }
     this.canvas = this.mask = null;
   }

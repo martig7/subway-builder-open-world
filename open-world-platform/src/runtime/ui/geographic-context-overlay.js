@@ -2455,7 +2455,7 @@ function releaseMovementDeckVisibilityGuard(deck, owner) {
   delete deck[MOVEMENT_DECK_GUARD_KEY];
 }
 
-export const GEOGRAPHIC_CONTEXT_CLEANUP_VERSION = 'retired-renderer-handoff-v4';
+export const GEOGRAPHIC_CONTEXT_CLEANUP_VERSION = 'retired-renderer-handoff-v5';
 
 function replaceGeographicContextControllerOwner(map, controller) {
   if (!map) return;
@@ -2942,6 +2942,8 @@ export class GeographicContextOverlayController {
     this.stationMarkerVisibility?.reset?.();
     this.stationMarkerVisibility = null;
     this.glyphWarmup?.dispose();
+    if (this.landSelection) LandSelection.prototype.dispose.call(this.landSelection);
+    this.landSelection = null;
     this.map = map;
     this.glyphWarmup = attachGlyphWarmup(map, {
       text: (this.tileCatalog?.tiles ?? []).map(tile => tile.name ?? '').join('').slice(0, 512),
@@ -3075,7 +3077,7 @@ export class GeographicContextOverlayController {
     if (!attachedMap) return;
     this.glyphWarmup?.dispose();
     this.glyphWarmup = null;
-    this.landSelection?.dispose();
+    if (this.landSelection) LandSelection.prototype.dispose.call(this.landSelection);
     this.landSelection = null;
     try { attachedMap.off('style.load', this.handleStyle); } catch {}
     try { attachedMap.off('styledata', this.handleStyleData); } catch {}
