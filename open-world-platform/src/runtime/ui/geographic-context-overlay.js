@@ -8,6 +8,7 @@ import {
 import { readWorldContextTheme, syncWorldContextTheme } from './world-context-theme.js';
 import { syncNativeParkLanduse, releaseNativeParkLanduse } from './native-park-landuse.js';
 import { ensureWorldVegetation, releaseWorldVegetation, WORLD_VEGETATION_LAYER } from './world-vegetation.js';
+import { LandSelection } from './land-selection.js';
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const BOUNDARY_SOURCE_ID = 'open-world-tile-boundaries-source';
 const TILE_SELECTION_LAYER_ID = 'open-world-tile-selection';
@@ -966,7 +967,7 @@ function ringFor(tile) {
   return [[west, south], [east, south], [east, north], [west, north], [west, south]];
 }
 
-export const BOUNDARY_LOD_VERSION = 'inland-boundary-lod-v5';
+export const BOUNDARY_LOD_VERSION = 'land-masked-boundary-lod-v6';
 
 function boundaryLodFor(tile, zoom) {
   return (tile.boundaryLods ?? []).filter((level) => level.minZoom <= zoom).at(-1);
@@ -3041,7 +3042,7 @@ export class GeographicContextOverlayController {
       if (this.nativeParkSourceLayer === 'landuse') syncNativeParkLanduse(this.map);
       const activeTileId = this.activeTileId();
       if (this.hoveredTileId === activeTileId) this.setHoveredTile(null);
-      this.syncTileBoundaryData(activeTileId);
+    this.syncTileBoundaryData(activeTileId);
       this.attachTileSelectionHandlers();
     }, () => ({
       zoom: this.map?.getZoom?.() ?? null,
@@ -3053,6 +3054,8 @@ export class GeographicContextOverlayController {
     cancelStyleDataRefresh(this);
     const attachedMap = this.map;
     if (!attachedMap) return;
+    this.landSelection?.dispose();
+    this.landSelection = null;
     try { attachedMap.off('style.load', this.handleStyle); } catch {}
     try { attachedMap.off('styledata', this.handleStyleData); } catch {}
     try { attachedMap.off('idle', this.handleIdle); } catch {}
@@ -3145,6 +3148,14 @@ export class GeographicContextOverlayController {
       ? (this.map?.isZooming?.() ? previousZoom : Math.max(previousZoom, cameraZoom))
       : cameraZoom;
     const inland = Boolean(this.tileCatalog.dividerLods);
+    if (inland) {
+      this.landSelection ??= new LandSelection(this.map);
+      const selectedGeometry = tileId => {
+        const tile = this.tileCatalog.tiles.find(candidate => candidate.id === tileId);
+        return tile ? boundaryGeometryFor(tile, 0) : null;
+      };
+      this.landSelection.update({ active: selectedGeometry(activeTileId), hovered: selectedGeometry(this.hoveredTileId) });
+    }
     const lodKey = inland ? `inland:${dividerLevel(this.tileCatalog, zoom)?.minZoom ?? 0}`
       : this.tileCatalog.tiles.map((tile) => boundaryLodFor(tile, zoom)?.minZoom ?? 'legacy').join(',');
     const stateKey = `${activeTileId}:${this.hoveredTileId}`;

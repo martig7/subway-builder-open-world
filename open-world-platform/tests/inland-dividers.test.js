@@ -30,8 +30,10 @@ test('inland source keeps hidden selection polygons and draws each shared divide
   assert.equal(new Set(data.features.map(f => f.id)).size, 3);
 });
 
-test('coastal polygon strokes and hover fills are suppressed; dividers retain selection state', () => {
+test('unmasked coastal fill stays hidden while native-land selection receives active and hovered polygons', () => {
   const controller = new GeographicContextOverlayController({ tileCatalog: fixture() });
+  const selections = [];
+  controller.landSelection = { update: selection => selections.push(selection) };
   const paints = [], filters = [], states = [], calls = [];
   const source = { setData: data => calls.push(data) };
   controller.map = { getSource: () => source, getZoom: () => 8,
@@ -45,4 +47,30 @@ test('coastal polygon strokes and hover fills are suppressed; dividers retain se
   assert.equal(calls.length, 1, 'hover does not rebuild geometry');
   assert.equal(states.findLast(s => s.target.id === 2).state.hovered, true);
   assert.equal(controller.selectableTileIdFromEvent({ features: [calls[0].features[1]] }), 'B');
+  assert.deepEqual(selections.at(-1), { active: polygon, hovered: polygon });
+});
+
+test('an island owner without dividers still gets a filled native-land highlight', () => {
+  const catalog = { tiles: [{ id: 'Hokkaido', boundaryGeometry: polygon }], dividerLods: [] };
+  const controller = new GeographicContextOverlayController({ tileCatalog: catalog });
+  const selections = [];
+  controller.landSelection = { update: selection => selections.push(selection) };
+  controller.map = { getSource: () => ({ setData() {} }), getZoom: () => 6 };
+  controller.syncTileBoundaryData('Hokkaido');
+  assert.deepEqual(selections.at(-1), { active: polygon, hovered: null });
+});
+
+test('packaging uses offshore selection geometry without changing inland divider geometry', () => {
+  const offshore = { type: 'Polygon', coordinates: [[[-1,-1],[2,-1],[2,2],[-1,2],[-1,-1]]] };
+  const feature = geometry => ({ type: 'Feature', properties: { id: 'A' }, geometry });
+  const packed = packDisplayBoundaryOverlay({ purpose: 'display-only', quantizationDegrees: .00001,
+    selection: { version: 'offshore-selection-v1', vertexCount: 5, features: [feature(offshore)] },
+    lods: [{ minZoom: 7, toleranceMetres: 500, features: [feature(polygon)],
+      dividers: { vertexCount: 2, features: [{ ...feature(divider), properties: { owners: ['A','B'] } }] } }],
+  });
+  const catalog = createOpenWorldCatalog({ definition: { identity: {}, tileViews: { initialTileId: 'A' } },
+    catalogSource: { tiles: [{ id: 'A', status: 'selected' }, { id: 'B', status: 'selected' }] }, boundaryOverlay: packed }).tileCatalog;
+  assert.equal(packed.lods[0].selectionVersion, 'offshore-selection-v1');
+  assert.deepEqual(tileBoundaryGeoJson(catalog, 'A', null, 7).features[0].geometry, offshore);
+  assert.deepEqual(catalog.dividerLods[0].features[0].geometry, divider);
 });

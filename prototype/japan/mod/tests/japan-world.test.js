@@ -19,6 +19,7 @@ test('Japan packages fixed selection polygons and bounded inland divider detail'
   assert.equal(packed.encoding, 'inland-display-boundaries-v2');
   assert.ok(JSON.stringify(packed).length < 2_000_000, 'coastline LODs must not enter the bundle');
   assert.deepEqual(packed.lods.map(level => level.minZoom), [0]);
+  assert.equal(packed.lods[0].selectionVersion, 'offshore-selection-v1');
   assert.deepEqual(packed.dividerLods.map(level => level.minZoom), [0, 7, 9, 11]);
   assert.ok(packed.lods[0].vertexCount < 60_000);
   assert.ok(packed.dividerLods.at(-1).vertexCount < 80_000);

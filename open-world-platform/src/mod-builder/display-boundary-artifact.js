@@ -26,7 +26,10 @@ export function packDisplayBoundaryOverlay(overlay) {
   const packFeatures = features => features.map(feature => ({ ...feature, geometry: packGeometry(feature.geometry) }));
   const inland = levels.every(level => level.dividers?.features);
   const selection = levels.find(level => level.minZoom === 7) ?? levels[0];
-  const packagedLevels = inland ? [{ ...selection, minZoom: 0 }] : levels;
+  const packagedLevels = inland ? [{ ...selection, minZoom: 0,
+    ...(overlay.selection ? { features: overlay.selection.features, vertexCount: overlay.selection.vertexCount,
+      selectionVersion: overlay.selection.version } : {}),
+  }] : levels;
   return {
     type: 'FeatureCollection', purpose: 'display-only', schemaVersion: 1,
     encoding: inland ? 'inland-display-boundaries-v2' : 'quantized-display-boundaries-v1', scale,

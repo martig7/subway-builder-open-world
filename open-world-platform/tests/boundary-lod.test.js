@@ -84,7 +84,7 @@ test('zoom gestures defer boundary refinement and retain it across later zooms',
   assert.strictEqual(submitted[2].features[0].geometry, coarse);
 });
 
-for (const previousVersion of ['precomputed-boundary-lod-v1', 'retained-boundary-lod-v3', 'quantized-boundary-lod-v4']) test(`a retained ${previousVersion} submission upgrades geometry and paint without replacing its source`, () => {
+for (const previousVersion of ['precomputed-boundary-lod-v1', 'retained-boundary-lod-v3', 'quantized-boundary-lod-v4', 'inland-boundary-lod-v5']) test(`a retained ${previousVersion} submission upgrades geometry and paint without replacing its source`, () => {
   const catalog = { tiles: [{ id: 'JP_PREF_14', boundaryGeometry: detailed }] };
   const controller = new GeographicContextOverlayController({ tileCatalog: catalog });
   const submitted = [], states = [], paints = [];

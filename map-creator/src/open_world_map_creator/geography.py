@@ -135,6 +135,39 @@ def shared_dividers(geometries, owner_ids, coordinate_transform=None):
             'vertexCount': int(sum(shapely.get_num_coordinates(shape(f['geometry'])) for f in features))}
 
 
+def offshore_selection(geometries, distance=2500):
+    """Extend display hit areas into water; never move an existing land owner.
+
+    Offshore overlaps have stable input-order ownership. They are invisible:
+    the renderer masks these selection polygons with the native land tiles.
+    Enclaves and all shared inland edges remain in their original owner.
+    """
+    land = shapely.union_all(geometries)
+    allocated = land
+    result = []
+    for geometry in geometries:
+        outer = geometry.buffer(distance, quad_segs=2).simplify(distance / 3, preserve_topology=True)
+        extra = outer.difference(allocated)
+        selected = geometry.union(extra)
+        result.append(selected)
+        allocated = allocated.union(extra)
+    return result
+
+
+def add_offshore_selection(overlay, metric_crs=METRIC_CRS):
+    if overlay.get('purpose') != 'display-only':
+        raise ValueError('Offshore selection requires display-only geometry')
+    level = next(level for level in overlay['lods'] if level['minZoom'] == 7)
+    forward = Transformer.from_crs('EPSG:4326', metric_crs, always_xy=True).transform
+    inverse = Transformer.from_crs(metric_crs, 'EPSG:4326', always_xy=True).transform
+    geometries = [transform(forward, shape(f['geometry'])) for f in level['features']]
+    selected = offshore_selection(geometries)
+    features = [{**feature, 'geometry': mapping(shapely.set_precision(transform(inverse, geometry), .00001))}
+                for feature, geometry in zip(level['features'], selected, strict=True)]
+    return {**overlay, 'selection': {'version': 'offshore-selection-v1', 'offshoreMetres': 2500,
+            'features': features, 'vertexCount': int(sum(shapely.get_num_coordinates(shape(f['geometry'])) for f in features))}}
+
+
 def display_lods(source, progress=print, metric_crs=METRIC_CRS):
     forward = Transformer.from_crs("EPSG:4326", metric_crs, always_xy=True).transform
     inverse = Transformer.from_crs(metric_crs, "EPSG:4326", always_xy=True).transform
@@ -172,7 +205,7 @@ def display_lods(source, progress=print, metric_crs=METRIC_CRS):
         progress(f"[geometry] zoom {min_zoom}: {level['vertexCount']} vertices ({tolerance} m)")
     # Legacy readers get the coarsest display, never full computation geometry.
     result["features"] = result["lods"][0]["features"]
-    return quantize_display_overlay(result)
+    return add_offshore_selection(quantize_display_overlay(result), metric_crs)
 
 
 def quantize_display_overlay(overlay, grid_size=0.00001):
