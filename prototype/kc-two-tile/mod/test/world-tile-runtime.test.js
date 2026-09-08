@@ -1370,6 +1370,7 @@ test('finance-blind NEC handoff transfers the complete native financial state', 
     initialWorld: { wallet: 100, cohorts },
   });
   await runtime.boot('complete-finance-blind-world');
+  assert.equal(runtime.world.financialHistory, null, 'revenue-only observations do not mirror the native history');
   const sourceFinance = {
     gameMode: 'easy',
     wallet: 842_500,
@@ -1420,6 +1421,7 @@ test('finance-blind NEC handoff transfers the complete native financial state', 
   for (const [field, value] of Object.entries(sourceFinance)) {
     assert.deepEqual(game.native[field], value, field);
   }
+  assert.equal(runtime.world.financialHistory, null, 'handoff keeps history in the native state');
 });
 
 test('finance-blind NEC handoff keeps the native date aligned with financial history', async () => {

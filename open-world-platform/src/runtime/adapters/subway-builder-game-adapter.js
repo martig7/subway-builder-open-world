@@ -1707,7 +1707,7 @@ export class SubwayBuilderGameAdapter {
     this.nativeSaveLifecycle = nativeSaveLifecycle;
     this.nativeFinancePostingVersion = 'native-hourly-finance-v2';
     this.preparedNativeFinance = new WeakMap();
-    this.nativeFinancePreparationStats = { prepared: 0, hits: 0, misses: 0, stale: 0 };
+    this.nativeFinancePreparationStats = { version: 'native-finance-copy-on-write-v1', prepared: 0, hits: 0, misses: 0, stale: 0 };
     this.nativeCommuteIndex = new NativeCommuteIndex();
     this.capability = null;
     this.currentPackage = null;
@@ -3155,7 +3155,7 @@ export class SubwayBuilderGameAdapter {
     });
   }
 
-  async captureAuthoritativeGlobals() {
+  async captureAuthoritativeGlobals({ includeFinancialHistory = true } = {}) {
     await this.assertSupported();
     const state = this.#state();
     const wallet = state.money;
@@ -3167,7 +3167,7 @@ export class SubwayBuilderGameAdapter {
       elapsedSeconds,
       ...(['easy', 'sandbox'].includes(state.gameMode) ? { gameMode: state.gameMode } : {}),
       ...(Number.isFinite(state.transitCost) && state.transitCost >= 0 ? { farePolicy: { fare: state.transitCost, fareGroups: structuredClone(state.fareGroups ?? []) } } : {}),
-      ...(state.financialHistory ? { financialHistory: structuredClone(state.financialHistory) } : {}),
+      ...(includeFinancialHistory && state.financialHistory ? { financialHistory: structuredClone(state.financialHistory) } : {}),
     };
   }
 
@@ -3178,7 +3178,7 @@ export class SubwayBuilderGameAdapter {
     return Number.isFinite(fare) && fare >= 0 ? fare : null;
   }
 
-  async creditCrossTileFareRevenue(amount, attribution = {}) {
+  async creditCrossTileFareRevenue(amount, attribution = {}, { includeFinancialHistory = true } = {}) {
     await this.assertSupported();
     if (!Number.isFinite(amount) || amount < 0) throw new Error('Invalid cross-tile fare revenue');
     const state = this.#state();
@@ -3237,7 +3237,8 @@ export class SubwayBuilderGameAdapter {
       state.setCompletedCommutes(merged.records);
     }
     const updated = this.#state();
-    return { wallet: updated.money, financialHistory: structuredClone(updated.financialHistory) };
+    return { wallet: updated.money,
+      ...(includeFinancialHistory ? { financialHistory: structuredClone(updated.financialHistory) } : {}) };
   }
 
   calculateNativeFinanceProfile(tileId = this.loadedCityCode, globalNativeState = null, options = {}) {
@@ -3383,22 +3384,12 @@ export class SubwayBuilderGameAdapter {
         expensesByRoute,
       }];
     const openingWallet = Number(state.money) || 0;
-    function* cloneHistory(source, field) {
-      if (!source) return source;
-      const collection = source[field], array = Array.isArray(collection);
-      const result = structuredClone({ ...source, [field]: array ? [] : {} });
-      yield;
-      for (const [key, value] of Object.entries(collection ?? {})) {
-        result[field][key] = structuredClone(value);
-        yield;
-      }
-      return result;
-    }
-    const openingFinancialHistory = yield* cloneHistory(state.financialHistory, 'entries');
-    yield;
-    const openingRouteFinancials = yield* cloneHistory(state.routeFinancials ?? {
+    // Closed rows remain native-owned inputs. Backfill replaces every changed
+    // row/container; the validity stamp still rejects competing native updates.
+    const openingFinancialHistory = state.financialHistory;
+    const openingRouteFinancials = state.routeFinancials ?? {
       byRoute: {}, lastHourTimestamp: 0, currentHour: {},
-    }, 'byRoute');
+    };
     yield;
     const expensesAffectWallet = state.gameMode !== 'sandbox';
 
@@ -3406,7 +3397,7 @@ export class SubwayBuilderGameAdapter {
         openingRouteFinancials,
         hourlyPostings,
         targetElapsedSeconds,
-        { copy: false },
+        { copy: 'on-write' },
       ) : null;
     yield;
     const preparedCommutes = [];
@@ -3435,7 +3426,7 @@ export class SubwayBuilderGameAdapter {
         openingWallet,
         expensesAffectWallet,
         receiptId: postingId,
-        copy: false,
+        copy: 'on-write',
       },
     );
     yield;

@@ -67,19 +67,19 @@ test('in-place native accounting during preparation invalidates the speculative 
   assert.equal(f.state.financialHistory.currentHourRevenue, 17);
 });
 
-test('hourly posting copies each native history once and can return just its receipt', () => {
+test('hourly posting shares closed native rows and can return just its receipt', () => {
   const f = fixture(); let copies = 0; const clone = globalThis.structuredClone;
   globalThis.structuredClone = value => { if (value && ('entries' in value || 'byRoute' in value) && 'lastHourTimestamp' in value) copies++; return clone(value); };
   try {
     const result = f.post('first');
-    assert.equal(copies, 2, 'one defensive opening copy per native ledger');
+    assert.equal(copies, 0, 'copy-on-write preparation does not deep-copy native ledgers');
     assert.equal(result.financialHistory, undefined);
     assert.equal(result.wallet, 108);
     assert.equal(f.state.financialHistory.currentHourRevenue, 10);
     assert.equal(f.state.routeFinancials.currentHour.r.revenue, 10);
     const duplicate = f.post('first');
     assert.equal(duplicate.applied, false);
-    assert.equal(copies, 2, 'duplicate receipt needs no history copies');
+    assert.equal(copies, 0, 'duplicate receipt needs no history copies');
   } finally { globalThis.structuredClone = clone; }
 });
 

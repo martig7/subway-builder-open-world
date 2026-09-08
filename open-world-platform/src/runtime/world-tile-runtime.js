@@ -1623,7 +1623,9 @@ export class WorldTileRuntime {
       || (attribution.completedCommutes?.length ?? 0) > 0;
     if (!(amount > 0) && !hasAttribution) return false;
     if (typeof this.game.creditCrossTileFareRevenue !== 'function') throw new Error('Native cross-tile revenue action is unavailable');
-    const applied = await this.game.creditCrossTileFareRevenue(amount, attribution);
+    const applied = await this.game.creditCrossTileFareRevenue(amount, attribution, {
+      includeFinancialHistory: !this.revenueAccrual,
+    });
     if (!Number.isFinite(applied?.wallet)) throw new Error('Native cross-tile revenue action returned an invalid wallet');
     // Native money is authoritative. In-tile fares and expenses can change it
     // between capture and posting, so a sidecar-derived equality check is both
@@ -2170,7 +2172,7 @@ export class WorldTileRuntime {
   }
   async #captureAuthoritativeGlobals(world, { allowClockRegression = false } = {}) {
     if (typeof this.game.captureAuthoritativeGlobals !== 'function') return false;
-    const globals = await this.game.captureAuthoritativeGlobals();
+    const globals = await this.game.captureAuthoritativeGlobals({ includeFinancialHistory: !this.revenueAccrual });
     if (!Number.isFinite(globals?.wallet)) throw new Error('Invalid captured world balance');
     world.wallet = globals.wallet;
     if (globals.gameMode != null) {
@@ -2195,7 +2197,10 @@ export class WorldTileRuntime {
       world.farePolicy = deepCopy(globals.farePolicy);
       this.#mergeCapturedFareGroups(world, globals.farePolicy.fareGroups);
     }
-    if (globals?.financialHistory) world.financialHistory = deepCopy(globals.financialHistory);
+    // The revenue-only runtime never restores/audits a mirrored native ledger.
+    // Read full history explicitly for diagnostics, not on every clock update.
+    if (this.revenueAccrual) world.financialHistory = null;
+    else if (globals?.financialHistory) world.financialHistory = deepCopy(globals.financialHistory);
     // Revenue-only mode treats the native ledger as immutable input here.
     // Legacy rebasing/auditing exists only for the old sidecar-owned model.
     const financeRebase = this.revenueAccrual

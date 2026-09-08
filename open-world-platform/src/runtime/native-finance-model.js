@@ -720,12 +720,18 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
 } = {}) {
   const targetTimestamp = Math.floor(Math.max(0, finite(targetElapsedSeconds, 0)) / FINANCE_HOUR_SECONDS)
     * FINANCE_HOUR_SECONDS;
-  // copy:false transfers an already detached snapshot from the adapter.
-  const history = copy ? structuredClone(financialHistory ?? {}) : (financialHistory ?? {});
+  // on-write borrows closed rows and replaces every container/row it changes.
+  // Default callers still receive a completely detached result.
+  const copyOnWrite = copy === 'on-write';
+  const history = copyOnWrite ? { ...financialHistory } : copy ? structuredClone(financialHistory ?? {}) : (financialHistory ?? {});
   const knownPostingIds = new Set((history.appliedPostingIds ?? []).map(String));
   const knownReceipts = new Set((history.openWorldBackgroundFinanceReceipts ?? []).map(String));
   if (receiptId && (knownPostingIds.has(String(receiptId)) || knownReceipts.has(String(receiptId)))) return history;
   let entries = Array.isArray(history.entries) ? history.entries : [];
+  let entriesDetached = !copyOnWrite;
+  const detachEntries = () => {
+    if (!entriesDetached) { entries = entries.slice(); entriesDetached = true; }
+  };
   let lastHourTimestamp = Math.max(0, finite(history.lastHourTimestamp, targetTimestamp));
   let currentHourRevenue = Math.max(0, finite(history.currentHourRevenue, 0));
   let currentHourExpenses = Math.max(0, finite(history.currentHourExpenses, 0));
@@ -737,6 +743,7 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
 
   if (targetTimestamp > lastHourTimestamp && targetElapsedSeconds > 0) {
     if (entries.at(-1)?.timestamp !== lastHourTimestamp) {
+      detachEntries();
       entries.push({
         timestamp: lastHourTimestamp,
         balance: finite(openingWallet, 0),
@@ -755,7 +762,8 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
     .filter((row) => Number.isSafeInteger(row.hour) && row.hour >= 0 && row.hour * FINANCE_HOUR_SECONDS <= targetTimestamp)
     .filter((row) => !row.postingId || !knownPostingIds.has(row.postingId))
     .sort((left, right) => left.hour - right.hour);
-  const entryByTimestamp = new Map(entries.map((entry) => [finite(entry?.timestamp, -1), entry]));
+  // Ordinary current-hour postings never need to index the closed ledger.
+  let entryByTimestamp = null;
   const netByTimestamp = new Map();
   for (const row of rows) {
     const timestamp = row.hour * FINANCE_HOUR_SECONDS;
@@ -765,6 +773,7 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
       mergePositiveAmounts(currentHourExpenseCategories, row.expenseCategories);
       continue;
     }
+    entryByTimestamp ??= new Map(entries.map((entry) => [finite(entry?.timestamp, -1), entry]));
     let entry = entryByTimestamp.get(timestamp);
     if (!entry) {
       const previous = [...entryByTimestamp.values()]
@@ -777,7 +786,14 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
         hourlyExpenses: 0,
         expenseCategories: {},
       };
+      detachEntries();
       entries.push(entry);
+      entryByTimestamp.set(timestamp, entry);
+    } else if (copyOnWrite) {
+      detachEntries();
+      const index = entries.indexOf(entry);
+      entry = { ...entry };
+      entries[index] = entry;
       entryByTimestamp.set(timestamp, entry);
     }
     entry.hourlyRevenue = Math.max(0, finite(entry.hourlyRevenue, 0)) + row.revenue;
@@ -791,11 +807,21 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
   }
 
   let cumulativeNet = 0;
-  entries = entries.sort((left, right) => finite(left?.timestamp, 0) - finite(right?.timestamp, 0))
-    .map((entry) => {
-      cumulativeNet += netByTimestamp.get(finite(entry?.timestamp, -1)) ?? 0;
-      return { ...entry, balance: finite(entry?.balance, openingWallet) + cumulativeNet };
-    });
+  // Preserve closed row and array identities when only the current hour changes.
+  // Validate ordering/balances so malformed or historical input retains the
+  // existing normalization behavior instead of relying on an identity cache.
+  const unchangedClosedRows = copyOnWrite && netByTimestamp.size === 0
+    && entries.every((entry, i) => Number.isFinite(entry?.balance) && !Object.is(entry.balance, -0)
+      && (i === 0 || finite(entries[i - 1]?.timestamp, 0) <= finite(entry?.timestamp, 0)));
+  if (!unchangedClosedRows) {
+    detachEntries();
+    entries = entries.sort((left, right) => finite(left?.timestamp, 0) - finite(right?.timestamp, 0))
+      .map((entry) => {
+        cumulativeNet += netByTimestamp.get(finite(entry?.timestamp, -1)) ?? 0;
+        const balance = finite(entry?.balance, openingWallet) + cumulativeNet;
+        return copyOnWrite && Object.is(balance, entry?.balance) ? entry : { ...entry, balance };
+      });
+  }
   const receipts = Array.isArray(history.openWorldBackgroundFinanceReceipts)
     ? history.openWorldBackgroundFinanceReceipts
     : [];
@@ -818,10 +844,13 @@ export function backfillHourlyFinancialHistory(financialHistory, hourlyPostings,
 export function backfillHourlyRouteFinancials(routeFinancials, hourlyPostings, targetElapsedSeconds, { copy = true } = {}) {
   const targetTimestamp = Math.floor(Math.max(0, finite(targetElapsedSeconds, 0)) / FINANCE_HOUR_SECONDS)
     * FINANCE_HOUR_SECONDS;
-  const result = copy ? structuredClone(routeFinancials ?? {}) : (routeFinancials ?? {});
-  const byRoute = result.byRoute && typeof result.byRoute === 'object' ? result.byRoute : {};
+  const copyOnWrite = copy === 'on-write';
+  const result = copyOnWrite ? { ...routeFinancials } : copy ? structuredClone(routeFinancials ?? {}) : (routeFinancials ?? {});
+  const sourceByRoute = result.byRoute && typeof result.byRoute === 'object' ? result.byRoute : {};
+  const byRoute = copyOnWrite ? { ...sourceByRoute } : sourceByRoute;
   let lastHourTimestamp = Math.max(0, finite(result.lastHourTimestamp, targetTimestamp));
   let currentHour = result.currentHour && typeof result.currentHour === 'object' ? result.currentHour : {};
+  if (copyOnWrite) currentHour = { ...currentHour };
   if (targetTimestamp < lastHourTimestamp) return result;
   if (targetTimestamp > lastHourTimestamp && targetElapsedSeconds > 0) {
     for (const [routeId, amounts] of Object.entries(currentHour)) {
@@ -849,11 +878,15 @@ export function backfillHourlyRouteFinancials(routeFinancials, hourlyPostings, t
         currentHour[routeId] = { ...current, [valueKey]: finite(current[valueKey], 0) + amount };
         continue;
       }
-      const entries = byRoute[routeId] ?? [];
+      const entries = copyOnWrite ? (byRoute[routeId] ?? []).slice() : (byRoute[routeId] ?? []);
       let entry = entries.find((candidate) => candidate.timestamp === timestamp);
       if (!entry) {
         entry = { timestamp, revenue: 0, expenses: 0 };
         entries.push(entry);
+      } else if (copyOnWrite) {
+        const index = entries.indexOf(entry);
+        entry = { ...entry };
+        entries[index] = entry;
       }
       entry[valueKey] = finite(entry[valueKey], 0) + amount;
       byRoute[routeId] = entries.sort((left, right) => left.timestamp - right.timestamp)

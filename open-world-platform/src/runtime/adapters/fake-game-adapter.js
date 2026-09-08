@@ -64,9 +64,9 @@ export class FakeGameAdapter {
     this.native.financialHistory.openWorldAuthoritativeWorldId = worldId;
     return true;
   }
-  async captureAuthoritativeGlobals() {
+  async captureAuthoritativeGlobals({ includeFinancialHistory = true } = {}) {
     await this.#at('captureAuthoritativeGlobals');
-    return { wallet: this.native.wallet, elapsedSeconds: this.native.clock, gameMode: this.native.gameMode, farePolicy: { fare: this.native.transitCost, fareGroups: deepCopy(this.native.fareGroups ?? []) }, financialHistory: deepCopy(this.native.financialHistory) };
+    return { wallet: this.native.wallet, elapsedSeconds: this.native.clock, gameMode: this.native.gameMode, farePolicy: { fare: this.native.transitCost, fareGroups: deepCopy(this.native.fareGroups ?? []) }, ...(includeFinancialHistory ? { financialHistory: deepCopy(this.native.financialHistory) } : {}) };
   }
   queueNativeFinanceAudit(sample) { this.nativeFinanceAudit.push(deepCopy(sample)); }
   consumeNativeFinanceAudit() {
@@ -75,7 +75,7 @@ export class FakeGameAdapter {
     return samples;
   }
   getJourneyFare(segments) { return typeof this.native.getJourneyFare === 'function' ? this.native.getJourneyFare(segments) : null; }
-  async creditCrossTileFareRevenue(amount, attribution = {}) {
+  async creditCrossTileFareRevenue(amount, attribution = {}, { includeFinancialHistory = true } = {}) {
     await this.#at('creditCrossTileFareRevenue');
     const known = new Set(this.native.completedCommutes.map((commute) => commute?.popId));
     const requested = attribution.completedCommutes ?? [];
@@ -96,7 +96,7 @@ export class FakeGameAdapter {
       this.native.routeRevenueByRoute[routeId] = (this.native.routeRevenueByRoute[routeId] ?? 0) + revenue;
     }
     this.native.completedCommutes.push(...deepCopy(fresh));
-    return { wallet: this.native.wallet, financialHistory: deepCopy(this.native.financialHistory) };
+    return { wallet: this.native.wallet, ...(includeFinancialHistory ? { financialHistory: deepCopy(this.native.financialHistory) } : {}) };
   }
   calculateNativeFinanceProfile(tileId = this.currentPackage?.manifest?.tileId) {
     return deepCopy(this.native.nativeFinanceProfile ?? {
