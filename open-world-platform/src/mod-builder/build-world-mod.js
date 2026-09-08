@@ -75,7 +75,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   const generatedRoot = path.resolve(artifactsRoot);
   const loaded = await loadWorldDefinition(worldRoot);
   const { definition, selectedTiles, worldDefinitionHash } = loaded;
-  const worldVegetationGzipBase64 = await loadWorldVegetationArtifact(root, definition);
+  const worldVegetationGzipBase64 = await loadWorldVegetationArtifact(root, definition, worldRoot);
   let packageRoot;
   let crossCommutesPath;
   let crossDemandPath;

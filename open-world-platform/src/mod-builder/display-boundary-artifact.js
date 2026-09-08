@@ -8,7 +8,9 @@ export function packDisplayBoundaryOverlay(overlay) {
   if (!levels.length) return overlay;
   const scale = 100000;
   const packGeometry = geometry => {
-    const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+    const polygons = geometry.type === 'Polygon' ? [geometry.coordinates]
+      : geometry.type === 'LineString' ? [[geometry.coordinates]]
+      : geometry.type === 'MultiLineString' ? [geometry.coordinates] : geometry.coordinates;
     const coordinates = polygons.map(polygon => polygon.map(ring => {
       let x = 0, y = 0;
       const deltas = [];
@@ -21,12 +23,16 @@ export function packDisplayBoundaryOverlay(overlay) {
     }));
     return { type: geometry.type, packedCoordinates: JSON.stringify(coordinates) };
   };
+  const packFeatures = features => features.map(feature => ({ ...feature, geometry: packGeometry(feature.geometry) }));
+  const inland = levels.every(level => level.dividers?.features);
+  const selection = levels.find(level => level.minZoom === 7) ?? levels[0];
+  const packagedLevels = inland ? [{ ...selection, minZoom: 0 }] : levels;
   return {
     type: 'FeatureCollection', purpose: 'display-only', schemaVersion: 1,
-    encoding: 'quantized-display-boundaries-v1', scale,
+    encoding: inland ? 'inland-display-boundaries-v2' : 'quantized-display-boundaries-v1', scale,
     lodVersion: 'quantized-display-boundaries-v1',
-    lods: levels.map(level => ({ ...level, features: level.features.map(feature => ({
-      ...feature, geometry: packGeometry(feature.geometry),
-    })) })),
+    ...(inland ? { dividerLods: levels.map(level => ({ minZoom: level.minZoom,
+      vertexCount: level.dividers.vertexCount, features: packFeatures(level.dividers.features) })) } : {}),
+    lods: packagedLevels.map(({ dividers, ...level }) => ({ ...level, features: packFeatures(level.features) })),
   };
 }

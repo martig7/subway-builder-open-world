@@ -115,6 +115,26 @@ def _visible_islands(geometries, minimum_area):
     return visible, hidden
 
 
+def shared_dividers(geometries, owner_ids, coordinate_transform=None):
+    """Extract each shared land border once from a noded coverage, before reprojection."""
+    tree = shapely.STRtree(geometries)
+    features = []
+    for left, geometry in enumerate(geometries):
+        for right in sorted(int(i) for i in tree.query(geometry, predicate='intersects') if int(i) > left):
+            shared = geometry.boundary.intersection(geometries[right].boundary)
+            lines = [part for part in shapely.get_parts(shared)
+                     if part.geom_type in ('LineString', 'LinearRing') and part.length > 0]
+            if not lines:
+                continue
+            line = shapely.line_merge(shapely.union_all(lines))
+            if coordinate_transform:
+                line = transform(coordinate_transform, line)
+            features.append({'type': 'Feature', 'properties': {'owners': [str(owner_ids[left]), str(owner_ids[right])]},
+                             'geometry': mapping(line)})
+    return {'type': 'FeatureCollection', 'features': features,
+            'vertexCount': int(sum(shapely.get_num_coordinates(shape(f['geometry'])) for f in features))}
+
+
 def display_lods(source, progress=print, metric_crs=METRIC_CRS):
     forward = Transformer.from_crs("EPSG:4326", metric_crs, always_xy=True).transform
     inverse = Transformer.from_crs(metric_crs, "EPSG:4326", always_xy=True).transform
@@ -146,6 +166,8 @@ def display_lods(source, progress=print, metric_crs=METRIC_CRS):
                  "features": [{"type": "Feature", "properties": f["properties"],
                                "geometry": mapping(transform(inverse, g))}
                               for f, g in zip(features, reduced, strict=True)]}
+        owners = [f['properties'].get('pref_code', f['properties'].get('prefCode', f['properties'].get('id'))) for f in features]
+        level['dividers'] = shared_dividers(reduced, owners, inverse)
         result["lods"].append(level)
         progress(f"[geometry] zoom {min_zoom}: {level['vertexCount']} vertices ({tolerance} m)")
     # Legacy readers get the coarsest display, never full computation geometry.

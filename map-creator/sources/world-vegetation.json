@@ -19,5 +19,19 @@
     "5287843517492d4455637739b4db85e7b542018390ccdc2741c6488c7013a717",
     "56b622e1aed85fb1115379a57dd7efd201accb4b6c27192c3c48997ff82ef0b5"
   ],
-  "artifactSha256": "fba702594373407e297e72edb2e44212907eebfcf41822d161f9cd59ab911ae5"
+  "artifactSha256": "fba702594373407e297e72edb2e44212907eebfcf41822d161f9cd59ab911ae5",
+  "worldVariants": {
+    "japan-world": {
+      "artifact": "modis-igbp-2023-v1.japan-world.geojson.gz",
+      "artifactSha256": "89df28291eb174cda0c075798f50ab313207379183e852fd8600d5a0ebb301d9",
+      "sourceSha256": "fba702594373407e297e72edb2e44212907eebfcf41822d161f9cd59ab911ae5",
+      "focusInputSha256": "ba117c75d75cef7c2e0d0c48226bbf3d74be8be6424bc29fd71c653f5889fdd8"
+    },
+    "nec-corridor-world": {
+      "artifact": "modis-igbp-2023-v1.nec-corridor-world.geojson.gz",
+      "artifactSha256": "34a8888ce101ac87e8e07c5b06bab5470ade7b3dbaeaaed93f5a1a945ecee5ac",
+      "sourceSha256": "fba702594373407e297e72edb2e44212907eebfcf41822d161f9cd59ab911ae5",
+      "focusInputSha256": "e519040a1235dbd4043a8aaf9ab4d879b0e18932eea02473e08824b753d2fe4a"
+    }
+  }
 }

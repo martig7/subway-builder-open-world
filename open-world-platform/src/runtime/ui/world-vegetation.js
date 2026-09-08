@@ -1,7 +1,7 @@
 import { createOffMainThreadJsonDecoder } from '../embedded-tile-package-adapter.js';
 import { readWorldContextTheme } from './world-context-theme.js';
 
-export const WORLD_VEGETATION_VERSION = 'world-vegetation-seam-safe-v2';
+export const WORLD_VEGETATION_VERSION = 'world-footprint-vegetation-v3';
 export const WORLD_VEGETATION_SOURCE = 'open-world-vegetation-source';
 export const WORLD_VEGETATION_LAYER = 'open-world-vegetation';
 export const WORLD_VEGETATION_ATTRIBUTION = 'Vegetation: NASA MODIS MCD12Q1 v061 (2023), NASA GIBS / ESDIS; simplified by Open World';
@@ -32,7 +32,8 @@ export function ensureWorldVegetation(map, data, beforeId) {
       type: 'geojson', data, maxzoom: 9, tolerance: 2,
       attribution: WORLD_VEGETATION_ATTRIBUTION,
     });
-  } else if (map.__openWorldVegetation?.version !== WORLD_VEGETATION_VERSION) {
+  } else if (map.__openWorldVegetation?.version !== WORLD_VEGETATION_VERSION
+    || map.__openWorldVegetation?.focusWorld !== (data.focusWorld ?? null)) {
     existing.setData(data);
   }
   if (!map.getLayer?.(WORLD_VEGETATION_LAYER)) {
@@ -45,7 +46,8 @@ export function ensureWorldVegetation(map, data, beforeId) {
   if (map.getLayer?.(WORLD_VEGETATION_LAYER)?.maxzoom !== 24) map.setLayerZoomRange?.(WORLD_VEGETATION_LAYER, 0, 24);
   // This background is above base land but below native water, roads and rail.
   map.moveLayer?.(WORLD_VEGETATION_LAYER, beforeId);
-  map.__openWorldVegetation = { version: WORLD_VEGETATION_VERSION, features: data.features.length, maxzoom: 24 };
+  map.__openWorldVegetation = { version: WORLD_VEGETATION_VERSION, features: data.features.length, maxzoom: 24,
+    focusWorld: data.focusWorld ?? null, outsideToleranceDegrees: data.outsideToleranceDegrees ?? null };
 }
 
 export function releaseWorldVegetation(map) {

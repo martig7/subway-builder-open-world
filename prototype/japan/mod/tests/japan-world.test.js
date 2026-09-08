@@ -11,21 +11,24 @@ import { packDisplayBoundaryOverlay } from '../../../../open-world-platform/src/
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..', '..');
 const worldRoot = path.join(repositoryRoot, 'worlds', 'japan');
 
-test('Japan packages bounded display detail with one decoded geometry per prefecture', async () => {
+test('Japan packages fixed selection polygons and bounded inland divider detail', async () => {
   const definition = JSON.parse(await readFile(path.join(worldRoot, 'world.json'), 'utf8'));
   const catalogSource = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.catalog), 'utf8'));
   const display = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.boundaryOverlay), 'utf8'));
   const packed = packDisplayBoundaryOverlay(display);
-  assert.equal(packed.encoding, 'quantized-display-boundaries-v1');
-  assert.ok(JSON.stringify(packed).length < 6_000_000, 'unused display LODs must stay compact');
-  assert.deepEqual(packed.lods.map(level => level.minZoom), [0, 7, 9, 11]);
-  assert.ok(packed.lods.at(-1).vertexCount < 500_000);
+  assert.equal(packed.encoding, 'inland-display-boundaries-v2');
+  assert.ok(JSON.stringify(packed).length < 2_000_000, 'coastline LODs must not enter the bundle');
+  assert.deepEqual(packed.lods.map(level => level.minZoom), [0]);
+  assert.deepEqual(packed.dividerLods.map(level => level.minZoom), [0, 7, 9, 11]);
+  assert.ok(packed.lods[0].vertexCount < 60_000);
+  assert.ok(packed.dividerLods.at(-1).vertexCount < 80_000);
   const { tileCatalog } = createOpenWorldCatalog({ definition, catalogSource, boundaryOverlay: packed });
   for (const zoom of [0, 7, 9, 11, 15]) {
     const data = tileBoundaryGeoJson(tileCatalog, null, null, zoom);
-    assert.equal(data.features.length, 47);
-    assert.equal(new Set(data.features.map(feature => feature.id)).size, 47);
-    assert.ok(data.features.every(feature => ['Polygon', 'MultiPolygon'].includes(feature.geometry.type)));
+    assert.equal(data.features.length, 135);
+    assert.equal(new Set(data.features.map(feature => feature.id)).size, 135);
+    assert.equal(data.features.filter(feature => ['Polygon', 'MultiPolygon'].includes(feature.geometry.type)).length, 47);
+    assert.equal(data.features.filter(feature => ['LineString', 'MultiLineString'].includes(feature.geometry.type)).length, 88);
   }
 });
 

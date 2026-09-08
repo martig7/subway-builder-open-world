@@ -19,6 +19,7 @@
     "profile": "osm-depot-world-v1",
     "nativeParkSourceLayer": "landuse",
     "worldVegetation": "modis-igbp-2023-v1",
+    "worldVegetationDetail": "world",
     "basemapRevision": "nec-corridor-z0-z9-v2"
   },
   "demand": {

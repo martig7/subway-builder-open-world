@@ -966,7 +966,7 @@ function ringFor(tile) {
   return [[west, south], [east, south], [east, north], [west, north], [west, south]];
 }
 
-export const BOUNDARY_LOD_VERSION = 'quantized-boundary-lod-v4';
+export const BOUNDARY_LOD_VERSION = 'inland-boundary-lod-v5';
 
 function boundaryLodFor(tile, zoom) {
   return (tile.boundaryLods ?? []).filter((level) => level.minZoom <= zoom).at(-1);
@@ -1054,7 +1054,7 @@ function syncNativeHoverDelegateGate(map, owner) {
 export function tileBoundaryGeoJson(catalog, activeTileId = null, hoveredTileId = null, zoom = Infinity) {
   return {
     type: 'FeatureCollection',
-    features: (catalog?.tiles ?? []).flatMap((tile, featureId) => {
+    features: [...(catalog?.tiles ?? []).flatMap((tile, featureId) => {
       const geometry = boundaryGeometryFor(tile, zoom);
       if (!geometry) return [];
       return [{
@@ -1072,8 +1072,22 @@ export function tileBoundaryGeoJson(catalog, activeTileId = null, hoveredTileId 
         },
         geometry,
       }];
-    }),
+    }), ...dividerFeatures(catalog, activeTileId, hoveredTileId, zoom)],
   };
+}
+
+function dividerLevel(catalog, zoom) {
+  return catalog?.dividerLods?.filter(level => level.minZoom <= zoom).at(-1);
+}
+
+function dividerFeatures(catalog, activeTileId, hoveredTileId, zoom) {
+  return (dividerLevel(catalog, zoom)?.features ?? []).map((feature, index) => ({
+    ...feature, id: catalog.tiles.length + index,
+    properties: { ...feature.properties,
+      active: feature.properties.owners.includes(activeTileId),
+      hovered: hoveredTileId !== activeTileId && feature.properties.owners.includes(hoveredTileId),
+    },
+  }));
 }
 
 export function isWorldTileSelectionZoom(zoom) {
@@ -3130,7 +3144,9 @@ export class GeographicContextOverlayController {
     const zoom = previousZoom != null
       ? (this.map?.isZooming?.() ? previousZoom : Math.max(previousZoom, cameraZoom))
       : cameraZoom;
-    const lodKey = this.tileCatalog.tiles.map((tile) => boundaryLodFor(tile, zoom)?.minZoom ?? 'legacy').join(',');
+    const inland = Boolean(this.tileCatalog.dividerLods);
+    const lodKey = inland ? `inland:${dividerLevel(this.tileCatalog, zoom)?.minZoom ?? 0}`
+      : this.tileCatalog.tiles.map((tile) => boundaryLodFor(tile, zoom)?.minZoom ?? 'legacy').join(',');
     const stateKey = `${activeTileId}:${this.hoveredTileId}`;
     const unchangedGeometry = this.boundarySubmission?.source === source
       && this.boundarySubmission?.version === BOUNDARY_LOD_VERSION
@@ -3139,7 +3155,8 @@ export class GeographicContextOverlayController {
     if (featureState && (this.map.__openWorldBoundaryLodStyleVersion !== BOUNDARY_LOD_VERSION
       || this.boundarySubmission?.source !== source)) {
       const state = (key) => ['boolean', ['feature-state', key], ['boolean', ['get', key], false]];
-      this.map.setPaintProperty?.(TILE_SELECTION_LAYER_ID, 'fill-opacity', ['case', state('hovered'), .28, 0]);
+      this.map.setPaintProperty?.(TILE_SELECTION_LAYER_ID, 'fill-opacity', inland ? 0 : ['case', state('hovered'), .28, 0]);
+      this.map.setFilter?.(TILE_BOUNDARY_LAYER_ID, inland ? ['==', '$type', 'LineString'] : null);
       this.map.setPaintProperty?.(TILE_BOUNDARY_LAYER_ID, 'line-color', ['case', ['any', state('active'), state('hovered')], '#ffd166', '#79b8e8']);
       this.map.setPaintProperty?.(TILE_BOUNDARY_LAYER_ID, 'line-opacity', ['case', state('active'), .95, .7]);
       this.map.setPaintProperty?.(TILE_BOUNDARY_LAYER_ID, 'line-width', ['interpolate', ['linear'], ['zoom'],
@@ -3153,6 +3170,10 @@ export class GeographicContextOverlayController {
         { source: BOUNDARY_SOURCE_ID, id: featureId },
         { active: tile.id === activeTileId, hovered: tile.id === this.hoveredTileId && tile.id !== activeTileId },
       );
+      for (const feature of dividerFeatures(this.tileCatalog, activeTileId, this.hoveredTileId, zoom)) this.map.setFeatureState(
+        { source: BOUNDARY_SOURCE_ID, id: feature.id },
+        { active: feature.properties.active, hovered: feature.properties.hovered },
+      );
       this.boundarySubmission.stateKey = stateKey;
       return;
     }
@@ -3162,6 +3183,10 @@ export class GeographicContextOverlayController {
       for (const [featureId, tile] of this.tileCatalog.tiles.entries()) this.map.setFeatureState(
         { source: BOUNDARY_SOURCE_ID, id: featureId },
         { active: tile.id === activeTileId, hovered: tile.id === this.hoveredTileId && tile.id !== activeTileId },
+      );
+      for (const feature of dividerFeatures(this.tileCatalog, activeTileId, this.hoveredTileId, zoom)) this.map.setFeatureState(
+        { source: BOUNDARY_SOURCE_ID, id: feature.id },
+        { active: feature.properties.active, hovered: feature.properties.hovered },
       );
     }
     return mapMovePerfMeasure('maplibre.tile-boundary.setData', () => (

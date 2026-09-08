@@ -1,4 +1,4 @@
-import { createPackedBoundaryLookup } from './packed-display-boundaries.js';
+import { createPackedBoundaryLookup, decodePackedBoundaryGeometry } from './packed-display-boundaries.js';
 
 function normalizeInitialViewState(view = {}) {
   const center = Array.isArray(view.center) ? view.center : null;
@@ -57,8 +57,21 @@ export function createOpenWorldCatalog({ definition, catalogSource, boundaryOver
     throw new Error(`Initial Tile View is not selected: ${definition.tileViews.initialTileId}`);
   }
   const sourceInitialView = catalogSource.initialView ?? tiles[0].initialViewState;
+  const ownerTiles = new Map(tiles.map(tile => [String(tile.prefCode ?? tile.pref_code ?? tile.id), tile.id]));
+  let decodedDividers;
+  const dividerLods = boundaryOverlay?.dividerLods?.map((level, index) => ({
+    minZoom: level.minZoom,
+    get features() {
+      if (decodedDividers?.index !== index) decodedDividers = { index, features: level.features.map(feature => ({
+        type: 'Feature', properties: { owners: feature.properties.owners.map(owner => ownerTiles.get(String(owner))).filter(Boolean) },
+        geometry: decodePackedBoundaryGeometry(feature.geometry, boundaryOverlay.scale),
+      })) };
+      return decodedDividers.features;
+    },
+  }));
   const catalog = Object.freeze({
     ...catalogSource,
+    ...(dividerLods ? { dividerLods } : {}),
     id: catalogSource.id ?? definition.identity.artifactWorldId,
     name: catalogSource.name ?? definition.identity.name,
     minZoom: Number(catalogSource.minZoom ?? 0.01),

@@ -46,6 +46,7 @@
         "worldContextTileId": { "$ref": "#/$defs/stableId" },
         "nativeParkSourceLayer": { "enum": ["parks", "landuse"] },
         "worldVegetation": { "enum": ["modis-igbp-2023-v1"] },
+        "worldVegetationDetail": { "enum": ["world"] },
         "basemapRevision": { "$ref": "#/$defs/stableId" }
       }
     },
