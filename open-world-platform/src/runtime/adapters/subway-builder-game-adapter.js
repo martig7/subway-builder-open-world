@@ -1,4 +1,5 @@
 import { runFrameBudgeted } from '../frame-budget.js';
+import { armTileRenderingRetirement } from '../tile-rendering-retirement.js';
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
 import { NativeCommuteIndex } from '../native-commute-index.js';
 import { readDriveToStationAccess } from '../native-routing-settings.js';
@@ -1728,6 +1729,15 @@ export class SubwayBuilderGameAdapter {
 
   installSimulationPerformanceDiagnostics() {
     return installSimulationPerformanceDiagnostics(this.callbacks);
+  }
+
+  prepareTileRenderingRetirement(targetCity, { onReport } = {}) {
+    return armTileRenderingRetirement({
+      getState: () => this.callbacks.getState(),
+      getMap: () => this.api.utils?.getMap?.(),
+      targetCity,
+      onReport,
+    });
   }
 
   /**

@@ -675,7 +675,15 @@ export function startOpenWorld({
     try {
       api.ui?.showNotification?.(`Switching to ${tile.name}…`, 'info', 'Open World');
       const transition = await runtime.stageNavigationTransition(tileId);
-      navigation.navigateTo(transition);
+      const retirement = game.prepareTileRenderingRetirement(tileId, {
+        onReport: report => { diagnostics.tileRenderingRetirement = report; },
+      });
+      try {
+        await navigation.navigateTo(transition, { beforeNavigate: () => retirement.retireBeforeNavigation() });
+      } catch (error) {
+        retirement.cancel();
+        throw error;
+      }
       return transition;
     } catch (error) {
       api.ui?.showNotification?.(`Tile switch failed: ${error.message}`, 'error', 'Open World');

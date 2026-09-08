@@ -56,3 +56,16 @@ test('supports a fresh native-world handoff without inventing a save identity', 
   navigation.complete({ worldId: 'native-session-created-after-reset', tileId: 'NY_CP00_RP00' });
   assert.equal(values.has(PENDING_KEY), false);
 });
+
+test('render retirement occurs after navigation validation and pending handoff, before router allocation', () => {
+  const calls = [];
+  const navigation = new HashCityNavigationAdapter({
+    router: { navigate: () => calls.push('navigate') }, tileIds: ['NEXT'],
+    sessionStorage: { setItem: () => calls.push('pending') },
+  });
+  const options = { beforeNavigate: () => calls.push('retire') };
+  assert.throws(() => navigation.navigateTo({ worldId: 'world', tileId: 'invalid' }, options));
+  assert.deepEqual(calls, []);
+  navigation.navigateTo({ worldId: 'world', tileId: 'NEXT' }, options);
+  assert.deepEqual(calls, ['pending', 'retire', 'navigate']);
+});

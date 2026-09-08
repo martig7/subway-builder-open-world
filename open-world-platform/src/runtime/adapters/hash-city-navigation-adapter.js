@@ -65,7 +65,7 @@ export class HashCityNavigationAdapter {
     freshWorld = false,
     transitionId = null,
     from = null,
-  }) {
+  }, { beforeNavigate } = {}) {
     if (!this.tileIds.includes(tileId)) throw new Error('Invalid pending tile navigation');
     if (freshWorld !== true && typeof worldId !== 'string') throw new Error('Invalid pending tile navigation');
     const router = this.router ?? findMountedRouter(this.document);
@@ -74,6 +74,7 @@ export class HashCityNavigationAdapter {
     if (typeof transitionId === 'string' && transitionId) pending.transitionId = transitionId;
     if (this.tileIds.includes(from)) pending.from = from;
     this.sessionStorage?.setItem(this.pendingKey, JSON.stringify(pending));
+    beforeNavigate?.();
     return router.navigate(`/game?city=${tileId}`);
   }
 }

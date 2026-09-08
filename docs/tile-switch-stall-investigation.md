@@ -146,3 +146,76 @@ Tokyo, original camera, paused state, 316 stations and 53 routes were restored.
 Temporary browser probes were removed. Diagnostic helpers and raw results remain
 under the Git-ignored `.analysis/render-retention-*` prefix. No production fix,
 new build, or performance speedup is claimed by this inspection.
+
+## Explicit rendering retirement, 2026-09-08
+
+Implemented `tile-rendering-retirement-v3` in the Japan consumer. After staging
+the native handoff and validating navigation, retire the outgoing road worker,
+road/runway feature arrays and every old road-index node **before** asking the
+router to load the destination. Native teardown remains responsible for GPU
+destruction. Once the outgoing map is removed and its layers are finalized,
+drop road-layer data, state, attribute and context references and the finalized
+Deck instance's `props.layers`. Preserve objects still used by a current renderer.
+The cleanup records counts/errors only, never the retired objects themselves.
+
+Two details matter: RBush `clear()` replaces the root without emptying an
+independently retained old root; Deck finalization destroys GPU resources but
+leaves JavaScript layer references. Also, `getMap()` can temporarily return the
+already removed map after its manager is destroyed. Cleanup handles that interval
+and can enumerate finalized sublayers from retained Deck props.
+
+The initial implementation waited for native load to reset the store. It cleared
+old roads successfully, but the large Tokyo-to-Kanagawa direction still produced
+OOMs. Moving retirement before router navigation allowed that direction to
+complete. Earlier experimental failures recovered the full network through the
+existing reload guard. No heap snapshot or production forced-GC hook was added.
+
+### Live weak-reference verification
+
+Three consecutive switches on the final runtime preserved 316 stations, 53 routes
+and the paused state, with no renderer reload or cleanup error:
+
+| Direction | Duration | Road features retired | Index entries retired | Post-collection JS heap |
+| --- | ---: | ---: | ---: | ---: |
+| Kanagawa to Tokyo | 27,288 ms | 302,951 | 304,478 | 1,061,983,852 bytes |
+| Tokyo to Kanagawa | 24,745 ms | 489,131 | 490,779 | 912,245,960 bytes |
+| Kanagawa to Tokyo | 26,659 ms | 302,951 | 304,478 | 1,063,383,580 bytes |
+
+The first switch collected 140/155 tracked old CPU array views: surviving view
+payload fell from 57.63 MB to 5.95 MB. On the second switch, the old map, style,
+Deck instance, all six tracked native road/runway objects, all 130 tile objects,
+all 47 road layers and all 110 CPU array views were collected. On the third,
+the equivalent objects, 180 tiles, 63 road layers and 150 CPU array views were
+collected. Backing ArrayBuffers can survive independently (including buffers used
+by current layers); this is not a claim that every byte of rendering memory is
+released. The first captured map's empty wrapper objects also remained alive.
+
+Tokyo's collected heap changed by about 1.4 MB over the measured round trip.
+These collection-assisted checks establish object release, not ordinary frame
+timings or an exhaustive absence of leaks. A short run cannot rule out every OOM.
+The 24.7–27.3 second transitions remain expensive; no robust speedup percentage is
+claimed from different single-run conditions.
+
+Validation: 698 platform tests and six Japan behavioral tests pass, including
+retained index roots, deferred native teardown, active data preservation,
+navigation validation ordering and previous-generation wrapper replacement.
+The active and installed Japan bundle SHA256 is
+`A60719B6620A0184F3E295D44002B67905D879DD1148B26CF9DEFCF3F15D5AE9`.
+Raw results are in `.analysis/render-retirement-v3-*.json` (Git-ignored).
+
+### Remaining failure without diagnostic collection
+
+The additional round trip deliberately omitted both forced GC and the preceding
+weak-reference harness's eight-second settling period. Tokyo to Kanagawa
+completed in 23,352 ms with zero cleanup errors. The immediate return staged but
+the renderer crashed. The native reload guard recovered Tokyo with 316 stations,
+53 routes and pause preserved; its 52,562 ms recovered transition is **not** a
+successful uninterrupted switch measurement.
+
+Rendering retirement therefore passes its direct release checks, but does not
+fully resolve the OOM. This run cannot distinguish delayed collection from
+overlapping late native work or another loading allocation peak. The remaining
+failure needs allocation/lifetime tracing around immediate repeated transitions;
+do not call the five-attempt sequence crash-free or assume a fixed delay or
+forced-GC requirement has been established. The raw unsuccessful normal-operation
+run is `.analysis/render-retirement-natural-roundtrip.json`.
