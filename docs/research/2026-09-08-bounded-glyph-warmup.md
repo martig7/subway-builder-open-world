@@ -89,9 +89,12 @@ financial dashboard work are independent sources of frame gaps.
 
 The established fast pan/zoom harness also records ordinary movement before and
 after in `.analysis/glyph-warmup-before.json` and
-`.analysis/glyph-warmup-after.json`. Those passes use the already visited Osaka
-area and therefore are not an isolated cold-font benchmark. Camera and pause
-state are restored by the harness.
+`.analysis/glyph-warmup-after.json`. The camera changed across reload: the first
+pass starts at [136.31073305924303, 35.785712099484215], zoom 7.330841646775407;
+the second at [135.419218, 34.661465], zoom 8.5. These are unpaired movement smoke
+checks, not a controlled before/after performance comparison or cold-font test.
+After checking that no subsequent camera movement had occurred, the original
+pre-test camera and paused=true state were explicitly restored.
 
 | Simulation | Movement | Before p95 / max, ms | After p95 / max, ms |
 | --- | --- | ---: | ---: |
@@ -103,7 +106,7 @@ state are restored by the harness.
 | Running | Pan + zoom | 124.2 / 168.4 | 120.8 / 171.6 |
 
 These live passes do **not** demonstrate an overall zoom improvement; several
-rows worsened after reload. They include different simulation times and different
-tile/geometry cache state. The direct native glyph benchmark above isolates the
+rows worsened after reload. They include different camera regions, simulation
+times and tile/geometry cache state. The direct native glyph benchmark above isolates the
 benefit we can substantiate. No renderer exceptions or visibility changes were
 reported in either movement pass. No measured gap reached 500 ms.
