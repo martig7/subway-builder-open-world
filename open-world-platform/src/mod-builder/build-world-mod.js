@@ -4,6 +4,7 @@ import path from 'node:path';
 import { loadWorldDefinition } from '../contracts/load-world-definition.js';
 import { OPEN_WORLD_PLATFORM_RELEASE } from '../runtime/start-open-world.js';
 import { loadWorldVegetationArtifact } from './world-vegetation-artifact.js';
+import { packDisplayBoundaryOverlay } from './display-boundary-artifact.js';
 import { TILE_DATA_FILES, WORLD_DATA_FILES, planArtifactFiles, applyArtifactFiles } from './artifact-files.js';
 
 const REQUIRED_MAP_FILES = ['buildings_index.bin.gz', 'roads.geojson.gz', 'runways_taxiways.geojson.gz', 'tiles.pmtiles', 'map-manifest.json'];
@@ -199,6 +200,17 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   await mkdir(distPath, { recursive: true });
   await esbuild.build({
     absWorkingDir: consumerRoot,
+    plugins: definition.tileViews.boundaryOverlay ? [{
+      name: 'quantized-display-boundaries-v1',
+      setup(build) {
+        const boundaryPath = path.resolve(worldRoot, definition.tileViews.boundaryOverlay);
+        build.onLoad({ filter: /\.json$/ }, async args => {
+          if (path.resolve(args.path) !== boundaryPath) return;
+          const overlay = JSON.parse(await readFile(args.path, 'utf8'));
+          return { contents: JSON.stringify(packDisplayBoundaryOverlay(overlay)), loader: 'json' };
+        });
+      },
+    }] : [],
     stdin: {
       contents: generatedEntrySource({ consumerRoot, platformRoot, worldRoot: path.resolve(worldRoot), definition, worldDefinitionHash, nativeMapBounds }),
       resolveDir: consumerRoot,

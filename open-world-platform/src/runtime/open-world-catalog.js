@@ -1,3 +1,5 @@
+import { createPackedBoundaryLookup } from './packed-display-boundaries.js';
+
 function normalizeInitialViewState(view = {}) {
   const center = Array.isArray(view.center) ? view.center : null;
   return Object.freeze({
@@ -23,6 +25,8 @@ function boundaryIndex(boundaryOverlay) {
 export function createOpenWorldCatalog({ definition, catalogSource, boundaryOverlay = null }) {
   if (!definition || !catalogSource) throw new Error('Catalog creation requires a World Definition and catalog source');
   const boundaries = boundaryIndex(boundaryOverlay);
+  const packed = createPackedBoundaryLookup(boundaryOverlay);
+  const lodIndexes = packed ? null : boundaryOverlay?.lods?.map(boundaryIndex);
   const selected = (catalogSource.tiles ?? []).filter((tile) => tile.status === 'selected');
   const tiles = selected.map((tile) => {
     const gridName = Number.isInteger(tile.column) && Number.isInteger(tile.row)
@@ -35,11 +39,15 @@ export function createOpenWorldCatalog({ definition, catalogSource, boundaryOver
       cityName: tile.cityName ?? `${gridName} Open World`,
       description: tile.description ?? `${gridName} map package`,
       population: Number(tile.population ?? 0),
-      boundaryGeometry: tile.boundaryGeometry ?? boundaries.get(String(boundaryKey)) ?? null,
-      boundaryLods: boundaryOverlay?.lods?.map((level) => ({
+      get boundaryGeometry() {
+        return tile.boundaryGeometry ?? (packed ? packed.geometry(String(boundaryKey), 0) : boundaries.get(String(boundaryKey))) ?? null;
+      },
+      boundaryLods: boundaryOverlay?.lods?.map((level, index) => ({
         minZoom: level.minZoom,
-        geometry: boundaryIndex(level).get(String(boundaryKey)) ?? null,
-      })).filter((level) => level.geometry) ?? tile.boundaryLods ?? [],
+        get geometry() {
+          return packed ? packed.geometry(String(boundaryKey), index) : lodIndexes[index].get(String(boundaryKey)) ?? null;
+        },
+      })).filter((level, index) => packed ? packed.has(String(boundaryKey), index) : level.geometry) ?? tile.boundaryLods ?? [],
       initialViewState: normalizeInitialViewState(tile.initialViewState ?? tile.initialView),
       neighbors: Object.freeze(tile.neighbors ?? []),
     });

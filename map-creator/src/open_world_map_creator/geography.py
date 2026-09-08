@@ -150,7 +150,29 @@ def display_lods(source, progress=print, metric_crs=METRIC_CRS):
         progress(f"[geometry] zoom {min_zoom}: {level['vertexCount']} vertices ({tolerance} m)")
     # Legacy readers get the coarsest display, never full computation geometry.
     result["features"] = result["lods"][0]["features"]
-    return result
+    return quantize_display_overlay(result)
+
+
+def quantize_display_overlay(overlay, grid_size=0.00001):
+    """Snap decorative coordinates with topology repair, never ownership data.
+
+    Decimal rounding alone can collapse narrow rings or create crossings.
+    GEOS precision reduction nodes those crossings on the common grid first.
+    """
+    if overlay.get('purpose') != 'display-only' or not overlay.get('lods'):
+        raise ValueError('Quantization requires explicit display-only LODs')
+    levels = []
+    for level in overlay['lods']:
+        features = []
+        for feature in level['features']:
+            geometry = shapely.set_precision(shape(feature['geometry']), grid_size)
+            if geometry.is_empty or not geometry.is_valid or geometry.geom_type not in ('Polygon', 'MultiPolygon'):
+                raise ValueError('Quantization erased or invalidated a display owner')
+            features.append({**feature, 'geometry': mapping(geometry)})
+        levels.append({**level, 'features': features,
+                       'vertexCount': int(sum(shapely.get_num_coordinates(shape(f['geometry'])) for f in features))})
+    return {**overlay, 'lodVersion': 'quantized-display-boundaries-v1',
+            'quantizationDegrees': grid_size, 'lods': levels, 'features': levels[0]['features']}
 
 
 def main():

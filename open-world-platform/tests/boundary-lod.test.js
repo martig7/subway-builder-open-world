@@ -84,17 +84,17 @@ test('zoom gestures defer boundary refinement and retain it across later zooms',
   assert.strictEqual(submitted[2].features[0].geometry, coarse);
 });
 
-test('a retained v1 submission upgrades IDs and paint without replacing its source', () => {
+for (const previousVersion of ['precomputed-boundary-lod-v1', 'retained-boundary-lod-v3']) test(`a retained ${previousVersion} submission upgrades geometry and paint without replacing its source`, () => {
   const catalog = { tiles: [{ id: 'JP_PREF_14', boundaryGeometry: detailed }] };
   const controller = new GeographicContextOverlayController({ tileCatalog: catalog });
   const submitted = [], states = [], paints = [];
   const source = { setData: data => submitted.push(data) };
   controller.map = { getSource: () => source, getZoom: () => 4,
-    __openWorldBoundaryLodStyleVersion: 'precomputed-boundary-lod-v1',
+    __openWorldBoundaryLodStyleVersion: previousVersion,
     setFeatureState: (target, state) => states.push({ target, state }),
     setPaintProperty: (...args) => paints.push(args) };
   controller.boundarySubmission = { source, lodKey: 'legacy', stateKey: 'null:null',
-    version: 'precomputed-boundary-lod-v1' };
+    version: previousVersion };
   controller.syncTileBoundaryData();
   assert.equal(submitted.length, 1);
   assert.equal(submitted[0].features[0].id, 0);

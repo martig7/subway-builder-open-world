@@ -966,7 +966,7 @@ function ringFor(tile) {
   return [[west, south], [east, south], [east, north], [west, north], [west, south]];
 }
 
-export const BOUNDARY_LOD_VERSION = 'retained-boundary-lod-v3';
+export const BOUNDARY_LOD_VERSION = 'quantized-boundary-lod-v4';
 
 function boundaryLodFor(tile, zoom) {
   return (tile.boundaryLods ?? []).filter((level) => level.minZoom <= zoom).at(-1);

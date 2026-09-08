@@ -5,9 +5,29 @@ import test from 'node:test';
 import { tileBoundaryGeoJson } from '../../../../open-world-platform/src/runtime/ui/geographic-context-overlay.js';
 import { loadWorldDefinition } from '../../../../open-world-platform/src/contracts/load-world-definition.js';
 import { createOpenWorldCityRegistration } from '../../../../open-world-platform/src/runtime/open-world-city-registration.js';
+import { createOpenWorldCatalog } from '../../../../open-world-platform/src/runtime/open-world-catalog.js';
+import { packDisplayBoundaryOverlay } from '../../../../open-world-platform/src/mod-builder/display-boundary-artifact.js';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..', '..');
 const worldRoot = path.join(repositoryRoot, 'worlds', 'japan');
+
+test('Japan packages bounded display detail with one decoded geometry per prefecture', async () => {
+  const definition = JSON.parse(await readFile(path.join(worldRoot, 'world.json'), 'utf8'));
+  const catalogSource = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.catalog), 'utf8'));
+  const display = JSON.parse(await readFile(path.join(worldRoot, definition.tileViews.boundaryOverlay), 'utf8'));
+  const packed = packDisplayBoundaryOverlay(display);
+  assert.equal(packed.encoding, 'quantized-display-boundaries-v1');
+  assert.ok(JSON.stringify(packed).length < 6_000_000, 'unused display LODs must stay compact');
+  assert.deepEqual(packed.lods.map(level => level.minZoom), [0, 7, 9, 11]);
+  assert.ok(packed.lods.at(-1).vertexCount < 500_000);
+  const { tileCatalog } = createOpenWorldCatalog({ definition, catalogSource, boundaryOverlay: packed });
+  for (const zoom of [0, 7, 9, 11, 15]) {
+    const data = tileBoundaryGeoJson(tileCatalog, null, null, zoom);
+    assert.equal(data.features.length, 47);
+    assert.equal(new Set(data.features.map(feature => feature.id)).size, 47);
+    assert.ok(data.features.every(feature => ['Polygon', 'MultiPolygon'].includes(feature.geometry.type)));
+  }
+});
 
 test('Japan world context uses its installed worldwide archive independently of the active prefecture', async () => {
   const { definition, catalog } = await loadWorldDefinition(worldRoot);
