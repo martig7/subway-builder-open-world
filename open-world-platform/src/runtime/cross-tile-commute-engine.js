@@ -533,6 +533,20 @@ export function projectCommutesForTile(world, tileId) {
   return projectCommutesByTile(world, [tileId])[tileId];
 }
 
+/** Hourly backlog updates need neither journey totals nor per-tile gateway copies. */
+export function projectCommuteBacklogs(world, tileIds) {
+  migrateCommuteLedger(world);
+  const backlogs = Object.create(null);
+  for (const tileId of tileIds) backlogs[tileId] = 0;
+  for (const cohortId in world.gatewayLedger) {
+    if (!Object.hasOwn(world.gatewayLedger, cohortId)) continue;
+    const entry = world.gatewayLedger[cohortId];
+    if (Object.hasOwn(backlogs, entry.flow.homeTileId)) backlogs[entry.flow.homeTileId] += entry.queuedToWork;
+    if (Object.hasOwn(backlogs, entry.flow.workTileId)) backlogs[entry.flow.workTileId] += entry.queuedToHome;
+  }
+  return backlogs;
+}
+
 /** Accumulate global gateway totals once, and local totals only for a flow's two endpoints. */
 export function projectCommutesByTile(world, tileIds) {
   migrateCommuteLedger(world);

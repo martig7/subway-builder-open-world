@@ -1,6 +1,6 @@
 import { assertWorld, createWorld, deepCopy, migrateWorldTileSet } from './world-model.js';
 import { createFrameBudget } from './frame-budget.js';
-import { advanceCommutesTo, applyModeShares, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog } from './cross-tile-commute-engine.js';
+import { advanceCommutesTo, applyModeShares, projectCommuteBacklogs, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog } from './cross-tile-commute-engine.js';
 import { calculateCrossTileModeShares, createNetworkProfile, inspectCrossTileModeChoice, inspectCrossTileTransitPath, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import {
   NetworkProjection,
@@ -1562,8 +1562,10 @@ export class WorldTileRuntime {
     }
     const advancement = advanceCommutesTo(world, target);
     if (advancement.activeHours > 0) {
-      const projections = projectCommutesByTile(world, Object.keys(world.tiles));
-      for (const [tileId, tile] of Object.entries(world.tiles)) tile.aggregate.backlog = projections[tileId].waitingToLeave;
+      const backlogs = projectCommuteBacklogs(world, Object.keys(world.tiles));
+      for (const tileId in world.tiles) {
+        if (Object.hasOwn(world.tiles, tileId)) world.tiles[tileId].aggregate.backlog = backlogs[tileId];
+      }
     }
     return advancement;
   }

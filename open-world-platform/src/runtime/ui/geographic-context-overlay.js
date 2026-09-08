@@ -54,7 +54,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 21;
+const MOVEMENT_DECK_GUARD_VERSION = 22;
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
@@ -1587,10 +1587,9 @@ function clipInterlinedFeatures(features, virtualization) {
 }
 
 function snapshotInterlinedValue(value) {
-  // Native interlining mutates retained GeoJSON arrays in place. Keep an
-  // allocation-free-on-hit snapshot comparison so those mutations invalidate
-  // clipping without paying the much larger clip/materialization cost on
-  // every hover or simulation update.
+  // Native interlining mutates retained GeoJSON arrays in place. Capture a
+  // detached copy on a miss, then compare without allocating key arrays or
+  // callbacks on every hover or simulation update.
   if (Array.isArray(value) || ArrayBuffer.isView(value)) {
     return Array.from(value, (entry) => snapshotInterlinedValue(entry));
   }
@@ -1600,7 +1599,7 @@ function snapshotInterlinedValue(value) {
   );
 }
 
-function sameInterlinedSnapshotValue(value, snapshot) {
+export function sameInterlinedSnapshotValue(value, snapshot) {
   if (Object.is(value, snapshot)) return true;
   const valueIsSequence = Array.isArray(value) || ArrayBuffer.isView(value);
   const snapshotIsSequence = Array.isArray(snapshot) || ArrayBuffer.isView(snapshot);
@@ -1614,11 +1613,15 @@ function sameInterlinedSnapshotValue(value, snapshot) {
   if (!value || !snapshot || typeof value !== 'object' || typeof snapshot !== 'object') {
     return false;
   }
-  const valueKeys = Object.keys(value);
-  const snapshotKeys = Object.keys(snapshot);
-  return valueKeys.length === snapshotKeys.length
-    && valueKeys.every((key) => Object.hasOwn(snapshot, key)
-      && sameInterlinedSnapshotValue(value[key], snapshot[key]));
+  let valueCount = 0;
+  for (const key in value) {
+    if (!Object.hasOwn(value, key)) continue;
+    valueCount++;
+    if (!Object.hasOwn(snapshot, key) || !sameInterlinedSnapshotValue(value[key], snapshot[key])) return false;
+  }
+  let snapshotCount = 0;
+  for (const key in snapshot) if (Object.hasOwn(snapshot, key)) snapshotCount++;
+  return valueCount === snapshotCount;
 }
 
 const MOVEMENT_SPATIAL_UNCACHEABLE = Symbol('movement-spatial-uncacheable');
