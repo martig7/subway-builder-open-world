@@ -1237,7 +1237,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 17;
+  previousPatch.version = 20;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1247,7 +1247,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
-  assert.equal(map.__deck[guardKey].version, 18);
+  assert.equal(map.__deck[guardKey].version, 21);
   firstController.dispose();
   reloadedController.dispose();
 });
@@ -2431,6 +2431,35 @@ test('equivalent native track and train geometry retains clipped buffer identity
   }
 });
 
+
+test('static geometry survives zoom hide/reveal but hidden edits invalidate it', () => {
+  for (const id of ['road-lines-major', 'runways-taxiways', 'platform-polygons-cover-top']) {
+    const map = fixtureMap(); map.setZoom(14);
+    const data = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { color: 'red' },
+      geometry: { type: 'LineString', coordinates: [[-74.5,40.5],[-74.4,40.5]] } }] };
+    if (id !== 'road-lines-major') data.features[0].geometry = { type: 'Polygon', coordinates: [[[-74.5,40.5],[-74.4,40.5],[-74.4,40.6],[-74.5,40.5]]] };
+    const layer = () => fixtureDeckLayer(id, { data });
+    map.__deck.props.layers = [layer()];
+    const controller = registerGeographicContextOverlay({ runtime: { getActiveTileId: () => 'A' }, tileCatalog: catalog });
+    controller.attachMap(map);
+    try {
+      const clipped = map.__deck.props.layers[0].props.data;
+      for (let i = 0; i < 3; i++) {
+        map.setZoom(8); controller.handleZoom();
+        map.__deck.setProps({ layers: [layer()] });
+        assert.strictEqual(map.__deck.props.layers[0].props.data, clipped, 'hiding retains uploaded buffers');
+        map.setZoom(14); controller.handleZoom();
+        assert.equal(map.__deck.props.layers[0].props.visible, true);
+        assert.strictEqual(map.__deck.props.layers[0].props.data, clipped, 'reveal must reuse clipped geometry');
+      }
+      map.setZoom(8); controller.handleZoom();
+      data.features[0].geometry.coordinates = id === 'road-lines-major' ? [[-80,40.5],[-79,40.5]] : [[[-80,40.5],[-79,40.5],[-79,40.6],[-80,40.5]]];
+      map.__deck.setProps({ layers: [layer()] });
+      map.setZoom(14); controller.handleZoom();
+      assert.equal(map.__deck.props.layers[0].props.data.features.length, 0);
+    } finally { controller.dispose(); }
+  }
+});
 
 test('native road clock frames reuse buffers but changed colors and zoom opacity invalidate', () => {
   const map = fixtureMap();

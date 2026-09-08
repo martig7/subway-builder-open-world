@@ -53,7 +53,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 18;
+const MOVEMENT_DECK_GUARD_VERSION = 21;
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
@@ -966,7 +966,7 @@ function ringFor(tile) {
   return [[west, south], [east, south], [east, north], [west, north], [west, south]];
 }
 
-export const BOUNDARY_LOD_VERSION = 'precomputed-boundary-lod-v2';
+export const BOUNDARY_LOD_VERSION = 'retained-boundary-lod-v3';
 
 function boundaryLodFor(tile, zoom) {
   return (tile.boundaryLods ?? []).filter((level) => level.minZoom <= zoom).at(-1);
@@ -1804,6 +1804,8 @@ function maskMovementDeckLayers(
   if (omitEmptyStationIcons(layers.props?.data)) return null;
   const isMovement = isMovementLayerId(layerId);
   const isRoad = isRoadDeckLayerId(layerId);
+  const retainStaticGeometry = isRoad || layerId === 'runways-taxiways'
+    || /^platform-polygons-cover-(?:top|bottom)$/.test(String(layerId));
   const isRailLine = isRailLineLayerId(layerId);
   const isVolatileRail = isVolatileRailLayerId(layerId);
   const isPortolanRibbon = isPortolanRibbonLayerId(layerId);
@@ -1816,9 +1818,16 @@ function maskMovementDeckLayers(
   if (hidden) {
     // Retain canonical data in the native layer tree, but never traverse it
     // while the layer cannot be drawn. Hidden updates may mutate that data in
-    // place, so the next visible pass must build fresh spatial membership.
-    const source = layerData(layers)?.[1];
-    if (source) spatialCache?.delete(source);
+    // place, so the next visible pass must validate or rebuild membership.
+    const hiddenDataEntry = layerData(layers);
+    const source = hiddenDataEntry?.[1];
+    const retainedStatic = retainStaticGeometry && hiddenDataEntry?.[0].endsWith('feature-collection')
+      ? spatialCache?.get(source) : null;
+    // Road and platform geometry is static across zoom bands. Keep clipped data
+    // and uploaded buffers, then validate the detached snapshot on reveal.
+    // Hidden native updates may mutate the same array, so identity is not proof.
+    if (retainedStatic?.sourceSnapshot) retainedStatic.revalidate = true;
+    else if (source) spatialCache?.delete(source);
     const nativeData = layers.props?.data;
     if (nativeData && typeof nativeData === 'object') spatialCache?.delete(nativeData);
     const previousHidden = layerCache?.get(layerId);
@@ -1826,9 +1835,12 @@ function maskMovementDeckLayers(
     interliningCache?.delete(String(layerId).toLowerCase());
     // Deck updates attributes on invisible layers too. Keep one inert layer
     // while hidden; patch.nativeLayers separately retains the latest input.
-    // Revealing it always re-clips that input after the invalidations above.
+    // Revealing it validates retained geometry and re-clips invalidated inputs.
     if (previousHidden?.hidden && previousHidden.inputLayer.constructor === layers.constructor) return previousHidden.layer;
-    const hiddenLayer = cloneLayerWithOverrides(layers, { visible: false });
+    const hiddenLayer = cloneLayerWithOverrides(layers, {
+      visible: false,
+      ...(retainedStatic?.sourceSnapshot ? { data: retainedStatic.renderedData } : {}),
+    });
     layerCache?.set(layerId, { hidden: true, inputLayer: layers, layer: hiddenLayer });
     return hiddenLayer;
   }
@@ -1848,6 +1860,8 @@ function maskMovementDeckLayers(
     && !isMovement
     && layerId !== 'tracks'
     && reusableDeckLayer(layers)
+    && !cachedLayer?.hidden
+    && !spatialCache?.get(source)?.revalidate
     && cachedLayer?.source === source
     && cachedLayer.signature === maskSignature
     && sameDeckRenderProps(cachedLayer.inputLayer, layers)
@@ -1895,6 +1909,11 @@ function maskMovementDeckLayers(
     const signature = virtualizationSignature(virtualization);
     let cached = spatialCache?.get(source);
     let cacheHit = cached?.signature === signature;
+    const retainedStaticGeometry = retainStaticGeometry && dataShape.endsWith('feature-collection');
+    if (retainedStaticGeometry && cacheHit && cached.revalidate) {
+      cacheHit = sameInterlinedSnapshotValue(source, cached.sourceSnapshot);
+      if (cacheHit) cached.revalidate = false;
+    }
     let interliningPassKey = null;
     let currentMovementSnapshot = null;
     let movementContentHit = false;
@@ -1986,7 +2005,7 @@ function maskMovementDeckLayers(
       dataShape,
       data: filtered,
       renderedData,
-      ...(retainedGeometry ? { sourceSnapshot: snapshotInterlinedValue(source) } : isVolatileRail ? {
+      ...(retainedGeometry || retainedStaticGeometry ? { sourceSnapshot: snapshotInterlinedValue(source) } : isVolatileRail ? {
         interliningRevision,
         sourceSnapshot: interliningRevision == null ? snapshotInterlinedValue(source) : null,
       } : isMovement ? {
@@ -2767,6 +2786,7 @@ export class GeographicContextOverlayController {
     this.refreshingContext = false;
     this.styleDataRefresh = null;
     this.handleIdle = () => this.retryContextRefresh();
+    this.handleZoomEnd = () => this.syncTileBoundaryData();
     this.handleStyle = () => {
       this.boundarySubmission = null;
       this.contextRefreshPending = true;
@@ -2928,6 +2948,7 @@ export class GeographicContextOverlayController {
     map?.on?.('styledata', this.handleStyleData);
     map?.on?.('idle', this.handleIdle);
     map?.on?.('zoom', this.handleZoom);
+    map?.on?.('zoomend', this.handleZoomEnd);
     ensureStationMarkerStyle();
     updateStationMarkerVisibility(map);
     applyNativeLayerZoomRanges(map);
@@ -3022,6 +3043,7 @@ export class GeographicContextOverlayController {
     try { attachedMap.off('styledata', this.handleStyleData); } catch {}
     try { attachedMap.off('idle', this.handleIdle); } catch {}
     try { attachedMap.off('zoom', this.handleZoom); } catch {}
+    try { attachedMap.off('zoomend', this.handleZoomEnd); } catch {}
     releaseNativeParkLanduse(attachedMap);
     releaseWorldVegetation(attachedMap);
     {
@@ -3099,7 +3121,15 @@ export class GeographicContextOverlayController {
   syncTileBoundaryData(activeTileId = this.activeTileId()) {
     const source = safeMapSource(this.map, BOUNDARY_SOURCE_ID);
     if (!source) return;
-    const zoom = this.map?.getZoom?.() ?? Infinity;
+    const cameraZoom = this.map?.getZoom?.() ?? Infinity;
+    const retained = this.boundarySubmission?.source === source
+      && this.boundarySubmission.version === BOUNDARY_LOD_VERSION;
+    // Let the worker retain its tiled geometry across zooms. Refinement is
+    // needed only after reaching a new detail level, and waits for zoomend.
+    const previousZoom = retained ? this.boundarySubmission.zoom : null;
+    const zoom = previousZoom != null
+      ? (this.map?.isZooming?.() ? previousZoom : Math.max(previousZoom, cameraZoom))
+      : cameraZoom;
     const lodKey = this.tileCatalog.tiles.map((tile) => boundaryLodFor(tile, zoom)?.minZoom ?? 'legacy').join(',');
     const stateKey = `${activeTileId}:${this.hoveredTileId}`;
     const unchangedGeometry = this.boundarySubmission?.source === source
@@ -3126,7 +3156,7 @@ export class GeographicContextOverlayController {
       this.boundarySubmission.stateKey = stateKey;
       return;
     }
-    this.boundarySubmission = { source, lodKey, stateKey, version: BOUNDARY_LOD_VERSION };
+    this.boundarySubmission = { source, lodKey, stateKey, zoom, version: BOUNDARY_LOD_VERSION };
     this.map.__openWorldBoundaryLodDiagnostic = { version: BOUNDARY_LOD_VERSION, lodKey, zoom };
     if (featureState) {
       for (const [featureId, tile] of this.tileCatalog.tiles.entries()) this.map.setFeatureState(

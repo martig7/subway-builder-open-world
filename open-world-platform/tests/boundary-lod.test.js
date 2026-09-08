@@ -58,6 +58,32 @@ test('hover and fractional zoom do not resubmit geometry; new LOD/source does', 
   assert.equal(paints, 8); // Reinstall paint after style/source replacement.
 });
 
+test('zoom gestures defer boundary refinement and retain it across later zooms', () => {
+  const catalog = { tiles: [{ id: 'A', boundaryLods: [
+    { minZoom: 0, geometry: coarse }, { minZoom: 10, geometry: detailed },
+  ] }] };
+  const controller = new GeographicContextOverlayController({ tileCatalog: catalog });
+  const submitted = [], states = [];
+  let zoom = 4, zooming = false;
+  let source = { setData: data => submitted.push(data) };
+  controller.map = { getSource: () => source, getZoom: () => zoom, isZooming: () => zooming,
+    setFeatureState: (target, state) => states.push(state), setPaintProperty() {} };
+  controller.syncTileBoundaryData();
+  zooming = true; zoom = 12;
+  controller.hoveredTileId = 'A'; controller.syncTileBoundaryData();
+  assert.equal(submitted.length, 1, 'no geometry upload while zooming');
+  assert.equal(states.at(-1).hovered, true, 'hover state still updates during zoom');
+  zooming = false; controller.handleZoomEnd();
+  assert.equal(submitted.length, 2);
+  assert.strictEqual(submitted[1].features[0].geometry, detailed);
+  for (zoom of [4, 12, 6, 11]) controller.syncTileBoundaryData();
+  assert.equal(submitted.length, 2, 'the worker keeps its detailed geometry and cached tiles');
+  source = { setData: data => submitted.push(data) }; zoom = 4;
+  controller.syncTileBoundaryData();
+  assert.equal(submitted.length, 3, 'a replacement source must receive geometry');
+  assert.strictEqual(submitted[2].features[0].geometry, coarse);
+});
+
 test('a retained v1 submission upgrades IDs and paint without replacing its source', () => {
   const catalog = { tiles: [{ id: 'JP_PREF_14', boundaryGeometry: detailed }] };
   const controller = new GeographicContextOverlayController({ tileCatalog: catalog });

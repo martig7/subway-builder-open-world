@@ -160,6 +160,24 @@ function samePoint(a, b) { return a?.[0] === b?.[0] && a?.[1] === b?.[1]; }
 /** Clip a line into contiguous pieces, avoiding synthetic closing segments. */
 export function clipLineString(coordinates, haloBounds) {
   if (!Array.isArray(coordinates) || coordinates.length < 2) return [];
+  // Most roads are wholly inside one tile or wholly outside the other halo
+  // tiles. Avoid allocating four clipping tests and two vertices per segment.
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  let validBounds = true;
+  for (const point of coordinates) {
+    const x = point?.[0], y = point?.[1];
+    if (!Array.isArray(point) || !Number.isFinite(x) || !Number.isFinite(y)) {
+      validBounds = false; break;
+    }
+    west = Math.min(west, x); east = Math.max(east, x);
+    south = Math.min(south, y); north = Math.max(north, y);
+  }
+  if (validBounds) {
+    if (east < haloBounds[0] || west > haloBounds[2] || north < haloBounds[1] || south > haloBounds[3]) return [];
+    if (west >= haloBounds[0] && east <= haloBounds[2] && south >= haloBounds[1] && north <= haloBounds[3]) {
+      return [coordinates.map(point => [point[0], point[1]])];
+    }
+  }
   const pieces = [];
   let current = [];
   for (let index = 1; index < coordinates.length; index += 1) {

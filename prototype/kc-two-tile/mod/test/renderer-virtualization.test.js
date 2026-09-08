@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  clipLineString,
   clipLineStringWithValues,
   createRendererVirtualization,
   createStationMarkerVisibilityAdapter,
@@ -89,6 +90,33 @@ test('clips boundary-crossing lines into contiguous segments and avoids closing 
   assert.deepEqual(result.tracks[0].geometry.coordinates, [[0, 0.5], [1, 0.5]]);
   assert.equal(result.previewArtifacts.length, 1);
   assert.deepEqual(canonical, before);
+});
+
+test('whole-road acceptance and rejection scan coordinates once instead of clipping every segment', () => {
+  for (const outside of [false, true]) {
+    let reads = 0;
+    const coordinates = Array.from({ length: 100 }, (_, i) => {
+      const point = [];
+      Object.defineProperties(point, { 0: { get() { reads++; return outside ? 3 + i / 1000 : i / 1000; } },
+        1: { get() { reads++; return .5; } } });
+      return point;
+    });
+    const pieces = clipLineString(coordinates, [0, 0, 1, 1]);
+    assert.equal(pieces.length, outside ? 0 : 1);
+    assert.ok(reads <= coordinates.length * 4, `whole-road scan used ${reads} coordinate reads`);
+    if (!outside) {
+      assert.equal(pieces[0].length, 100);
+      assert.notStrictEqual(pieces[0][0], coordinates[0], 'render coordinates must remain detached');
+    }
+  }
+});
+
+test('whole-road fast paths preserve boundary crossings and breaks at invalid vertices', () => {
+  const bounds = [0,0,1,1];
+  assert.deepEqual(clipLineString([[-1,.5],[2,.5]], bounds), [[[0,.5],[1,.5]]]);
+  assert.deepEqual(clipLineString([[0,0],[0,.5],[0,1]], bounds), [[[0,0],[0,.5],[0,1]]]);
+  assert.deepEqual(clipLineString([[.1,.5],[.2,.5],[NaN,.5],[.8,.5],[.9,.5]], bounds),
+    [[[.1,.5],[.2,.5]],[[.8,.5],[.9,.5]]]);
 });
 
 test('clips against adjacent bounds as one path and interpolates per-vertex values', () => {
