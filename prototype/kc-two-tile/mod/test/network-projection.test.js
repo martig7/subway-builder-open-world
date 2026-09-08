@@ -1,6 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NetworkProjection, classifyCrossTileRouteIds, createGlobalNetwork, stripNetworkFromSnapshot } from '../../../../open-world-platform/src/runtime/network-projection.js';
+import { NetworkProjection, classifyCrossTileRouteIds, createGlobalNetwork, createNativeNetworkSnapshot, stripNetworkFromSnapshot } from '../../../../open-world-platform/src/runtime/network-projection.js';
+
+test('native snapshot composition copies retained history once and never copies discarded topology', () => {
+  let historyReads = 0, discardedReads = 0;
+  const history = [{ revenue: 42 }];
+  const base = { metadata: { label: 'source' }, data: {
+    get financialHistory() { historyReads++; return history; },
+    tracks: [{ get coordinates() { discardedReads++; return [1, 2]; } }],
+  } };
+  const network = { tracks: [{ id: 'new', coordinates: [3, 4] }], routes: [], trains: [] };
+  const result = createNativeNetworkSnapshot(base, network);
+  assert.equal(historyReads, 1, 'history should be copied only into the resulting save');
+  assert.equal(discardedReads, 0, 'replaced native topology should not be traversed');
+  assert.deepEqual(result.data.financialHistory, history);
+  result.data.financialHistory[0].revenue = 99;
+  result.data.tracks[0].coordinates[0] = 99;
+  result.metadata.label = 'destination';
+  assert.equal(history[0].revenue, 42);
+  assert.equal(network.tracks[0].coordinates[0], 3);
+  assert.equal(base.metadata.label, 'source');
+});
 
 const catalog = {
   tiles: Array.from({ length: 4 }, (_, column) => ({

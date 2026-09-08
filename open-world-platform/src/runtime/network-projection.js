@@ -49,8 +49,22 @@ function stableHash(value) {
 function snapshotState(snapshot) { return snapshot?.data ?? snapshot ?? {}; }
 
 function withSnapshotState(snapshot, state) {
-  if (snapshot?.data) return { ...clone(snapshot), data: state };
+  if (snapshot?.data) {
+    // The replacement already owns its data. Cloning the old payload here
+    // traverses the entire financial history and network only to discard it.
+    const { data, ...header } = snapshot;
+    return { ...clone(header), data: state };
+  }
   return state;
+}
+
+function cloneNonNetworkState(snapshot) {
+  const source = snapshotState(snapshot);
+  const retained = {};
+  for (const key of Object.keys(source)) {
+    if (!SHARED_TRANSIT_STATE_KEYS.includes(key)) retained[key] = source[key];
+  }
+  return clone(retained);
 }
 
 function metersToDegrees(meters, latitude) {
@@ -364,7 +378,7 @@ export function createGlobalNetwork(source, revision = 0) {
 export function createNativeNetworkSnapshot(baseSnapshot, network) {
   const source = network?.nativeState ?? network ?? {};
   const state = {
-    ...clone(snapshotState(baseSnapshot)),
+    ...cloneNonNetworkState(baseSnapshot),
     ...authoritativeNetworkStateFrom(source),
   };
   return withSnapshotState(baseSnapshot, state);
