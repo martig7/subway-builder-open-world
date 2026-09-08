@@ -6,7 +6,6 @@ import {
   clipLineStringWithValues,
   createRendererVirtualization,
   createStationMarkerVisibilityAdapter,
-  tileOffsetWithinRenderDistance,
   virtualizeDeckLayers,
   virtualizeGeoJsonData,
   virtualizeRenderInputs,
@@ -22,35 +21,15 @@ const catalog = {
 };
 
 test('selects the active tile and its 3x3 halo without mutating the catalog', () => {
-  const virtualization = createRendererVirtualization({ activeTileId: 'T4', tileCatalog: catalog });
+  const virtualization = createRendererVirtualization({ haloRadius: 1, activeTileId: 'T4', tileCatalog: catalog });
   assert.deepEqual(virtualization.haloTileIds, catalog.tiles.map((tile) => tile.id));
 
-  const edge = createRendererVirtualization({ activeTileId: 'T0', tileCatalog: catalog });
+  const edge = createRendererVirtualization({ haloRadius: 1, activeTileId: 'T0', tileCatalog: catalog });
   assert.deepEqual(edge.haloTileIds, ['T0', 'T1', 'T3', 'T4']);
 });
 
-test('maps render distances 1 through 9 to the requested tile footprints', () => {
-  const expectedCounts = [1, 5, 9, 13, 25, 37, 49, 69, 81];
-  for (let distance = 1; distance <= 9; distance += 1) {
-    const offsets = [];
-    for (let row = -4; row <= 4; row += 1) {
-      for (let column = -4; column <= 4; column += 1) {
-        if (tileOffsetWithinRenderDistance(column, row, distance)) offsets.push([column, row]);
-      }
-    }
-    assert.equal(offsets.length, expectedCounts[distance - 1], `distance ${distance}`);
-  }
-  assert.equal(tileOffsetWithinRenderDistance(1, 1, 2), false);
-  assert.equal(tileOffsetWithinRenderDistance(2, 0, 4), true);
-  assert.equal(tileOffsetWithinRenderDistance(2, 1, 4), false);
-  assert.equal(tileOffsetWithinRenderDistance(3, 1, 6), true);
-  assert.equal(tileOffsetWithinRenderDistance(3, 2, 6), false);
-  assert.equal(tileOffsetWithinRenderDistance(4, 2, 8), true);
-  assert.equal(tileOffsetWithinRenderDistance(4, 3, 8), false);
-});
-
 test('uses the complete spatial grid when loadable packages omit empty halo cells', () => {
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: {
       tiles: [{ id: 'T0', column: 0, row: 0, bounds: [0, 0, 1, 1] }],
@@ -71,8 +50,8 @@ test('uses the complete spatial grid when loadable packages omit empty halo cell
 });
 
 test('clips boundary-crossing lines into contiguous segments and avoids closing triangles', () => {
-  const virtualization = createRendererVirtualization({
-    activeTileId: 'T0',
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
+    activeTileId: 'T0', haloRadius: 0,
     tileCatalog: { tiles: [{ id: 'T0', column: 0, row: 0, bounds: [0, 0, 1, 1] }] },
   });
   const canonical = {
@@ -133,7 +112,7 @@ test('clips against adjacent bounds as one path and interpolates per-vertex valu
 });
 
 test('handles null and missing geometry conservatively while filtering known spatial points', () => {
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -146,7 +125,7 @@ test('handles null and missing geometry conservatively while filtering known spa
 });
 
 test('filters trains, station dots, placement nodes, and missing connections through the shared halo presenter', () => {
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -163,7 +142,7 @@ test('filters trains, station dots, placement nodes, and missing connections thr
 });
 
 test('filters MapLibre GeoJSON source data without mutating the native FeatureCollection', () => {
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -180,7 +159,7 @@ test('filters MapLibre GeoJSON source data without mutating the native FeatureCo
 });
 
 test('masks movement Deck layers by zoom and spatially filters their data', () => {
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -201,7 +180,7 @@ test('masks movement Deck layers by zoom and spatially filters their data', () =
 });
 
 test('hidden native Deck layers defer geometry access until visible', () => {
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0', tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
   let reads = 0;
@@ -218,7 +197,7 @@ test('hidden native Deck layers defer geometry access until visible', () => {
 });
 
 test('clips native rail layer coordinates instead of forwarding the full crossing track', () => {
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -238,7 +217,7 @@ test('reapplying marker visibility is reversible and does not mutate marker stat
   const element = { style: { display: 'block', visibility: '' }, dataset: {} };
   const markers = [{ getElement: () => element, getLngLat: () => ({ lng: 2, lat: 2 }) }];
   const map = { getMap: () => ({ _markers: markers }) };
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -282,7 +261,7 @@ test('native marker movement uses one batched listener while hidden markers stay
   const map = { getMap: () => nativeMap };
   const adapter = createStationMarkerVisibilityAdapter({
     map,
-    virtualization: createRendererVirtualization({ activeTileId: 'T0', tileCatalog, haloRadius: 0 }),
+    virtualization: createRendererVirtualization({ haloRadius: 1, activeTileId: 'T0', tileCatalog, haloRadius: 0 }),
     movementVisible: true,
   });
 
@@ -298,7 +277,7 @@ test('native marker movement uses one batched listener while hidden markers stay
   assert.equal(listeners.move.size, 0);
   assert.equal(listeners.moveend.size, 0);
 
-  adapter.updateVirtualization(createRendererVirtualization({
+  adapter.updateVirtualization(createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T1', tileCatalog, haloRadius: 0,
   }));
   adapter.updateMovementVisibility(true);
@@ -338,7 +317,7 @@ test('a hot-reloaded marker adapter replaces the previous batch without restorin
   makeMarker(0.25);
   makeMarker(0.75);
   const map = { getMap: () => nativeMap };
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -395,7 +374,7 @@ test('clips DOM-backed markers when MapLibre exposes no native marker registry',
     getMap: () => nativeMap,
     getCanvasContainer: () => container,
   };
-  const virtualization = createRendererVirtualization({
+  const virtualization = createRendererVirtualization({ haloRadius: 1,
     activeTileId: 'T0',
     tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
   });
@@ -430,7 +409,7 @@ test('removed marker subtrees release visibility state before the next render', 
   const map = { getContainer: () => container, unproject: () => ({ lng: 2, lat: 2 }) };
   const adapter = createStationMarkerVisibilityAdapter({
     map,
-    virtualization: createRendererVirtualization({
+    virtualization: createRendererVirtualization({ haloRadius: 1,
       activeTileId: 'T0', tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
     }),
   });
@@ -466,7 +445,7 @@ test('full marker refresh prunes removed hidden native markers and does not rest
   map.on('moveend', marker._update);
   const adapter = createStationMarkerVisibilityAdapter({
     map,
-    virtualization: createRendererVirtualization({
+    virtualization: createRendererVirtualization({ haloRadius: 1,
       activeTileId: 'T0', tileCatalog: { tiles: [{ id: 'T0', bounds: [0, 0, 1, 1] }] },
     }),
   });
@@ -494,7 +473,7 @@ test('returns a presentation object with canonical inputs untouched', () => {
 });
 
 test('does not treat an unavailable tile catalog as an empty render window', () => {
-  const virtualization = createRendererVirtualization({ activeTileId: 'unknown', tileCatalog: null });
+  const virtualization = createRendererVirtualization({ haloRadius: 1, activeTileId: 'unknown', tileCatalog: null });
   const feature = { type: 'Feature', geometry: { type: 'Point', coordinates: [100, 100] }, properties: {} };
   assert.deepEqual(virtualization.renderInputs({ features: [feature] }).features, [feature]);
 });

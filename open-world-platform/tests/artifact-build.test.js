@@ -40,8 +40,15 @@ test('rebuilding a synthetic consumer reuses packages and stores world data only
   const built = await buildWorldMod(options);
   const archive = path.join(built.packageRoot, definition.tileViews.initialTileId, 'tiles.pmtiles');
   const before = await stat(archive, { bigint: true });
+  const beforeLimits = JSON.parse(await readFile(path.join(built.distPath, 'render-distance.json'), 'utf8'));
+  const updatedCatalog = structuredClone(catalog);
+  updatedCatalog.tiles.find(tile => tile.id === definition.tileViews.initialTileId).bounds[0] -= 2;
+  await writeFile(path.join(worldRoot, definition.tileViews.catalog), JSON.stringify(updatedCatalog));
   await buildWorldMod(options);
   const after = await stat(archive, { bigint: true });
+  const afterLimits = JSON.parse(await readFile(path.join(built.distPath, 'render-distance.json'), 'utf8'));
+  assert.ok(afterLimits.max > beforeLimits.max, 'rebuilding refreshes the world extent');
+  assert.ok(afterLimits.minByTile[definition.tileViews.initialTileId] > beforeLimits.minByTile[definition.tileViews.initialTileId]);
   assert.equal(after.mtimeNs, before.mtimeNs);
   assert.equal(after.ctimeNs, before.ctimeNs);
   await access(path.join(built.packageRoot, 'cross_commutes.json'));

@@ -1,3 +1,4 @@
+import { renderDistanceLimits } from '../render-distance.js';
 import {
   clipLineStringWithValues,
   createRendererVirtualization,
@@ -55,9 +56,10 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 22;
-const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-v1';
+const MOVEMENT_DECK_GUARD_VERSION = 23;
+const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
+const SPATIAL_SOURCE_GUARD_VERSION = 'spatial-source-distance-km-v2';
 const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
 const VOLATILE_RAIL_LAYER_ID_RE = /^(?:interlined-routes|portolan-ribbons)(?:-under)?$/i;
 const PORTOLAN_RIBBON_LAYER_ID_RE = /^portolan-ribbons(?:-under)?$/i;
@@ -1320,7 +1322,7 @@ function applyNativeLayerZoomRanges(map) {
 
 function virtualizationSignature(virtualization) {
   return virtualization
-    ? `${virtualization.activeTileId ?? ''}|${(virtualization.haloTileIds ?? []).join(',')}`
+    ? virtualization.signature ?? `${virtualization.activeTileId ?? ''}|${(virtualization.haloTileIds ?? []).join(',')}`
     : 'none';
 }
 
@@ -2119,10 +2121,13 @@ function installSpatialSourceVisibilityGuards(map, virtualizationProvider) {
       continue;
     }
     let patch = state.patches.get(sourceId);
-    if (!patch || patch.source !== source) {
+    if (!patch || patch.source !== source || patch.version !== SPATIAL_SOURCE_GUARD_VERSION) {
+      const retainedInput = patch?.source === source ? patch.lastInput : null;
       if (patch && patch.source?.setData === patch.wrapper) patch.source.setData = patch.originalSetData;
+      if (retainedInput != null) source.setData(retainedInput);
       const originalSetData = source.setData;
       patch = {
+        version: SPATIAL_SOURCE_GUARD_VERSION,
         source,
         originalSetData,
         virtualizationProvider,
@@ -2185,7 +2190,10 @@ function releaseSpatialSourceVisibilityGuards(map) {
   const state = map?.[SPATIAL_SOURCE_GUARD_KEY];
   if (!state) return;
   for (const patch of state.patches.values()) {
-    if (patch.source?.setData === patch.wrapper) patch.source.setData = patch.originalSetData;
+    if (patch.source?.setData === patch.wrapper) {
+      patch.source.setData = patch.originalSetData;
+      if (patch.lastInput != null) patch.originalSetData.call(patch.source, patch.lastInput);
+    }
   }
   state.patches.clear();
   try { delete map[SPATIAL_SOURCE_GUARD_KEY]; } catch {}
@@ -2769,9 +2777,9 @@ export class GeographicContextOverlayController {
     worldContextTilesUrl = null,
     nativeParkSourceLayer = 'parks',
     worldVegetationLoader = null,
-    renderDistance = 3,
+    renderDistance,
     renderDistanceStorage = globalThis.localStorage,
-    renderDistanceStorageKey = 'open-world:render-distance',
+    renderDistanceStorageKey = `open-world:render-distance-km-v1:${tileCatalog?.id ?? 'world'}`,
   }) {
     this.runtime = runtime;
     this.tileCatalog = tileCatalog;
@@ -2788,7 +2796,10 @@ export class GeographicContextOverlayController {
     try {
       persistedRenderDistance = renderDistanceStorage?.getItem?.(renderDistanceStorageKey) ?? null;
     } catch {}
-    this.renderDistance = normalizeRenderDistance(persistedRenderDistance ?? renderDistance);
+    this.renderDistance = normalizeRenderDistance(persistedRenderDistance ?? renderDistance,
+      renderDistanceLimits(tileCatalog, this.readRuntimeActiveTileId()));
+    this.renderShape = 'circle';
+    try { this.renderShape = renderDistanceStorage?.getItem?.(`${renderDistanceStorageKey}:shape`) === 'square' ? 'square' : 'circle'; } catch {}
     this.renderDistanceListeners = new Set();
     this.tileIds = new Set((tileCatalog?.tiles ?? []).map((tile) => tile.id));
     this.runtimeActiveTileId = this.readRuntimeActiveTileId();
@@ -3106,8 +3117,22 @@ export class GeographicContextOverlayController {
     this.renderDistanceListeners.clear();
   }
 
+  getRenderDistanceLimits() { return renderDistanceLimits(this.tileCatalog, this.activeTileId()); }
+
   getRenderDistance() {
-    return this.renderDistance;
+    return normalizeRenderDistance(this.renderDistance, this.getRenderDistanceLimits());
+  }
+
+  getRenderShape() { return this.renderShape; }
+
+  setRenderShape(value) {
+    const next = value === 'square' ? 'square' : 'circle';
+    if (next === this.renderShape) return next;
+    this.renderShape = next;
+    try { this.renderDistanceStorage?.setItem?.(`${this.renderDistanceStorageKey}:shape`, next); } catch {}
+    this.refresh();
+    for (const listener of this.renderDistanceListeners) listener(this.getRenderDistance());
+    return next;
   }
 
   subscribeRenderDistance(listener) {
@@ -3116,7 +3141,7 @@ export class GeographicContextOverlayController {
   }
 
   setRenderDistance(value) {
-    const next = normalizeRenderDistance(value);
+    const next = normalizeRenderDistance(value, this.getRenderDistanceLimits());
     if (next === this.renderDistance) return this.renderDistance;
     this.renderDistance = next;
     try { this.renderDistanceStorage?.setItem?.(this.renderDistanceStorageKey, String(next)); } catch {}
@@ -3296,7 +3321,8 @@ export class GeographicContextOverlayController {
     return createRendererVirtualization({
       activeTileId: this.activeTileId(),
       tileCatalog: this.tileCatalog,
-      renderDistance: this.renderDistance,
+      renderDistance: this.getRenderDistance(),
+      renderShape: this.renderShape,
     });
   }
 
@@ -3306,12 +3332,14 @@ export class GeographicContextOverlayController {
       force
       || !this.rendererVirtualization
       || this.rendererVirtualization.activeTileId !== activeTileId
-      || this.rendererVirtualization.renderDistance !== this.renderDistance
+      || this.rendererVirtualization.renderDistance !== this.getRenderDistance()
+      || this.rendererVirtualization.renderShape !== this.renderShape
     ) {
       this.rendererVirtualization = mapMovePerfMeasure(
         'overlay.create-virtualization',
         () => this.createRendererVirtualization(),
       );
+      for (const listener of this.renderDistanceListeners) listener(this.getRenderDistance());
     }
     if (this.map) {
       globalThis.__openWorldToolboxRenderMap = this.map;

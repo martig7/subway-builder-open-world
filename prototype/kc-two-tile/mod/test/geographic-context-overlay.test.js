@@ -1,3 +1,4 @@
+import { renderDistanceMetadata } from '../../../../open-world-platform/src/runtime/render-distance.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderedWaterColor } from '../../../../open-world-platform/src/runtime/ui/world-context-theme.js';
@@ -348,12 +349,13 @@ test('updates renderer virtualization when the render-distance control changes',
     runtime: { getActiveTileId: () => 'T24', subscribe: () => () => {} },
     tileCatalog: gridCatalog,
   });
-  assert.equal(controller.getRenderDistance(), 3);
-  assert.equal(controller.getRendererVirtualization().haloTileIds.length, 9);
-  controller.setRenderDistance(6);
-  assert.equal(controller.getRendererVirtualization().haloTileIds.length, 37);
-  controller.setRenderDistance(99);
-  assert.equal(controller.getRenderDistance(), 9);
+  const limits = controller.getRenderDistanceLimits();
+  assert.equal(controller.getRenderDistance(), limits.min);
+  const first = controller.getRendererVirtualization();
+  controller.setRenderDistance(limits.min + 0.25);
+  assert.notEqual(controller.getRendererVirtualization().signature, first.signature);
+  controller.setRenderDistance(limits.max * 2);
+  assert.equal(controller.getRenderDistance(), limits.max);
   assert.equal(controller.getRendererVirtualization().haloTileIds.length, 49);
   controller.dispose();
 });
@@ -361,7 +363,7 @@ test('updates renderer virtualization when the render-distance control changes',
 test('restores and persists render distance across controller generations', () => {
   const writes = [];
   const storage = {
-    getItem: () => '5',
+    getItem: key => key.endsWith(':shape') ? 'square' : '150',
     setItem: (key, value) => writes.push([key, value]),
   };
   const controller = registerGeographicContextOverlay({
@@ -369,9 +371,10 @@ test('restores and persists render distance across controller generations', () =
     tileCatalog: catalog,
     renderDistanceStorage: storage,
   });
-  assert.equal(controller.getRenderDistance(), 5);
-  controller.setRenderDistance(2);
-  assert.deepEqual(writes, [['open-world:render-distance', '2']]);
+  assert.equal(controller.getRenderDistance(), 150);
+  assert.equal(controller.getRenderShape(), 'square');
+  controller.setRenderDistance(100);
+  assert.deepEqual(writes, [[controller.renderDistanceStorageKey, '100']]);
   controller.dispose();
 });
 
@@ -1237,7 +1240,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 21;
+  previousPatch.version = 22;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1247,7 +1250,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
-  assert.equal(map.__deck[guardKey].version, 22);
+  assert.equal(map.__deck[guardKey].version, 23);
   firstController.dispose();
   reloadedController.dispose();
 });
@@ -1675,13 +1678,13 @@ test('clips native rail Deck data to the active tile halo', () => {
   const controller = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
     tileCatalog: catalog,
+    renderDistance: renderDistanceMetadata(catalog).scale[0],
   });
   controller.attachMap(map);
 
   const rail = map.__deck.props.layers[0];
   assert.deepEqual(rail.props.data[0].coords, [
-    [[-75, 40.5], [-74, 40.5]],
-    [[-74, 40.5], [-73, 40.5]],
+    [-75.5, 40.5], [-73.5, 40.5],
   ]);
 });
 
@@ -1703,14 +1706,14 @@ test('clips native GeoJsonLayer FeatureCollections before Deck expands rail subl
   const controller = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
     tileCatalog: catalog,
+    renderDistance: renderDistanceMetadata(catalog).scale[0],
   });
   controller.attachMap(map);
 
   const rail = map.__deck.props.layers[0];
-  assert.equal(rail.props.data.features[0].geometry.type, 'MultiLineString');
+  assert.equal(rail.props.data.features[0].geometry.type, 'LineString');
   assert.deepEqual(rail.props.data.features[0].geometry.coordinates, [
-    [[-75, 40.5], [-74, 40.5]],
-    [[-74, 40.5], [-73, 40.5]],
+    [-75.5, 40.5], [-73.5, 40.5],
   ]);
 });
 
@@ -1767,14 +1770,14 @@ test('clips already-materialized Deck rail layers that only retain state.feature
   const controller = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
     tileCatalog: catalog,
+    renderDistance: renderDistanceMetadata(catalog).scale[0],
   });
   controller.attachMap(map);
 
   const rendered = map.__deck.props.layers[0];
-  assert.equal(rendered.props.data[0].geometry.type, 'MultiLineString');
+  assert.equal(rendered.props.data[0].geometry.type, 'LineString');
   assert.deepEqual(rendered.props.data[0].geometry.coordinates, [
-    [[-75, 40.5], [-74, 40.5]],
-    [[-74, 40.5], [-73, 40.5]],
+    [-75.5, 40.5], [-73.5, 40.5],
   ]);
 });
 
@@ -1801,11 +1804,12 @@ test('clips materialized CompositeLayer sources retained under state.layerProps'
   const controller = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
     tileCatalog: catalog,
+    renderDistance: renderDistanceMetadata(catalog).scale[0],
   });
   controller.attachMap(map);
 
   const rendered = map.__deck.props.layers[0];
-  assert.equal(rendered.props.data.features[0].geometry.type, 'MultiLineString');
+  assert.equal(rendered.props.data.features[0].geometry.type, 'LineString');
 });
 
 test('reuses the clipped FeatureCollection identity across equivalent Deck updates', () => {
@@ -2132,6 +2136,7 @@ test('clips interlined routes to the render halo while preserving aligned native
   const controller = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
     tileCatalog: catalog,
+    renderDistance: renderDistanceMetadata(catalog).scale[0],
   });
 
   controller.attachMap(map);
@@ -2139,11 +2144,9 @@ test('clips interlined routes to the render halo while preserving aligned native
   const rendered = map.__deck.props.layers[0].props.data[0];
   assert.equal(rendered.geometry.type, 'LineString');
   assert.deepEqual(rendered.geometry.coordinates, [
-    [-75, 40.5],
-    [-74, 40.5],
-    [-73, 40.5],
+    [-75.5, 40.5], [-75, 40.5], [-74, 40.5], [-73.5, 40.5],
   ]);
-  assert.deepEqual(rendered.properties.offset, [-4, 0, 4]);
+  assert.deepEqual(rendered.properties.offset, [-4, -4, 0, 2]);
   assert.equal(rendered.geometry.coordinates.length, rendered.properties.offset.length);
   assert.deepEqual(source[0].geometry.coordinates, coordinates);
   assert.deepEqual(source[0].properties.offset, [-4, -4, 0, 4, 4]);
@@ -2195,6 +2198,7 @@ test('clips 1.7 Portolan binary ribbons to the render halo without hiding overvi
       subscribe: () => () => {},
     },
     tileCatalog: catalog,
+    renderDistance: renderDistanceMetadata(catalog).scale[0],
   });
 
   controller.attachMap(map);
@@ -2203,16 +2207,12 @@ test('clips 1.7 Portolan binary ribbons to the render halo without hiding overvi
   const rendered = renderedLayer.props.data;
   assert.notEqual(renderedLayer.props.visible, false);
   assert.equal(rendered.length, 1);
-  assert.deepEqual([...rendered.startIndices], [0, 3]);
+  assert.deepEqual([...rendered.startIndices], [0, 4]);
   assert.deepEqual([...rendered.attributes.getPath.value], [
-    -75, 40.5,
-    -74, 40.5,
-    -73, 40.5,
+    -75.5, 40.5, -75, 40.5, -74, 40.5, -73.5, 40.5,
   ]);
   assert.deepEqual([...rendered.attributes.getColor.value], [
-    2, 0, 0, 255,
-    3, 0, 0, 255,
-    4, 0, 0, 255,
+    1, 0, 0, 255, 2, 0, 0, 255, 3, 0, 0, 255, 3, 0, 0, 255,
   ]);
   assert.deepEqual([...data.startIndices], [0, 5], 'native binary data must remain immutable');
   controller.dispose();
@@ -2546,4 +2546,36 @@ test('hidden road frames retain one inert layer while keeping the latest native 
     assert.equal(map.__deck.props.layers[0].props.visible, true);
     assert.deepEqual(map.__deck.props.layers[0].props.data[0].coords, [-74.5,40.5]);
   } finally { controller.dispose(); }
+});
+
+
+test('distance and shape changes invalidate source and Deck caches without changing tile membership', () => {
+  const map = fixtureMap();
+  const canonical = { type: 'FeatureCollection', features: [{ type: 'Feature',
+    geometry: { type: 'Point', coordinates: [-73.4, 41.3] }, properties: {} }] };
+  const source = { data: canonical, setData(data) { this.data = data; } };
+  map.sources.set('all-nodes-source', source);
+  map.__deck.props.layers = [fixtureDeckLayer('station-marker-dots', { data: canonical.features })];
+  const controller = registerGeographicContextOverlay({ tileCatalog: catalog, renderDistance: 100,
+    runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} } });
+  controller.attachMap(map);
+  const ids = controller.getRendererVirtualization().haloTileIds;
+  assert.equal(source.data.features.length, 0);
+  controller.setRenderShape('square');
+  assert.deepEqual(controller.getRendererVirtualization().haloTileIds, ids);
+  assert.equal(source.data.features.length, 1);
+  assert.equal(map.__deck.props.layers[0].props.data.length, 1);
+  controller.setRenderShape('circle');
+  controller.setRenderDistance(140);
+  assert.deepEqual(controller.getRendererVirtualization().haloTileIds, ids);
+  assert.equal(source.data.features.length, 1);
+  assert.equal(map.__deck.props.layers[0].props.data.length, 1);
+  const oldPatch = map.__openWorldSpatialSourceVisibilityGuard.patches.get('all-nodes-source');
+  const wrapper = source.setData;
+  oldPatch.version = 'previous-generation';
+  controller.syncSpatialSourceVisibilityGuard();
+  assert.notStrictEqual(source.setData, wrapper);
+  assert.notStrictEqual(map.__openWorldSpatialSourceVisibilityGuard.patches.get('all-nodes-source'), oldPatch);
+  controller.dispose();
+  assert.strictEqual(source.data, canonical);
 });

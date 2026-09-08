@@ -1,3 +1,4 @@
+import { precomputeRenderDistance } from '../runtime/render-distance.js';
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -34,7 +35,7 @@ export function assertMapLabelPolicy(definition, manifest, tileId) {
   }
 }
 
-function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definition, worldDefinitionHash, nativeMapBounds }) {
+function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definition, worldDefinitionHash, nativeMapBounds, renderDistance }) {
   const runtime = moduleSpecifier(consumerRoot, path.join(platformRoot, 'src', 'runtime', 'start-open-world.js'));
   const worldDefinition = moduleSpecifier(consumerRoot, path.join(worldRoot, 'world.json'));
   const catalog = moduleSpecifier(consumerRoot, path.join(worldRoot, definition.tileViews.catalog));
@@ -49,7 +50,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     '',
     'startOpenWorld({',
     '  definition,',
-    `  catalogSource: { ...catalogSource, tiles: catalogSource.tiles.map(tile => ({ ...tile, nativeMapBounds: (${JSON.stringify(nativeMapBounds)})[tile.id] ?? tile.bounds })) },`,
+    `  catalogSource: { ...catalogSource, renderDistance: ${JSON.stringify(renderDistance)}, tiles: catalogSource.tiles.map(tile => ({ ...tile, nativeMapBounds: (${JSON.stringify(nativeMapBounds)})[tile.id] ?? tile.bounds })) },`,
     '  boundaryOverlay,',
     '  artifacts: {',
     `    worldDefinitionHash: ${JSON.stringify(worldDefinitionHash)},`,
@@ -198,6 +199,8 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   }
   const distPath = path.join(consumerRoot, 'dist');
   await mkdir(distPath, { recursive: true });
+  const renderDistance = precomputeRenderDistance(loaded.catalog);
+  await writeFile(path.join(distPath, 'render-distance.json'), JSON.stringify(renderDistance, null, 2));
   await esbuild.build({
     absWorkingDir: consumerRoot,
     plugins: definition.tileViews.boundaryOverlay ? [{
@@ -212,7 +215,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
       },
     }] : [],
     stdin: {
-      contents: generatedEntrySource({ consumerRoot, platformRoot, worldRoot: path.resolve(worldRoot), definition, worldDefinitionHash, nativeMapBounds }),
+      contents: generatedEntrySource({ consumerRoot, platformRoot, worldRoot: path.resolve(worldRoot), definition, worldDefinitionHash, nativeMapBounds, renderDistance }),
       resolveDir: consumerRoot,
       sourcefile: 'open-world-entry.generated.js',
       loader: 'js',

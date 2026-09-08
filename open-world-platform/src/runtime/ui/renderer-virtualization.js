@@ -1,3 +1,5 @@
+import { normalizeRenderDistance, renderDistanceLimits, renderDistanceMetadata, distanceRenderBounds } from '../render-distance.js';
+export { normalizeRenderDistance } from '../render-distance.js';
 /**
  * Renderer-only spatial virtualization.
  *
@@ -8,7 +10,7 @@
  */
 
 export const DETAILED_RENDER_ZOOM = Object.freeze({ min: 10, maxExclusive: 16 });
-export const RENDER_DISTANCE = Object.freeze({ min: 1, default: 3, max: 9 });
+export const RENDER_DISTANCE = Object.freeze({ min: 0.1, default: 1, max: 1, step: 0.1 });
 
 const SPATIAL_KEYS = Object.freeze([
   'tracks', 'routes', 'interlines', 'routeGeometry', 'routeGeometries',
@@ -21,34 +23,6 @@ const MOVEMENT_LAYER_RE = /^(?:trains|signals|preview|pop-movements)(?:-|$)/i;
 
 function finite(value) { return Number.isFinite(Number(value)); }
 function number(value) { return Number(value); }
-
-export function normalizeRenderDistance(value) {
-  const numeric = Math.round(Number(value));
-  if (!Number.isFinite(numeric)) return RENDER_DISTANCE.default;
-  return Math.min(RENDER_DISTANCE.max, Math.max(RENDER_DISTANCE.min, numeric));
-}
-
-/**
- * Odd render distances are complete square windows. Even values are the
- * deliberately lighter intermediate footprints described by the UI: the
- * preceding odd square plus a centered strip on each of its four sides.
- */
-export function tileOffsetWithinRenderDistance(deltaColumn, deltaRow, value) {
-  const distance = normalizeRenderDistance(value);
-  const column = Math.abs(number(deltaColumn));
-  const row = Math.abs(number(deltaRow));
-  if (!Number.isFinite(column) || !Number.isFinite(row)) return false;
-  if (distance % 2 === 1) {
-    const radius = (distance - 1) / 2;
-    return column <= radius && row <= radius;
-  }
-  const innerRadius = distance / 2 - 1;
-  const outerRadius = innerRadius + 1;
-  const sideHalfWidth = Math.max(0, (distance - 4) / 2);
-  return (column <= innerRadius && row <= innerRadius)
-    || (column === outerRadius && row <= sideHalfWidth)
-    || (row === outerRadius && column <= sideHalfWidth);
-}
 
 function boundsOf(value) {
   if (!Array.isArray(value) || value.length < 4) return null;
@@ -77,6 +51,14 @@ function tileBounds(tile) {
 }
 
 function boundsIntersect(left, right) {
+  const region = right?.region ?? left?.region;
+  const box = right?.region ? left : right;
+  if (region?.shape === 'circle' && box) {
+    const [cx, cy] = region.center;
+    const x = Math.max(box[0], Math.min(cx, box[2]));
+    const y = Math.max(box[1], Math.min(cy, box[3]));
+    return Math.hypot((x - cx) * region.scale[0], (y - cy) * region.scale[1]) <= region.distance + 1e-9;
+  }
   return Boolean(left && right)
     && left[0] <= right[2] && left[2] >= right[0]
     && left[1] <= right[3] && left[3] >= right[1];
@@ -86,7 +68,10 @@ function pointInBounds(point, bounds) {
   return Array.isArray(point) && point.length >= 2
     && finite(point[0]) && finite(point[1])
     && number(point[0]) >= bounds[0] && number(point[0]) <= bounds[2]
-    && number(point[1]) >= bounds[1] && number(point[1]) <= bounds[3];
+    && number(point[1]) >= bounds[1] && number(point[1]) <= bounds[3]
+    && (!bounds.region || bounds.region.shape !== 'circle' || Math.hypot(
+      (point[0] - bounds.region.center[0]) * bounds.region.scale[0],
+      (point[1] - bounds.region.center[1]) * bounds.region.scale[1]) <= bounds.region.distance + 1e-9);
 }
 
 function geometryBounds(geometry) {
@@ -132,6 +117,23 @@ function geometryOf(value) {
 }
 
 function segmentClipInterval(a, b, bounds) {
+  const region = bounds.region;
+  if (region?.shape === 'circle') {
+    const x = (a[0] - region.center[0]) * region.scale[0];
+    const y = (a[1] - region.center[1]) * region.scale[1];
+    const dx = (b[0] - a[0]) * region.scale[0];
+    const dy = (b[1] - a[1]) * region.scale[1];
+    const aa = dx * dx + dy * dy;
+    const bb = 2 * (x * dx + y * dy);
+    const cc = x * x + y * y - region.distance * region.distance;
+    if (aa === 0) return cc <= 1e-9 ? [0, 1] : null;
+    const discriminant = bb * bb - 4 * aa * cc;
+    if (discriminant < 0) return null;
+    const root = Math.sqrt(discriminant);
+    const start = Math.max(0, (-bb - root) / (2 * aa));
+    const end = Math.min(1, (-bb + root) / (2 * aa));
+    return start <= end ? [start, end] : null;
+  }
   let t0 = 0; let t1 = 1;
   const dx = b[0] - a[0]; const dy = b[1] - a[1];
   const tests = [
@@ -174,7 +176,8 @@ export function clipLineString(coordinates, haloBounds) {
   }
   if (validBounds) {
     if (east < haloBounds[0] || west > haloBounds[2] || north < haloBounds[1] || south > haloBounds[3]) return [];
-    if (west >= haloBounds[0] && east <= haloBounds[2] && south >= haloBounds[1] && north <= haloBounds[3]) {
+    if (pointInBounds([west, south], haloBounds) && pointInBounds([east, south], haloBounds)
+      && pointInBounds([east, north], haloBounds) && pointInBounds([west, north], haloBounds)) {
       return [coordinates.map(point => [point[0], point[1]])];
     }
   }
@@ -265,6 +268,47 @@ export function clipLineStringWithValues(coordinates, values, haloBounds) {
   return pieces;
 }
 
+const polygonClipBoundaries = new WeakMap();
+
+function clipPolygonRings(rings, bounds) {
+  const r = bounds.region;
+  if (!r || rings.every(ring => ring.every(point => pointInBounds(point, bounds)))) {
+    return rings.map(ring => ring.map(point => [...point]));
+  }
+  const count = r.shape === 'circle' ? 256 : 4;
+  const radius = r.shape === 'circle' ? r.distance / Math.cos(Math.PI / count) : r.distance * Math.SQRT2;
+  let clip = polygonClipBoundaries.get(r);
+  if (!clip) {
+    clip = Array.from({ length: count }, (_, i) => {
+    const angle = 2 * Math.PI * (i + 0.5) / count;
+    return [r.center[0] + radius * Math.cos(angle) / r.scale[0], r.center[1] + radius * Math.sin(angle) / r.scale[1]];
+    });
+    polygonClipBoundaries.set(r, clip);
+  }
+  const output = [];
+  for (const ring of rings) {
+    let points = ring.slice(0, -1);
+    for (let i = 0; i < clip.length && points.length; i++) {
+      const a = clip[i], b = clip[(i + 1) % clip.length];
+      const side = p => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+      const next = [];
+      for (let j = 0; j < points.length; j++) {
+        const p = points[j], q = points[(j + 1) % points.length];
+        const sp = side(p), sq = side(q);
+        if (sp >= 0) next.push([...p]);
+        if ((sp >= 0) !== (sq >= 0)) {
+          const t = sp / (sp - sq);
+          next.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+        }
+      }
+      points = next;
+    }
+    if (points.length >= 3) output.push([...points, [...points[0]]]);
+    else if (!output.length) return [];
+  }
+  return output;
+}
+
 function clippedGeometry(geometry, halo) {
   // A missing catalog/bounds is an unknown spatial domain, not an empty one.
   // Keep the canonical presentation until a real halo can be established.
@@ -287,11 +331,19 @@ function clippedGeometry(geometry, halo) {
       const coordinates = geometry.coordinates.flatMap(linePieces);
       return coordinates.length ? { ...geometry, coordinates } : null;
     }
-    // Polygon clipping is intentionally conservative.  Filter whole polygons
-    // by bounds; clipping polygon rings independently would create giant,
-    // invalid closing triangles at a tile edge.
-    case 'Polygon': return halo.some((bounds) => boundsIntersect(geometryBounds(geometry), bounds)) ? structuredClone(geometry) : null;
-    case 'MultiPolygon': return halo.some((bounds) => boundsIntersect(geometryBounds(geometry), bounds)) ? structuredClone(geometry) : null;
+    case 'Polygon': {
+      if (!halo.some(bounds => boundsIntersect(geometryBounds(geometry), bounds))) return null;
+      const coordinates = clipPolygonRings(geometry.coordinates, halo[0]);
+      return coordinates.length ? { ...geometry, coordinates } : null;
+    }
+    case 'MultiPolygon': {
+      const coordinates = geometry.coordinates.flatMap(rings => {
+        if (!halo.some(bounds => boundsIntersect(geometryBounds({ coordinates: rings }), bounds))) return [];
+        const clipped = clipPolygonRings(rings, halo[0]);
+        return clipped.length ? [clipped] : [];
+      });
+      return coordinates.length ? { ...geometry, coordinates } : null;
+    }
     case 'GeometryCollection': {
       const geometries = (geometry.geometries ?? []).map((item) => clippedGeometry(item, halo)).filter(Boolean);
       return geometries.length ? { ...geometry, geometries } : null;
@@ -303,7 +355,8 @@ function clippedGeometry(geometry, halo) {
 export function createRendererVirtualization({
   activeTileId,
   tileCatalog,
-  renderDistance = RENDER_DISTANCE.default,
+  renderDistance,
+  renderShape = 'circle',
   haloRadius,
 } = {}) {
   const packageEntries = (tileCatalog?.tiles ?? []).map((tile, index) => ({
@@ -321,7 +374,7 @@ export function createRendererVirtualization({
   const entries = [];
   const positions = new Set();
   for (const entry of [...packageEntries, ...spatialEntries]) {
-    const key = `${entry.position[0]}:${entry.position[1]}`;
+    const key = entry.id ?? `${entry.position[0]}:${entry.position[1]}`;
     if (positions.has(key)) continue;
     positions.add(key);
     entries.push(entry);
@@ -330,22 +383,16 @@ export function createRendererVirtualization({
     ?? entries.find((entry) => entry.id === activeTileId)
     ?? entries[0]
     ?? null;
-  const normalizedRenderDistance = normalizeRenderDistance(renderDistance);
-  const includesOffset = Number.isFinite(Number(haloRadius))
-    ? (deltaColumn, deltaRow) => Math.abs(deltaColumn) <= Number(haloRadius)
-      && Math.abs(deltaRow) <= Number(haloRadius)
-    : (deltaColumn, deltaRow) => tileOffsetWithinRenderDistance(
-      deltaColumn,
-      deltaRow,
-      normalizedRenderDistance,
-    );
-  const haloEntries = active
-    ? entries.filter((entry) => includesOffset(
-      entry.position[0] - active.position[0],
-      entry.position[1] - active.position[1],
-    ))
-    : entries;
-  const halo = haloEntries.map((entry) => entry.bounds).filter(Boolean);
+  const limits = renderDistanceLimits(tileCatalog, active?.id);
+  const normalizedRenderDistance = normalizeRenderDistance(renderDistance, limits);
+  const shape = renderShape === 'square' ? 'square' : 'circle';
+  const regionBounds = distanceRenderBounds(active?.tile, renderDistanceMetadata(tileCatalog), normalizedRenderDistance, shape);
+  const legacyHalo = Number.isFinite(Number(haloRadius));
+  const haloEntries = active ? entries.filter(entry => legacyHalo
+    ? Math.abs(entry.position[0] - active.position[0]) <= Number(haloRadius)
+      && Math.abs(entry.position[1] - active.position[1]) <= Number(haloRadius)
+    : boundsIntersect(entry.bounds, regionBounds)) : entries;
+  const halo = legacyHalo ? haloEntries.map(entry => entry.bounds).filter(Boolean) : regionBounds ? [regionBounds] : [];
   const haloTileIds = haloEntries.map((entry) => entry.id).filter((id) => id != null);
   const inHalo = (point) => !halo.length || halo.some((bounds) => pointInBounds(point, bounds));
   const intersectsHalo = (bounds) => !halo.length || halo.some((item) => boundsIntersect(bounds, item));
@@ -387,10 +434,12 @@ export function createRendererVirtualization({
   return Object.freeze({
     activeTileId: active?.id ?? activeTileId ?? null,
     renderDistance: normalizedRenderDistance,
+    renderShape: shape,
+    signature: `${active?.id}|${normalizedRenderDistance}|${shape}`,
     haloTileIds: Object.freeze([...haloTileIds]),
     tileIds: Object.freeze([...haloTileIds]),
-    haloBounds: Object.freeze(halo.map((bounds) => Object.freeze([...bounds]))),
-    bounds: Object.freeze(halo.map((bounds) => Object.freeze([...bounds]))),
+    haloBounds: Object.freeze(halo.map((bounds) => Object.freeze(Object.assign([...bounds], bounds.region ? { region: bounds.region } : {})))),
+    bounds: Object.freeze(halo.map((bounds) => Object.freeze(Object.assign([...bounds], bounds.region ? { region: bounds.region } : {})))),
     contains: inHalo,
     intersects: intersectsHalo,
     intersectsGeometry,
@@ -404,7 +453,8 @@ export function virtualizeRenderInputs({
   activeTileId,
   tileCatalog,
   canonical,
-  renderDistance = RENDER_DISTANCE.default,
+  renderDistance,
+  renderShape = 'circle',
   haloRadius,
   ...options
 } = {}) {
@@ -412,6 +462,7 @@ export function virtualizeRenderInputs({
     activeTileId,
     tileCatalog,
     renderDistance,
+    renderShape,
     haloRadius,
   });
   return { ...virtualization.renderInputs(canonical, options), virtualization };
@@ -753,10 +804,10 @@ export function createStationMarkerVisibilityAdapter({
   const updateVirtualization = (nextVirtualization) => {
     if (disposed || !nextVirtualization) return false;
     const previousSignature = currentVirtualization
-      ? String(currentVirtualization.activeTileId ?? '') + '|'
+      ? String(currentVirtualization.signature ?? currentVirtualization.activeTileId ?? '') + '|'
         + (currentVirtualization.haloTileIds ?? []).join(',')
       : '';
-    const nextSignature = String(nextVirtualization.activeTileId ?? '') + '|'
+    const nextSignature = String(nextVirtualization.signature ?? nextVirtualization.activeTileId ?? '') + '|'
       + (nextVirtualization.haloTileIds ?? []).join(',');
     currentVirtualization = nextVirtualization;
     if (previousSignature === nextSignature) return false;

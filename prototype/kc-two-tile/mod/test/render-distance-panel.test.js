@@ -16,10 +16,11 @@ function findElement(node, type) {
   return null;
 }
 
-test('renders an accessible 1-9 slider and forwards changes to the overlay controller', () => {
+test('renders an accessible continuous kilometre slider and forwards changes to the overlay controller', () => {
   let requested = null;
   const controller = {
     getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }),
     subscribeRenderDistance: () => () => {},
     setRenderDistance: (value) => { requested = Number(value); },
   };
@@ -31,11 +32,11 @@ test('renders an accessible 1-9 slider and forwards changes to the overlay contr
   const panel = RenderDistancePanel({ React, controller });
   const slider = findElement(panel, 'input');
   assert.equal(slider.props.type, 'range');
-  assert.equal(slider.props.min, 1);
-  assert.equal(slider.props.max, 9);
-  assert.equal(slider.props.value, 3);
-  assert.equal(slider.props['aria-valuetext'], '3 × 3 tiles (default)');
-  slider.props.onChange({ target: { value: '6' } });
+  assert.equal(slider.props.min, 0);
+  assert.equal(slider.props.max, 1000);
+  assert.equal(slider.props.value, 200);
+  assert.equal(slider.props['aria-valuetext'], '3 km');
+  slider.props.onChange({ target: { value: '500' } });
   assert.equal(requested, 6);
 });
 
@@ -54,9 +55,9 @@ test('registers the render-distance slider as a map rendering toolbar panel', ()
   assert.equal(definition.id, 'test-render-distance');
   assert.equal(definition.title, 'Map rendering');
   assert.equal(definition.render().type, RenderDistancePanel);
-  assert.equal(renderDistanceLabel(7), '7 × 7 tiles');
-  assert.equal(renderDistanceLabel(8), '7 × 7 plus five tiles on each side');
-  assert.equal(renderDistanceLabel(9), '9 × 9 tiles');
+  assert.equal(renderDistanceLabel(7), '7 km');
+  assert.equal(renderDistanceLabel(8), '8 km');
+  assert.equal(renderDistanceLabel(9), '9 km');
 });
 
 test('map rendering exposes the cached simulation toggle and its calculation status', () => {
@@ -69,7 +70,8 @@ test('map rendering exposes the cached simulation toggle and its calculation sta
   const simulation = { snapshot: () => ({ enabled: true, status: 'calculating' }),
     subscribe: () => () => {}, setEnabled: value => { requested = value; } };
   const panel = RenderDistancePanel({ React, simulation,
-    controller: { getRenderDistance: () => 3, subscribeRenderDistance: () => () => {} } });
+    controller: { getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
   const nodes = function* (node) { if (!node || typeof node !== 'object') return; yield node; for (const child of node.children ?? []) yield* nodes(child); };
   const toggle = [...nodes(panel)].find(node => node.props.role === 'switch');
   assert.equal(toggle.props.checked, true);
