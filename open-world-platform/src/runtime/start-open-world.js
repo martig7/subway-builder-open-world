@@ -1,4 +1,4 @@
-import { WorldTileRuntime } from './world-tile-runtime.js';
+import { LOAD_DIAGNOSTICS_VERSION, WorldTileRuntime } from './world-tile-runtime.js';
 import {
   readLiveSubwayBuilderCityCode,
   SUBWAY_BUILDER_CITY_AUTHORITY_VERSION,
@@ -341,6 +341,7 @@ export function startOpenWorld({
     worldDefinitionHash: artifacts.worldDefinitionHash ?? null,
     saveAuthorityVersion: SAVE_AUTHORITY_VERSION,
     hotReloadDraftCacheVersion: 2,
+    loadDiagnosticsVersion: LOAD_DIAGNOSTICS_VERSION,
     registeredAt: Date.now(),
     transitions: [],
     autosaves: [],
@@ -792,7 +793,7 @@ export function startOpenWorld({
             loadTraceId,
             segment: 'lifecycle-reload-complete',
             identity,
-            runtimeView: runtime.view({ includeDemandDetails: false }),
+            runtimeView: runtime.diagnosticView(),
           });
           loadedSaveName = currentSaveName;
           ready = true;
@@ -940,7 +941,7 @@ export function startOpenWorld({
           loadTraceId,
           segment: 'runtime-ready-for-ui',
           identity,
-          runtimeView: runtime.view({ includeDemandDetails: false }),
+          runtimeView: runtime.diagnosticView(),
         });
         finishStage('runtimeBoot');
         if (!ownsSession(startingSession)) return;
@@ -1316,7 +1317,7 @@ export function startOpenWorld({
         phase: 'authoritative-load',
         loadTraceId,
         segment: 'lifecycle-transition-restored',
-        runtimeView: runtime.view({ includeDemandDetails: false }),
+        runtimeView: runtime.diagnosticView(),
       });
       ready = true;
       const modeShare = await recalculateCrossModeShare('tile-transition', api.gameState.getCurrentDay?.() ?? null, false, cityLoadSession);

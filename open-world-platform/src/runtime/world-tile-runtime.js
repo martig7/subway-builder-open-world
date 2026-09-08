@@ -145,6 +145,8 @@ function summarizeNetworkForLoad(state) {
   };
 }
 
+export const LOAD_DIAGNOSTICS_VERSION = 'compact-native-load-diagnostics-v1';
+
 function summarizeWorldForLoad(world) {
   return world ? {
     worldId: world.worldId,
@@ -152,15 +154,22 @@ function summarizeWorldForLoad(world) {
     activeTileId: world.activeTileId,
     worldTime: world.worldTime,
     elapsedSeconds: world.elapsedSeconds,
-    pendingTransition: world.pendingTransition ?? null,
+    // Diagnostics outlive the handoff. Retaining its nativeSnapshot pins the
+    // full financial history and transit network after every tile switch.
+    pendingTransition: world.pendingTransition ? {
+      transitionId: world.pendingTransition.transitionId,
+      from: world.pendingTransition.from,
+      to: world.pendingTransition.to,
+      mode: world.pendingTransition.mode,
+    } : null,
     globalNetworkHash: world.globalNetwork?.hash ?? null,
     globalNetworkRevision: world.globalNetwork?.revision ?? null,
     activeProjection: world.activeProjection ? {
       activeTileId: world.activeProjection.activeTileId,
       networkRevision: world.activeProjection.networkRevision,
       projectionHash: world.activeProjection.projectionHash,
-      partialRouteIds: world.activeProjection.partialRouteIds ?? [],
-      visibleTileIds: world.activeProjection.visibleTileIds ?? [],
+      partialRouteIds: [...(world.activeProjection.partialRouteIds ?? [])],
+      visibleTileIds: [...(world.activeProjection.visibleTileIds ?? [])],
     } : null,
     network: summarizeNetworkForLoad(world.globalNetwork?.nativeState),
   } : null;
@@ -540,6 +549,16 @@ export class WorldTileRuntime {
     const world = this.world ?? this.viewWorldFallback;
     if (!world) throw new Error('WorldTileRuntime.boot must complete first');
     return world.activeTileId;
+  }
+  diagnosticView() {
+    const world = this.world ?? this.viewWorldFallback;
+    return {
+      version: LOAD_DIAGNOSTICS_VERSION,
+      ...summarizeWorldForLoad(world),
+      ...summarizeLineage(world),
+      nativeNetworkMode: this.nativeNetworkMode,
+      fullNativeNetworkEnabled: this.fullNativeNetworkEnabled,
+    };
   }
   markDerivedNetworkDirty(reason = 'route-service-change') {
     this.derivedNetworkInvalidations.add(String(reason));

@@ -526,6 +526,37 @@ test('rolls game and world back when a native load phase fails', async () => {
   assert.equal((await storage.load('fixture')).activeTileId, 'KCW');
 });
 
+test('completed transition telemetry cannot retain the native save handoff', async () => {
+  const { runtime } = setup();
+  const events = [];
+  runtime.telemetry = event => events.push(event);
+  await runtime.boot('diagnostic-retention', 'KCW');
+  const transition = await runtime.stageNavigationTransition('KCE');
+  const handoff = runtime.world.pendingTransition.nativeSnapshot;
+  await runtime.completeStagedTransition('KCE');
+  const summary = events.find(e => e.segment === 'transition-completion-start').world;
+  assert.equal(summary.pendingTransition.transitionId, transition.transitionId);
+  assert.equal(summary.pendingTransition.nativeSnapshot, undefined,
+    'the diagnostic ring outlives the transition and must not keep its full save alive');
+  assert.equal(runtime.world.pendingTransition, null);
+  const references = new Set();
+  const visit = value => {
+    if (!value || typeof value !== 'object' || references.has(value)) return;
+    references.add(value);
+    for (const child of Object.values(value)) visit(child);
+  };
+  visit(events);
+  assert.equal(references.has(handoff), false);
+  runtime.world.backgroundNativeFinance = {
+    get ownershipProjection() { throw new Error('full finance baseline traversed for diagnostics'); },
+  };
+  const compact = runtime.diagnosticView();
+  assert.equal(compact.worldId, 'diagnostic-retention');
+  assert.equal(compact.activeTileId, 'KCE');
+  assert.equal(compact.backgroundNativeFinance, undefined);
+  assert.equal(compact.pendingTransition, null);
+});
+
 test('a staged switch persists navigation state but not its native rail handoff', async () => {
   const { runtime, game, storage } = setup();
   await runtime.boot('topology-free-transition', 'KCW');
