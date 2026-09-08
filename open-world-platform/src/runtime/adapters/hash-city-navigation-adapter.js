@@ -26,11 +26,10 @@ export function findMountedRouter(document = globalThis.document) {
   return null;
 }
 
-/** Navigate a staged handoff through a fresh renderer when the host supports it. */
+/** Change the game route without destroying the renderer's mod registrations. */
 export class HashCityNavigationAdapter {
-  constructor({ router = null, reloadRenderer = null, document = globalThis.document, sessionStorage = globalThis.sessionStorage, tileIds = [], pendingKey = PENDING_KEY } = {}) {
+  constructor({ router = null, document = globalThis.document, sessionStorage = globalThis.sessionStorage, tileIds = [], pendingKey = PENDING_KEY } = {}) {
     this.router = router;
-    this.reloadRenderer = reloadRenderer;
     this.document = document;
     this.sessionStorage = sessionStorage;
     this.tileIds = [...tileIds];
@@ -69,18 +68,13 @@ export class HashCityNavigationAdapter {
   }, { beforeNavigate } = {}) {
     if (!this.tileIds.includes(tileId)) throw new Error('Invalid pending tile navigation');
     if (freshWorld !== true && typeof worldId !== 'string') throw new Error('Invalid pending tile navigation');
-    const reloadRenderer = freshWorld !== true && this.reloadRenderer;
-    if (reloadRenderer && (typeof transitionId !== 'string' || !transitionId)) {
-      throw new Error('Renderer tile reload requires a staged native handoff');
-    }
-    const router = reloadRenderer ? null : this.router ?? findMountedRouter(this.document);
-    if (!reloadRenderer && !router) throw new Error('The mounted Subway Builder router is unavailable');
+    const router = this.router ?? findMountedRouter(this.document);
+    if (!router) throw new Error('The mounted Subway Builder router is unavailable');
     const pending = freshWorld === true ? { freshWorld: true, tileId } : { worldId, tileId };
     if (typeof transitionId === 'string' && transitionId) pending.transitionId = transitionId;
     if (this.tileIds.includes(from)) pending.from = from;
     this.sessionStorage?.setItem(this.pendingKey, JSON.stringify(pending));
     beforeNavigate?.();
-    if (reloadRenderer) return reloadRenderer({ route: `/game?city=${tileId}`, transitionId });
     return router.navigate(`/game?city=${tileId}`);
   }
 }

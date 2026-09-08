@@ -1,5 +1,32 @@
-export const TILE_RENDERING_RETIREMENT_VERSION = 'tile-rendering-retirement-v3';
+export const TILE_RENDERING_RETIREMENT_VERSION = 'tile-rendering-retirement-v4';
 const PATCH = '__openWorldTileRenderingRetirement';
+
+// Native binary detectors expose closures over every typed-array section of
+// their city buffer. A retained old store/detector shell keeps that entire
+// buffer alive. These empty methods deliberately close over no retired data.
+const EMPTY_BUILDING = Object.freeze({ id: -1, polygon: Object.freeze([]),
+  bounds: Object.freeze({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, foundationDepth: 0 }),
+  foundationDepth: 0, height: 0, osmIds: Object.freeze([]) });
+const RETIRED_BUILDING_METHODS = Object.freeze({
+  forEachBuildingInCell() {},
+  getBoundsMinX: () => Infinity, getBoundsMinY: () => Infinity,
+  getBoundsMaxX: () => -Infinity, getBoundsMaxY: () => -Infinity,
+  getFoundationDepth: () => 0, getHeight: () => 0,
+  getOsmIds: () => EMPTY_BUILDING.osmIds, getBuilding: () => EMPTY_BUILDING,
+});
+
+function clearBuildingDetector(detector, current) {
+  if (!detector || detector === current || !Number.isFinite(detector.buildingCount)) return 0;
+  const methods = Object.keys(RETIRED_BUILDING_METHODS);
+  const fields = [...methods, 'buildingCount', 'cols', 'rows'];
+  // Keep unknown/frozen third-party detector implementations untouched.
+  if (!methods.every(key => typeof detector[key] === 'function')
+    || !fields.every(key => Object.getOwnPropertyDescriptor(detector, key)?.writable)
+    || Object.keys(detector).some(key => typeof detector[key] === 'function' && !methods.includes(key))) return 0;
+  const count = detector.buildingCount;
+  Object.assign(detector, RETIRED_BUILDING_METHODS, { buildingCount: 0, cols: 0, rows: 0 });
+  return count;
+}
 
 function clearCollection(collection, current) {
   if (!collection || collection === current || collection.features === current?.features) return 0;
@@ -43,6 +70,7 @@ function captureRendering(state, map) {
     roads: state.roadsGeojson,
     index: state.roadsIndex,
     runways: state.runwaysTaxiwaysGeojson,
+    buildingDetector: state.buildingDetector,
     map,
     deck: map?.__deck,
     layers: rendererLayers(map?.__deck),
@@ -119,7 +147,7 @@ function makeLoadGuard({ getState, getMap, targetCity, original, onReport, sched
   }
   function release(retired, current) {
     const report = { version: TILE_RENDERING_RETIREMENT_VERSION, city: targetCity,
-      roads: 0, roadIndexEntries: 0, runways: 0,
+      roads: 0, roadIndexEntries: 0, runways: 0, buildings: 0,
       roadLayers: 0, cpuAttributeBytes: 0, rendererReleased: false, errors: [] };
     const attempt = (stage, fn) => {
       try { fn(); } catch (error) { report.errors.push({ stage, message: String(error?.message ?? error) }); }
@@ -131,6 +159,7 @@ function makeLoadGuard({ getState, getMap, targetCity, original, onReport, sched
     attempt('roads', () => { report.roads = clearCollection(retired.roads, current.roadsGeojson); });
     attempt('road-index', () => { report.roadIndexEntries = clearRoadIndex(retired.index, current.roadsIndex); });
     attempt('runways', () => { report.runways = clearCollection(retired.runways, current.runwaysTaxiwaysGeojson); });
+    attempt('building-detector', () => { report.buildings = clearBuildingDetector(retired.buildingDetector, current.buildingDetector); });
     const finish = () => {
       attempt('finalized-renderer', () => releaseFinalizedRendering(retired, getMap(), report));
       onReport?.({ ...report });

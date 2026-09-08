@@ -43,6 +43,7 @@ import { createOpenWorldRoutePaths } from './route-path-controller.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
 import { createCachedSimulation } from './cached-simulation.js';
+import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
 
@@ -421,6 +422,7 @@ export function startOpenWorld({
       startHeapBytes: heapBytes(),
     };
     writePendingPerformance(sample);
+    const resumeRecoveryCheckpoint = await nativeReloadRecovery.suspendForTileNavigation?.();
     try {
       const requestedRecoveryStage = options.stageNativeRecovery;
       const result = await stageTransition(tileId, {
@@ -458,10 +460,13 @@ export function startOpenWorld({
         // an internal view transition, not as a player network edit.
         ready = false;
         settlementReady = false;
+      } else {
+        resumeRecoveryCheckpoint?.();
       }
       writePendingPerformance({ ...sample, stagedAt: Date.now(), transitionId: result.transitionId });
       return result;
     } catch (error) {
+      resumeRecoveryCheckpoint?.();
       globalThis.sessionStorage?.removeItem(PENDING_PERFORMANCE_KEY);
       throw error;
     }
@@ -478,6 +483,10 @@ export function startOpenWorld({
   let requestedSessionReload = null;
   let sessionReloadPromise = null;
   const ownsCurrentCity = (cityCode = currentCityCode()) => registration.cities.includes(cityCode);
+  const roadLabelSourceGuard = createNativeRoadLabelSourceGuard({
+    isEnabled: () => isCurrent() && ownsCurrentCity(),
+    onReport: report => { diagnostics.nativeRoadLabelSource = report; },
+  });
   const ownsSession = owner => owner != null && session === owner && isCurrent();
   async function recalculateCrossModeShare(reason, day = null, force = false, owner = session) {
     if (!ready || !ownsSession(owner)) return null;
@@ -1442,6 +1451,7 @@ export function startOpenWorld({
       controllers: [crossDemandController, projectionOverlayController, geographicContextController],
     });
     latestMap = map;
+    roadLabelSourceGuard.attach(map);
     if (!ownsLoadedCity) {
       detachAutosaveIdleGuard();
       tileSourceStyleHandler = null;
@@ -1530,6 +1540,7 @@ export function startOpenWorld({
       }
       session?.dispose();
       nativeReloadRecovery.dispose();
+      roadLabelSourceGuard.dispose();
       detachAutosaveIdleGuard();
       if (latestMap && tileSourceStyleHandler) {
         try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
@@ -1541,6 +1552,7 @@ export function startOpenWorld({
     },
   });
   globalThis[activeRuntimeKey] = controller;
+  roadLabelSourceGuard.attach(latestMap);
   attachAutosaveIdleGuard();
   return controller;
 }

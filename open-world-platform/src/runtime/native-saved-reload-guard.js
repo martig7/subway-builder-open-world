@@ -3,7 +3,7 @@ const ORIGINAL = '__openWorldNativeReloadRecoveryOriginal__';
 const VERSION = '__openWorldNativeReloadRecoveryVersion__';
 const SAVED_FILE = '__openWorldSavedReloadFile__';
 const SAVE_TIMELINE = '__openWorldSavedReloadTimeline__';
-export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v4';
+export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v5';
 const inGame = location => location?.pathname === '/game' || location?.hash?.replace(/^#/, '').split('?')[0] === '/game';
 const pendingSave = result => result?.save ?? result?.data ?? null;
 const sameSave = (save, file) => {
@@ -28,6 +28,7 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
   let original=electron.reloadWindow;
   while(typeof original?.[ORIGINAL]==='function')original=original[ORIGINAL];
   let disposed=false,pending=null,timer=null,epoch=0,owned=false,checkedSession=null,last=null;
+  let navigationSuspensions = 0;
   const stats={queries:0,staged:0,unchanged:0,lastSave:null,error:null};
   const remove = () => (electron.removePendingSave??electron.clearPendingSave)?.call(electron);
   const cleanup = async file => {
@@ -98,6 +99,7 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
     return {status:'staged-native-save',file:last.file};
   };
   const checkpoint = () => {
+    if(navigationSuspensions > 0)return Promise.resolve({status:'tile-navigation'});
     if(pending)return pending;
     pending=prepare().catch(error=>{stats.error=String(error?.message??error);logger.error?.('[OpenWorld] saved reload guard failed',error);return {status:'failed'};})
       .finally(()=>{pending=null});
@@ -118,12 +120,23 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
     else if(oldFile)void cleanup(oldFile).catch(error=>logger.error?.('[OpenWorld] saved reload cleanup failed',error));
   };
   const controller={installed:true,version:NATIVE_SAVED_RELOAD_VERSION,mode:wrapped?'wrapper':'saved-file-checkpoint',
+    async suspendForTileNavigation() {
+      navigationSuspensions++;
+      // Drain any file decode already in flight before staging the live save.
+      await pending;
+      let resumed = false;
+      return () => {
+        if (resumed) return;
+        resumed = true;
+        navigationSuspensions = Math.max(0, navigationSuspensions - 1);
+      };
+    },
     resetForLoad({ bootstrap = false } = {}) {
       // Mod reload replays the currently loaded save before ordinary lifecycle
       // events resume. Its unchanged selection already owns this timeline.
       const selection = JSON.stringify([getSessionId?.(), getCityCode?.(), getLoadedSave?.()?.path]);
       if (bootstrap && globalObject[SAVE_TIMELINE]?.selection === selection) return;
-      epoch++; checkedSession=null; owned=false; last=null;
+      epoch++; checkedSession=null; owned=false; last=null; navigationSuspensions=0;
       delete globalObject[SAVE_TIMELINE]; delete globalObject[SAVED_FILE];
     },
     get savedFile(){return last?.file??null;},snapshot:()=>({...stats}),checkpoint,flush:async()=>pending,

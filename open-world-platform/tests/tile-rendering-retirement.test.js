@@ -35,6 +35,57 @@ function fixture({ reset = true, fail = false } = {}) {
     state: () => state, finance, tracks };
 }
 
+function detectorFixture() {
+  const payload = new Float64Array([7, 8]);
+  return {
+    buildingCount: 2, cols: 1, rows: 1,
+    forEachBuildingInCell: (_x, _y, visit) => payload.forEach((_value, index) => visit(index)),
+    getBoundsMinX: i => payload[i], getBoundsMinY: i => payload[i],
+    getBoundsMaxX: i => payload[i], getBoundsMaxY: i => payload[i],
+    getFoundationDepth: i => payload[i], getHeight: i => payload[i],
+    getOsmIds: i => [payload[i]], getBuilding: i => ({ polygon: [[payload[i]]] }),
+  };
+}
+
+test('pre-navigation retirement replaces the old building detector closures without touching native saves', () => {
+  const f = fixture(), detector = detectorFixture();
+  f.state().buildingDetector = detector;
+  const original = detector.getBuilding;
+  const guard = armTileRenderingRetirement(f.options);
+  assert.equal(detector.getBuilding, original, 'arming alone must preserve construction');
+  guard.retireBeforeNavigation();
+  assert.notEqual(detector.getBuilding, original);
+  assert.equal(detector.buildingCount, 0);
+  assert.equal(detector.cols, 0);
+  assert.equal(detector.rows, 0);
+  detector.forEachBuildingInCell(0, 0, () => assert.fail('retired geography was queried'));
+  assert.deepEqual(detector.getBuilding(0).polygon, []);
+  assert.equal(f.reports.at(-1).buildings, 2);
+  assert.equal(f.state().tracks, f.tracks);
+  assert.equal(f.state().financialHistory, f.finance);
+});
+
+test('fallback loading preserves a detector still used by the current city', () => {
+  const f = fixture({ reset: false }), detector = detectorFixture();
+  f.state().buildingDetector = detector;
+  const original = detector.getBuilding;
+  armTileRenderingRetirement(f.options);
+  f.state().loadInitialData('NEXT');
+  assert.equal(detector.getBuilding, original);
+  assert.equal(detector.buildingCount, 2);
+});
+
+test('unknown or frozen detector implementations are not partially retired', () => {
+  for (const detector of [Object.freeze(detectorFixture()), { ...detectorFixture(), customQuery() {} }]) {
+    const f = fixture(), original = detector.getBuilding;
+    f.state().buildingDetector = detector;
+    armTileRenderingRetirement(f.options).retireBeforeNavigation();
+    assert.equal(detector.getBuilding, original);
+    assert.equal(detector.buildingCount, 2);
+    assert.deepEqual(f.reports.at(-1).errors, []);
+  }
+});
+
 test('adapter arms retirement without clearing the still-active city', () => {
   const f = fixture();
   const game = new SubwayBuilderGameAdapter({ api: { utils: { getMap: f.options.getMap } }, callbacks: { getState: f.options.getState } });
@@ -127,7 +178,7 @@ test('validated navigation retires roads before native loading allocates the nex
 test('replaces a retained previous-generation load patch with its original native action', () => {
   const f = fixture(); let cancelled = false;
   const previous = () => { throw Error('old generation ran'); };
-  const oldPatch = { version: 'tile-rendering-retirement-v0', original: f.original,
+  const oldPatch = { version: 'tile-rendering-retirement-v3', original: f.original,
     cancel() { cancelled = true; f.state().loadInitialData = f.original; } };
   previous.__openWorldTileRenderingRetirement = oldPatch;
   f.state().loadInitialData = previous;

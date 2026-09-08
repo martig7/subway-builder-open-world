@@ -63,6 +63,47 @@ test('frozen bridge stages completed files without repeatedly copying pending or
   guard.dispose();
 });
 
+test('tile handoff suspension prevents a timer from replacing its pending native save', async () => {
+  const f = fixture(), guard = installNativeSavedReloadGuard(f.options);
+  await guard.flush();
+  const resume = await guard.suspendForTileNavigation();
+  const handoff = { metadata: { openWorldNativeRecovery: { reason: 'tile-navigation' } } };
+  f.setPending(handoff);
+  f.files.push({ ...f.files[0], path: 'newer.metro', timestamp: 12 });
+  await f.tick(guard);
+  assert.equal(f.getPending(), handoff);
+  assert.equal((await guard.checkpoint()).status, 'tile-navigation');
+  resume(); resume();
+  await guard.checkpoint();
+  assert.equal(f.calls.loads.at(-1), 'newer.metro');
+  guard.dispose();
+});
+
+test('tile handoff suspension drains a pending native file decode before returning', async () => {
+  const f = fixture();
+  let finish;
+  const load = f.electron.loadAndSetPendingSave;
+  f.electron.loadAndSetPendingSave = path => new Promise(resolve => {
+    finish = async () => resolve(await load(path));
+  });
+  const guard = installNativeSavedReloadGuard(f.options);
+  await new Promise(resolve => setImmediate(resolve));
+  let suspended = false;
+  const suspension = guard.suspendForTileNavigation().then(resume => {
+    suspended = true;
+    return resume;
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(suspended, false);
+  await finish();
+  const resume = await suspension;
+  const handoff = { name: 'live handoff' };
+  f.setPending(handoff);
+  await f.tick(guard);
+  assert.equal(f.getPending(), handoff);
+  resume(); guard.dispose();
+});
+
 test('explicit pending saves and uncertain ownership are preserved', async () => {
   const explicit = { gameSessionId: 'chosen', name: 'chosen', timestamp: 1 };
   const f = fixture({ pending: explicit });

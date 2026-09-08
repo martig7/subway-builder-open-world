@@ -219,3 +219,172 @@ failure needs allocation/lifetime tracing around immediate repeated transitions;
 do not call the five-attempt sequence crash-free or assume a fixed delay or
 forced-GC requirement has been established. The raw unsuccessful normal-operation
 run is `.analysis/render-retirement-natural-roundtrip.json`.
+
+## Remaining peak and native collision-data retention, 2026-09-08
+
+The next phase trace reproduced the OOM during **early native destination city
+loading**, after live-save staging and successful outgoing rendering retirement.
+The source was Tokyo. CDP reported 1,051,937,972 bytes of used JS heap initially,
+1,305,424,868 during staging, and 1,370,570,736 after the native store changed to
+Kanagawa with zero stations/routes. At that last readable sample, retirement had
+released 489,131 road features, 490,779 index entries, 100 road layers and
+91,364,032 bytes of CPU attributes, with no cleanup error. The target crashed
+about 2.6 seconds later. Chromium recorded a V8 JavaScript OOM.
+
+**1.37 GB is the last readable sample, not the peak or the heap limit.** The
+allocation sampler could not return a profile before the renderer died. The
+exact allocation responsible for the remaining peak is therefore still unknown.
+This narrows the failure to loading after cleanup; it does not establish that
+rendering caches are being serialized into the save. The planned settling-delay
+comparison failed on its first switch, so it also does not isolate a safe delay.
+Raw evidence is `.analysis/transition-peak-settle.jsonl` (Git-ignored).
+
+The game bridge exposes a native window reload, but no JavaScript GC operation.
+Clearing its HTTP cache would not collect the heap. Direct browser reload and
+location navigation did not perform the required document reset in this host;
+the native reload command did. Two exploratory native-reload handoffs restored
+the full network without diagnostic collection.
+
+### Rejected approaches
+
+The full-renderer-reload experiment completed two consecutive switches in
+29,659 ms and 40,610 ms, but the third crashed about 3.8 seconds after staging
+finished/reload was requested. Native recovery restored the network. A new
+document's early heap samples also still contained hundreds of megabytes from
+the previous document. Therefore document reload is not a reliable substitute
+for cleanup. The experimental implementation was preserved in Git and removed
+from the delivered bundle. Raw results: `.analysis/transition-renderer-verification.json`.
+
+The host overwrote the attempted `--expose-gc` launch option, and its main-process
+inspection option did not expose the requested debugger endpoint. More
+fundamentally, production must not depend on enabling GC. No forced-GC hook,
+custom GC launcher, or installed game-file modification is shipped. Diagnostic
+collection below distinguishes reachable data from uncollected garbage only.
+
+### Native decode sizes and retained payload
+
+Lightweight native-loader tracing measured these payloads, without a heap snapshot:
+
+| Data | Tokyo compressed | Tokyo decoded | Kanagawa compressed | Kanagawa decoded |
+| --- | ---: | ---: | ---: | ---: |
+| Roads | 26,396,797 bytes | 163,165,999 JSON characters | 17,022,496 bytes | 103,432,109 JSON characters |
+| Building collision index | 163,821,937 bytes | 487,978,628 bytes | 121,899,987 bytes | 367,008,180 bytes |
+
+JSON characters are not retained heap bytes; parsing also creates an object
+graph and index. The native gzip loader reads a compressed ArrayBuffer and
+constructs a Response/decompression stream before materializing its decoded
+result. Decode temporaries therefore overlap with existing city data. These
+measurements identify substantial allocations, but do not isolate the fatal
+allocation in the earlier OOM. Raw trace: `.analysis/native-load-trace.jsonl`.
+
+A normal Kanagawa-to-Tokyo switch completed in 25,467 ms. Weak references to the
+outgoing building detector, its `getBuilding` function, and native demand data
+all survived subsequent diagnostic collection. Backing storage remained
+1,092,274,602 bytes after collection. Bounded mod/React graph inspection and
+native action-wrapper scope inspection did not locate the ultimate retaining
+owner; an old detector shell remaining reachable is nevertheless sufficient to
+retain every typed-array section through its methods' shared closure.
+
+Retiring **only the old detector's methods** made its original method collectible.
+After diagnostic collection, backing storage fell from 1,098,166,507 to
+731,153,847 bytes: **367,012,660 bytes**, matching the 367,008,180-byte Kanagawa
+index within about 4.5 KB of other activity. The detector shell and old demand
+data remained reachable; Tokyo's current 3,448,574-building detector was unchanged.
+Raw results: `.analysis/detector-retention.json`, `.analysis/detector-retire-result.json`.
+
+### Delivered cleanup
+
+`tile-rendering-retirement-v4` now retires the outgoing native building detector
+alongside roads after a successful Native Save handoff and route validation,
+before destination loading. It replaces the known native detector methods with
+empty implementations that capture no old data, and zeroes its grid/count. This
+releases the binary payload even when an old native state or detector wrapper is
+still retained. It leaves the current detector and unknown/frozen implementations
+untouched. No collision geometry is simplified, and no save authority changes.
+
+The recovery checkpoint also suspends and drains any in-flight saved-file decode
+before staging a tile handoff, preventing its timer from overwriting the new live
+save. Failed/non-navigation staging resumes it; the native load resets its state.
+The guard generation is `native-saved-reload-v5` with replacement coverage.
+
+This makes reference retirement consistent, rather than prescribing when V8
+must collect. Old native demand data and the ultimate old-state retaining root
+remain separate investigation targets; the change is not a claim of zero retained
+memory or an exhaustive fix for every loading OOM.
+
+### Worker allocation missed by main-renderer measurements
+
+The detector-only build completed Tokyo-to-Kanagawa in 25,248 ms, and its retired
+detector method became collectible naturally. The second switch nevertheless
+failed with `V8 javascript OOM (MarkCompactCollector: young object promotion
+failed)`. Thus detector retirement alone did not solve the loading peak.
+
+Browser-level CDP sampling of each page/worker, without snapshots or forced GC,
+found a MapLibre worker peaking at **1,030,907,732 heap bytes** during a subsequent
+successful Kanagawa-to-Tokyo switch. The main page separately peaked at
+1,453,186,092 heap bytes. An outgoing native road-tile worker peaked at
+421,261,380 bytes and then disappeared; this worker was disposed, not accumulating
+across switches. Per-target peaks are not simultaneous process RSS or a proven
+V8 allocation limit. Raw baseline: `.analysis/worker-memory-watch-v2.jsonl`.
+
+The MapLibre worker held only the current map's source indexes. Its dominant
+GeoJSON index was native `roads-source`: 489,131 Tokyo road features, 6,682,700
+root points, and 49 index tiles. The sole layer consuming this source is the
+native `road-labels` symbol layer, with `minzoom: 15.75` and a name-based text
+field. Only **55,284 roads have nonempty names**; indexing the rest cannot draw
+any text, even when road labels are enabled.
+
+`native-road-label-source-v2` filters this label-only source before initial
+MapLibre source creation and subsequent `setData` calls. It preserves named
+feature identity, order, properties and coordinates. The native roads collection,
+Deck rendering and collision index remain complete. It adds no input/output
+cache, clears the filtered array after native source removal, skips unrelated
+sources/worlds and observed non-label consumers, and supports wrapper replacement
+on mod reload. It relies on the observed native `roads-source`/`road-labels`
+contract; a future base-game consumer of that source needs reevaluation.
+
+Live Tokyo verification reduced root points to **1,111,636 (83.4% fewer)** and
+features to **55,284 (88.7% fewer)**. All 55,284 named features remained. Index
+tile count stayed 49; counts of points across levels should not be interpreted
+as retained byte measurements.
+
+### Final live verification
+
+Four consecutive normal tile switches passed with the final cleanup and label
+filter installed, without forced collection or document reload:
+
+| Switch | Duration | Main heap at completion | Backing storage at completion |
+| --- | ---: | ---: | ---: |
+| Tokyo → Kanagawa | 23,209 ms | 1,498,599,540 bytes | 682,470,903 bytes |
+| Kanagawa → Tokyo | 28,779 ms | 1,453,965,584 bytes | 805,114,633 bytes |
+| Tokyo → Kanagawa | 25,732 ms | 1,691,042,420 bytes | 695,801,475 bytes |
+| Kanagawa → Tokyo | 29,653 ms | 1,485,726,900 bytes | 807,338,727 bytes |
+
+The sampled MapLibre worker peak was **188,525,524 bytes**, down **81.7%** from
+the earlier 1,030,907,732-byte sampled peak. Sampling is periodic and the runs
+have different allocation/collection histories; this is not a precise isolated
+retained-size or process-RSS comparison. Main-renderer allocations remain large.
+The overlapping 23–30-second timings do not establish a loading-speed improvement.
+Four successful switches improve the evidence for stability but do not prove
+that every loading OOM has been eliminated.
+
+All switches retained the same session, 316 stations, 53 routes, 2,294 tracks,
+164 trains, exact entity-ID hashes, money, elapsed time and pause state. Each
+retired detector lost its old method naturally; the destination detector remained
+usable. Cleanup reports had no errors. The final Tokyo source retained all 55,284
+named roads by exact object identity, with zero mismatches against the untouched
+489,131-road native collection. The camera and paused state were restored.
+The recovery checkpoint was no longer suspended (`waiting-for-native-save`), and
+`typeof gc` remained `undefined`.
+
+Raw evidence: `.analysis/transition-road-label-verification.json`,
+`.analysis/worker-memory-road-label.jsonl`, `.analysis/road-label-final-check.json`.
+These local diagnostics are Git-ignored. Final platform tests: **709 passing**;
+Japan consumer tests: **6 passing**. One intermediate suite run hit an existing
+millisecond-sensitive `snapshotCapture === 0` assertion; the full rerun passed.
+The selected `prototype/japan/mod` consumer (`local.japan-open-world`) was rebuilt,
+installed and reloaded. Both bundles contain `native-road-label-source-v2` and
+SHA-256 `62056557B48964929AFA3CCC6CB5C32CA9461C4E776A417B3778E43BE47BB4E8`,
+size 6,278,202 bytes, timestamp 2026-09-08 20:29:27 UTC. The PMTiles service
+returned HTTP 200 with `native-pmtiles-directory-v4`. Runtime markers and reset
+map diagnostics were checked after the final return to Tokyo.
