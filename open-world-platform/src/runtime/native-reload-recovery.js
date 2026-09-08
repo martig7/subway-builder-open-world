@@ -5,6 +5,29 @@ const RELOAD_GUARD_VERSION_KEY = '__openWorldNativeReloadRecoveryVersion__';
 
 export const NATIVE_RELOAD_RECOVERY_VERSION = 5;
 export const NATIVE_RECOVERY_CHECKPOINT_INTERVAL_MS = 15_000;
+export const NATIVE_TILE_RENDERER_RELOAD_VERSION = 'native-tile-renderer-reload-v1';
+
+/** The destination must start in a new renderer document, after a Native Save
+ * handoff has been staged. Browser-initiated reloads are blocked by the host. */
+export function createNativeTileRendererReload({ electron, history = globalThis.history } = {}) {
+  if (typeof electron?.reloadWindow !== 'function'
+    || typeof electron?.setCurrentRoute !== 'function'
+    || typeof history?.replaceState !== 'function') return null;
+  const reload = unwrapNativeReload(electron.reloadWindow);
+  return ({ route, transitionId }) => {
+    if (typeof transitionId !== 'string' || !transitionId
+      || !/^\/game\?city=[A-Za-z0-9_-]+$/.test(route)) {
+      throw new Error('Renderer tile reload requires a staged native handoff');
+    }
+    // replaceState does not dispatch a hashchange/start another city in the
+    // old React tree. The main process must know the destination too.
+    history.replaceState(history.state, '', `#${route}`);
+    electron.setCurrentRoute(route);
+    // The correct live handoff is already pending. Do not run the ordinary
+    // saved-file reload wrapper, which could replace it with an older file.
+    return reload.call(electron);
+  };
+}
 
 function nativeSaveData(snapshot) {
   return snapshot?.data && typeof snapshot.data === 'object' ? snapshot.data : snapshot;

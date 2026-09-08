@@ -69,3 +69,16 @@ test('render retirement occurs after navigation validation and pending handoff, 
   navigation.navigateTo({ worldId: 'world', tileId: 'NEXT' }, options);
   assert.deepEqual(calls, ['pending', 'retire', 'navigate']);
 });
+
+test('a staged tile can reload the renderer without starting the destination in the old document', () => {
+  const calls = [];
+  const navigation = new HashCityNavigationAdapter({
+    tileIds: ['OLD', 'NEXT'], document: {},
+    router: { navigate() { throw Error('old renderer started destination loading'); } },
+    sessionStorage: { setItem: () => calls.push('pending') },
+    reloadRenderer: request => { calls.push(request.route); return 'reloading'; },
+  });
+  assert.equal(navigation.navigateTo({ worldId: 'world', tileId: 'NEXT', from: 'OLD', transitionId: 'handoff' },
+    { beforeNavigate: () => calls.push('retire') }), 'reloading');
+  assert.deepEqual(calls, ['pending', 'retire', '/game?city=NEXT']);
+});

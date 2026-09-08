@@ -5,9 +5,33 @@ import {
   ORIGINAL_RELOAD_KEY,
   RECOVERY_METADATA_KEY,
   RELOAD_GUARD_KEY,
+  createNativeTileRendererReload,
   installNativeReloadRecoveryGuard,
   stageNativeRecovery,
 } from '../../../../open-world-platform/src/runtime/native-reload-recovery.js';
+
+test('tile renderer reload updates both routes and bypasses the saved-file checkpoint wrapper', () => {
+  const calls = [], state = { key: 'current-history' };
+  const electron = {
+    setCurrentRoute: route => calls.push(['main-route', route]),
+    reloadWindow() { throw new Error('must not replace the staged handoff'); },
+  };
+  electron.reloadWindow[ORIGINAL_RELOAD_KEY] = function () {
+    assert.equal(this, electron);
+    calls.push(['reload']);
+    return 'reloading';
+  };
+  const history = { state, replaceState: (...args) => calls.push(['history', ...args]) };
+  const reload = createNativeTileRendererReload({ electron, history });
+  assert.throws(() => reload({ route: '/game?city=NEXT' }), /staged native handoff/);
+  assert.throws(() => reload({ route: '/menu', transitionId: 'handoff' }), /staged native handoff/);
+  assert.deepEqual(calls, []);
+  assert.equal(reload({ route: '/game?city=NEXT', transitionId: 'handoff' }), 'reloading');
+  assert.deepEqual(calls, [
+    ['history', state, '', '#/game?city=NEXT'], ['main-route', '/game?city=NEXT'], ['reload'],
+  ]);
+  assert.equal(createNativeTileRendererReload({ electron: {}, history }), null);
+});
 
 function nativeSave(cityCode = 'NEC_A') {
   return {
