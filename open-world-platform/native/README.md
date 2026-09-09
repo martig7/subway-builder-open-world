@@ -45,8 +45,9 @@ and SHA-256 value from the signed release catalog.
 
 ## Release
 
-The release command always builds Northeast Corridor and can also include
-Tokyo–Kanagawa. Each release build replaces only its packaged manifest identity,
+The release command builds Northeast Corridor (36 tiles) and includes Japan
+(47 prefecture tiles) when `-JapanModRoot` and `-JapanTileRoot` are supplied.
+Tokyo–Kanagawa remains an optional compatibility consumer. Each release build replaces only its packaged manifest identity,
 verifies the requested semantic version, and declares
 `dependencies.subway-builder`; each JavaScript bundle remains the same consumer
 build used by its development mod.
