@@ -94,7 +94,10 @@ try
             await real.VerifyAsync(id, CancellationToken.None);
             try {
                 await real.StartAsync();
-                Assert((await real.StatusAsync()).StartsWith("Running"), $"{id} tile server is not healthy");
+                var expectedTiles = world.TileIds.Count + installedIds.Sum(installedId => catalog.Select(installedId).TileIds.Count);
+                var status = await real.StatusAsync();
+                Assert(status.StartsWith("Running") && status.EndsWith($" {expectedTiles} tile packages"), $"{id} tile server has wrong coverage: {status}");
+                Console.WriteLine($"PASS real shared service: {status}");
             } finally { await real.StopAsync(); }
             installedIds.Add(id);
             foreach (var installedId in installedIds) await real.VerifyAsync(installedId, CancellationToken.None);
