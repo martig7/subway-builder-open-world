@@ -20,6 +20,10 @@ permissions:
   contents: read
 jobs:
   test:
+    # GitHub requires push-level access to download an unpublished draft.
+    # This verification job downloads assets; it never publishes the release.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
