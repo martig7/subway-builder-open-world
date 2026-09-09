@@ -4,7 +4,7 @@ using System.Net.Http.Headers;
 
 namespace OpenWorld.Release;
 
-public sealed class InstallerEngine(HttpClient httpClient, string? assetRoot = null)
+public sealed class InstallerEngine(HttpClient httpClient, string? assetRoot = null, bool retainDownloads = false)
 {
     private readonly string? localAssetRoot = assetRoot is null
         ? null
@@ -17,7 +17,7 @@ public sealed class InstallerEngine(HttpClient httpClient, string? assetRoot = n
         CancellationToken cancellationToken = default)
     {
         manifest.Validate();
-        EnsureSpace(locations, manifest.Space.RequiredFreeBytes);
+        EnsureSpace(locations, manifest.Space.RequiredFreeBytes + (retainDownloads ? manifest.DownloadBytes : 0));
         Directory.CreateDirectory(locations.CacheRoot);
         Directory.CreateDirectory(locations.LogRoot);
 
@@ -52,7 +52,7 @@ public sealed class InstallerEngine(HttpClient httpClient, string? assetRoot = n
                 var target = ResolveTarget(asset, locations);
                 await InstallArchiveAsync(cachePath, target, asset.InstalledBytes, cancellationToken);
             }
-            File.Delete(cachePath);
+            if (!retainDownloads) File.Delete(cachePath);
             completedAssets++;
             completedBytes += asset.DownloadBytes;
             Report(InstallStage.Installing, "Installing verified files", asset.Name);

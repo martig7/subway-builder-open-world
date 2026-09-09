@@ -11,6 +11,9 @@ namespace OpenWorld.Installer;
 public partial class MainWindow : Window
 {
     private ReleaseManifest manifest;
+    private readonly ReleaseCatalog catalog;
+    private readonly List<System.Windows.Controls.CheckBox> worldChecks = [];
+    private ReleaseManifest[] SelectedWorlds => worldChecks.Where(check => check.IsChecked == true).Select(check => (ReleaseManifest)check.Tag).ToArray();
     private InstallLocations locations;
     private readonly bool isPreview;
     private readonly string? assetRoot;
@@ -24,35 +27,48 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         manifest = selectedManifest;
+        this.catalog = catalog;
         this.isPreview = isPreview;
         this.assetRoot = assetRoot;
         locations = InstallLocations.Resolve(manifest);
-        WorldSelector.ItemsSource = catalog.Worlds;
-        WorldSelector.SelectedItem = selectedManifest;
+        foreach (var world in catalog.Worlds)
+        {
+            var check = new System.Windows.Controls.CheckBox { Content = world.Product.Name, Tag = world, IsChecked = world == selectedManifest, Margin = new Thickness(0, 3, 0, 3) };
+            worldChecks.Add(check);
+            WorldSelector.Children.Add(check);
+            check.Checked += (_, _) => PopulateReview();
+            check.Unchecked += (_, _) => PopulateReview();
+        }
         PopulateReview();
     }
 
-    private void WorldSelector_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void SelectAll_Click(object sender, RoutedEventArgs e)
     {
-        if (WorldSelector.SelectedItem is not ReleaseManifest selected || cancellation is not null) return;
-        manifest = selected;
-        locations = InstallLocations.Resolve(manifest);
-        PopulateReview();
+        if (cancellation is null) foreach (var check in worldChecks) check.IsChecked = true;
+    }
+
+    private void ClearSelection_Click(object sender, RoutedEventArgs e)
+    {
+        if (cancellation is null) foreach (var check in worldChecks) check.IsChecked = false;
     }
 
     private void PopulateReview()
     {
-        DownloadSizeText.Text = ByteSize.Format(manifest.DownloadBytes);
-        InstalledSizeText.Text = ByteSize.Format(manifest.Space.InstalledBytes);
-        RequiredSizeText.Text = ByteSize.Format(manifest.Space.RequiredFreeBytes);
+        var selected = SelectedWorlds;
+        InstallButton.IsEnabled = selected.Length > 0;
+        DownloadSizeText.Text = ByteSize.Format(selected.Sum(world => world.DownloadBytes));
+        InstalledSizeText.Text = ByteSize.Format(selected.Sum(world => world.Space.InstalledBytes));
+        RequiredSizeText.Text = ByteSize.Format(selected.Sum(world => world.Space.RequiredFreeBytes + world.DownloadBytes));
         PageSubtitleText.Text = $"Version {manifest.Product.Version}";
         ServerAddressText.Text = $"127.0.0.1:{manifest.Product.TileServerPort}";
-        ProductPathText.Text = locations.ProductRoot;
-        ModPathText.Text = locations.ModRoot;
+        ProductPathText.Text = string.Join("; ", selected.Select(world => InstallLocations.Resolve(world).ProductRoot));
+        ProductPathText.ToolTip = ProductPathText.Text;
+        ModPathText.Text = string.Join("; ", selected.Select(world => InstallLocations.Resolve(world).ModRoot));
+        ModPathText.ToolTip = ModPathText.Text;
         DataRootPathText.Text = locations.CityDataRoot;
         PublisherText.Text = manifest.Product.Publisher;
 
-        var destinations = manifest.TileIds
+        var destinations = selected.SelectMany(world => world.TileIds)
             .Select(tileId => Path.Combine(locations.CityDataRoot, tileId))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
@@ -103,7 +119,8 @@ public partial class MainWindow : Window
 
     private async void Install_Click(object sender, RoutedEventArgs e)
     {
-        if (cancellation is not null) return;
+        if (cancellation is not null || SelectedWorlds.Length == 0) return;
+        var selected = SelectedWorlds;
         cancellation = new CancellationTokenSource();
         ReviewView.Visibility = Visibility.Collapsed;
         ProgressView.Visibility = Visibility.Visible;
@@ -115,6 +132,8 @@ public partial class MainWindow : Window
         ProgressCancelButton.Content = "Cancel";
         WorldSelector.IsEnabled = false;
         transferClock.Restart();
+        lastBytes = 0; lastRateSample = TimeSpan.Zero; bytesPerSecond = 0;
+        OverallProgress.Value = 0;
         try
         {
             if (isPreview) await SimulateProgressAsync(cancellation.Token);
@@ -122,14 +141,56 @@ public partial class MainWindow : Window
             {
                 using var client = new HttpClient();
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Subway-Builder-Open-World-Setup/0.1");
-                var progress = new Progress<InstallProgress>(UpdateProgress);
-                await TileServerController.StopAsync(manifest, TileServerRuntimePaths.FromLocations(locations), cancellation.Token);
-                await new InstallerEngine(client, assetRoot).InstallAsync(manifest, locations, progress, cancellation.Token);
-                InstallManagerCopy();
-                await WindowsIntegration.RegisterInstallationAsync(manifest, locations, cancellation.Token);
-                UpdateProgress(new InstallProgress(InstallStage.StartingServer, "Starting the local tile server", $"127.0.0.1:{manifest.Product.TileServerPort}", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
+                var required = selected.Sum(world => world.Space.RequiredFreeBytes + world.DownloadBytes);
+                var volume = new DriveInfo(Path.GetPathRoot(locations.ProductRoot)!);
+                if (volume.AvailableFreeSpace < required)
+                    throw new IOException($"Installation requires {ByteSize.Format(required)} free, including downloads retained for retry.");
+                PageTitleText.Text = $"Installing {selected.Length} world(s)";
+                ProgressSummaryText.Text = "Closing Open World Manager";
+                await ManagerShutdown.CloseAsync(catalog.Worlds.Select(world => InstallLocations.Resolve(world).ManagerPath), cancellation.Token);
+                // Fail on a locked manager before spending time downloading any maps.
+                foreach (var world in selected)
+                {
+                    manifest = world;
+                    locations = InstallLocations.Resolve(world);
+                    InstallManagerCopy();
+                }
+                var totalAssets = selected.Sum(world => world.Assets.Count);
+                var totalBytes = selected.Sum(world => world.DownloadBytes);
+                var priorAssets = 0;
+                long priorBytes = 0;
+                foreach (var world in selected)
+                {
+                    manifest = world;
+                    locations = InstallLocations.Resolve(world);
+                    var assetOffset = priorAssets;
+                    var byteOffset = priorBytes;
+                    var progress = new Progress<InstallProgress>(value => UpdateProgress(value with
+                    {
+                        Stage = value.Stage == InstallStage.Complete ? InstallStage.Installing : value.Stage,
+                        Summary = $"{world.Product.Name}: {value.Summary}",
+                        CompletedAssets = assetOffset + value.CompletedAssets,
+                        TotalAssets = totalAssets,
+                        CompletedBytes = byteOffset + value.CompletedBytes,
+                        TotalBytes = totalBytes
+                    }));
+                    await TileServerController.StopAsync(world, TileServerRuntimePaths.FromLocations(locations), cancellation.Token);
+                    await new InstallerEngine(client, assetRoot, retainDownloads: true).InstallAsync(world, locations, progress, cancellation.Token);
+                    await WindowsIntegration.RegisterInstallationAsync(world, locations, cancellation.Token);
+                    priorAssets += world.Assets.Count;
+                    priorBytes += world.DownloadBytes;
+                }
+                UpdateProgress(new InstallProgress(InstallStage.StartingServer, "Starting the local tile server", string.Empty, totalAssets, totalAssets, totalBytes, totalBytes));
                 await TileServerController.StartAndVerifyAsync(manifest, locations, cancellation.Token);
-                UpdateProgress(new InstallProgress(InstallStage.Complete, $"{manifest.Product.Name} is ready", "All release files and the tile server passed verification.", manifest.Assets.Count, manifest.Assets.Count, manifest.DownloadBytes, manifest.DownloadBytes));
+                // Retain verified ZIPs through registration and server verification, including retries.
+                foreach (var world in selected)
+                    foreach (var asset in world.Assets)
+                    {
+                        try { File.Delete(Path.Combine(InstallLocations.Resolve(world).CacheRoot, asset.Name)); }
+                        catch (IOException) { } // A cleanup failure must not invalidate a working installation.
+                        catch (UnauthorizedAccessException) { }
+                    }
+                UpdateProgress(new InstallProgress(InstallStage.Complete, $"{selected.Length} world(s) ready", "All release files and the tile server passed verification.", totalAssets, totalAssets, totalBytes, totalBytes));
             }
             ProgressCancelButton.Content = "Close";
         }
@@ -189,17 +250,15 @@ public partial class MainWindow : Window
 
     private void UpdateProgress(InstallProgress progress)
     {
+        var installedFraction = progress.TotalAssets == 0 ? 0 : (double)progress.CompletedAssets / progress.TotalAssets;
         var fraction = progress.Stage switch
         {
-            InstallStage.Preparing => 0.01,
-            InstallStage.Downloading => progress.Fraction * 0.70,
-            InstallStage.Verifying => 0.70,
-            InstallStage.Installing => 0.70 + 0.25 * (progress.TotalAssets == 0 ? 0 : (double)progress.CompletedAssets / progress.TotalAssets),
             InstallStage.StartingServer => 0.97,
             InstallStage.Complete => 1.0,
-            _ => 0
+            _ => progress.Fraction * 0.70 + installedFraction * 0.25
         };
         var percent = (int)Math.Round(fraction * 100);
+        percent = Math.Max((int)OverallProgress.Value, percent);
         OverallProgress.Value = percent;
         ProgressPercentText.Text = $"{percent}%";
         ProgressSummaryText.Text = progress.Summary;

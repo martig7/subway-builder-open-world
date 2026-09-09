@@ -72,3 +72,13 @@ itself). All 20 catalog assets match their uploaded size and digest. Existing
 user-edited release notes were preserved and one end-user expense-fix bullet was
 added. The release remains **draft**, targeting `codex/release-v060-expense-fix`.
 The local audit receipt is `.analysis/v060-expense/final-receipt.json`.
+
+
+## Windows multi-world setup follow-up (2026-09-09)
+
+- Windows setup uses world checkboxes with Select all and Clear selection; an empty selection disables installation. Selected worlds install sequentially and register with the shared tile server.
+- Setup closes only managers at catalog-owned installation paths and replaces their executables before downloads. Verified downloads remain available across failures and are deleted after registration and server verification succeed. Free-space estimates include retained downloads.
+- Validation: 23 Windows/native tests pass, including actual WPF checkbox interactions, exact manager process targeting, and an offline retry using retained downloads. All 9 Mac tests pass with the existing shared-engine defaults.
+- Signed installer selection screen visually checked. The automatic shutdown implementation successfully closed the locally running NEC manager. Full multi-world network installation is left to the user's fresh-download test.
+- Removed exactly 83 catalog-owned city packages (36 NEC, 47 Japan) from the user's city-data folder. Download caches were empty. Saves and unrelated cities were not targeted; the verified tile server was stopped for deletion.
+- Windows installer SHA-256: `1c44fbc814eac13682bc955ae8a302f8a810abbb913d40974c012dc40f13bbfd`. Existing publisher certificate and DigiCert timestamp retained; the local self-signed certificate is not a trusted root.

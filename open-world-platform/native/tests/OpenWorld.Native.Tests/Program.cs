@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -21,8 +23,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("native PMTiles reader returns an MVT tile", NativePmTilesReader),
     ("route archive lookup reads one bounded record and rejects corrupt offsets", NativeRouteArchive),
     ("release manifest signature is pinned to the self-signed certificate", ReleaseSignatureVerification),
-    ("installer downloads, verifies, and atomically installs a ZIP", InstallerDownloadsAndInstalls),
+    ("installer downloads, verifies, and atomically installs a ZIP", () => InstallerDownloadsAndInstalls()),
     ("installer copies and verifies assets from a local release folder", InstallerCopiesLocalAssets),
+    ("setup retains verified downloads for a retry after finalization failure", () => InstallerDownloadsAndInstalls(true)),
     ("cancelled map-part extraction preserves installed tiles and resumes cleanly", CancelledMapPartInstallResumes),
     ("map-part extraction rejects entries outside its tile allowlist", MapPartRejectsEscapingEntry),
     ("managed install state records only owned tile packages", ManagedStateRoundTrip),
@@ -31,6 +34,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("tile-server logs rotate within their retention limit", RollingLogRotation),
     ("tile-server defaults to the Subway Builder city-data directory", DefaultTileServerPathValidation),
     ("desktop launch plan adds Start-menu access without enabling login startup", DesktopLaunchPlanValidation),
+    ("world checkboxes select all, clear, and total both downloads", WorldCheckboxes),
+    ("manager shutdown targets only catalog-owned executables and excludes setup", ManagerShutdownTargets),
     ("manager uses a world-neutral title and the release-manifest version", ManagerPresentationValidation),
 };
 
@@ -293,7 +298,48 @@ static Task ReleaseSignatureVerification()
     return Task.CompletedTask;
 }
 
-static async Task InstallerDownloadsAndInstalls()
+static Task WorldCheckboxes()
+{
+    var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var thread = new Thread(() =>
+    {
+        try
+        {
+            var first = ManifestFor(".");
+            var second = first with { Product = first.Product with { Id = "Japan Open World", Name = "Japan", ManifestId = "local.japan-open-world" } };
+            var window = new MainWindow(new ReleaseCatalog(1, "0.1.0", [first, second]), first, true);
+            var checks = ((System.Windows.Controls.StackPanel)window.FindName("WorldSelector")).Children.Cast<System.Windows.Controls.CheckBox>().ToArray();
+            Equal(2, checks.Length);
+            Equal(1, checks.Count(check => check.IsChecked == true));
+            ((System.Windows.Controls.Button)window.FindName("SelectAllButton")).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            Equal(2, checks.Count(check => check.IsChecked == true));
+            Equal(ByteSize.Format(first.DownloadBytes + second.DownloadBytes), ((System.Windows.Controls.TextBlock)window.FindName("DownloadSizeText")).Text);
+            ((System.Windows.Controls.Button)window.FindName("ClearSelectionButton")).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            Equal(0, checks.Count(check => check.IsChecked == true));
+            Equal(false, ((System.Windows.Controls.Button)window.FindName("InstallButton")).IsEnabled);
+            checks[1].IsChecked = true;
+            Equal(true, ((System.Windows.Controls.Button)window.FindName("InstallButton")).IsEnabled);
+            window.Close();
+            done.SetResult();
+        }
+        catch (Exception exception) { done.SetException(exception); }
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    return done.Task;
+}
+
+static Task ManagerShutdownTargets()
+{
+    var manager = Path.Combine(Path.GetTempPath(), "NEC Open World", "Subway Builder Open World.exe");
+    Equal(true, ManagerShutdown.IsInstalledManager(manager.ToUpperInvariant(), 10, 20, [manager]));
+    Equal(false, ManagerShutdown.IsInstalledManager(manager, 20, 20, [manager]));
+    Equal(false, ManagerShutdown.IsInstalledManager(Path.Combine(Path.GetTempPath(), "game.exe"), 10, 20, [manager]));
+    Equal(false, ManagerShutdown.IsInstalledManager(Path.Combine(Path.GetTempPath(), "other", "Subway Builder Open World.exe"), 10, 20, [manager]));
+    return Task.CompletedTask;
+}
+
+static async Task InstallerDownloadsAndInstalls(bool retain = false)
 {
     var testRoot = Path.Combine(Path.GetTempPath(), "open-world-installer-tests", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(testRoot);
@@ -342,7 +388,13 @@ static async Task InstallerDownloadsAndInstalls()
         Directory.CreateDirectory(locations.ProductRoot);
         await File.WriteAllTextAsync(Path.Combine(locations.ProductRoot, "manager.txt"), "preserve me");
         using var client = new HttpClient(new StaticHandler(zipBytes));
-        await new InstallerEngine(client).InstallAsync(manifest, locations);
+        await new InstallerEngine(client, retainDownloads: retain).InstallAsync(manifest, locations);
+        if (retain)
+        {
+            if (!File.Exists(Path.Combine(locations.CacheRoot, asset.Name))) throw new Exception("Successful downloads lost before setup finalization.");
+            using var offline = new HttpClient(new UnexpectedRequestHandler());
+            await new InstallerEngine(offline).InstallAsync(manifest, locations);
+        }
         Equal("Railyard-shaped mod payload", await File.ReadAllTextAsync(Path.Combine(locations.ModRoot, "index.js")));
         Equal("Railyard-shaped mod payload", await File.ReadAllTextAsync(Path.Combine(locations.SupportRoot, "index.js")));
         Equal("preserve me", await File.ReadAllTextAsync(Path.Combine(locations.ProductRoot, "manager.txt")));
