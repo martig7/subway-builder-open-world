@@ -31,12 +31,11 @@ The local extracted native renderer's operating-cost calculation confirms that
 this gap is multiplied by the train's hourly cost. A separate infrastructure
 cursor observation was not the explanation for the large spike: its native
 charge is one fixed five-minute interval, rather than the entire elapsed gap.
-No infrastructure-accounting change is included here.
+The infrastructure follow-up is documented below.
 
-Validation: 730 shared-platform tests and 24 Japan/NEC consumer tests passed.
-The investigation and fix used code and unit tests only, as requested. No game
-interaction, consumer installation, or draft-release artifact replacement was
-performed; runtime verification remains outstanding.
+Validation: 731 shared-platform tests and 24 Japan/NEC consumer tests passed.
+The initial investigation and train-timing fix used code and unit tests only;
+the subsequent live verifications are recorded below.
 
 ## Live verification — September 9, 2026
 
@@ -70,8 +69,36 @@ The return also confirmed a separate infrastructure issue: its billing cursor
 was 4,019,637 before navigation and zero after restoration. Native code can then
 post one additional five-minute maintenance interval. The first measured tick
 posted $198,579.30 track maintenance and $75,555.56 station maintenance. This
-cursor-loss issue is not fixed by the train-time ordering change.
+cursor-loss issue was independent from the train-time ordering change.
 
 Temporary measurement wrappers were removed and mods reloaded after the test.
 Draft release downloads were not replaced. Raw local measurement receipts are
 under `.analysis/expense-live-*.json` and `.analysis/expense-install-receipt.json`.
+
+## Infrastructure cursor follow-up
+
+Subway Builder 1.7 keeps `lastInfrastructureChargeTime` only in its live store:
+native save generation omits it, and native save loading resets it. Tile
+navigation now adds the live cursor to both full and lean runtime snapshots,
+transfers it with the Native Ledger fields, and restores it after the native
+loader completes. The exact cursor is retained so a real unpaid partial interval
+remains due.
+
+The regression starts with a live cursor of 4,019,337 and a stale snapshot
+cursor of 3,300, simulates the native loader resetting it to zero, and verifies
+that restoration returns it to 4,019,337 with the original 300-second unpaid
+interval. The complete platform and Japan/NEC suites passed.
+
+For the live check, both enabled NEC installations received bundle hash
+`80f490802e66d5c44239856fd5818784e7932ac29dcaed78e514ccb23bf83fce`
+with diagnostic marker `native-tile-snapshot-copy-v2`. Starting from a corrected
+one-second unpaid gap, 20 cached ticks advanced 4,800 seconds and navigation from
+`NEC_CM03_RM02` to `NEC_CM02_RM02` restored a one-second gap. The next native
+tick posted only $68,456.51 of due train operating cost: no track, station, or
+grade-crossing maintenance was posted. Returning to the original tile preserved
+the cursor again, leaving a 1.5-second gap after that native tick.
+
+The original tile, camera, pause state, speed, 42 stations, 3 routes and 14
+trains were restored. This second test advanced the Native Ledger by 80 minutes
+and one native half-second and did not rewind it. Draft release assets were not
+replaced. The raw receipt is `.analysis/expense-cursor-live-final.json`.

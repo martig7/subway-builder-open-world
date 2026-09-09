@@ -2983,6 +2983,42 @@ test('tile snapshot restore transfers every native financial field from the sour
   }
 });
 
+test('tile snapshot preserves the live infrastructure maintenance cursor across native load reset', async () => {
+  const fixture = realSeamFixture({ publicCityCode: 'KCE' });
+  fixture.state.timeConfig = { elapsedSeconds: 4_019_637, paused: true };
+  fixture.state.lastInfrastructureChargeTime = 4_019_337;
+  fixture.state.loadSave = (snapshot) => {
+    Object.assign(fixture.state, structuredClone(snapshot.data));
+    fixture.state.cityCode = snapshot.cityCode;
+    // Subway Builder 1.7 does not serialize or restore this store-only cursor.
+    fixture.state.lastInfrastructureChargeTime = 0;
+  };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+  const snapshot = await adapter.captureSnapshot({
+    name: OPEN_WORLD_RUNTIME_SAVE_NAME,
+    cityCode: 'KCW',
+    data: {
+      routes: [], tracks: [], stations: [], trains: [],
+      timeConfig: { elapsedSeconds: 3_600, paused: true },
+      elapsedSeconds: 3_600,
+      lastInfrastructureChargeTime: 3_300,
+    },
+  });
+  assert.equal(snapshot.data.lastInfrastructureChargeTime, 4_019_337,
+    'the lean checkpoint must use the live cursor, not its stale template');
+
+  await adapter.adoptStaticPackage({ manifest: { tileId: 'KCE', cityCode: 'KCE' } }, 'KCE');
+  await adapter.restoreSnapshot(snapshot, {
+    preserveNativeFinance: true,
+    authoritativeFinanceSnapshot: snapshot,
+  });
+
+  assert.equal(fixture.state.lastInfrastructureChargeTime, 4_019_337,
+    'native load reset must not make paid maintenance chargeable again');
+  assert.equal(fixture.state.timeConfig.elapsedSeconds - fixture.state.lastInfrastructureChargeTime, 300,
+    'the genuinely unpaid portion of the maintenance interval remains due');
+});
+
 test('tile snapshot finance transfer supplies the route-financials envelope required by the native dashboard', async () => {
   const fixture = realSeamFixture({ publicCityCode: 'KCE' });
   const routeId = '09d2a90e-71f9-4f06-b717-8ed248945f35';

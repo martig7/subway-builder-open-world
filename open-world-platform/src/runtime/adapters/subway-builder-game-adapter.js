@@ -129,10 +129,11 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   'hasGoneBankrupt',
   'rockefellerPaidOut',
   'buildingDemolitionSpendAllTime',
+  'lastInfrastructureChargeTime',
 ]);
 
 export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v6';
-export const NATIVE_TILE_SNAPSHOT_COPY_VERSION = 'native-tile-snapshot-copy-v1';
+export const NATIVE_TILE_SNAPSHOT_COPY_VERSION = 'native-tile-snapshot-copy-v2';
 
 /**
  * Read the current city from the live Zustand snapshot.
@@ -3044,8 +3045,14 @@ export class SubwayBuilderGameAdapter {
           metadataMarked: false,
         }, generate)
         : generate();
+      const generatedWithInfrastructureCursor = Number.isFinite(state.lastInfrastructureChargeTime)
+        ? { ...generated, data: {
+          ...generated.data,
+          lastInfrastructureChargeTime: state.lastInfrastructureChargeTime,
+        } }
+        : generated;
       return bindSnapshotToCity(
-        stampOpenWorldRuntimeSnapshot(compactNativeSnapshot(generated)),
+        stampOpenWorldRuntimeSnapshot(compactNativeSnapshot(generatedWithInfrastructureCursor)),
         this.loadedCityCode,
         state.cityCode === this.loadedCityCode ? state.cityUid : this.loadedCityCode,
       );
@@ -3060,6 +3067,7 @@ export class SubwayBuilderGameAdapter {
       'tracks', 'trains', 'routes', 'timeConfig', 'trackGroups', 'signals',
       'stNodes', 'stations', 'money', 'transitCost', 'fareGroups',
       'financialHistory', 'routeFinancials', 'bonds', 'gameMode',
+      'lastInfrastructureChargeTime',
       'completedCommutes',
       'ownedTrainCount', 'ownedCarsByType', 'playTimeSeconds',
       'totalLifetimeRidership', 'dailyStats', 'stationsDemolishedAllTime',
@@ -3598,6 +3606,13 @@ export class SubwayBuilderGameAdapter {
     } else await restore();
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
     const stateAfter = this.#state();
+    const infrastructureChargeCursor = destinationSnapshot.data.lastInfrastructureChargeTime;
+    if (preserveNativeFinance && Number.isFinite(infrastructureChargeCursor)) {
+      // This native store-only field is neither serialized nor restored by
+      // Subway Builder 1.7. Preserve its exact unpaid interval across a Tile
+      // View load so the next tick cannot charge maintenance a second time.
+      stateAfter.lastInfrastructureChargeTime = infrastructureChargeCursor;
+    }
     const popCountAfter = stateAfter.demandData?.popsMap?.size ?? 0;
     if (popCountBefore > 0 && popCountAfter === 0) {
       if (typeof stateAfter.setDemandData !== 'function') {
