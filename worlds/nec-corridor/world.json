@@ -26,12 +26,14 @@
     "adapter": "lodes-us",
     "definition": "demand.json",
     "routingProfile": "osrm-driving-v1",
+    "routeGeometry": "stored-driving-routes-v1",
     "nativePopPrefixes": ["nec-native-pop-"],
     "crossPopPrefixes": ["nec-cross-pop-"]
   },
   "runtime": {
     "storageNamespace": "open-world-sidecar-local.nec-corridor-open-world-v1",
     "tileServerPort": 8799,
+    "tileServerProvider": "shared-native-v4",
     "tileBaseGlobal": "NEC_CORRIDOR_TILE_BASE",
     "diagnosticNamespace": "nec-corridor",
     "healthTile": "NEC_CP00_RP00/0/0/0.mvt?v=nec-corridor-z0-z9-v2",
