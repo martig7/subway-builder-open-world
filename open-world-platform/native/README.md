@@ -112,5 +112,7 @@ dotnet run --project tests/OpenWorld.Native.Tests -c Release -- `
   --release-smoke D:/OpenWorldReleases/v0.6.0 D:/OpenWorldReleases/smoke-v060
 ```
 
-Keep the GitHub release draft until these checks pass. Neither workflow publishes
+Keep the GitHub release draft pending an explicit publication request, even after
+these checks pass. Neither workflow publishes
 it automatically. macOS artifacts are ad-hoc signed, not notarized.
+
