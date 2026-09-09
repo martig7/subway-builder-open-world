@@ -67,6 +67,8 @@ for (var partIndex = 0; partIndex < options.MapParts; partIndex++)
 {
     var partTiles = tileDirectories.Skip(partIndex * tilesPerPart).Take(tilesPerPart).ToArray();
     if (partTiles.Length == 0) continue;
+    var archiveEstimate = partTiles.Sum(directory => CityFilesFor(directory).Sum(name => new FileInfo(Path.Combine(directory, name)).Length));
+    if (archiveEstimate > 1_900_000_000L) throw new InvalidDataException("Map ZIP exceeds the release asset budget; increase --map-parts.");
     var tileIds = partTiles.Select(path => Path.GetFileName(path)!).ToArray();
     var archiveName = $"{options.AssetPrefix}-map-part-{partIndex + 1:D2}-of-{options.MapParts:D2}-v{options.Version}.zip";
     var archivePath = Path.Combine(options.Output, archiveName);
@@ -183,7 +185,7 @@ internal sealed record Options(
             Optional("manifest-id", "northeast-corridor-open-world"),
             Optional("asset-prefix", "nec"),
             Optional("tile-prefix", "NEC"),
-            Integer("expected-tiles", 34),
+            Integer("expected-tiles", 36),
             Integer("map-parts", 4),
             Integer("port", 8799),
             Optional("manifest-name", "release-manifest.json"));
