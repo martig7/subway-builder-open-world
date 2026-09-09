@@ -1,7 +1,7 @@
 import { CrossDemandModel } from '../cross-demand-model.js';
 import { demandPanelContent } from './cross-demand-presentation.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'native-route-designs-and-fade-v2';
+export const CROSS_DEMAND_PANEL_VERSION = 'simplified-cross-demand-panel-v3';
 
 // Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
 // uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.

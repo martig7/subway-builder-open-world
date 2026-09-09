@@ -49,18 +49,6 @@ function modeStrip(h, choice, mass) {
   return h('div', { className: 'flex h-2 flex-1 overflow-hidden rounded bg-secondary', 'aria-hidden': true }, ...MODES.map(([key, , color]) =>
     h('span', { key, style: { width: `${mass ? (choice?.[key] ?? 0) / mass * 100 : 0}%`, backgroundColor: color } })));
 }
-function histogram(h, title, bins) {
-  const totals = bins.map(bin => MODES.reduce((sum, [key]) => sum + bin[key], 0));
-  const max = Math.max(1, ...totals);
-  return h('section', { className: 'flex flex-col gap-2', 'aria-label': title }, heading(h, title, 'clock'),
-    h('div', { style: { display: 'flex', alignItems: 'flex-end', gap: 2, height: 64 } }, ...bins.map((bin, hour) =>
-      h('div', { key: hour, role: 'img', 'aria-label': `${hour}:00: ${number(totals[hour])} commuters`,
-        title: `${String(hour).padStart(2, '0')}:00–${String(hour).padStart(2, '0')}:59: ${number(totals[hour])} commuters`,
-        style: { flex: 1, display: 'flex', flexDirection: 'column-reverse', height: `${totals[hour] / max * 100}%` } },
-      ...MODES.map(([key, , color]) => h('span', { key, style: { height: `${totals[hour] ? bin[key] / totals[hour] * 100 : 0}%`, backgroundColor: color } }))))),
-    h('div', { className: 'flex justify-between text-[10px] text-muted-foreground' }, ...['12am', '6am', '12pm', '6pm', '12am'].map((label, i) => h('span', { key: i }, label))));
-}
-
 export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, limit, setLimit, page, setPage, advanced, panelRef }) {
   const section = (...children) => h('section', { className: 'flex flex-col gap-2 border-t pt-3' }, ...children);
   const back = (text, action) => button(h, `‹ ${text}`, action, { className: 'self-start text-xs text-muted-foreground hover:text-primary' });
@@ -100,10 +88,7 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
     content.push(h('div', { className: 'flex gap-1' }, ...[['residents', 'Residents', 'home'], ['workers', 'Workers', 'work']].map(([view, label, glyph]) =>
       button(h, [icon(h, glyph), label], () => c.setViewMode(view), { key: view, 'aria-pressed': s.viewMode === view,
         className: `flex flex-1 items-center justify-center gap-2 rounded border py-2 text-xs ${s.viewMode === view ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}` }))),
-      h('div', { className: 'flex items-center justify-between gap-2 text-xs' },
-        h('label', { className: 'flex items-center gap-2' }, h('input', { type: 'checkbox', checked: s.faded, onChange: e => c.setFaded(e.target.checked) }), 'Fade demand layer'),
-        h('select', { 'aria-label': 'Map travel mode', value: s.modeFilter, onChange: e => c.setModeFilter(e.target.value), className: 'rounded border bg-panel px-1 py-1 text-xs' },
-          ...[['all', 'All modes'], ...MODES.map(([key, label]) => [key, label])].map(([key, label]) => h('option', { key, value: key }, label)))),
+      h('label', { className: 'flex items-center gap-2 text-xs' }, h('input', { type: 'checkbox', checked: s.faded, onChange: e => c.setFaded(e.target.checked) }), 'Fade demand layer'),
       !point && h('p', { className: 'text-xs text-muted-foreground' }, 'Click a demand dot to inspect its commuters and destinations.'),
       heading(h, point ? (s.viewMode === 'workers' ? 'Worker mode share' : 'Resident mode share') : 'Cross-city demand stats', 'people'),
       modeRows(h, summary.modeChoice, summary.population));
@@ -122,7 +107,6 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
           page === 0 && limit === 5 && point.popCount > 5 ? button(h, `Show ${Math.min(35, point.popCount - 5)} more`, () => setLimit(40))
             : page + limit < point.popCount && button(h, 'Next 40', () => { setPage(page + limit); setLimit(40); })));
     } else content.push(h('p', { className: 'text-xs text-muted-foreground' }, `${number(s.stats.population)} commuters across ${number(s.stats.points)} locations`));
-    content.push(section(histogram(h, 'Home departure times', summary.departures)), section(histogram(h, 'Work departure times', summary.returns)));
   }
   return h('div', { ref: panelRef, className: 'flex flex-col gap-3 p-2 text-sm', 'data-cross-demand-version': s.version,
     style: { maxHeight: 'calc(100vh - 150px)', overflowY: 'auto', fontFamily: 'inherit' },

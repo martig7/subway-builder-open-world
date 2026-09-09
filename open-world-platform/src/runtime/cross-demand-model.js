@@ -4,20 +4,11 @@ const MODE_KEYS = Object.freeze(['driving', 'walking', 'transit']);
 function emptyModes() { return { driving: 0, walking: 0, transit: 0 }; }
 function addModes(target, source) { for (const key of MODE_KEYS) target[key] += source[key] ?? 0; }
 function emptySummary() {
-  return { population: 0, pops: 0, modeChoice: emptyModes(),
-    departures: Array.from({ length: 24 }, emptyModes), returns: Array.from({ length: 24 }, emptyModes) };
-}
-const DEPARTURE_TIME = /^(\d{1,2}):([0-5]\d)$/;
-function addDeparture(bins, time, modes) {
-  if (typeof time !== 'string' || !DEPARTURE_TIME.test(time)) return;
-  const hour = Number(time.slice(0, time.indexOf(':')));
-  if (hour < 24) addModes(bins[hour], modes);
+  return { population: 0, pops: 0, modeChoice: emptyModes() };
 }
 function addSummary(summary, pop, modes) {
   summary.population += pop[1]; summary.pops++;
   addModes(summary.modeChoice, modes);
-  addDeparture(summary.departures, pop[5], modes);
-  addDeparture(summary.returns, pop[6], modes);
 }
 
 function normalizedModes(modeChoice, mass) {

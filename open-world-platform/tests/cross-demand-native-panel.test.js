@@ -27,12 +27,12 @@ function setup() {
     finish: () => resolveRoute({ source: 'stored-osrm', coordinates: [[136.7,35.1],[138,35],[139.4,35.3]] }), counts: () => ({ inspections, requests }) };
 }
 
-test('summaries conserve cached mode counts and cache real departure bins; map filters use assigned modes', () => {
+test('summaries conserve cached mode counts; map filters use assigned modes', () => {
   const model = new CrossDemandModel(raw, {}, choices);
   const summary = model.summary('residents');
   assert.equal(summary.population, 200);
-  assert.equal(summary.departures[7].transit, 40);
-  assert.equal(summary.returns[17].driving, 160);
+  assert.equal(summary.modeChoice.transit, 40);
+  assert.equal(summary.modeChoice.driving, 160);
   assert.equal(summary, model.summary('residents'));
   assert.equal(model.pointFeatures('residents', null, 'transit').features[0].properties.population, 40);
   assert.equal(model.pointFeatures('residents', null, 'walking').features.length, 0);

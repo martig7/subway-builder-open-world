@@ -112,3 +112,19 @@ and fading enabled.
 
 Installed bundle SHA-256:
 `001B597010EBEC2141914117E78EF0711B9D586BDAA53EF950A9ACED3E461678`.
+
+## Simplified controls
+
+Removed the map travel-mode dropdown and both departure-time histograms at the
+user's request. The overview and location panel show all travel modes together;
+the existing mode counts, Residents/Workers controls, fade toggle and individual
+trip details remain. Summary construction no longer allocates the 48 histogram
+bins or parses each pop's departure times for chart aggregation.
+
+727 platform/regression tests and 6 Japan consumer tests passed. The rebuilt and
+installed `local.japan-open-world` bundles matched by hash and timestamp, and the
+PMTiles health check passed. Live UI inspection after reloading confirmed
+`simplified-cross-demand-panel-v3`, no mode dropdown and no departure charts.
+
+Installed bundle SHA-256:
+`44EE986194CE840C866D4F07910117CAAF306FE84D6BC09FD596621E75A90241`.
