@@ -3,6 +3,22 @@ const MODE_KEYS = Object.freeze(['driving', 'walking', 'transit']);
 
 function emptyModes() { return { driving: 0, walking: 0, transit: 0 }; }
 function addModes(target, source) { for (const key of MODE_KEYS) target[key] += source[key] ?? 0; }
+function emptySummary() {
+  return { population: 0, pops: 0, modeChoice: emptyModes(),
+    departures: Array.from({ length: 24 }, emptyModes), returns: Array.from({ length: 24 }, emptyModes) };
+}
+const DEPARTURE_TIME = /^(\d{1,2}):([0-5]\d)$/;
+function addDeparture(bins, time, modes) {
+  if (typeof time !== 'string' || !DEPARTURE_TIME.test(time)) return;
+  const hour = Number(time.slice(0, time.indexOf(':')));
+  if (hour < 24) addModes(bins[hour], modes);
+}
+function addSummary(summary, pop, modes) {
+  summary.population += pop[1]; summary.pops++;
+  addModes(summary.modeChoice, modes);
+  addDeparture(summary.departures, pop[5], modes);
+  addDeparture(summary.returns, pop[6], modes);
+}
 
 function normalizedModes(modeChoice, mass) {
   if (!modeChoice) return emptyModes();
@@ -91,6 +107,9 @@ export class CrossDemandModel {
     }
     this.gateways = raw.gateways ?? [];
     this.rawPops = raw.pops;
+    this.summaryCache = new Map();
+    this.globalSummary = emptySummary();
+    this.statistics = { points: raw.points.length, pops: raw.pops.length, population: 0 };
     this.popModeChoices = popModeChoices ?? {};
     this.flowModes = new Map();
     for (const entry of Object.values(gatewayLedger)) {
@@ -111,6 +130,8 @@ export class CrossDemandModel {
       addModes(this.points[homeIndex].residentModes, modes);
       addModes(this.points[workIndex].workerModes, modes);
       if (!(mass >= 0)) throw new Error(`Invalid cross-demand pop mass: ${pop[0]}`);
+      this.statistics.population += mass;
+      addSummary(this.globalSummary, pop, modes);
     });
   }
 
@@ -123,21 +144,22 @@ export class CrossDemandModel {
     return normalizedModes(this.flowModes.get(`${home.tileId}|${work.tileId}|${gatewayId}`), mass);
   }
 
-  pointFeatures(viewMode, selectedId = null) {
+  pointFeatures(viewMode, selectedId = null, mode = 'all') {
     const massField = VIEW_FIELDS[viewMode] ?? VIEW_FIELDS.residents;
     const modeField = viewMode === 'workers' ? 'workerModes' : 'residentModes';
     return {
       type: 'FeatureCollection',
       features: this.points
-        .filter((point) => point[massField] > 0 && (!selectedId || point.id === selectedId))
+        .filter((point) => point[massField] > 0 && (!selectedId || point.id === selectedId)
+          && (mode === 'all' || point[modeField][mode] > 0))
         .map((point) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: point.location },
         properties: {
           id: point.id,
-          population: point[massField],
-          baseRadius: selectedId === point.id ? 80 : demandPointRadius(point[massField], viewMode),
-          color: modeShareColor(point[modeField]),
+          population: mode === 'all' ? point[massField] : point[modeField][mode],
+          baseRadius: selectedId === point.id ? 80 : demandPointRadius(mode === 'all' ? point[massField] : point[modeField][mode], viewMode),
+          color: modeShareColor(mode === 'all' ? point[modeField] : { [mode]: point[modeField][mode] }),
           selected: selectedId === point.id,
         },
         })),
@@ -161,12 +183,13 @@ export class CrossDemandModel {
   popDetails(popIndex) {
     const pop = this.rawPops[popIndex];
     if (!pop) return null;
-    const [id, mass, homeIndex, workIndex, gatewayIndex] = pop;
+    const [id, mass, homeIndex, workIndex, gatewayIndex, homeDepartureTime, workDepartureTime, drivingSeconds, drivingDistance] = pop;
     return {
       index: popIndex, id, mass,
       home: this.points[homeIndex], work: this.points[workIndex],
       gatewayId: this.gateways[gatewayIndex],
       modeChoice: this.#popModes(pop),
+      homeDepartureTime, workDepartureTime, drivingSeconds, drivingDistance,
     };
   }
 
@@ -225,10 +248,20 @@ export class CrossDemandModel {
   }
 
   get stats() {
-    return {
-      points: this.points.length,
-      pops: this.rawPops.length,
-      population: this.rawPops.reduce((sum, pop) => sum + pop[1], 0),
-    };
+    return this.statistics;
+  }
+
+  /** Four small summaries at most; no per-person expansion or route lookup. */
+  summary(viewMode, pointId = null) {
+    const point = this.pointById.get(pointId);
+    if (!point) return this.globalSummary;
+    const key = `${viewMode}/${pointId ?? ''}`;
+    if (this.summaryCache.has(key)) return this.summaryCache.get(key);
+    const indexes = viewMode === 'workers' ? point.workPops : point.homePops;
+    const value = emptySummary();
+    for (const index of indexes) addSummary(value, this.rawPops[index], this.#popModes(this.rawPops[index]));
+    this.summaryCache.set(key, value);
+    if (this.summaryCache.size > 4) this.summaryCache.delete(this.summaryCache.keys().next().value);
+    return value;
   }
 }

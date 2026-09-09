@@ -93,7 +93,7 @@ test('registers a native toolbar panel and map-backed cross-demand layers', () =
     'kc-cross-demand-points',
     'kc-cross-demand-endpoints',
   ]);
-  assert.equal(layers.every((layer) => layer.minzoom === 10), true);
+  assert.deepEqual(layers.map(layer => layer.minzoom), [10, 0, 10, 0]);
   assert.equal(panel.id, 'kc-cross-demand-viewer');
   assert.equal(panel.icon, 'UsersRound');
   assert.equal(typeof controller.attachMap, 'function');

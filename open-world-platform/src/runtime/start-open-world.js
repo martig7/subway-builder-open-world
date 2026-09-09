@@ -996,6 +996,7 @@ export function startOpenWorld({
           api,
           runtime,
           tilePackages,
+          tileCatalog,
           routePaths: startingSession.routePaths,
           rendererVirtualization: geographicContextController,
         });

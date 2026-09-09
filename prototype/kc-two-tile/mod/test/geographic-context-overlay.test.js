@@ -1189,7 +1189,10 @@ test('hides every native MapLibre detail layer below zoom 10 while preserving ra
   const buildings = { id: 'native-buildings', type: 'fill', source: 'general-tiles' };
   const lowOnly = { id: 'native-low-only', type: 'fill', source: 'general-tiles', maxzoom: 9 };
   const modOwned = { id: 'open-world-test-overlay', type: 'fill', source: 'general-tiles' };
-  for (const layer of [roadMajor, roadHighway, roadLabels, rail, demand, buildings, lowOnly, modOwned]) {
+  const selectedTrip = { id: 'kc-cross-demand-pop-line', type: 'line', minzoom: 0 };
+  const tripEndpoints = { id: 'kc-cross-demand-endpoints', type: 'circle', minzoom: 0 };
+  const crossDots = { id: 'kc-cross-demand-points', type: 'circle', minzoom: 10 };
+  for (const layer of [roadMajor, roadHighway, roadLabels, rail, demand, buildings, lowOnly, modOwned, selectedTrip, tripEndpoints, crossDots]) {
     map.layers.set(layer.id, layer);
     map.layerOrder.push(layer.id);
   }
@@ -1214,6 +1217,9 @@ test('hides every native MapLibre detail layer below zoom 10 while preserving ra
   assert.equal(lowOnly.minzoom, 10);
   assert.equal(lowOnly.maxzoom, 10);
   assert.equal(modOwned.minzoom, undefined);
+  assert.equal(selectedTrip.minzoom, 0);
+  assert.equal(tripEndpoints.minzoom, 0);
+  assert.equal(crossDots.minzoom, 10);
   assert.equal(map.layers.get('water').minzoom, undefined);
   assert.equal(map.layers.get('native-background').minzoom, undefined);
 });

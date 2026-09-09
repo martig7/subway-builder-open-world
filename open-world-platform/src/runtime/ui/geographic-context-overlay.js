@@ -1272,6 +1272,8 @@ function preserveMapLayerBelowDetailZoom(layer) {
   const id = String(layer?.id ?? '');
   const sourceLayer = String(layer?.['source-layer'] ?? '');
   if (layer?.type === 'background' || MOD_OWNED_MAP_LAYER_RE.test(id)) return true;
+  // A selected journey is bounded to one line and two endpoints, including at world zoom.
+  if (/^kc-cross-demand-(pop-line|endpoints)$/.test(id)) return true;
   if (WATER_MAP_LAYER_RE.test(id) || WATER_MAP_LAYER_RE.test(sourceLayer)) return true;
   return layer?.type === 'line' && isRailLineLayerId(`${id}-${sourceLayer}`);
 }
