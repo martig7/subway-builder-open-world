@@ -112,6 +112,9 @@ struct World: Identifiable {
             serverStatus = object["message"] as? String ?? "Unknown"
             if CommandLine.arguments.contains("--ui-smoke"), ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true",
                let root = ProcessInfo.processInfo.environment["UI_SNAPSHOT_ROOT"], !worlds.isEmpty {
+                if let window = NSApp.windows.first(where: { $0.isVisible && $0.title == "Open World Manager" }) {
+                    try? String(window.windowNumber).write(toFile: root + "/live-window-id", atomically: true, encoding: .utf8)
+                }
                 try? "Signed catalog loaded: \(worlds.count) worlds; server: \(serverStatus)".write(toFile: root + "/ui-smoke-passed", atomically: true, encoding: .utf8)
             }
         case "progress":
