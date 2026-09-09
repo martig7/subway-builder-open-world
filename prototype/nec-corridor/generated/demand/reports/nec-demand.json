@@ -2,14 +2,28 @@
   "aggregation": {
     "algorithm": "deterministic sparse Voronoi sites; weighted 4D capacity-constrained Voronoi cohorts",
     "drivingModel": {
-      "graphVersion": "generated-roads-v1",
-      "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
-      "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
-      "provider": "generated-road-graph",
-      "speedKph": {
-        "highway": 85.0,
-        "major": 50.0,
-        "minor": 30.0
+      "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+      "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
+      "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
+      "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
+      "passengerFerry": {
+        "catalogId": "fdae73efc51988f5b3cded79903c6a2ee4f885581dc99927a202c1e359acfa1d",
+        "costModel": "existing distance-based game cost; ferry fares not supplied",
+        "scheduleWaitSeconds": 0,
+        "transferSeconds": 300.0,
+        "version": "passenger-ferry-v1"
+      },
+      "profile": "driving",
+      "provider": "osrm",
+      "straightWater": {
+        "costModel": "existing game driving-distance cost; not a real ferry service",
+        "landMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
+        "maxShoreAccessMetres": 1500.0,
+        "shoreAccessSpeedMps": 1.4,
+        "synthetic": true,
+        "transferSeconds": 0,
+        "version": "straight-water-v1",
+        "waterSpeedKph": 5.0
       }
     },
     "maximumCohortSize": 200,
@@ -45,7 +59,7 @@
   "prototype": true,
   "roadRouting": {
     "completed": true,
-    "graphVersion": "generated-roads-v1",
+    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
     "report": "nec-road-routing.json"
   },
   "scannedRows": 29499358,
