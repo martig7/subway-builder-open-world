@@ -30,6 +30,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Check workspace capacity
+        run: df -h "$RUNNER_TEMP"
       - name: Download candidate release assets
         if: inputs.release_tag != ''
         env:
@@ -103,3 +105,4 @@ jobs:
           name: macos-installer-${{ matrix.rid }}
           path: artifacts/
           retention-days: 14
+
