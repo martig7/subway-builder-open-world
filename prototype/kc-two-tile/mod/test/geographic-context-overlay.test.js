@@ -1254,6 +1254,36 @@ test('rebuilds the Deck layer tree only when a detail visibility band changes', 
   controller.dispose();
 });
 
+test('removed portolan layers never reuse initialized cached instances on reappearance', () => {
+  for (const id of ['portolan-cats', 'portolan-cat-text']) {
+    const map = fixtureMap();
+    const data = [{ position: [-74.5, 40.5] }];
+    map.__deck.props.layers = [];
+    const original = map.__deck.setProps;
+    let active = new Map();
+    map.__deck.setProps = function(next) {
+      if (next.layers) {
+        const incoming = new Map(next.layers.flat(Infinity).filter(Boolean).map(layer => [layer.id, layer]));
+        for (const [key, layer] of incoming) {
+          // deck.gl Layer._initialize asserts that internalState is absent.
+          if (!active.has(key)) assert.ok(!layer.internalState, `deck.gl assertion failed: ${key}`);
+          layer.internalState = {};
+        }
+        active = incoming;
+      }
+      return original.call(this, next);
+    };
+    const controller = registerGeographicContextOverlay({
+      runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog,
+    });
+    controller.attachMap(map);
+    map.__deck.setProps({ layers: [fixtureDeckLayer(id, { data })] });
+    map.__deck.setProps({ layers: [] });
+    map.__deck.setProps({ layers: [fixtureDeckLayer(id, { data })] });
+    controller.dispose();
+  }
+});
+
 test('replaces the previous movement Deck guard generation during a hot reload', () => {
   const map = fixtureMap();
   const firstController = registerGeographicContextOverlay({
@@ -1264,7 +1294,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 22;
+  previousPatch.version = 23;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1274,7 +1304,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
-  assert.equal(map.__deck[guardKey].version, 23);
+  assert.equal(map.__deck[guardKey].version, 24);
   firstController.dispose();
   reloadedController.dispose();
 });

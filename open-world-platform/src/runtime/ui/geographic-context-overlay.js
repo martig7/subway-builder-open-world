@@ -56,7 +56,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 23;
+const MOVEMENT_DECK_GUARD_VERSION = 24;
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_VERSION = 'spatial-source-distance-km-v2';
@@ -1787,6 +1787,20 @@ function layerMaskSignature(layerId, zoom, virtualization) {
   return `${virtualizationSignature(virtualization)}|overview:${isLowZoomOverview(zoom)}${detailVisibility}`;
 }
 
+export function pruneRemovedDeckLayerInstances(layerCache, nativeLayers) {
+  // Deck finalizes removed layers, but their internalState remains attached.
+  // Keep geometry caches; never resurrect an initialized layer instance.
+  const presentIds = new Set();
+  const collectIds = layers => {
+    if (Array.isArray(layers)) { for (const layer of layers) collectIds(layer); }
+    else if (layers && typeof layers === 'object') presentIds.add(layers.id ?? layers.props?.id);
+  };
+  collectIds(nativeLayers);
+  for (const id of layerCache.keys()) {
+    if (!presentIds.has(id)) layerCache.delete(id);
+  }
+}
+
 function maskMovementDeckLayers(
   layers,
   zoom,
@@ -2347,6 +2361,7 @@ function installMovementDeckVisibilityGuard(
       }), { key: 'deck-setProps', every: 60, first: 5 });
       let forwarded = nextProps;
       if (Object.hasOwn(nextProps, 'layers')) {
+        pruneRemovedDeckLayerInstances(patch.layerCache, nextProps.layers);
         patch.nativeLayers = nextProps.layers;
         const zoom = patch.map?.getZoom?.();
         const virtualization = patch.virtualizationProvider?.();
