@@ -27,6 +27,7 @@ prototype/kc-two-tile/artifacts/
 prototype/*/generated/work/
 prototype/*/generated/maps/
 prototype/*/generated/mod/
+prototype/*/generated/routes/
 prototype/japan/generated/
 prototype/tokyo-kanagawa/generated/prefecture-admin-level4.geojson
 prototype/ny-state/generated/pilot/basemap/
