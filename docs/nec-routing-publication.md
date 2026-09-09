@@ -25,7 +25,9 @@ release work, not a controlled comparison with earlier timing benchmarks.
 The shared service served all 36 NEC tiles and advertised the stored-route
 header. Built and installed bundle SHA256 matched:
 `106cfdedaa02927e5c3e66715192f1996ae5d544d1a1e0a6effa0813420da5bc`.
-All 728 platform, 17 NEC and 3 route-archive tests passed. Installation exposed
+All 728 platform, 18 NEC and 3 route-archive tests passed. The NEC suite now
+rejects a footprint rebuild that republishes the old generated-road timing
+model instead of individual OSRM routes. Installation exposed
 and fixed a UTF-8 BOM compatibility issue in shared World registrations; the
 regression test verifies that a BOM registration reuses a healthy server.
 
