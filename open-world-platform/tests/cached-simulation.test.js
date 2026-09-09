@@ -172,17 +172,53 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v4', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v5', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v5');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v6');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
   assert.equal(f.state.handleIncrementGameState, original);
+});
+
+test('network edits preserving a train billing cursor cannot replay already estimated operating time', async () => {
+  const f = fixture();
+  f.state.trains[0].operationalTime = { totalSeconds: 10, lastChargedAt: 24990 };
+  await f.controller.setEnabled(true);
+  f.state.setTimeConfig({ paused: false });
+  for (let i = 0; i < 20; i++) await f.state.handleIncrementGameState();
+  // Native route regeneration replaces train objects but keeps operationalTime.
+  f.state.setTrains(f.state.trains.map(train => ({ ...train,
+    operationalTime: { ...train.operationalTime } })));
+  await f.state.handleIncrementGameState();
+  const save = f.state.generateSave();
+  assert.equal(save.data.elapsedSeconds - save.data.trains[0].operationalTime.lastChargedAt, 10,
+    'saving after an edit must exclude the entire cached interval');
+  await f.controller.setEnabled(false);
+  assert.equal(f.state.timeConfig.elapsedSeconds - f.state.trains[0].operationalTime.lastChargedAt, 10,
+    'tile navigation must retain only pre-cache unpaid native time');
+  await f.controller.dispose();
+});
+
+test('new trains and explicitly reset billing cursors exclude only time since their creation or reset', async () => {
+  const f = fixture();
+  f.state.trains[0].operationalTime = { totalSeconds: 10, lastChargedAt: 24990 };
+  await f.controller.setEnabled(true);
+  f.state.setTimeConfig({ paused: false });
+  await f.state.handleIncrementGameState();
+  const editedAt = f.state.timeConfig.elapsedSeconds;
+  f.state.setTrains([
+    { ...f.state.trains[0], operationalTime: { totalSeconds: 0, lastChargedAt: editedAt } },
+    { id: 'new', operationalTime: { totalSeconds: 0, lastChargedAt: editedAt } },
+  ]);
+  await f.state.handleIncrementGameState();
+  await f.controller.setEnabled(false);
+  for (const train of f.state.trains) assert.equal(train.operationalTime.lastChargedAt, f.state.timeConfig.elapsedSeconds);
+  await f.controller.dispose();
 });
 
 test('saving cached time rebases fleet timing without moving the live fleet or charging twice', async () => {

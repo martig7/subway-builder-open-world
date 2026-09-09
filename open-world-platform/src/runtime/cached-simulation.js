@@ -6,12 +6,12 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v5';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v6';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
 
-export function rebaseCachedTrain(train, delta, elapsedSeconds) {
+export function rebaseCachedTrain(train, delta, elapsedSeconds, billingDelta = delta) {
   const shift = value => Number.isFinite(value) ? value + delta : value;
   return { ...train,
     ...(train.timings ? { timings: train.timings.map(timing => ({ ...timing,
@@ -22,7 +22,9 @@ export function rebaseCachedTrain(train, delta, elapsedSeconds) {
     ...(train.currentStComboInfo ? { currentStComboInfo: { ...train.currentStComboInfo,
       timeAtStop: shift(train.currentStComboInfo.timeAtStop), timeAtStopEnd: shift(train.currentStComboInfo.timeAtStopEnd) } } : {}),
     ...(train.stuckDetection ? { stuckDetection: { ...train.stuckDetection, lastMovementTime: shift(train.stuckDetection.lastMovementTime) } } : {}),
-    ...(train.operationalTime ? { operationalTime: { ...train.operationalTime, lastChargedAt: shift(train.operationalTime.lastChargedAt) } } : {}),
+    ...(train.operationalTime ? { operationalTime: { ...train.operationalTime,
+      lastChargedAt: Number.isFinite(train.operationalTime.lastChargedAt)
+        ? train.operationalTime.lastChargedAt + billingDelta : train.operationalTime.lastChargedAt } } : {}),
   };
 }
 
@@ -74,6 +76,15 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     state.trackGroups, state.trains, state.gradeCrossings, state.fareGroups, state.transitCost, state.demandData?.popsMap,
     JSON.stringify(api.utils?.getPathfindingRules?.()), state.ownedTrainCount];
   const unchanged = state => { const next = dependencyList(state); return dependencies?.every((value, i) => value === next[i]); };
+  // Route regeneration replaces train objects while retaining their billing
+  // cursor. Object replacement must not make already estimated time unpaid.
+  const billingStart = (train, elapsed) => {
+    const frozen = frozenTrains.get(train.id);
+    return frozen && frozen.chargedAt === train.operationalTime?.lastChargedAt ? frozen.billingAt : elapsed;
+  };
+  const rebaseFrozenTrain = (train, elapsed) => rebaseCachedTrain(train,
+    elapsed - (frozenTrains.get(train.id)?.at ?? elapsed), elapsed,
+    elapsed - billingStart(train, elapsed));
   const clearMovements = state => {
     state.setPopMovementsMap?.(new Map());
     state.setAllStationTrainPopMovements?.({ stations: new Map(), trains: new Map() });
@@ -110,7 +121,11 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       if (!isReady() || !state.demandData?.popsMap) throw new Error('Wait for the World to finish loading.');
       await flush();
       for (const train of state.trains ?? []) {
-        if (frozenTrains.get(train.id)?.train !== train) frozenTrains.set(train.id, { train, at: state.timeConfig.elapsedSeconds });
+        const frozen = frozenTrains.get(train.id);
+        if (frozen?.train !== train || frozen.chargedAt !== train.operationalTime?.lastChargedAt) {
+          frozenTrains.set(train.id, { train, at: state.timeConfig.elapsedSeconds,
+            chargedAt: train.operationalTime?.lastChargedAt, billingAt: billingStart(train, state.timeConfig.elapsedSeconds) });
+        }
       }
       status = 'calculating'; notify();
       const initial = dependencyList(state), begin = performance.now();
@@ -210,8 +225,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           clearMovements(state);
           // Preserve the fleet and its physical positions; move absolute timing
           // anchors forward by the time spent using estimates.
-          state.setTrains?.((state.trains ?? []).map(train => rebaseCachedTrain(train,
-            state.timeConfig.elapsedSeconds - (frozenTrains.get(train.id)?.at ?? state.timeConfig.elapsedSeconds), state.timeConfig.elapsedSeconds)));
+          state.setTrains?.((state.trains ?? []).map(train => rebaseFrozenTrain(train, state.timeConfig.elapsedSeconds)));
           if (Number.isFinite(state.lastInfrastructureChargeTime)) getState().lastInfrastructureChargeTime
             = state.lastInfrastructureChargeTime + state.timeConfig.elapsedSeconds - startedAt;
           getState().setTimeConfig({});
@@ -242,8 +256,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
                 ...(Number.isFinite(save.data.lastInfrastructureChargeTime) ? {
                   lastInfrastructureChargeTime: save.data.lastInfrastructureChargeTime + elapsed - startedAt,
                 } : {}),
-                trains: (save.data.trains ?? []).map(train => rebaseCachedTrain(train,
-                  elapsed - (frozenTrains.get(train.id)?.at ?? elapsed), elapsed)),
+                trains: (save.data.trains ?? []).map(train => rebaseFrozenTrain(train, elapsed)),
               } });
             };
             const save = original.apply(this, args);
