@@ -218,6 +218,8 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
   globalThis.electron = {
     getPendingSave: async () => ({ success: true, data: pendingRecovery }),
     setPendingSave: async (save) => { pendingRecovery = save; return { success: true }; },
+    getMostRecentSaves: async () => ({ success: true, saves: [] }),
+    loadAndSetPendingSave: async () => { throw new Error("No completed fixture save is available"); },
     reloadWindow() {},
   };
   let mod;
@@ -251,16 +253,16 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
     }
     assert.ok(globalThis.__necCorridorDiagnostics__?.startup, 'fixture must reach a ready runtime');
 
-    globalThis.electron.reloadWindow();
-    await globalThis.__openWorldNativeReloadRecoveryGuard__.flush();
+    const recovery = globalThis.__openWorldNativeReloadRecoveryGuard__;
+    assert.ok(recovery, 'fixture must install the completed-save reload guard');
+    await recovery.flush();
     const generatedForRecovery = counters.generateSave;
     state.money += 10;
     globalThis.electron.reloadWindow();
-    await globalThis.__openWorldNativeReloadRecoveryGuard__.flush();
-    assert.equal(counters.generateSave, generatedForRecovery, 'later recovery must reuse the native snapshot template');
-    assert.equal(pendingRecovery.data.money, state.money, 'template reuse must capture current live state');
+    await recovery.flush();
+    assert.equal(counters.generateSave, generatedForRecovery, 'reload must not generate a live recovery snapshot');
+    assert.equal(pendingRecovery, null, 'without a completed native save, unsaved live state must not be staged');
     state.money -= 10;
-    pendingRecovery = null;
 
     const navigationOnlyKey = 'nec-corridor:pending-navigation';
     const destinationTileId = 'NEC_CM01_RM02';
