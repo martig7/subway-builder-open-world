@@ -29,9 +29,9 @@
     },
     "nec-corridor-world": {
       "artifact": "modis-igbp-2023-v1.nec-corridor-world.geojson.gz",
-      "artifactSha256": "34a8888ce101ac87e8e07c5b06bab5470ade7b3dbaeaaed93f5a1a945ecee5ac",
+      "artifactSha256": "9cd900601f416031a36da31176f9c54e76e178d65a5a2f1f63917edbd10cc31f",
       "sourceSha256": "fba702594373407e297e72edb2e44212907eebfcf41822d161f9cd59ab911ae5",
-      "focusInputSha256": "e519040a1235dbd4043a8aaf9ab4d879b0e18932eea02473e08824b753d2fe4a"
+      "focusInputSha256": "2094f3c7e44d3458a8899456e3ca0bf3d3fe7f5e8776350eca708635bd2c32b6"
     }
   }
 }

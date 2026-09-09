@@ -2,7 +2,7 @@
   "schemaVersion": "0.1.0",
   "scope": "selected-tile-pairs",
   "selection": {
-    "tileCount": 35,
+    "tileCount": 36,
     "tileIds": [
       "NEC_CM04_RM03",
       "NEC_CM03_RM03",
@@ -12,6 +12,7 @@
       "NEC_CM03_RM02",
       "NEC_CM02_RM02",
       "NEC_CM01_RM02",
+      "NEC_CP00_RM02",
       "NEC_CM04_RM01",
       "NEC_CM03_RM01",
       "NEC_CM02_RM01",
@@ -47,10 +48,10 @@
     "vintage": 2023,
     "workerColumn": "S000"
   },
-  "tilePairCount": 1149,
+  "tilePairCount": 1195,
   "tiles": [
     {
-      "activityWorkers": 4100696,
+      "activityWorkers": 4103305,
       "bounds": [
         -75.28678032,
         39.62209743,
@@ -58,11 +59,11 @@
         40.50005201
       ],
       "column": -1,
-      "corridorInboundRows": 590358,
-      "corridorInboundWorkers": 610276,
-      "corridorOutboundRows": 571888,
-      "corridorOutboundWorkers": 584350,
-      "homeWorkers": 2037385,
+      "corridorInboundRows": 592288,
+      "corridorInboundWorkers": 612254,
+      "corridorOutboundRows": 572509,
+      "corridorOutboundWorkers": 584981,
+      "homeWorkers": 2038016,
       "localWorkers": 1453035,
       "ownershipProjected": [
         475700,
@@ -70,13 +71,13 @@
         553400,
         4483300
       ],
-      "pairCount": 67,
+      "pairCount": 69,
       "row": -1,
       "tileId": "NEC_CM01_RM01",
-      "workWorkers": 2063311
+      "workWorkers": 2065289
     },
     {
-      "activityWorkers": 428032,
+      "activityWorkers": 431126,
       "bounds": [
         -75.28312828,
         38.74537129,
@@ -84,11 +85,11 @@
         39.62341844
       ],
       "column": -1,
-      "corridorInboundRows": 59897,
-      "corridorInboundWorkers": 61954,
-      "corridorOutboundRows": 80022,
-      "corridorOutboundWorkers": 81874,
-      "homeWorkers": 223976,
+      "corridorInboundRows": 62005,
+      "corridorInboundWorkers": 64248,
+      "corridorOutboundRows": 80779,
+      "corridorOutboundWorkers": 82674,
+      "homeWorkers": 224776,
       "localWorkers": 142102,
       "ownershipProjected": [
         475700,
@@ -96,13 +97,13 @@
         553400,
         4386000
       ],
-      "pairCount": 66,
+      "pairCount": 68,
       "row": -2,
       "tileId": "NEC_CM01_RM02",
-      "workWorkers": 204056
+      "workWorkers": 206350
     },
     {
-      "activityWorkers": 96690,
+      "activityWorkers": 96694,
       "bounds": [
         -75.27963248,
         37.86851205,
@@ -110,11 +111,11 @@
         38.74665192
       ],
       "column": -1,
-      "corridorInboundRows": 22238,
-      "corridorInboundWorkers": 23536,
-      "corridorOutboundRows": 25740,
-      "corridorOutboundWorkers": 27504,
-      "homeWorkers": 50329,
+      "corridorInboundRows": 22240,
+      "corridorInboundWorkers": 23538,
+      "corridorOutboundRows": 25742,
+      "corridorOutboundWorkers": 27506,
+      "homeWorkers": 50331,
       "localWorkers": 22825,
       "ownershipProjected": [
         475700,
@@ -122,13 +123,13 @@
         553400,
         4288700
       ],
-      "pairCount": 62,
+      "pairCount": 64,
       "row": -3,
       "tileId": "NEC_CM01_RM03",
-      "workWorkers": 46361
+      "workWorkers": 46363
     },
     {
-      "activityWorkers": 1499282,
+      "activityWorkers": 1499856,
       "bounds": [
         -75.29059644,
         40.49868959,
@@ -136,11 +137,11 @@
         41.37655191
       ],
       "column": -1,
-      "corridorInboundRows": 368810,
-      "corridorInboundWorkers": 381541,
-      "corridorOutboundRows": 392050,
-      "corridorOutboundWorkers": 403079,
-      "homeWorkers": 760410,
+      "corridorInboundRows": 369325,
+      "corridorInboundWorkers": 382060,
+      "corridorOutboundRows": 392105,
+      "corridorOutboundWorkers": 403134,
+      "homeWorkers": 760465,
       "localWorkers": 357331,
       "ownershipProjected": [
         475700,
@@ -148,13 +149,13 @@
         553400,
         4580600
       ],
-      "pairCount": 68,
+      "pairCount": 70,
       "row": 0,
       "tileId": "NEC_CM01_RP00",
-      "workWorkers": 738872
+      "workWorkers": 739391
     },
     {
-      "activityWorkers": 156699,
+      "activityWorkers": 156702,
       "bounds": [
         -75.29458509,
         41.37514701,
@@ -162,8 +163,8 @@
         42.25291758
       ],
       "column": -1,
-      "corridorInboundRows": 33770,
-      "corridorInboundWorkers": 34911,
+      "corridorInboundRows": 33773,
+      "corridorInboundWorkers": 34914,
       "corridorOutboundRows": 47445,
       "corridorOutboundWorkers": 48592,
       "homeWorkers": 85190,
@@ -174,13 +175,13 @@
         553400,
         4677900
       ],
-      "pairCount": 64,
+      "pairCount": 65,
       "row": 1,
       "tileId": "NEC_CM01_RP01",
-      "workWorkers": 71509
+      "workWorkers": 71512
     },
     {
-      "activityWorkers": 2382001,
+      "activityWorkers": 2382107,
       "bounds": [
         -76.20365032,
         39.61768557,
@@ -188,11 +189,11 @@
         40.50005201
       ],
       "column": -2,
-      "corridorInboundRows": 412411,
-      "corridorInboundWorkers": 427278,
-      "corridorOutboundRows": 395448,
-      "corridorOutboundWorkers": 413095,
-      "homeWorkers": 1183909,
+      "corridorInboundRows": 412474,
+      "corridorInboundWorkers": 427341,
+      "corridorOutboundRows": 395491,
+      "corridorOutboundWorkers": 413138,
+      "homeWorkers": 1183952,
       "localWorkers": 770814,
       "ownershipProjected": [
         398000,
@@ -200,13 +201,13 @@
         475700,
         4483300
       ],
-      "pairCount": 68,
+      "pairCount": 70,
       "row": -1,
       "tileId": "NEC_CM02_RM01",
-      "workWorkers": 1198092
+      "workWorkers": 1198155
     },
     {
-      "activityWorkers": 394815,
+      "activityWorkers": 394837,
       "bounds": [
         -76.18832646,
         38.74109429,
@@ -214,11 +215,11 @@
         39.62341844
       ],
       "column": -2,
-      "corridorInboundRows": 69891,
-      "corridorInboundWorkers": 73065,
-      "corridorOutboundRows": 124371,
-      "corridorOutboundWorkers": 135004,
-      "homeWorkers": 228377,
+      "corridorInboundRows": 69898,
+      "corridorInboundWorkers": 73072,
+      "corridorOutboundRows": 124386,
+      "corridorOutboundWorkers": 135019,
+      "homeWorkers": 228392,
       "localWorkers": 93373,
       "ownershipProjected": [
         398000,
@@ -226,13 +227,13 @@
         475700,
         4386000
       ],
-      "pairCount": 64,
+      "pairCount": 66,
       "row": -2,
       "tileId": "NEC_CM02_RM02",
-      "workWorkers": 166438
+      "workWorkers": 166445
     },
     {
-      "activityWorkers": 211882,
+      "activityWorkers": 211884,
       "bounds": [
         -76.173658,
         37.86436669,
@@ -242,9 +243,9 @@
       "column": -2,
       "corridorInboundRows": 30283,
       "corridorInboundWorkers": 31315,
-      "corridorOutboundRows": 51470,
-      "corridorOutboundWorkers": 53577,
-      "homeWorkers": 117072,
+      "corridorOutboundRows": 51472,
+      "corridorOutboundWorkers": 53579,
+      "homeWorkers": 117074,
       "localWorkers": 63495,
       "ownershipProjected": [
         398000,
@@ -252,13 +253,13 @@
         475700,
         4288700
       ],
-      "pairCount": 62,
+      "pairCount": 63,
       "row": -3,
       "tileId": "NEC_CM02_RM03",
       "workWorkers": 94810
     },
     {
-      "activityWorkers": 997580,
+      "activityWorkers": 997593,
       "bounds": [
         -76.2196625,
         40.49413948,
@@ -266,11 +267,11 @@
         41.37655191
       ],
       "column": -2,
-      "corridorInboundRows": 168618,
-      "corridorInboundWorkers": 175328,
-      "corridorOutboundRows": 174520,
-      "corridorOutboundWorkers": 176624,
-      "homeWorkers": 499438,
+      "corridorInboundRows": 168629,
+      "corridorInboundWorkers": 175339,
+      "corridorOutboundRows": 174522,
+      "corridorOutboundWorkers": 176626,
+      "homeWorkers": 499440,
       "localWorkers": 322814,
       "ownershipProjected": [
         398000,
@@ -278,13 +279,13 @@
         475700,
         4580600
       ],
-      "pairCount": 66,
+      "pairCount": 68,
       "row": 0,
       "tileId": "NEC_CM02_RP00",
-      "workWorkers": 498142
+      "workWorkers": 498153
     },
     {
-      "activityWorkers": 329795,
+      "activityWorkers": 329799,
       "bounds": [
         -76.23639837,
         41.37045505,
@@ -292,11 +293,11 @@
         42.25291758
       ],
       "column": -2,
-      "corridorInboundRows": 40251,
-      "corridorInboundWorkers": 40733,
-      "corridorOutboundRows": 54831,
-      "corridorOutboundWorkers": 55828,
-      "homeWorkers": 172445,
+      "corridorInboundRows": 40254,
+      "corridorInboundWorkers": 40736,
+      "corridorOutboundRows": 54832,
+      "corridorOutboundWorkers": 55829,
+      "homeWorkers": 172446,
       "localWorkers": 116617,
       "ownershipProjected": [
         398000,
@@ -304,13 +305,13 @@
         475700,
         4677900
       ],
-      "pairCount": 66,
+      "pairCount": 68,
       "row": 1,
       "tileId": "NEC_CM02_RP01",
-      "workWorkers": 157350
+      "workWorkers": 157353
     },
     {
-      "activityWorkers": 1347990,
+      "activityWorkers": 1347996,
       "bounds": [
         -77.1200816,
         39.60490479,
@@ -318,11 +319,11 @@
         40.49413948
       ],
       "column": -3,
-      "corridorInboundRows": 166693,
-      "corridorInboundWorkers": 168703,
-      "corridorOutboundRows": 182384,
-      "corridorOutboundWorkers": 186203,
-      "homeWorkers": 682745,
+      "corridorInboundRows": 166698,
+      "corridorInboundWorkers": 168708,
+      "corridorOutboundRows": 182385,
+      "corridorOutboundWorkers": 186204,
+      "homeWorkers": 682746,
       "localWorkers": 496542,
       "ownershipProjected": [
         320300,
@@ -330,13 +331,13 @@
         398000,
         4483300
       ],
-      "pairCount": 66,
+      "pairCount": 68,
       "row": -1,
       "tileId": "NEC_CM03_RM01",
-      "workWorkers": 665245
+      "workWorkers": 665250
     },
     {
-      "activityWorkers": 4157777,
+      "activityWorkers": 4157795,
       "bounds": [
         -77.09310689,
         38.72870408,
@@ -344,11 +345,11 @@
         39.61768557
       ],
       "column": -3,
-      "corridorInboundRows": 571097,
-      "corridorInboundWorkers": 605514,
-      "corridorOutboundRows": 333869,
-      "corridorOutboundWorkers": 355795,
-      "homeWorkers": 1954029,
+      "corridorInboundRows": 571109,
+      "corridorInboundWorkers": 605526,
+      "corridorOutboundRows": 333875,
+      "corridorOutboundWorkers": 355801,
+      "homeWorkers": 1954035,
       "localWorkers": 1598234,
       "ownershipProjected": [
         320300,
@@ -356,10 +357,10 @@
         398000,
         4386000
       ],
-      "pairCount": 67,
+      "pairCount": 69,
       "row": -2,
       "tileId": "NEC_CM03_RM02",
-      "workWorkers": 2203748
+      "workWorkers": 2203760
     },
     {
       "activityWorkers": 270788,
@@ -388,7 +389,7 @@
       "workWorkers": 98145
     },
     {
-      "activityWorkers": 313063,
+      "activityWorkers": 313066,
       "bounds": [
         -77.14826728,
         40.48095828,
@@ -396,11 +397,11 @@
         41.37045505
       ],
       "column": -3,
-      "corridorInboundRows": 37423,
-      "corridorInboundWorkers": 37929,
-      "corridorOutboundRows": 60363,
-      "corridorOutboundWorkers": 61262,
-      "homeWorkers": 168198,
+      "corridorInboundRows": 37425,
+      "corridorInboundWorkers": 37931,
+      "corridorOutboundRows": 60364,
+      "corridorOutboundWorkers": 61263,
+      "homeWorkers": 168199,
       "localWorkers": 106936,
       "ownershipProjected": [
         320300,
@@ -408,13 +409,13 @@
         398000,
         4580600
       ],
-      "pairCount": 65,
+      "pairCount": 67,
       "row": 0,
       "tileId": "NEC_CM03_RP00",
-      "workWorkers": 144865
+      "workWorkers": 144867
     },
     {
-      "activityWorkers": 375802,
+      "activityWorkers": 375803,
       "bounds": [
         -78.03574104,
         39.58508938,
@@ -422,8 +423,8 @@
         40.48095828
       ],
       "column": -4,
-      "corridorInboundRows": 59266,
-      "corridorInboundWorkers": 61158,
+      "corridorInboundRows": 59267,
+      "corridorInboundWorkers": 61159,
       "corridorOutboundRows": 93342,
       "corridorOutboundWorkers": 95248,
       "homeWorkers": 204946,
@@ -434,13 +435,13 @@
         320300,
         4483300
       ],
-      "pairCount": 65,
+      "pairCount": 66,
       "row": -1,
       "tileId": "NEC_CM04_RM01",
-      "workWorkers": 170856
+      "workWorkers": 170857
     },
     {
-      "activityWorkers": 2830208,
+      "activityWorkers": 2830217,
       "bounds": [
         -77.99715232,
         38.70949395,
@@ -448,11 +449,11 @@
         39.60490479
       ],
       "column": -4,
-      "corridorInboundRows": 435005,
-      "corridorInboundWorkers": 470805,
-      "corridorOutboundRows": 387732,
-      "corridorOutboundWorkers": 415235,
-      "homeWorkers": 1387319,
+      "corridorInboundRows": 435010,
+      "corridorInboundWorkers": 470810,
+      "corridorOutboundRows": 387736,
+      "corridorOutboundWorkers": 415239,
+      "homeWorkers": 1387323,
       "localWorkers": 972084,
       "ownershipProjected": [
         242600,
@@ -460,13 +461,13 @@
         320300,
         4386000
       ],
-      "pairCount": 68,
+      "pairCount": 70,
       "row": -2,
       "tileId": "NEC_CM04_RM02",
-      "workWorkers": 1442889
+      "workWorkers": 1442894
     },
     {
-      "activityWorkers": 468169,
+      "activityWorkers": 468171,
       "bounds": [
         -77.96021189,
         37.83373852,
@@ -476,9 +477,9 @@
       "column": -4,
       "corridorInboundRows": 46082,
       "corridorInboundWorkers": 50042,
-      "corridorOutboundRows": 164789,
-      "corridorOutboundWorkers": 180243,
-      "homeWorkers": 299185,
+      "corridorOutboundRows": 164791,
+      "corridorOutboundWorkers": 180245,
+      "homeWorkers": 299187,
       "localWorkers": 118942,
       "ownershipProjected": [
         242600,
@@ -486,13 +487,13 @@
         320300,
         4288700
       ],
-      "pairCount": 63,
+      "pairCount": 64,
       "row": -3,
       "tileId": "NEC_CM04_RM03",
       "workWorkers": 168984
     },
     {
-      "activityWorkers": 981939,
+      "activityWorkers": 986994,
       "bounds": [
         -74.37783052,
         39.61372389,
@@ -500,11 +501,11 @@
         40.49868959
       ],
       "column": 0,
-      "corridorInboundRows": 128005,
-      "corridorInboundWorkers": 128940,
-      "corridorOutboundRows": 268296,
-      "corridorOutboundWorkers": 273255,
-      "homeWorkers": 563127,
+      "corridorInboundRows": 131450,
+      "corridorInboundWorkers": 132610,
+      "corridorOutboundRows": 269630,
+      "corridorOutboundWorkers": 274640,
+      "homeWorkers": 564512,
       "localWorkers": 289872,
       "ownershipProjected": [
         553400,
@@ -512,13 +513,39 @@
         631100,
         4483300
       ],
-      "pairCount": 67,
+      "pairCount": 69,
       "row": -1,
       "tileId": "NEC_CP00_RM01",
-      "workWorkers": 418812
+      "workWorkers": 422482
     },
     {
-      "activityWorkers": 13069875,
+      "activityWorkers": 15666,
+      "bounds": [
+        -74.38551203,
+        38.73725369,
+        -73.47275157,
+        39.62209743
+      ],
+      "column": 0,
+      "corridorInboundRows": 3005,
+      "corridorInboundWorkers": 3109,
+      "corridorOutboundRows": 9529,
+      "corridorOutboundWorkers": 10005,
+      "homeWorkers": 11281,
+      "localWorkers": 1276,
+      "ownershipProjected": [
+        553400,
+        4288700,
+        631100,
+        4386000
+      ],
+      "pairCount": 46,
+      "row": -2,
+      "tileId": "NEC_CP00_RM02",
+      "workWorkers": 4385
+    },
+    {
+      "activityWorkers": 13071413,
       "bounds": [
         -74.36980574,
         40.49005367,
@@ -526,11 +553,11 @@
         41.37514701
       ],
       "column": 0,
-      "corridorInboundRows": 1121189,
-      "corridorInboundWorkers": 1143189,
-      "corridorOutboundRows": 642354,
-      "corridorOutboundWorkers": 655088,
-      "homeWorkers": 6290887,
+      "corridorInboundRows": 1122570,
+      "corridorInboundWorkers": 1144583,
+      "corridorOutboundRows": 642498,
+      "corridorOutboundWorkers": 655232,
+      "homeWorkers": 6291031,
       "localWorkers": 5635799,
       "ownershipProjected": [
         553400,
@@ -538,13 +565,13 @@
         631100,
         4580600
       ],
-      "pairCount": 69,
+      "pairCount": 71,
       "row": 0,
       "tileId": "NEC_CP00_RP00",
-      "workWorkers": 6778988
+      "workWorkers": 6780382
     },
     {
-      "activityWorkers": 613824,
+      "activityWorkers": 613831,
       "bounds": [
         -74.36142043,
         41.36624187,
@@ -552,11 +579,11 @@
         42.25146906
       ],
       "column": 0,
-      "corridorInboundRows": 91756,
-      "corridorInboundWorkers": 94852,
-      "corridorOutboundRows": 168025,
-      "corridorOutboundWorkers": 172956,
-      "homeWorkers": 345964,
+      "corridorInboundRows": 91760,
+      "corridorInboundWorkers": 94856,
+      "corridorOutboundRows": 168028,
+      "corridorOutboundWorkers": 172959,
+      "homeWorkers": 345967,
       "localWorkers": 173008,
       "ownershipProjected": [
         553400,
@@ -564,13 +591,13 @@
         631100,
         4677900
       ],
-      "pairCount": 69,
+      "pairCount": 71,
       "row": 1,
       "tileId": "NEC_CP00_RP01",
-      "workWorkers": 267860
+      "workWorkers": 267864
     },
     {
-      "activityWorkers": 760928,
+      "activityWorkers": 760932,
       "bounds": [
         -74.35265605,
         42.24228747,
@@ -578,8 +605,8 @@
         43.12765523
       ],
       "column": 0,
-      "corridorInboundRows": 58984,
-      "corridorInboundWorkers": 59509,
+      "corridorInboundRows": 58988,
+      "corridorInboundWorkers": 59513,
       "corridorOutboundRows": 56783,
       "corridorOutboundWorkers": 57467,
       "homeWorkers": 379443,
@@ -590,13 +617,13 @@
         631100,
         4775200
       ],
-      "pairCount": 67,
+      "pairCount": 68,
       "row": 2,
       "tileId": "NEC_CP00_RP02",
-      "workWorkers": 381485
+      "workWorkers": 381489
     },
     {
-      "activityWorkers": 2012060,
+      "activityWorkers": 2012078,
       "bounds": [
         -73.45306095,
         40.47415341,
@@ -604,11 +631,11 @@
         41.36624187
       ],
       "column": 1,
-      "corridorInboundRows": 302602,
-      "corridorInboundWorkers": 314702,
-      "corridorOutboundRows": 435020,
-      "corridorOutboundWorkers": 447336,
-      "homeWorkers": 1072347,
+      "corridorInboundRows": 302612,
+      "corridorInboundWorkers": 314712,
+      "corridorOutboundRows": 435028,
+      "corridorOutboundWorkers": 447344,
+      "homeWorkers": 1072355,
       "localWorkers": 625011,
       "ownershipProjected": [
         631100,
@@ -616,13 +643,13 @@
         708800,
         4580600
       ],
-      "pairCount": 68,
+      "pairCount": 70,
       "row": 0,
       "tileId": "NEC_CP01_RP00",
-      "workWorkers": 939713
+      "workWorkers": 939723
     },
     {
-      "activityWorkers": 1879766,
+      "activityWorkers": 1879773,
       "bounds": [
         -73.43248603,
         41.34984612,
@@ -630,11 +657,11 @@
         42.24228747
       ],
       "column": 1,
-      "corridorInboundRows": 237581,
-      "corridorInboundWorkers": 248459,
-      "corridorOutboundRows": 234958,
-      "corridorOutboundWorkers": 247359,
-      "homeWorkers": 939333,
+      "corridorInboundRows": 237586,
+      "corridorInboundWorkers": 248464,
+      "corridorOutboundRows": 234960,
+      "corridorOutboundWorkers": 247361,
+      "homeWorkers": 939335,
       "localWorkers": 691974,
       "ownershipProjected": [
         631100,
@@ -642,10 +669,10 @@
         708800,
         4677900
       ],
-      "pairCount": 69,
+      "pairCount": 71,
       "row": 1,
       "tileId": "NEC_CP01_RP01",
-      "workWorkers": 940433
+      "workWorkers": 940438
     },
     {
       "activityWorkers": 290817,
@@ -674,7 +701,7 @@
       "workWorkers": 145041
     },
     {
-      "activityWorkers": 109101,
+      "activityWorkers": 109102,
       "bounds": [
         -72.5368798,
         40.45100565,
@@ -682,8 +709,8 @@
         41.34984612
       ],
       "column": 2,
-      "corridorInboundRows": 30521,
-      "corridorInboundWorkers": 32192,
+      "corridorInboundRows": 30522,
+      "corridorInboundWorkers": 32193,
       "corridorOutboundRows": 34432,
       "corridorOutboundWorkers": 37107,
       "homeWorkers": 57008,
@@ -694,13 +721,13 @@
         786500,
         4580600
       ],
-      "pairCount": 65,
+      "pairCount": 66,
       "row": 0,
       "tileId": "NEC_CP02_RP00",
-      "workWorkers": 52093
+      "workWorkers": 52094
     },
     {
-      "activityWorkers": 697202,
+      "activityWorkers": 697204,
       "bounds": [
         -72.50414422,
         41.32597745,
@@ -708,8 +735,8 @@
         42.22538292
       ],
       "column": 2,
-      "corridorInboundRows": 105076,
-      "corridorInboundWorkers": 110159,
+      "corridorInboundRows": 105078,
+      "corridorInboundWorkers": 110161,
       "corridorOutboundRows": 236669,
       "corridorOutboundWorkers": 248269,
       "homeWorkers": 417656,
@@ -720,10 +747,10 @@
         786500,
         4677900
       ],
-      "pairCount": 69,
+      "pairCount": 70,
       "row": 1,
       "tileId": "NEC_CP02_RP01",
-      "workWorkers": 279546
+      "workWorkers": 279548
     },
     {
       "activityWorkers": 857954,
@@ -804,7 +831,7 @@
       "workWorkers": 424
     },
     {
-      "activityWorkers": 1992591,
+      "activityWorkers": 1992593,
       "bounds": [
         -71.5767446,
         41.29466159,
@@ -812,8 +839,8 @@
         42.20077403
       ],
       "column": 3,
-      "corridorInboundRows": 214256,
-      "corridorInboundWorkers": 219810,
+      "corridorInboundRows": 214258,
+      "corridorInboundWorkers": 219812,
       "corridorOutboundRows": 333429,
       "corridorOutboundWorkers": 345937,
       "homeWorkers": 1059359,
@@ -824,13 +851,13 @@
         864200,
         4677900
       ],
-      "pairCount": 69,
+      "pairCount": 70,
       "row": 1,
       "tileId": "NEC_CP03_RP01",
-      "workWorkers": 933232
+      "workWorkers": 933234
     },
     {
-      "activityWorkers": 4177786,
+      "activityWorkers": 4177795,
       "bounds": [
         -71.52987119,
         42.16848785,
@@ -838,11 +865,11 @@
         43.07539248
       ],
       "column": 3,
-      "corridorInboundRows": 576885,
-      "corridorInboundWorkers": 600280,
-      "corridorOutboundRows": 251323,
-      "corridorOutboundWorkers": 258736,
-      "homeWorkers": 1918121,
+      "corridorInboundRows": 576892,
+      "corridorInboundWorkers": 600287,
+      "corridorOutboundRows": 251325,
+      "corridorOutboundWorkers": 258738,
+      "homeWorkers": 1918123,
       "localWorkers": 1659385,
       "ownershipProjected": [
         786500,
@@ -850,10 +877,10 @@
         864200,
         4775200
       ],
-      "pairCount": 69,
+      "pairCount": 71,
       "row": 2,
       "tileId": "NEC_CP03_RP02",
-      "workWorkers": 2259665
+      "workWorkers": 2259672
     },
     {
       "activityWorkers": 338784,
@@ -908,7 +935,7 @@
       "workWorkers": 3282
     },
     {
-      "activityWorkers": 195053,
+      "activityWorkers": 195054,
       "bounds": [
         -70.65063451,
         41.2559322,
@@ -916,8 +943,8 @@
         42.16848785
       ],
       "column": 4,
-      "corridorInboundRows": 25562,
-      "corridorInboundWorkers": 26423,
+      "corridorInboundRows": 25563,
+      "corridorInboundWorkers": 26424,
       "corridorOutboundRows": 44354,
       "corridorOutboundWorkers": 45698,
       "homeWorkers": 107164,
@@ -928,10 +955,10 @@
         941900,
         4677900
       ],
-      "pairCount": 66,
+      "pairCount": 67,
       "row": 1,
       "tileId": "NEC_CP04_RP01",
-      "workWorkers": 87889
+      "workWorkers": 87890
     },
     {
       "activityWorkers": 262865,
@@ -963,12 +990,12 @@
   "totals": {
     "classificationRowDelta": 0,
     "classificationWorkerDelta": 0,
-    "corridorCrossTileWorkers": 6627460,
-    "excludedRows": 7119884,
-    "excludedWorkers": 7857630,
-    "localWorkers": 17806023,
-    "retainedRows": 22379474,
-    "retainedWorkers": 24433483,
+    "corridorCrossTileWorkers": 6640574,
+    "excludedRows": 7106312,
+    "excludedWorkers": 7843240,
+    "localWorkers": 17807299,
+    "retainedRows": 22393046,
+    "retainedWorkers": 24447873,
     "scannedRows": 29499358,
     "scannedWorkers": 32291113
   },

@@ -1,0 +1,152 @@
+{
+  "preservedNative": 145674,
+  "reroutedNative": 7466,
+  "tiles": {
+    "NEC_CM04_RM03": {
+      "preserved": 1011,
+      "rerouted": 0
+    },
+    "NEC_CM03_RM03": {
+      "preserved": 562,
+      "rerouted": 0
+    },
+    "NEC_CM02_RM03": {
+      "preserved": 525,
+      "rerouted": 0
+    },
+    "NEC_CM01_RM03": {
+      "preserved": 187,
+      "rerouted": 0
+    },
+    "NEC_CM04_RM02": {
+      "preserved": 8380,
+      "rerouted": 0
+    },
+    "NEC_CM03_RM02": {
+      "preserved": 13739,
+      "rerouted": 13
+    },
+    "NEC_CM02_RM02": {
+      "preserved": 812,
+      "rerouted": 0
+    },
+    "NEC_CM01_RM02": {
+      "preserved": 0,
+      "rerouted": 1250
+    },
+    "NEC_CP00_RM02": {
+      "preserved": 0,
+      "rerouted": 15
+    },
+    "NEC_CM04_RM01": {
+      "preserved": 909,
+      "rerouted": 0
+    },
+    "NEC_CM03_RM01": {
+      "preserved": 4300,
+      "rerouted": 1
+    },
+    "NEC_CM02_RM01": {
+      "preserved": 6621,
+      "rerouted": 17
+    },
+    "NEC_CM01_RM01": {
+      "preserved": 12110,
+      "rerouted": 310
+    },
+    "NEC_CP00_RM01": {
+      "preserved": 0,
+      "rerouted": 2521
+    },
+    "NEC_CM03_RP00": {
+      "preserved": 924,
+      "rerouted": 0
+    },
+    "NEC_CM02_RP00": {
+      "preserved": 2721,
+      "rerouted": 0
+    },
+    "NEC_CM01_RP00": {
+      "preserved": 3057,
+      "rerouted": 25
+    },
+    "NEC_CP00_RP00": {
+      "preserved": 45074,
+      "rerouted": 3242
+    },
+    "NEC_CP01_RP00": {
+      "preserved": 5336,
+      "rerouted": 0
+    },
+    "NEC_CP02_RP00": {
+      "preserved": 176,
+      "rerouted": 0
+    },
+    "NEC_CP03_RP00": {
+      "preserved": 1,
+      "rerouted": 0
+    },
+    "NEC_CP04_RP00": {
+      "preserved": 19,
+      "rerouted": 0
+    },
+    "NEC_CM02_RP01": {
+      "preserved": 1010,
+      "rerouted": 1
+    },
+    "NEC_CM01_RP01": {
+      "preserved": 325,
+      "rerouted": 0
+    },
+    "NEC_CP00_RP01": {
+      "preserved": 1509,
+      "rerouted": 0
+    },
+    "NEC_CP01_RP01": {
+      "preserved": 5965,
+      "rerouted": 0
+    },
+    "NEC_CP02_RP01": {
+      "preserved": 1463,
+      "rerouted": 0
+    },
+    "NEC_CP03_RP01": {
+      "preserved": 6094,
+      "rerouted": 1
+    },
+    "NEC_CP04_RP01": {
+      "preserved": 534,
+      "rerouted": 0
+    },
+    "NEC_CP00_RP02": {
+      "preserved": 2797,
+      "rerouted": 5
+    },
+    "NEC_CP01_RP02": {
+      "preserved": 774,
+      "rerouted": 0
+    },
+    "NEC_CP02_RP02": {
+      "preserved": 1916,
+      "rerouted": 0
+    },
+    "NEC_CP03_RP02": {
+      "preserved": 14303,
+      "rerouted": 65
+    },
+    "NEC_CP02_RP03": {
+      "preserved": 714,
+      "rerouted": 0
+    },
+    "NEC_CP03_RP03": {
+      "preserved": 843,
+      "rerouted": 0
+    },
+    "NEC_CP04_RP03": {
+      "preserved": 963,
+      "rerouted": 0
+    }
+  },
+  "crossPartitions": 45,
+  "crossCohorts": 140
+}

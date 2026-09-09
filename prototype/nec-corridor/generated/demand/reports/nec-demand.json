@@ -2,36 +2,22 @@
   "aggregation": {
     "algorithm": "deterministic sparse Voronoi sites; weighted 4D capacity-constrained Voronoi cohorts",
     "drivingModel": {
-      "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
-      "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
-      "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
-      "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
-      "passengerFerry": {
-        "catalogId": "fdae73efc51988f5b3cded79903c6a2ee4f885581dc99927a202c1e359acfa1d",
-        "costModel": "existing distance-based game cost; ferry fares not supplied",
-        "scheduleWaitSeconds": 0,
-        "transferSeconds": 300.0,
-        "version": "passenger-ferry-v1"
-      },
-      "profile": "driving",
-      "provider": "osrm",
-      "straightWater": {
-        "costModel": "existing game driving-distance cost; not a real ferry service",
-        "landMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
-        "maxShoreAccessMetres": 1500.0,
-        "shoreAccessSpeedMps": 1.4,
-        "synthetic": true,
-        "transferSeconds": 0,
-        "version": "straight-water-v1",
-        "waterSpeedKph": 5.0
+      "graphVersion": "generated-roads-v1",
+      "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+      "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+      "provider": "generated-road-graph",
+      "speedKph": {
+        "highway": 85.0,
+        "major": 50.0,
+        "minor": 30.0
       }
     },
     "maximumCohortSize": 200,
     "minimumCohortSize": 50,
     "pointMergeDistanceM": 100
   },
-  "crossTileCohorts": 57559,
-  "crossTileWorkers": 6627460,
+  "crossTileCohorts": 57699,
+  "crossTileWorkers": 6640574,
   "crosswalkRowsByStateFips": {
     "09": 49926,
     "10": 20198,
@@ -48,18 +34,18 @@
     "51": 163491,
     "54": 72558
   },
-  "directedTilePairs": 1114,
-  "elapsedSeconds": 1024.478,
-  "excludedRows": 7119884,
-  "excludedWorkers": 7857630,
-  "inputRows": 22379474,
-  "inputWorkers": 24433483,
-  "localWorkers": 17806023,
+  "directedTilePairs": 1159,
+  "elapsedSeconds": 1473.626,
+  "excludedRows": 7106312,
+  "excludedWorkers": 7843240,
+  "inputRows": 22393046,
+  "inputWorkers": 24447873,
+  "localWorkers": 17807299,
   "peakRssBytesAtFinish": null,
   "prototype": true,
   "roadRouting": {
     "completed": true,
-    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
+    "graphVersion": "generated-roads-v1",
     "report": "nec-road-routing.json"
   },
   "scannedRows": 29499358,
@@ -75,7 +61,7 @@
     {
       "cohortCount": 1011,
       "demandBytes": 121864,
-      "elapsedSeconds": 1.533,
+      "elapsedSeconds": 1.812,
       "localWorkers": 118942,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -85,7 +71,7 @@
     {
       "cohortCount": 562,
       "demandBytes": 65905,
-      "elapsedSeconds": 1.059,
+      "elapsedSeconds": 1.2,
       "localWorkers": 64224,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -95,7 +81,7 @@
     {
       "cohortCount": 525,
       "demandBytes": 64028,
-      "elapsedSeconds": 1.084,
+      "elapsedSeconds": 1.24,
       "localWorkers": 63495,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -105,7 +91,7 @@
     {
       "cohortCount": 187,
       "demandBytes": 20109,
-      "elapsedSeconds": 0.819,
+      "elapsedSeconds": 0.913,
       "localWorkers": 22825,
       "maximumCohort": 199,
       "minimumCohort": 52,
@@ -115,7 +101,7 @@
     {
       "cohortCount": 8380,
       "demandBytes": 977166,
-      "elapsedSeconds": 8.111,
+      "elapsedSeconds": 9.9,
       "localWorkers": 972084,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -124,8 +110,8 @@
     },
     {
       "cohortCount": 13752,
-      "demandBytes": 1620744,
-      "elapsedSeconds": 14.411,
+      "demandBytes": 1620740,
+      "elapsedSeconds": 17.382,
       "localWorkers": 1598234,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -135,7 +121,7 @@
     {
       "cohortCount": 812,
       "demandBytes": 101889,
-      "elapsedSeconds": 1.306,
+      "elapsedSeconds": 1.544,
       "localWorkers": 93373,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -144,18 +130,28 @@
     },
     {
       "cohortCount": 1250,
-      "demandBytes": 153508,
-      "elapsedSeconds": 1.647,
+      "demandBytes": 153522,
+      "elapsedSeconds": 1.942,
       "localWorkers": 142102,
       "maximumCohort": 200,
       "minimumCohort": 50,
-      "siteCount": 1595,
+      "siteCount": 1594,
       "tileId": "NEC_CM01_RM02"
+    },
+    {
+      "cohortCount": 15,
+      "demandBytes": 1588,
+      "elapsedSeconds": 0.832,
+      "localWorkers": 1276,
+      "maximumCohort": 155,
+      "minimumCohort": 52,
+      "siteCount": 26,
+      "tileId": "NEC_CP00_RM02"
     },
     {
       "cohortCount": 909,
       "demandBytes": 112772,
-      "elapsedSeconds": 1.435,
+      "elapsedSeconds": 1.674,
       "localWorkers": 109698,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -165,7 +161,7 @@
     {
       "cohortCount": 4301,
       "demandBytes": 541376,
-      "elapsedSeconds": 4.671,
+      "elapsedSeconds": 5.786,
       "localWorkers": 496542,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -174,8 +170,8 @@
     },
     {
       "cohortCount": 6638,
-      "demandBytes": 835307,
-      "elapsedSeconds": 7.063,
+      "demandBytes": 835308,
+      "elapsedSeconds": 8.571,
       "localWorkers": 770814,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -184,18 +180,18 @@
     },
     {
       "cohortCount": 12420,
-      "demandBytes": 1516915,
-      "elapsedSeconds": 13.387,
+      "demandBytes": 1517066,
+      "elapsedSeconds": 16.215,
       "localWorkers": 1453035,
       "maximumCohort": 200,
       "minimumCohort": 50,
-      "siteCount": 13893,
+      "siteCount": 13894,
       "tileId": "NEC_CM01_RM01"
     },
     {
       "cohortCount": 2521,
-      "demandBytes": 320339,
-      "elapsedSeconds": 2.982,
+      "demandBytes": 320307,
+      "elapsedSeconds": 3.681,
       "localWorkers": 289872,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -205,7 +201,7 @@
     {
       "cohortCount": 924,
       "demandBytes": 119382,
-      "elapsedSeconds": 1.409,
+      "elapsedSeconds": 1.636,
       "localWorkers": 106936,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -215,7 +211,7 @@
     {
       "cohortCount": 2721,
       "demandBytes": 341349,
-      "elapsedSeconds": 3.146,
+      "elapsedSeconds": 3.83,
       "localWorkers": 322814,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -224,8 +220,8 @@
     },
     {
       "cohortCount": 3082,
-      "demandBytes": 392601,
-      "elapsedSeconds": 3.64,
+      "demandBytes": 392595,
+      "elapsedSeconds": 4.299,
       "localWorkers": 357331,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -233,19 +229,19 @@
       "tileId": "NEC_CM01_RP00"
     },
     {
-      "cohortCount": 48317,
-      "demandBytes": 5272194,
-      "elapsedSeconds": 56.709,
+      "cohortCount": 48316,
+      "demandBytes": 5272515,
+      "elapsedSeconds": 70.865,
       "localWorkers": 5635799,
       "maximumCohort": 200,
       "minimumCohort": 50,
-      "siteCount": 33296,
+      "siteCount": 33295,
       "tileId": "NEC_CP00_RP00"
     },
     {
       "cohortCount": 5336,
       "demandBytes": 662323,
-      "elapsedSeconds": 5.803,
+      "elapsedSeconds": 7.12,
       "localWorkers": 625011,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -255,7 +251,7 @@
     {
       "cohortCount": 176,
       "demandBytes": 19090,
-      "elapsedSeconds": 0.814,
+      "elapsedSeconds": 0.904,
       "localWorkers": 19901,
       "maximumCohort": 195,
       "minimumCohort": 50,
@@ -265,7 +261,7 @@
     {
       "cohortCount": 1,
       "demandBytes": 254,
-      "elapsedSeconds": 0.745,
+      "elapsedSeconds": 0.866,
       "localWorkers": 153,
       "maximumCohort": 153,
       "minimumCohort": 153,
@@ -275,7 +271,7 @@
     {
       "cohortCount": 19,
       "demandBytes": 1814,
-      "elapsedSeconds": 0.757,
+      "elapsedSeconds": 0.833,
       "localWorkers": 2197,
       "maximumCohort": 195,
       "minimumCohort": 53,
@@ -284,8 +280,8 @@
     },
     {
       "cohortCount": 1011,
-      "demandBytes": 127037,
-      "elapsedSeconds": 1.504,
+      "demandBytes": 127038,
+      "elapsedSeconds": 1.772,
       "localWorkers": 116617,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -295,7 +291,7 @@
     {
       "cohortCount": 325,
       "demandBytes": 39484,
-      "elapsedSeconds": 0.92,
+      "elapsedSeconds": 1.013,
       "localWorkers": 36598,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -305,7 +301,7 @@
     {
       "cohortCount": 1509,
       "demandBytes": 191813,
-      "elapsedSeconds": 1.903,
+      "elapsedSeconds": 2.297,
       "localWorkers": 173008,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -315,7 +311,7 @@
     {
       "cohortCount": 5965,
       "demandBytes": 736462,
-      "elapsedSeconds": 6.19,
+      "elapsedSeconds": 7.764,
       "localWorkers": 691974,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -325,7 +321,7 @@
     {
       "cohortCount": 1463,
       "demandBytes": 184929,
-      "elapsedSeconds": 1.808,
+      "elapsedSeconds": 2.203,
       "localWorkers": 169387,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -335,7 +331,7 @@
     {
       "cohortCount": 6095,
       "demandBytes": 766524,
-      "elapsedSeconds": 6.641,
+      "elapsedSeconds": 8.058,
       "localWorkers": 713422,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -345,7 +341,7 @@
     {
       "cohortCount": 534,
       "demandBytes": 64662,
-      "elapsedSeconds": 1.101,
+      "elapsedSeconds": 1.286,
       "localWorkers": 61466,
       "maximumCohort": 199,
       "minimumCohort": 50,
@@ -354,8 +350,8 @@
     },
     {
       "cohortCount": 2802,
-      "demandBytes": 341953,
-      "elapsedSeconds": 3.198,
+      "demandBytes": 341949,
+      "elapsedSeconds": 3.694,
       "localWorkers": 321976,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -365,7 +361,7 @@
     {
       "cohortCount": 774,
       "demandBytes": 96955,
-      "elapsedSeconds": 1.253,
+      "elapsedSeconds": 1.537,
       "localWorkers": 90639,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -375,7 +371,7 @@
     {
       "cohortCount": 1916,
       "demandBytes": 245585,
-      "elapsedSeconds": 2.279,
+      "elapsedSeconds": 2.75,
       "localWorkers": 219149,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -384,8 +380,8 @@
     },
     {
       "cohortCount": 14368,
-      "demandBytes": 1679416,
-      "elapsedSeconds": 14.558,
+      "demandBytes": 1679417,
+      "elapsedSeconds": 17.763,
       "localWorkers": 1659385,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -395,7 +391,7 @@
     {
       "cohortCount": 714,
       "demandBytes": 86499,
-      "elapsedSeconds": 1.349,
+      "elapsedSeconds": 1.469,
       "localWorkers": 82522,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -405,7 +401,7 @@
     {
       "cohortCount": 843,
       "demandBytes": 104826,
-      "elapsedSeconds": 1.338,
+      "elapsedSeconds": 1.62,
       "localWorkers": 96614,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -415,7 +411,7 @@
     {
       "cohortCount": 963,
       "demandBytes": 111339,
-      "elapsedSeconds": 1.406,
+      "elapsedSeconds": 1.619,
       "localWorkers": 107884,
       "maximumCohort": 200,
       "minimumCohort": 50,
@@ -551,6 +547,11 @@
     },
     {
       "homeTileId": "NEC_CM01_RM03",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM01_RM03",
       "workTileId": "NEC_CP00_RP01",
       "workers": 9
     },
@@ -736,6 +737,11 @@
     },
     {
       "homeTileId": "NEC_CM02_RM01",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 43
+    },
+    {
+      "homeTileId": "NEC_CM02_RM01",
       "workTileId": "NEC_CP01_RP02",
       "workers": 47
     },
@@ -778,6 +784,11 @@
       "homeTileId": "NEC_CM02_RM02",
       "workTileId": "NEC_CM02_RP01",
       "workers": 30
+    },
+    {
+      "homeTileId": "NEC_CM02_RM02",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 15
     },
     {
       "homeTileId": "NEC_CM02_RM02",
@@ -853,6 +864,11 @@
       "homeTileId": "NEC_CM02_RM03",
       "workTileId": "NEC_CM03_RP00",
       "workers": 38
+    },
+    {
+      "homeTileId": "NEC_CM02_RM03",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 2
     },
     {
       "homeTileId": "NEC_CM02_RM03",
@@ -936,6 +952,11 @@
     },
     {
       "homeTileId": "NEC_CM02_RP00",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CM02_RP00",
       "workTileId": "NEC_CP02_RP00",
       "workers": 24
     },
@@ -1006,6 +1027,11 @@
     },
     {
       "homeTileId": "NEC_CM02_RP01",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM02_RP01",
       "workTileId": "NEC_CP01_RP02",
       "workers": 35
     },
@@ -1056,6 +1082,11 @@
     },
     {
       "homeTileId": "NEC_CM03_RM01",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM03_RM01",
       "workTileId": "NEC_CP00_RP02",
       "workers": 31
     },
@@ -1103,6 +1134,11 @@
       "homeTileId": "NEC_CM03_RM01",
       "workTileId": "NEC_CP04_RP03",
       "workers": 18
+    },
+    {
+      "homeTileId": "NEC_CM03_RM02",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 6
     },
     {
       "homeTileId": "NEC_CM03_RM02",
@@ -1246,6 +1282,11 @@
     },
     {
       "homeTileId": "NEC_CM03_RP00",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CM03_RP00",
       "workTileId": "NEC_CP01_RP02",
       "workers": 13
     },
@@ -1361,6 +1402,11 @@
     },
     {
       "homeTileId": "NEC_CM04_RM02",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CM04_RM02",
       "workTileId": "NEC_CP02_RP00",
       "workers": 19
     },
@@ -1418,6 +1464,11 @@
       "homeTileId": "NEC_CM04_RM03",
       "workTileId": "NEC_CP00_RM01",
       "workers": 43
+    },
+    {
+      "homeTileId": "NEC_CM04_RM03",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 2
     },
     {
       "homeTileId": "NEC_CM04_RM03",
@@ -1540,6 +1591,101 @@
       "workers": 4
     },
     {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM01_RM03",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM01_RP01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM02_RM02",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM02_RP00",
+      "workers": 11
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM02_RP01",
+      "workers": 3
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM03_RM01",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM03_RM02",
+      "workers": 12
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM03_RP00",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM04_RM01",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CM04_RM02",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP00_RP01",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP00_RP02",
+      "workers": 4
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP01_RP00",
+      "workers": 10
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP01_RP01",
+      "workers": 5
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP02_RP00",
+      "workers": 1
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP02_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP03_RP01",
+      "workers": 2
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP03_RP02",
+      "workers": 7
+    },
+    {
+      "homeTileId": "NEC_CP00_RM02",
+      "workTileId": "NEC_CP04_RP01",
+      "workers": 1
+    },
+    {
       "homeTileId": "NEC_CP00_RP00",
       "workTileId": "NEC_CP03_RP00",
       "workers": 8
@@ -1583,6 +1729,11 @@
       "homeTileId": "NEC_CP00_RP01",
       "workTileId": "NEC_CM04_RM03",
       "workers": 9
+    },
+    {
+      "homeTileId": "NEC_CP00_RP01",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 3
     },
     {
       "homeTileId": "NEC_CP00_RP01",
@@ -1691,6 +1842,11 @@
     },
     {
       "homeTileId": "NEC_CP01_RP00",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 8
+    },
+    {
+      "homeTileId": "NEC_CP01_RP00",
       "workTileId": "NEC_CP03_RP00",
       "workers": 8
     },
@@ -1728,6 +1884,11 @@
       "homeTileId": "NEC_CP01_RP01",
       "workTileId": "NEC_CM04_RM03",
       "workers": 19
+    },
+    {
+      "homeTileId": "NEC_CP01_RP01",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 2
     },
     {
       "homeTileId": "NEC_CP01_RP01",
@@ -2278,6 +2439,11 @@
       "homeTileId": "NEC_CP03_RP02",
       "workTileId": "NEC_CM04_RM03",
       "workers": 31
+    },
+    {
+      "homeTileId": "NEC_CP03_RP02",
+      "workTileId": "NEC_CP00_RM02",
+      "workers": 2
     },
     {
       "homeTileId": "NEC_CP03_RP02",
@@ -2645,6 +2811,6 @@
       "workers": 45
     }
   ],
-  "workDatabaseBytes": 7572582400,
+  "workDatabaseBytes": 7577702400,
   "worldId": "NEC_CORRIDOR_LODES_PROTOTYPE"
 }

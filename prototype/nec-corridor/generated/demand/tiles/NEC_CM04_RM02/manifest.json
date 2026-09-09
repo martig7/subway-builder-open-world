@@ -1,19 +1,19 @@
 {
   "assets": [
     {
-      "bytes": 420227,
+      "bytes": 437053,
       "path": "cross_commutes.json",
-      "sha256": "17bd436218130bf1a3a82403163b989a9c4abb80ed00aa3065e6ee80fd3fd24b"
+      "sha256": "fa9ffa3c3b56ca4631bf0bf8999f66641d6153ae91a1948e6342ec97f9f2cd42"
     },
     {
-      "bytes": 4401731,
+      "bytes": 4415832,
       "path": "cross_demand.json.gz",
-      "sha256": "ebfa95e9acb036a538af95f059320d5c437bf666ceaa9061b302e6bbe686e177"
+      "sha256": "9a194c72d07324f4894e5175231ee182a9b4d9826e160bd347196e714e2ee306"
     },
     {
-      "bytes": 978689,
+      "bytes": 978171,
       "path": "demand_data.json.gz",
-      "sha256": "e93bfd438874550bca22ecc08247954e640422fc7db90792bbbf4082e9949939"
+      "sha256": "e51231efe0da00ab028456392955d42686c20e1a1dda54a0bb4b1752aef46ec0"
     }
   ],
   "cityCode": "NEC_CM04_RM02",
@@ -21,28 +21,14 @@
     "demandData": "demand_data.json.gz"
   },
   "drivingModel": {
-    "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
-    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
-    "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
-    "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
-    "passengerFerry": {
-      "catalogId": "fdae73efc51988f5b3cded79903c6a2ee4f885581dc99927a202c1e359acfa1d",
-      "costModel": "existing distance-based game cost; ferry fares not supplied",
-      "scheduleWaitSeconds": 0,
-      "transferSeconds": 300.0,
-      "version": "passenger-ferry-v1"
-    },
-    "profile": "driving",
-    "provider": "osrm",
-    "straightWater": {
-      "costModel": "existing game driving-distance cost; not a real ferry service",
-      "landMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
-      "maxShoreAccessMetres": 1500.0,
-      "shoreAccessSpeedMps": 1.4,
-      "synthetic": true,
-      "transferSeconds": 0,
-      "version": "straight-water-v1",
-      "waterSpeedKph": 5.0
+    "graphVersion": "generated-roads-v1",
+    "label": "generated roads: highway 85, major 50, minor 30 km/h; geometric fallback",
+    "longDistanceFallback": "straight-line \u00d71.3 at 40 km/h",
+    "provider": "generated-road-graph",
+    "speedKph": {
+      "highway": 85.0,
+      "major": 50.0,
+      "minor": 30.0
     }
   },
   "runtimeFiles": {
@@ -59,6 +45,6 @@
     "schemaVersion": 1
   },
   "schemaVersion": 1,
-  "sha256": "e93bfd438874550bca22ecc08247954e640422fc7db90792bbbf4082e9949939",
+  "sha256": "e51231efe0da00ab028456392955d42686c20e1a1dda54a0bb4b1752aef46ec0",
   "tileId": "NEC_CM04_RM02"
 }
