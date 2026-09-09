@@ -69,6 +69,8 @@ jobs:
             sleep 1
           done
           cat "$UI_SNAPSHOT_ROOT/ui-smoke-passed"
+          sleep 1
+          screencapture -x -o -l "$(cat "$UI_SNAPSHOT_ROOT/live-window-id")" artifacts/screenshots/live-catalog.png
       - name: Capture every interface
         if: always()
         env:
