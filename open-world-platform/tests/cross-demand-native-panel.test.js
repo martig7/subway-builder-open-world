@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { CrossDemandModel } from '../src/runtime/cross-demand-model.js';
 import { CrossDemandOverlayController } from '../src/runtime/ui/cross-demand-viewer.js';
 import { demandPanelContent } from '../src/runtime/ui/cross-demand-presentation.js';
+import { routeDesignBadge } from '../src/runtime/ui/route-design-badge.js';
 
 const raw = { schemaVersion: 1, gateways: ['g'], points: [
   ['home', 136.7, 35.1, 'a', 200, 0], ['work', 139.4, 35.3, 'b', 0, 200],
@@ -15,7 +16,7 @@ function setup() {
     addSource(id, source) { sources.set(id, { ...source, setData(data) { this.data = data; writes.push(id); } }); },
     addLayer(layer) { layers.set(layer.id, layer); }, on(type, ...args) { handlers.set(type, args.at(-1)); }, off(type) { handlers.delete(type); },
     getCanvas: () => ({ style: {} }), setLayoutProperty(id, prop, value) { layers.get(id).layout[prop] = value; },
-    setPaintProperty() {}, fitBounds(bounds, options) { this.fit = { bounds, options }; }, jumpTo(value) { this.camera = value; }, getZoom: () => 8,
+    setPaintProperty(id, prop, value) { layers.get(id).paint[prop] = value; }, fitBounds(bounds, options) { this.fit = { bounds, options }; }, jumpTo(value) { this.camera = value; }, getZoom: () => 8,
   };
   const controller = new CrossDemandOverlayController({ api: {}, tileCatalog: { tiles: [{ id: 'a', name: 'Aichi' }, { id: 'b', name: 'Kanagawa' }] },
     runtime: { getActiveTileId: () => 'b', view: () => ({ crossPopModeChoices: choices }), inspectCrossTileModeChoice() { inspections++; return { transitPath: { available: false } }; } },
@@ -58,6 +59,19 @@ test('route completion and fading do not rebuild demand dots or repeat trip insp
   s.controller.focusEndpoint('work'); assert.deepEqual(s.map.camera.center, [139.4,35.3]);
 });
 
+test('fade applies the native deck gamma-adjusted factor to both fill and outline without rebuilding dots', async () => {
+  const s = setup(); await s.controller.open();
+  const paint = s.layers.get('kc-cross-demand-points').paint;
+  const fill = paint['circle-opacity'], stroke = paint['circle-stroke-opacity'], writes = s.writes.length;
+  s.controller.setFaded(true);
+  // Native demand-points opacity is 0.33; deck's shader uniform uses pow(opacity, 1 / 2.2).
+  assert.ok(Math.abs(paint['circle-opacity'] / fill - 0.33 ** (1 / 2.2)) < 1e-10);
+  assert.ok(Math.abs(paint['circle-stroke-opacity'] / stroke - 0.33 ** (1 / 2.2)) < 1e-10);
+  s.controller.setFaded(false);
+  assert.equal(paint['circle-opacity'], fill); assert.equal(paint['circle-stroke-opacity'], stroke);
+  assert.equal(s.writes.length, writes);
+});
+
 test('changing Residents/Workers invalidates an in-flight selection; closing while style loads is applied at idle', async () => {
   const s = setup(); await s.controller.open(); s.controller.selectPoint('home'); s.controller.selectPop(0);
   s.controller.setViewMode('workers'); s.finish(); await new Promise(resolve => setImmediate(resolve));
@@ -90,4 +104,34 @@ test('native-style trip view exposes real travel facts and Home/Work/fit control
   assert.match(visible, /Show whole route/); assert.match(visible, /Home point/); assert.match(visible, /07:30/);
   assert.doesNotMatch(visible, /cross-pop|stored-osrm|Income Distribution/);
   s.finish(); await new Promise(resolve => setImmediate(resolve));
+});
+
+test('trip route badges read current native designs, omit heavy arrays and retain text when unavailable', async () => {
+  const s = setup(); await s.controller.open();
+  const native = { id: 'route-a', bullet: 'T01', fullName: 'Tokaido Local', color: '#e87516', textColor: '#fff',
+    shape: 'diamond', bordered: true, font: 'mono', stNodes: [{}], stCombos: [{}] };
+  s.controller.api.gameState = { getRoutes: () => [native] };
+  const route = { routeId: 'route-a', name: 'Old name' };
+  const design = s.controller.routeDesign(route);
+  assert.equal(design.name, 'Tokaido Local'); assert.equal(design.stNodes, undefined); assert.equal(design.stCombos, undefined);
+  native.color = '#112233'; assert.equal(s.controller.routeDesign(route).color, '#112233');
+  const h = (tag, props, ...children) => ({ tag, props, children: children.flat() });
+  const badge = routeDesignBadge(h, design), outer = badge.children[0], inner = outer.children[0];
+  assert.equal(badge.props['data-cross-route-badge'], 'route-a');
+  assert.equal(outer.props.style.backgroundColor, '#e87516'); assert.equal(outer.props.style.fontFamily, 'var(--font-mono)');
+  assert.match(outer.props.style.clipPath, /polygon/); assert.equal(inner.props.style.backgroundColor, '#000000');
+  assert.match(inner.props.style.clipPath, /calc/);
+  for (const shape of ['circle', 'rounded-square', 'square', 'triangle']) {
+    const rendered = routeDesignBadge(h, { ...design, shape });
+    assert.equal(rendered.children[1].children[0], 'Tokaido Local');
+    if (shape === 'triangle') assert.match(rendered.children[0].props.style.clipPath, /polygon/);
+  }
+  const missing = { routeId: 'off-tile', name: 'Regional Express' };
+  assert.equal(s.controller.routeDesign(missing), missing);
+  assert.deepEqual(routeDesignBadge(h, missing).children, ['Regional Express']);
+  const pop = { ...s.controller.model.popDetails(0), transitPath: { available: true, totalClockSeconds: 100,
+    continuousLeg: { available: true, originStationName: 'Home', destinationStationName: 'Work', routes: [route] } } };
+  const tree = demandPanelContent({ h, controller: s.controller, snapshot: s.controller.snapshot(), pop });
+  assert.match(JSON.stringify(tree), /data-cross-route-badge/);
+  assert.deepEqual(s.counts(), { inspections: 0, requests: 0 });
 });

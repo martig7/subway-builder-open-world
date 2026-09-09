@@ -1,3 +1,5 @@
+import { routeDesignBadge } from './route-design-badge.js';
+
 const MODES = [
   ['transit', 'Transit', '#0000ff', 'train'],
   ['driving', 'Driving', '#ff0000', 'car'],
@@ -73,7 +75,9 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
       section(heading(h, 'Transit paths', 'train'), path?.available
         ? h('div', { className: 'flex flex-col gap-2 text-xs' }, ...[path.continuousLeg, path.homeLeg, path.intermediateLeg, path.workLeg].filter(leg => leg?.available).map((leg, i) =>
           h('div', { key: i }, h('div', null, `${leg.originStationName ?? 'Origin station'} → ${leg.destinationStationName ?? 'Destination station'}`),
-            h('div', { className: 'text-muted-foreground' }, [...new Set((leg.routes ?? []).map(r => r.label || r.name || r.bullet).filter(Boolean))].join(' → ')))),
+            h('div', { className: 'mt-1 flex flex-col gap-1' }, ... (leg.routes ?? []).filter((route, index, routes) =>
+              index === 0 || route.routeId !== routes[index - 1].routeId).map((route, index) =>
+              h('div', { key: index }, routeDesignBadge(h, c.routeDesign(route))))))),
           h('div', { className: 'font-medium' }, tripDuration(path.totalClockSeconds ?? path.totalSeconds)))
         : h('p', { className: 'text-xs text-muted-foreground' }, 'No complete transit path found.')),
       section(heading(h, 'Driving', 'car'), rows(h, [

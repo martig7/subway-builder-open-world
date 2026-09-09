@@ -61,7 +61,7 @@ Live UI checks:
 
 | Action | Result |
 | --- | --- |
-| Fade demand | Opacity 0.88 → 0.2; zero source updates and zero route requests |
+| Fade demand (initial build; corrected below) | Opacity 0.88 → 0.2; zero source updates and zero route requests |
 | Filter Transit | 21,111 → 1,660 dots; one point-source update, zero detail-source updates, zero route requests |
 | Select location and pop | Native-style counts, five commuter rows, readable tile names and trip details |
 | Work point and Show whole route | Camera moved without a tile switch |
@@ -77,3 +77,38 @@ with the long route displayed.
 
 Final installed bundle SHA-256:
 `FAE7564E3ADD780FA93585C820DBB6B42221DC1C5F57B5040FC81567DD98F05A`.
+
+## Route designs and native fade correction
+
+The native `SubwayBuilderAPI.gameState.getRoutes()` exposes each route's bullet,
+full name, color, text color, shape and optional border/font settings. The API's
+component collection does not expose `RouteIcon`. The cross-demand panel renders
+small DOM badges from those fields, preserving leg order. Designs are read only
+for visible trip legs; no native route objects, timetable/track arrays or new
+design cache are retained. If a design is unavailable, its readable route name
+remains visible. This adds no routing requests or commute calculations.
+
+The initial 20% fade was substantially stronger than native. Inspection of the
+installed game's `GameMain` bundle found `demand-points` uses layer opacity 0.33,
+but deck transforms its shader uniform with `pow(opacity, 1 / 2.2)`. MapLibre
+uses paint opacity directly, so our equivalent is 0.6041471066770493. Both fill
+and outline now use that opacity when faded and 1 when unfaded. The regression
+check failed against the initial build, then passed with this correction; it
+also verifies that toggling fade performs no source writes.
+
+727 platform/regression tests and 6 Japan tests passed. Rebuilt and installed
+`prototype/japan/mod` / `local.japan-open-world` with the marker
+`native-route-designs-and-fade-v2`. Both bundle hashes and timestamps matched;
+PMTiles returned HTTP 200 and `native-pmtiles-directory-v4`.
+
+Live verification through the cross-demand panel displayed the Hiratsuka →
+Tameike-Sanno transit path with T01, K11, K07 and K08 badges, each matching its
+native route's color and symbol. The selected pop had 167 transit commuters out
+of 200. Its stored driving route also loaded successfully (1,123 vertices).
+The live fill and stroke opacity both measured 0.6041471066770493. The camera,
+paused state and all recorded game/session/network/finance/clock values were
+restored or unchanged, and the Residents overview was restored with All modes
+and fading enabled.
+
+Installed bundle SHA-256:
+`001B597010EBEC2141914117E78EF0711B9D586BDAA53EF950A9ACED3E461678`.

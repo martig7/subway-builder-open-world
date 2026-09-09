@@ -1,7 +1,11 @@
 import { CrossDemandModel } from '../cross-demand-model.js';
 import { demandPanelContent } from './cross-demand-presentation.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'native-style-cross-demand-v1';
+export const CROSS_DEMAND_PANEL_VERSION = 'native-route-designs-and-fade-v2';
+
+// Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
+// uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.
+const FADED_DEMAND_OPACITY = 0.33 ** (1 / 2.2);
 
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const POINTS_SOURCE = 'kc-cross-demand-points-source';
@@ -66,7 +70,7 @@ function ensureMapArtifacts(map) {
     paint: {
       'circle-radius': zoomScaledRadius,
       'circle-color': ['get', 'color'],
-      'circle-opacity': 0.88,
+      'circle-opacity': 1,
       'circle-stroke-color': '#000000',
       'circle-stroke-opacity': 1,
       'circle-stroke-width': zoomScaledStrokeWidth,
@@ -271,6 +275,14 @@ export class CrossDemandOverlayController {
     this.routeStatus = 'idle'; this.routeRequest++; this.#emit(); this.#refreshMap();
   }
   pointDetails(offset = 0, limit = 40) { return this.model?.pointDetails(this.selectedPointId, this.viewMode, offset, limit) ?? null; }
+  routeDesign(route) {
+    // Read the current design only for visible trip legs; never retain native
+    // route objects (which also own track/timetable arrays) in a display cache.
+    const native = this.api.gameState?.getRoutes?.()?.find(candidate => candidate.id === route.routeId);
+    if (!native) return route;
+    const { bullet, fullName, color, textColor, shape, bordered, font } = native;
+    return { ...route, bullet, name: fullName || route.name, color, textColor, shape, bordered, font };
+  }
   popDetails() {
     const pop = this.model?.popDetails(this.selectedPopIndex) ?? null;
     if (!pop) return null;
@@ -304,7 +316,9 @@ export class CrossDemandOverlayController {
     this.#setVisibility(CONNECTION_LAYER, Boolean(ready && this.selectedPointId && !popSelected));
     this.#setVisibility(POP_LINE_LAYER, Boolean(popSelected));
     this.#setVisibility(ENDPOINT_LAYER, Boolean(ready && (this.selectedPointId || popSelected)));
-    this.map.setPaintProperty?.(POINT_LAYER, 'circle-opacity', this.faded ? 0.2 : 0.88);
+    const opacity = this.faded ? FADED_DEMAND_OPACITY : 1;
+    this.map.setPaintProperty?.(POINT_LAYER, 'circle-opacity', opacity);
+    this.map.setPaintProperty?.(POINT_LAYER, 'circle-stroke-opacity', opacity);
     if (!ready) {
       if (this.pointsKey !== 'closed') { this.#setData(POINTS_SOURCE, EMPTY); this.#setData(DETAILS_SOURCE, EMPTY); }
       this.pointsKey = this.detailsKey = 'closed'; return;
