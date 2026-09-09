@@ -83,6 +83,10 @@ try
         if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") throw new Exception("Full release smoke is Actions-only");
         var real = new MacInstallation(catalog, Path.Combine(root, "real-manager"), Path.Combine(root, "real-game"), args[0], false);
         var assetRoot = Environment.GetEnvironmentVariable("OPEN_WORLD_RELEASE_ASSET_ROOT");
+        var installedIds = new List<string>();
+        var requiredForUnion = catalog.Worlds.Sum(w => w.Space.InstalledBytes) + catalog.Worlds.SelectMany(w => w.Assets).Max(a => a.DownloadBytes) + 2L * 1024 * 1024 * 1024;
+        var retainWorlds = new DriveInfo(Path.GetPathRoot(root)!).AvailableFreeSpace > requiredForUnion;
+        Console.WriteLine(retainWorlds ? "Testing real installed-world coexistence" : "Limited disk: testing real worlds sequentially");
         foreach (var world in catalog.Worlds)
         {
             var id = world.Product.ManifestId;
@@ -92,9 +96,22 @@ try
                 await real.StartAsync();
                 Assert((await real.StatusAsync()).StartsWith("Running"), $"{id} tile server is not healthy");
             } finally { await real.StopAsync(); }
-            await real.UninstallAsync(id);
-            Console.WriteLine($"PASS real {id} download, hashes, full install, verification, server health and uninstall");
+            installedIds.Add(id);
+            foreach (var installedId in installedIds) await real.VerifyAsync(installedId, CancellationToken.None);
+            if (!retainWorlds) { await real.UninstallAsync(id); installedIds.Remove(id); }
+            Console.WriteLine($"PASS real {id} download, hashes, full install, verification and server health");
         }
+        foreach (var id in installedIds.ToArray())
+        {
+            await real.UninstallAsync(id); installedIds.Remove(id);
+            foreach (var remaining in installedIds) await real.VerifyAsync(remaining, CancellationToken.None);
+            if (installedIds.Count > 0)
+            {
+                try { await real.StartAsync(); Assert((await real.StatusAsync()).StartsWith("Running"), "Remaining world service failed"); }
+                finally { await real.StopAsync(); }
+            }
+        }
+        Console.WriteLine("PASS real world uninstall preserves remaining worlds");
     }
     ReleaseManifest Fixture(string tile, string id)
     {
