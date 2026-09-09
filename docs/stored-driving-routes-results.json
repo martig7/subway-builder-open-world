@@ -1,0 +1,124 @@
+{
+  "version": "stored-driving-routes-v1",
+  "consumer": "local.japan-open-world",
+  "consumerDirectory": "prototype/japan/mod",
+  "datasetId": "geofabrik-japan-8b9165a595130fbe-car-v6",
+  "native": {
+    "popRecords": 602807,
+    "uniqueRecords": 410395,
+    "bytes": 1747155622,
+    "fallbacks": 2615
+  },
+  "cross": {
+    "popRecords": 33553,
+    "uniqueRecords": 31880,
+    "bytes": 202749411,
+    "fallbacks": 13
+  },
+  "bundleSha256": "fd04cf8299136fc7a7d0a952497712a1c84baf165e90e35ea78cf8490a4476a7",
+  "serverSha256": "bf795a1f2277471e9c78d2b28b348c6423d0a76c9d06581a39c0def4eb095967",
+  "oldIsolatedColdReplay": {
+    "host": "richmpc",
+    "decodeMs": 1590.2042,
+    "buildMs": 9201.9077,
+    "routeMs": 294.610200000001,
+    "totalMs": 11086.7221,
+    "nodes": 2848286,
+    "edges": 6352172,
+    "vertices": 1170,
+    "heap": {
+      "rss": 1847881728,
+      "heapTotal": 822243328,
+      "heapUsed": 623912336,
+      "external": 402144710,
+      "arrayBuffers": 400227499
+    },
+    "interactiveBudgetMs": 2000,
+    "pass": false
+  },
+  "live": {
+    "measuredAt": "2026-09-08T23:56:46.343Z",
+    "stateUnchanged": true,
+    "samples": [
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "id": "jp-national-cross-14-13-001368",
+        "kind": "cross",
+        "ms": 19.30000001192093,
+        "vertices": 1173,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "id": "jp-national-cross-47-01-000001",
+        "kind": "cross",
+        "drivingDistance": 3330887,
+        "ms": 29.099999994039536,
+        "vertices": 49305,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "id": "jp-national-cross-01-47-000001",
+        "kind": "cross",
+        "drivingDistance": 3020385,
+        "ms": 25.30000001192093,
+        "vertices": 45834,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "id": "jp-national-cross-06-47-000001",
+        "kind": "cross",
+        "drivingDistance": 2824786,
+        "ms": 3,
+        "vertices": 13,
+        "source": "geometric-no-road-route"
+      },
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "id": "jp-national-local-jp_tokyo_mainland-0034093",
+        "kind": "native",
+        "ms": 2.199999988079071,
+        "vertices": 183,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "id": "jp-national-local-jp_tokyo_mainland-0034094",
+        "kind": "native",
+        "ms": 2.800000011920929,
+        "vertices": 547,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "id": "jp-national-local-jp_tokyo_mainland-0034095",
+        "kind": "native",
+        "ms": 2,
+        "vertices": 159,
+        "source": "stored-osrm"
+      }
+    ],
+    "cachedMs": 0.5,
+    "diagnostics": {
+      "version": "stored-driving-routes-v1",
+      "requests": 8,
+      "cacheHits": 1,
+      "storedRoutes": 7,
+      "fallbacks": 1,
+      "errors": 0,
+      "latest": {
+        "city": "JP_KANAGAWA_MAINLAND",
+        "popId": "jp-national-cross-14-13-001368",
+        "source": "stored-osrm",
+        "milliseconds": 0.09999999403953552,
+        "vertices": 1173
+      },
+      "cacheBytes": 840578,
+      "cacheLimitBytes": 8388608,
+      "cacheEntries": 7,
+      "pending": 0
+    }
+  }
+}

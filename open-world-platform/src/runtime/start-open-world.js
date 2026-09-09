@@ -42,6 +42,7 @@ import { stageNativeRecovery } from './native-reload-recovery.js';
 import { installNativeSavedReloadGuard } from './native-saved-reload-guard.js';
 import { findNativeAutosaveRef, installNativeAutosaveIdleGuard } from './native-autosave-idle-guard.js';
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
+import { storedRouteLoader } from './stored-route-paths.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
 import { createCachedSimulation } from './cached-simulation.js';
@@ -590,6 +591,11 @@ export function startOpenWorld({
       getNativeDemand: () => api.gameState.getDemandData?.()
         ?? globalThis.__subwayBuilder_storeCallbacks__?.getState?.()?.demandData ?? null,
       workerSource: workerSources.roadRoute ?? null,
+      storedRouteLoader: artifacts.routeGeometry ? storedRouteLoader({
+        baseUrl: globalThis[definition.runtime.tileBaseGlobal] ?? `http://127.0.0.1:${definition.runtime.tileServerPort}`,
+        crossTileId: artifacts.routeGeometry.crossTileId,
+        revision: artifacts.routeGeometry.revision,
+      }) : null,
     });
     const uninstallRoutePathFetch = installDrivingRoutePathFetch(globalThis, {
       owns: routePaths.owns,

@@ -45,6 +45,14 @@ if (tileDirectories.Length != options.ExpectedTiles) throw new InvalidDataExcept
 // Cross-world demand is embedded in the runnable mod. Tile downloads contain
 // only the native assets consumed from the city data directory.
 string[] cityFiles = ["demand_data.json.gz", "buildings_index.bin.gz", "roads.geojson.gz", "runways_taxiways.geojson.gz", "tiles.pmtiles"];
+using var worldDefinition = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(options.ModDist, "world-definition.json")));
+var storedRoutes = worldDefinition.RootElement.GetProperty("demand").TryGetProperty("routeGeometry", out var routeGeometry)
+    && routeGeometry.GetString() == "stored-driving-routes-v1";
+var initialTile = worldDefinition.RootElement.GetProperty("tileViews").GetProperty("initialTileId").GetString();
+IEnumerable<string> CityFilesFor(string directory) => cityFiles.Concat(!storedRoutes ? [] :
+    Path.GetFileName(directory) == initialTile
+        ? new[] { "driving-routes.idx", "driving-routes.bin", "cross-driving-routes.idx", "cross-driving-routes.bin" }
+        : new[] { "driving-routes.idx", "driving-routes.bin" });
 foreach (var tileDirectory in tileDirectories)
 {
     var tileId = Path.GetFileName(tileDirectory);
@@ -64,7 +72,7 @@ for (var partIndex = 0; partIndex < options.MapParts; partIndex++)
     var archivePath = Path.Combine(options.Output, archiveName);
     var installedBytes = CreateArchive(
         archivePath,
-        partTiles.SelectMany(tileDirectory => cityFiles.Select(name => (
+        partTiles.SelectMany(tileDirectory => CityFilesFor(tileDirectory).Select(name => (
             Path.Combine(tileDirectory, name),
             $"{Path.GetFileName(tileDirectory)}/{name}"))));
     assets.Add(Asset(archiveName, ReleaseAssetKind.TileData, archivePath, installedBytes, ".") with { Destinations = tileIds });

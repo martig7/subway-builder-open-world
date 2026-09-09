@@ -32,6 +32,7 @@
     "adapter": "estat-japan",
     "definition": "demand.json",
     "routingProfile": "osrm-driving-v1",
+    "routeGeometry": "stored-driving-routes-v1",
     "nativePopPrefixes": ["jp-national-local-", "jp-tk-local-"],
     "crossPopPrefixes": ["jp-national-cross-", "jp-tk-cross-"]
   },

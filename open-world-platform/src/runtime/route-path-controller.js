@@ -2,6 +2,7 @@ import {
   greatCircleRoute,
   haversineMetres,
 } from './generated-road-routing.js';
+import { createStoredRoutePaths } from './stored-route-paths.js';
 
 const WORKER_NAME = 'open-world-generated-road-route-worker';
 const MAX_ROUTED_DIRECT_METRES = 250_000;
@@ -166,8 +167,17 @@ export function createOpenWorldRoutePaths({
   workerSource = null,
   routeTiles = null,
   workerOptions = {},
+  storedRouteLoader = null,
 } = {}) {
   const tileIds = new Set((tileCatalog?.tiles ?? []).map((tile) => tile.id));
+  if (storedRouteLoader) {
+    const matches = (popId, prefixes) => prefixes.some(prefix => String(popId).startsWith(prefix));
+    return createStoredRoutePaths({
+      owns: (city, popId) => tileIds.has(city) && (matches(popId, nativePopPrefixes) || matches(popId, crossPopPrefixes)),
+      kind: popId => matches(popId, crossPopPrefixes) ? 'cross' : 'native',
+      loadRecord: storedRouteLoader,
+    });
+  }
   const workerClient = routeTiles ? null : createRoadRouteWorkerClient({
     workerSource,
     loadRoadBytes: (tileId) => tilePackages.loadRoadBytes(tileId),

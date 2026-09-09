@@ -75,9 +75,11 @@ app.Use(async (context, next) =>
     context.Response.Headers.AccessControlAllowOrigin = "*";
     context.Response.Headers.AccessControlAllowHeaders = $"Range, {controlHeader}";
     context.Response.Headers.AccessControlAllowMethods = "GET, HEAD, POST";
+    context.Response.Headers.AccessControlExposeHeaders = "X-OpenWorld-Route-Archive";
     context.Response.Headers.CacheControl = "public, max-age=3600";
     context.Response.Headers["X-PMTiles-Server-Version"] = serverVersion;
     context.Response.Headers["X-PMTiles-Server-Build"] = buildVersion;
+    context.Response.Headers["X-OpenWorld-Route-Archive"] = RouteArchive.Version;
     context.Response.Headers[instanceHeader] = instanceId;
     try
     {
@@ -127,6 +129,20 @@ app.MapPost("/_control/stop", context =>
         return Task.CompletedTask;
     });
     return Task.CompletedTask;
+});
+
+app.MapGet("/{archiveId}/driving-routes/{scope}/{popId}", async context =>
+{
+    var archiveId = context.Request.RouteValues["archiveId"]?.ToString() ?? string.Empty;
+    if (!catalog.TryGet(archiveId, out _)) { context.Response.StatusCode = 404; return; }
+    var scope = context.Request.RouteValues["scope"]?.ToString() ?? string.Empty;
+    var popId = context.Request.RouteValues["popId"]?.ToString() ?? string.Empty;
+    var record = await RouteArchive.ReadAsync(catalog.Root, archiveId, scope, popId, context.RequestAborted);
+    if (record is null) { context.Response.StatusCode = 404; return; }
+    context.Response.ContentType = "application/json";
+    context.Response.Headers.ContentEncoding = "gzip";
+    context.Response.ContentLength = record.Length;
+    await context.Response.Body.WriteAsync(record, context.RequestAborted);
 });
 
 app.MapMethods("/{archiveId}/{zoom:int}/{x:int}/{y:int}.mvt", ["GET", "HEAD"], async context =>

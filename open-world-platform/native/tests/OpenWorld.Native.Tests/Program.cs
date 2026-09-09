@@ -19,6 +19,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("release asset verification checks length and SHA-256", AssetVerification),
     ("byte sizes are shown in binary units", ByteSizeFormatting),
     ("native PMTiles reader returns an MVT tile", NativePmTilesReader),
+    ("route archive lookup reads one bounded record and rejects corrupt offsets", NativeRouteArchive),
     ("release manifest signature is pinned to the self-signed certificate", ReleaseSignatureVerification),
     ("installer downloads, verifies, and atomically installs a ZIP", InstallerDownloadsAndInstalls),
     ("installer copies and verifies assets from a local release folder", InstallerCopiesLocalAssets),
@@ -199,6 +200,49 @@ static Task ByteSizeFormatting()
     Equal("3.54 GiB", ByteSize.Format(3_797_746_434));
     Equal("287 MiB", ByteSize.Format(300_787_391));
     return Task.CompletedTask;
+}
+
+static async Task NativeRouteArchive()
+{
+    var root = Path.Combine(Path.GetTempPath(), "open-world-route-tests", Guid.NewGuid().ToString("N"));
+    var directory = Path.Combine(root, "JP_TEST");
+    Directory.CreateDirectory(directory);
+    try
+    {
+        byte[] record;
+        using (var buffer = new MemoryStream())
+        {
+            using (var gzip = new GZipStream(buffer, CompressionLevel.Fastest, true))
+                gzip.Write("{\"source\":\"stored-osrm\"}"u8);
+            record = buffer.ToArray();
+        }
+        var ids = new[] { "native-1", "native-2", "cross-1" }
+            .OrderBy(id => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id)).AsSpan(0, 16)), StringComparer.Ordinal).ToArray();
+        var index = new byte[16 + ids.Length * 32];
+        "OWRTIDX1"u8.CopyTo(index);
+        BinaryPrimitives.WriteUInt32LittleEndian(index.AsSpan(8), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(index.AsSpan(12), (uint)ids.Length);
+        for (var i = 0; i < ids.Length; i++)
+        {
+            SHA256.HashData(Encoding.UTF8.GetBytes(ids[i])).AsSpan(0, 16).CopyTo(index.AsSpan(16 + i * 32));
+            BinaryPrimitives.WriteUInt32LittleEndian(index.AsSpan(16 + i * 32 + 24), (uint)record.Length);
+        }
+        foreach (var stem in new[] { "driving-routes", "cross-driving-routes" })
+        {
+            await File.WriteAllBytesAsync(Path.Combine(directory, stem + ".idx"), index);
+            await File.WriteAllBytesAsync(Path.Combine(directory, stem + ".bin"), record);
+        }
+        foreach (var id in ids)
+            Equal(Convert.ToHexString(record), Convert.ToHexString((await RouteArchive.ReadAsync(root, "JP_TEST", "native", id))!));
+        Equal(record.Length, (await RouteArchive.ReadAsync(root, "JP_TEST", "cross", "cross-1"))!.Length);
+        Equal<byte[]?>(null, await RouteArchive.ReadAsync(root, "JP_TEST", "native", "missing"));
+        Equal<byte[]?>(null, await RouteArchive.ReadAsync(root, "../JP_TEST", "native", "native-1"));
+        Equal<byte[]?>(null, await RouteArchive.ReadAsync(root, "JP_TEST", "../cross", "cross-1"));
+        BinaryPrimitives.WriteUInt64LittleEndian(index.AsSpan(32), ulong.MaxValue);
+        await File.WriteAllBytesAsync(Path.Combine(directory, "driving-routes.idx"), index);
+        await ThrowsAsync<InvalidDataException>(async () => await RouteArchive.ReadAsync(root, "JP_TEST", "native", ids[0]));
+    }
+    finally { Directory.Delete(root, true); }
 }
 
 static async Task NativePmTilesReader()

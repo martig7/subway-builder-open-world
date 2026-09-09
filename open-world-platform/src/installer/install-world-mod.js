@@ -7,6 +7,7 @@ import { ensureTileServerReady, stopTileServer } from './tile-server-control.js'
 import { prepareSharedServer, registerSharedWorld, startSharedServer, stopSharedServer } from './shared-tile-server-control.js';
 
 import { TILE_DATA_FILES, WORLD_DATA_FILES, planArtifactFiles, applyArtifactFiles } from '../mod-builder/artifact-files.js';
+import { routeDataFiles, ROUTE_GEOMETRY_VERSION } from '../mod-builder/route-geometry-artifact.js';
 
 const serverControl = { prepareSharedServer, stopSharedServer, registerSharedWorld, startSharedServer, stopTileServer, ensureTileServerReady };
 
@@ -45,7 +46,7 @@ export async function installWorldMod({ worldRoot, outputRoot, packageRoot, appl
   for (const tile of selectedTiles) {
     const directory = path.resolve(targets.citiesDataPath, tile.id);
     if (path.dirname(directory) !== targets.citiesDataPath) throw new Error(`Refusing unsafe city target: ${directory}`);
-    for (const candidate of [directory, ...[...TILE_DATA_FILES, ...WORLD_DATA_FILES].map(filename => path.join(directory, filename))]) {
+    for (const candidate of [directory, ...[...TILE_DATA_FILES, ...WORLD_DATA_FILES, ...routeDataFiles(definition, tile.id)].map(filename => path.join(directory, filename))]) {
       try {
         if ((await lstat(candidate)).isSymbolicLink()) throw new Error(`Refusing linked city target: ${candidate}`);
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -54,7 +55,7 @@ export async function installWorldMod({ worldRoot, outputRoot, packageRoot, appl
   const statePath = path.join(targets.targetPath, '.open-world-artifacts.json');
   let previous = {};
   try { previous = JSON.parse(await readFile(statePath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
-  const entries = selectedTiles.flatMap(tile => TILE_DATA_FILES.map(filename => ({
+  const entries = selectedTiles.flatMap(tile => [...TILE_DATA_FILES, ...routeDataFiles(definition, tile.id)].map(filename => ({
     key: `${tile.id}/${filename}`, source: path.join(packagesPath, tile.id, filename), target: path.join(targets.citiesDataPath, tile.id, filename),
   })));
   const artifactPlan = await planArtifactFiles(entries, { previous, repair });
@@ -82,5 +83,10 @@ export async function installWorldMod({ worldRoot, outputRoot, packageRoot, appl
     ? shared ? await control.startSharedServer(sharedContext, definition)
       : await control.ensureTileServerReady({ definition, starterPath: path.join(targets.targetPath, 'start-tile-server.ps1') })
     : { status: 'not-started' };
+  if (startServer && definition.demand.routeGeometry) {
+    const health = await fetch(`http://127.0.0.1:${definition.runtime.tileServerPort}/_health`, { signal: AbortSignal.timeout(5_000) });
+    if (!health.ok || health.headers.get('X-OpenWorld-Route-Archive') !== ROUTE_GEOMETRY_VERSION)
+      throw new Error('The installed map service needs the stored-driving-routes-v1 update');
+  }
   return { ...targets, definition, tileServer, changedArtifactFiles: artifactPlan.changed };
 }

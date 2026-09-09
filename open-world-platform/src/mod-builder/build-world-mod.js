@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises
 import path from 'node:path';
 
 import { loadWorldDefinition } from '../contracts/load-world-definition.js';
+import { routeGeometryArtifacts, packagedRouteGeometry } from './route-geometry-artifact.js';
 import { OPEN_WORLD_PLATFORM_RELEASE } from '../runtime/start-open-world.js';
 import { loadWorldVegetationArtifact } from './world-vegetation-artifact.js';
 import { packDisplayBoundaryOverlay } from './display-boundary-artifact.js';
@@ -57,6 +58,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     '    commuteCatalog: __OPEN_WORLD_CROSS_COMMUTE_CATALOG__,',
     '    crossDemandGzipBase64: __OPEN_WORLD_CROSS_DEMAND_GZIP_BASE64__,',
     '    worldVegetationGzipBase64: __OPEN_WORLD_VEGETATION_GZIP_BASE64__,',
+    '    routeGeometry: __OPEN_WORLD_ROUTE_GEOMETRY__,',
     '  },',
     '  workerSources: {',
     '    nativeDemandEvaluator: __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__,',
@@ -80,6 +82,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   let packageRoot;
   let crossCommutesPath;
   let crossDemandPath;
+  let routeGeometry = null;
   const missing = [];
   if (packagedTileRoot != null || definition.release.artifactLayout === 'packaged-tile-directories-v1') {
     packageRoot = packagedTileRoot == null ? generatedRoot : path.resolve(packagedTileRoot);
@@ -95,6 +98,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
       ? path.join(packageRoot, 'cross_commutes.json') : path.join(initialPackage, 'cross_commutes.json');
     crossDemandPath = await hasFile(path.join(packageRoot, 'cross_demand.json.gz'))
       ? path.join(packageRoot, 'cross_demand.json.gz') : path.join(initialPackage, 'cross_demand.json.gz');
+    routeGeometry = await packagedRouteGeometry({ definition, selectedTiles, packageRoot });
   } else {
     const demandRoot = path.join(generatedRoot, 'demand');
     const mapRoot = path.join(generatedRoot, 'maps', 'tiles');
@@ -147,6 +151,10 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
         const mapManifest = JSON.parse(await readFile(path.join(mapTileRoot, 'map-manifest.json'), 'utf8'));
         packageManifest.tiles.push({ id: tile.id, gameCityCode: tile.gameCityCode ?? tile.id, mapCityCode: mapManifest.cityCode ?? null, mapManifest });
       }
+      const routes = await routeGeometryArtifacts({ definition, selectedTiles, generatedRoot, packageRoot });
+      entries.push(...routes.entries);
+      routeGeometry = routes.metadata;
+      packageManifest.routeGeometry = routeGeometry;
       const artifactPlan = await planArtifactFiles(entries, { previous: previousManifest.artifactState, repair });
       packageManifest.artifactState = await applyArtifactFiles(artifactPlan);
       for (const tile of selectedTiles) for (const filename of WORLD_DATA_FILES) await rm(path.join(packageRoot, tile.id, filename), { force: true });
@@ -231,6 +239,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
       __OPEN_WORLD_CROSS_COMMUTE_CATALOG__: crossCommutes,
       __OPEN_WORLD_CROSS_DEMAND_GZIP_BASE64__: JSON.stringify(crossDemandGzipBase64),
       __OPEN_WORLD_VEGETATION_GZIP_BASE64__: JSON.stringify(worldVegetationGzipBase64),
+      __OPEN_WORLD_ROUTE_GEOMETRY__: JSON.stringify(routeGeometry),
       __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__: JSON.stringify(workerSources.nativeDemandEvaluator),
       __OPEN_WORLD_ROAD_ROUTE_WORKER_SOURCE__: JSON.stringify(workerSources.roadRoute),
       __OPEN_WORLD_CROSS_MODE_SHARE_WORKER_SOURCE__: JSON.stringify(workerSources.crossModeShare),
