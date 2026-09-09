@@ -112,7 +112,7 @@
   "serviceVersion": "native-pmtiles-directory-v4",
   "tests": {
     "platform": 728,
-    "nec": 17,
+    "nec": 18,
     "archive": 3
   }
 }
