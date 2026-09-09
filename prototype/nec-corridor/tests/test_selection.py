@@ -14,6 +14,20 @@ SELECTION_PATH = ROOT / "input" / "nec-corridor-selection.json"
 
 
 class SelectionTests(unittest.TestCase):
+    def test_brigantine_is_selected(self) -> None:
+        selection = load_selection(SELECTION_PATH)
+        project = Transformer.from_crs("EPSG:4326", selection.grid.crs, always_xy=True)
+        # Brigantine City and its northern end both lie in the new coastal tile.
+        for longitude, latitude in [(-74.3646, 39.4101), (-74.3722, 39.4701)]:
+            self.assertEqual(selection.tile_id_at(*project.transform(longitude, latitude)), "NEC_CP00_RM02")
+        catalog, _ = build_catalog(selection)
+        tiles = {tile["id"]: tile for tile in catalog["tiles"]}
+        brigantine = tiles["NEC_CP00_RM02"]
+        self.assertEqual({item["tileId"] for item in brigantine["neighbors"]},
+                         {"NEC_CM01_RM02", "NEC_CP00_RM01"})
+        for neighbor in brigantine["neighbors"]:
+            self.assertIn("NEC_CP00_RM02", {item["tileId"] for item in tiles[neighbor["tileId"]]["neighbors"]})
+
     def test_block_island_missing_eastern_portion_is_selected(self) -> None:
         selection = load_selection(SELECTION_PATH)
         project = Transformer.from_crs("EPSG:4326", selection.grid.crs, always_xy=True)
@@ -30,7 +44,7 @@ class SelectionTests(unittest.TestCase):
 
     def test_attached_selection_is_frozen_to_the_new_york_grid(self) -> None:
         selection = load_selection(SELECTION_PATH)
-        self.assertEqual(len(selection.tiles), 35)
+        self.assertEqual(len(selection.tiles), 36)
         self.assertEqual(selection.grid.crs, "EPSG:26918")
         self.assertEqual(selection.grid.bounds(0, 0), (553400, 4483300, 631100, 4580600))
         self.assertEqual(selection.tile_id_at(553401, 4483301), "NEC_CP00_RP00")
@@ -40,9 +54,9 @@ class SelectionTests(unittest.TestCase):
     def test_catalog_has_selected_neighbors_and_geographic_bounds(self) -> None:
         selection = load_selection(SELECTION_PATH)
         catalog, coverage = build_catalog(selection)
-        self.assertEqual(catalog["selection"]["selectedCount"], 35)
-        self.assertEqual(len(catalog["tiles"]), 35)
-        self.assertEqual(len(coverage["features"]), 35)
+        self.assertEqual(catalog["selection"]["selectedCount"], 36)
+        self.assertEqual(len(catalog["tiles"]), 36)
+        self.assertEqual(len(coverage["features"]), 36)
         center = next(tile for tile in catalog["tiles"] if tile["id"] == "NEC_CP00_RP00")
         self.assertEqual(center["neighbors"], [
             {"direction": "north", "tileId": "NEC_CP00_RP01"},

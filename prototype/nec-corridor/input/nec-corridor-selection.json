@@ -18,7 +18,7 @@
     "NEC_CM02_RP01", "NEC_CM01_RP01", "NEC_CP00_RP01", "NEC_CP01_RP01", "NEC_CP02_RP01", "NEC_CP03_RP01", "NEC_CP04_RP01",
     "NEC_CM03_RP00", "NEC_CM02_RP00", "NEC_CM01_RP00", "NEC_CP00_RP00", "NEC_CP01_RP00", "NEC_CP02_RP00", "NEC_CP03_RP00", "NEC_CP04_RP00",
     "NEC_CM04_RM01", "NEC_CM03_RM01", "NEC_CM02_RM01", "NEC_CM01_RM01", "NEC_CP00_RM01",
-    "NEC_CM04_RM02", "NEC_CM03_RM02", "NEC_CM02_RM02", "NEC_CM01_RM02",
+    "NEC_CM04_RM02", "NEC_CM03_RM02", "NEC_CM02_RM02", "NEC_CM01_RM02", "NEC_CP00_RM02",
     "NEC_CM04_RM03", "NEC_CM03_RM03", "NEC_CM02_RM03", "NEC_CM01_RM03"
   ],
   "selectedTiles": [
@@ -53,6 +53,7 @@
     {"id":"NEC_CM03_RM02","column":-3,"row":-2,"ownershipProjected":[320300,4288700,398000,4386000]},
     {"id":"NEC_CM02_RM02","column":-2,"row":-2,"ownershipProjected":[398000,4288700,475700,4386000]},
     {"id":"NEC_CM01_RM02","column":-1,"row":-2,"ownershipProjected":[475700,4288700,553400,4386000]},
+    {"id":"NEC_CP00_RM02","column":0,"row":-2,"ownershipProjected":[553400,4288700,631100,4386000]},
     {"id":"NEC_CM04_RM03","column":-4,"row":-3,"ownershipProjected":[242600,4191400,320300,4288700]},
     {"id":"NEC_CM03_RM03","column":-3,"row":-3,"ownershipProjected":[320300,4191400,398000,4288700]},
     {"id":"NEC_CM02_RM03","column":-2,"row":-3,"ownershipProjected":[398000,4191400,475700,4288700]},

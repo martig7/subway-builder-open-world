@@ -1,7 +1,7 @@
 {
   "id": "local.nec-corridor-open-world",
   "name": "Northeast Corridor Open World",
-  "description": "Real-data 35-tile Northeast Corridor open world built from OSM map data and US LODES demand.",
+  "description": "Real-data 36-tile Northeast Corridor open world built from OSM map data and US LODES demand.",
   "version": "0.1.0",
   "author": { "name": "Open World Prototype" },
   "main": "index.js"

@@ -18,8 +18,8 @@
   },
   "initialView": {
     "center": [
-      -74.05697022,
-      40.88652063
+      -73.97244527,
+      40.83878469
     ],
     "zoom": 7
   },
@@ -44,7 +44,7 @@
       "VT",
       "WV"
     ],
-    "selectedCount": 35,
+    "selectedCount": 36,
     "sourceSchemaVersion": "0.1.0",
     "sourceWorldId": "NEC_CORRIDOR_TILE_PLANNER"
   },
@@ -690,6 +690,10 @@
           "tileId": "NEC_CM01_RM01"
         },
         {
+          "direction": "east",
+          "tileId": "NEC_CP00_RM02"
+        },
+        {
           "direction": "south",
           "tileId": "NEC_CM01_RM03"
         },
@@ -714,6 +718,77 @@
         {
           "fips": "34",
           "intersectionKm2": 3736.630091,
+          "postal": "NJ"
+        }
+      ],
+      "status": "selected"
+    },
+    {
+      "boundary": [
+        [
+          -73.49160016,
+          38.73725369
+        ],
+        [
+          -73.47275157,
+          39.61372389
+        ],
+        [
+          -74.37783052,
+          39.62209743
+        ],
+        [
+          -74.38551203,
+          38.74537129
+        ],
+        [
+          -73.49160016,
+          38.73725369
+        ]
+      ],
+      "bounds": [
+        -74.38551203,
+        38.73725369,
+        -73.47275157,
+        39.62209743
+      ],
+      "column": 0,
+      "gameCityCode": "NEC_CP00_RM02",
+      "haloProjected": [
+        551400.0,
+        4286700.0,
+        633100.0,
+        4388000.0
+      ],
+      "id": "NEC_CP00_RM02",
+      "initialView": {
+        "bearing": 0,
+        "latitude": 39.18051879,
+        "longitude": -73.93192297,
+        "zoom": 9
+      },
+      "name": "Grid 0, -2",
+      "neighbors": [
+        {
+          "direction": "north",
+          "tileId": "NEC_CP00_RM01"
+        },
+        {
+          "direction": "west",
+          "tileId": "NEC_CM01_RM02"
+        }
+      ],
+      "ownershipProjected": [
+        553400,
+        4288700,
+        631100,
+        4386000
+      ],
+      "row": -2,
+      "stateTouches": [
+        {
+          "fips": "34",
+          "intersectionKm2": 201.527116,
           "postal": "NJ"
         }
       ],
@@ -1111,6 +1186,10 @@
         {
           "direction": "north",
           "tileId": "NEC_CP00_RP00"
+        },
+        {
+          "direction": "south",
+          "tileId": "NEC_CP00_RM02"
         },
         {
           "direction": "west",

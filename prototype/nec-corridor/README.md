@@ -17,9 +17,10 @@ The background uses [OpenStreetMap](https://www.openstreetmap.org/) tiles and di
 
 ## Implementation started
 
-The current footprint contains 35 tiles. Grid `(3, 0)` (`NEC_CP03_RP00`)
-adds the missing eastern portion of Block Island and connects columns 2 and 4
-along row 0, with a northern neighbor at `(3, 1)`. The authoritative runtime
+The current footprint contains 36 tiles. Grid `(0, -2)` (`NEC_CP00_RM02`)
+adds Brigantine and the adjacent New Jersey coast, joining its western neighbor
+at `(-1, -2)` and northern neighbor at `(0, -1)`. Grid `(3, 0)`
+(`NEC_CP03_RP00`) contains the eastern portion of Block Island. The authoritative runtime
 catalog is `worlds/nec-corridor/geography/tile-views.json`; the prototype selection
 and generated catalog carry the same footprint for map and demand compilation.
 The milestone totals below describe the original 34-tile build.
@@ -124,7 +125,7 @@ fallback. No route graph is built until a player opens a pop path.
 
 ## Mod scaffold
 
-`mod/` is the NEC adaptation of the original NY mod. It registers all 34 selected tiles with the same world-tile runtime, keeps the NEC world identity separate from NY saves, embeds the world-level cross-tile demand catalog, and serves each tile's PMTiles archive through the native directory server.
+`mod/` is the NEC adaptation of the original NY mod. It registers all 36 selected tiles with the same world-tile runtime, keeps the NEC world identity separate from NY saves, embeds the world-level cross-tile demand catalog, and serves each tile's PMTiles archive through the native directory server.
 
 The build step stages the two generated sources into the game-facing package layout:
 
