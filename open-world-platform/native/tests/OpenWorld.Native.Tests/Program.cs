@@ -34,6 +34,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("tile-server logs rotate within their retention limit", RollingLogRotation),
     ("tile-server defaults to the Subway Builder city-data directory", DefaultTileServerPathValidation),
     ("desktop launch plan adds Start-menu access without enabling login startup", DesktopLaunchPlanValidation),
+    ("manager update replaces old copies and rejects a stale executable", ManagerReplacementVerification),
     ("world checkboxes select all, clear, and total both downloads", WorldCheckboxes),
     ("manager shutdown targets only catalog-owned executables and excludes setup", ManagerShutdownTargets),
     ("manager uses a world-neutral title and the release-manifest version", ManagerPresentationValidation),
@@ -298,6 +299,30 @@ static Task ReleaseSignatureVerification()
     return Task.CompletedTask;
 }
 
+static Task ManagerReplacementVerification()
+{
+    var root = Path.Combine(Path.GetTempPath(), "manager-replacement-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    try
+    {
+        var source = Path.Combine(root, "setup.exe"); File.WriteAllText(source, "new manager and signed catalog");
+        var first = ManifestFor(".");
+        var second = first with { Product = first.Product with { Id = "Japan", ManifestId = "japan" } };
+        InstallLocations Resolve(ReleaseManifest world) => InstallLocations.Resolve(world, Path.Combine(root, "roaming"), Path.Combine(root, "local"));
+        var old = Resolve(first).ManagerPath; Directory.CreateDirectory(Path.GetDirectoryName(old)!); File.WriteAllText(old, "old NEC manager");
+        Throws<IOException>(() => ManagerReplacement.Verify(source, old));
+        var targets = ManagerReplacement.Targets(new(1, "0.1.0", [first, second]), [second], Resolve);
+        Equal(2, targets.Length);
+        foreach (var target in targets) ManagerReplacement.ReplaceAndVerify(source, target);
+        Equal(File.ReadAllText(source), File.ReadAllText(old));
+        ManagerReplacement.ReplaceAndVerify(source, source);
+        File.WriteAllText(old, "stale copy");
+        Throws<IOException>(() => ManagerReplacement.Verify(source, old));
+    }
+    finally { Directory.Delete(root, true); }
+    return Task.CompletedTask;
+}
+
 static Task WorldCheckboxes()
 {
     var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -385,6 +410,9 @@ static async Task InstallerDownloadsAndInstalls(bool retain = false)
             Path.Combine(testRoot, "cache"),
             Path.Combine(testRoot, "logs"),
             Path.Combine(testRoot, "shared-server"));
+        Directory.CreateDirectory(locations.ModRoot);
+        await File.WriteAllTextAsync(Path.Combine(locations.ModRoot, "index.js"), "manual old version");
+        await File.WriteAllTextAsync(Path.Combine(locations.ModRoot, "obsolete.txt"), "obsolete");
         Directory.CreateDirectory(locations.ProductRoot);
         await File.WriteAllTextAsync(Path.Combine(locations.ProductRoot, "manager.txt"), "preserve me");
         using var client = new HttpClient(new StaticHandler(zipBytes));
@@ -397,6 +425,7 @@ static async Task InstallerDownloadsAndInstalls(bool retain = false)
         }
         Equal("Railyard-shaped mod payload", await File.ReadAllTextAsync(Path.Combine(locations.ModRoot, "index.js")));
         Equal("Railyard-shaped mod payload", await File.ReadAllTextAsync(Path.Combine(locations.SupportRoot, "index.js")));
+        Equal(false, File.Exists(Path.Combine(locations.ModRoot, "obsolete.txt")));
         Equal("preserve me", await File.ReadAllTextAsync(Path.Combine(locations.ProductRoot, "manager.txt")));
         if (File.Exists(Path.Combine(locations.CacheRoot, asset.Name)))
             throw new InvalidOperationException("Verified installation cache was not removed after installation.");

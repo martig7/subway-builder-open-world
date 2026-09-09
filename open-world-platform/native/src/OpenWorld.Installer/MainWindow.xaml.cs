@@ -148,13 +148,12 @@ public partial class MainWindow : Window
                 PageTitleText.Text = $"Installing {selected.Length} world(s)";
                 ProgressSummaryText.Text = "Closing Open World Manager";
                 await ManagerShutdown.CloseAsync(catalog.Worlds.Select(world => InstallLocations.Resolve(world).ManagerPath), cancellation.Token);
-                // Fail on a locked manager before spending time downloading any maps.
-                foreach (var world in selected)
-                {
-                    manifest = world;
-                    locations = InstallLocations.Resolve(world);
-                    InstallManagerCopy();
-                }
+                var setupExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("Setup executable path is unavailable.");
+                var managerTargets = ManagerReplacement.Targets(catalog, selected, world => InstallLocations.Resolve(world));
+                // Refresh existing copies for other worlds too: shortcuts must not reopen
+                // an old embedded catalog after installing a different world.
+                foreach (var target in managerTargets)
+                    ManagerReplacement.ReplaceAndVerify(setupExecutable, target);
                 var totalAssets = selected.Sum(world => world.Assets.Count);
                 var totalBytes = selected.Sum(world => world.DownloadBytes);
                 var priorAssets = 0;
@@ -182,6 +181,8 @@ public partial class MainWindow : Window
                 }
                 UpdateProgress(new InstallProgress(InstallStage.StartingServer, "Starting the local tile server", string.Empty, totalAssets, totalAssets, totalBytes, totalBytes));
                 await TileServerController.StartAndVerifyAsync(manifest, locations, cancellation.Token);
+                foreach (var target in managerTargets)
+                    ManagerReplacement.Verify(setupExecutable, target);
                 // Retain verified ZIPs through registration and server verification, including retries.
                 foreach (var world in selected)
                     foreach (var asset in world.Assets)
@@ -292,15 +293,6 @@ public partial class MainWindow : Window
     private static string FormatDuration(TimeSpan value) => value.TotalMinutes >= 1
         ? $"{Math.Ceiling(value.TotalMinutes)} minutes"
         : $"{Math.Max(1, Math.Ceiling(value.TotalSeconds))} seconds";
-
-    private void InstallManagerCopy()
-    {
-        var currentExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("Setup executable path is unavailable.");
-        Directory.CreateDirectory(locations.ProductRoot);
-        var installedManager = locations.ManagerPath;
-        if (!Path.GetFullPath(currentExecutable).Equals(Path.GetFullPath(installedManager), StringComparison.OrdinalIgnoreCase))
-            File.Copy(currentExecutable, installedManager, overwrite: true);
-    }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {

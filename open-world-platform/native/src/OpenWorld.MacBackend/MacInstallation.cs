@@ -113,15 +113,11 @@ public sealed class MacInstallation
                 foreach (var relative in relatives)
                 {
                     var target = Target(relative);
-                    if (Directory.Exists(target) && ReadReceipt(id) is null)
-                        throw new IOException($"An unmanaged folder already exists at {target}. Move it aside before installing; existing files have not been changed.");
-                    if (Directory.Exists(target) && ReadReceipt(id) is { } previous)
+                    // The catalog owns this exact mod/tile destination, including manual
+                    // installations without receipts. Keep link checks and journal rollback.
+                    if (Directory.Exists(target))
                         foreach (var existing in Directory.EnumerateFileSystemEntries(target, "*", SearchOption.AllDirectories))
-                        {
                             CheckLinks(existing);
-                            if (File.Exists(existing) && !previous.Files.ContainsKey(Path.GetRelativePath(Game, existing).Replace('\\', '/')))
-                                throw new IOException($"Installation stopped to preserve an added file: {existing}. Move it aside before repairing.");
-                        }
                     plans.Add(new(relative, Directory.Exists(target)));
                     var staged = Path.Combine(Transaction, "stage", relative);
                     foreach (var path in Directory.EnumerateFiles(staged, "*", SearchOption.AllDirectories))

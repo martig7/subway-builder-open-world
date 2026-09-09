@@ -14,7 +14,18 @@ try
     var manifest = Fixture("NEC_TEST_A", "nec-test");
     var second = Fixture("JP_TEST_A", "jp-test");
     var host = new MacInstallation(new(1, "0.5.0", [manifest, second]), Path.Combine(root, "manager"), Path.Combine(root, "game"), args.FirstOrDefault() ?? "unused", false);
+    var manualMod = Path.Combine(root, "game", "mods", "nec-test");
+    var manualTile = Path.Combine(root, "game", "cities", "data", "NEC_TEST_A");
+    Directory.CreateDirectory(manualMod); Directory.CreateDirectory(manualTile);
+    File.WriteAllText(Path.Combine(manualMod, "index.js"), "old manual mod");
+    File.WriteAllText(Path.Combine(manualMod, "obsolete.txt"), "old file");
+    File.WriteAllText(Path.Combine(manualTile, "obsolete.txt"), "old tile");
+    var unrelated = Path.Combine(root, "game", "cities", "data", "OTHER");
+    Directory.CreateDirectory(unrelated); File.WriteAllText(Path.Combine(unrelated, "keep.txt"), "keep");
     await host.InstallAsync(["nec-test", "jp-test"], assets, null, CancellationToken.None);
+    Assert(!File.Exists(Path.Combine(manualMod, "obsolete.txt")) && !File.Exists(Path.Combine(manualTile, "obsolete.txt")), "Manual installation was not replaced");
+    Assert(File.ReadAllText(Path.Combine(unrelated, "keep.txt")) == "keep", "Unrelated city changed");
+    Console.WriteLine("PASS replaces manually installed matching mod and tile folders");
     await host.VerifyAsync("nec-test", CancellationToken.None);
     await host.VerifyAsync("jp-test", CancellationToken.None);
     Console.WriteLine("PASS multi-world install and full installed-file verification");
@@ -41,9 +52,9 @@ try
     Console.WriteLine("PASS cancellation during map extraction preserves prior installation");
     var added = Path.Combine(Path.GetDirectoryName(mod)!, "user-notes.txt");
     File.WriteAllText(added, "keep this");
-    await Fails(() => host.InstallAsync(["nec-test"], assets, null, CancellationToken.None));
-    Assert(File.ReadAllText(added) == "keep this", "Repair removed added file"); File.Delete(added);
-    Console.WriteLine("PASS repair preserves user-added files");
+    await host.InstallAsync(["nec-test"], assets, null, CancellationToken.None);
+    Assert(!File.Exists(added), "Replacement retained an obsolete file inside the selected mod");
+    Console.WriteLine("PASS replacement removes obsolete files inside selected folders");
     // Simulate process death between replacing a directory and committing its journal.
     var transaction = Path.Combine(root, "manager", "transaction");
     Directory.CreateDirectory(Path.Combine(transaction, "backup", "mods"));

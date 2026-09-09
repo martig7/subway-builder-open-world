@@ -22,8 +22,9 @@ window is closed. Login startup is disabled until the user enables it.
 - The full selected installation is staged and hashed before live directories
   are replaced. Cancellation before commit preserves the previous installation.
   A journal restores an interrupted commit on the next modifying operation.
-- A file lock serializes manager mutations. Symlink paths, unmanaged destination
-  folders and added files are rejected rather than overwritten.
+- A file lock serializes manager mutations. Symlink paths are rejected. Installing
+  replaces the exact selected mod and tile folders, including manual installations
+  without receipts and obsolete files within those folders. Other folders are untouched.
 - Uninstall only deletes recorded, unmodified files. Saved games, other worlds,
   and added files are preserved. The manager app itself can be moved to Trash.
 - One server scans all worlds. Stop uses the existing authenticated control
