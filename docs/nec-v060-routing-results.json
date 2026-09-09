@@ -1,0 +1,118 @@
+{
+  "version": "0.6.0",
+  "manifestId": "northeast-corridor-open-world",
+  "tileCount": 36,
+  "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+  "archives": {
+    "cross": {
+      "routes": 57699,
+      "unique": 49726,
+      "bytes": 262951963,
+      "fallbacks": 0
+    },
+    "native": {
+      "routes": 153140,
+      "unique": 133726,
+      "bytes": 245441510,
+      "fallbacks": 0
+    }
+  },
+  "publication": {
+    "nativeRoutes": 153140,
+    "nativeChanged": 152828,
+    "crossRoutes": 57699,
+    "crossChanged": 57699,
+    "localWorkers": 17807299,
+    "crossWorkers": 6640574,
+    "assetHashes": 108,
+    "status": "passed",
+    "filesUpdated": 150
+  },
+  "live": {
+    "measuredAt": "2026-09-09T03:40:03.994Z",
+    "stateUnchangedDuringRoutes": true,
+    "samples": [
+      {
+        "city": "NEC_CP00_RM01",
+        "id": "nec-cross-pop-8188ac1979fae8c77a8f603c",
+        "kind": "cross",
+        "drivingDistance": 936590,
+        "ms": 40.400000005960464,
+        "vertices": 14077,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "NEC_CP00_RM01",
+        "id": "nec-cross-pop-010438b59be8a85ee6da5166",
+        "kind": "cross",
+        "drivingDistance": 132945,
+        "ms": 6.300000011920929,
+        "vertices": 2336,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "NEC_CP00_RM01",
+        "id": "nec-native-pop-000ae127943388685def21a7",
+        "kind": "native",
+        "ms": 12.899999976158142,
+        "vertices": 106,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "NEC_CP00_RM02",
+        "id": "nec-native-pop-001ec610da6357b63a99f7e0",
+        "kind": "native",
+        "ms": 3.699999988079071,
+        "vertices": 25,
+        "source": "stored-osrm"
+      },
+      {
+        "city": "NEC_CP00_RP00",
+        "id": "nec-native-pop-0000d1caf44048c5875a8399",
+        "kind": "native",
+        "ms": 11.700000017881393,
+        "vertices": 388,
+        "source": "stored-osrm"
+      }
+    ],
+    "cachedMs": 7.199999988079071,
+    "cacheBytes": 149278,
+    "errors": 0
+  },
+  "transitions": [
+    {
+      "city": "NEC_CP00_RM02",
+      "buildings": 9733,
+      "pops": 15,
+      "stations": 316,
+      "routes": 53,
+      "trains": 244,
+      "paused": true,
+      "totalMilliseconds": 10512,
+      "stageMilliseconds": 3269,
+      "navigationMilliseconds": 568,
+      "completionMilliseconds": 6675
+    },
+    {
+      "city": "NEC_CP00_RP00",
+      "buildings": 2013662,
+      "pops": 48316,
+      "stations": 316,
+      "routes": 53,
+      "trains": 244,
+      "paused": true,
+      "totalMilliseconds": 19339,
+      "stageMilliseconds": 3263,
+      "navigationMilliseconds": 5158,
+      "completionMilliseconds": 10918
+    }
+  ],
+  "bundleSha256": "106cfdedaa02927e5c3e66715192f1996ae5d544d1a1e0a6effa0813420da5bc",
+  "worldDefinitionHash": "35333b1421562c01af761321f1edcfb06ca94faef728f106591dff141ad5b656",
+  "serviceVersion": "native-pmtiles-directory-v4",
+  "tests": {
+    "platform": 728,
+    "nec": 17,
+    "archive": 3
+  }
+}

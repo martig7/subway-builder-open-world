@@ -1,5 +1,38 @@
 # NEC routing publication
 
+## v0.6.0 verification
+
+The 36-tile build was installed and reloaded in Subway Builder. All 153,140
+native and 57,699 cross-tile archive records have OSRM road geometry. Native
+archives occupy 245,441,510 bytes and cross archives 262,951,963 bytes on disk.
+The audited timing publication preserved 17,807,299 native workers and
+6,640,574 cross-tile workers, along with all cohort identities and endpoints.
+
+Through the running game's actual path fetch adapter, a 936.59 km cross-tile
+route returned 14,077 coordinates in 40.4 ms; a Brigantine cross route took
+6.3 ms. Native route samples took 3.7–12.9 ms. Five cached records used 149,278
+accounted bytes, with no errors or fallback records. These are observed request
+latencies, not filesystem-cold benchmarks.
+
+An actual UI tile switch into Brigantine (`NEC_CP00_RM02`) completed in 10.512 s
+and restored 9,733 buildings and 15 native demand cohorts. Return to NYC took
+19.339 s and restored 2,013,662 buildings and 48,316 cohorts. Both retained the
+316-station, 53-route, 244-train benchmark network, pause state and simulation
+clock. The old NYC cohort count was 48,317; the updated footprint's demand
+package correctly contains 48,316. This was a correctness check with concurrent
+release work, not a controlled comparison with earlier timing benchmarks.
+
+The shared service served all 36 NEC tiles and advertised the stored-route
+header. Built and installed bundle SHA256 matched:
+`106cfdedaa02927e5c3e66715192f1996ae5d544d1a1e0a6effa0813420da5bc`.
+All 728 platform, 17 NEC and 3 route-archive tests passed. Installation exposed
+and fixed a UTF-8 BOM compatibility issue in shared World registrations; the
+regression test verifies that a BOM registration reuses a healthy server.
+
+Exact measurements: [nec-v060-routing-results.json](nec-v060-routing-results.json).
+
+## Publication process
+
 NEC v0.6.0 uses the same shared routing and stored-path implementation as Japan.
 Its World enables `stored-driving-routes-v1` and the `shared-native-v4` service.
 The release consumer is `prototype/nec-corridor/mod`, with installed manifest
