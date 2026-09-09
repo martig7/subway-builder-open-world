@@ -82,3 +82,18 @@ The local audit receipt is `.analysis/v060-expense/final-receipt.json`.
 - Signed installer selection screen visually checked. The automatic shutdown implementation successfully closed the locally running NEC manager. Full multi-world network installation is left to the user's fresh-download test.
 - Removed exactly 83 catalog-owned city packages (36 NEC, 47 Japan) from the user's city-data folder. Download caches were empty. Saves and unrelated cities were not targeted; the verified tile server was stopped for deletion.
 - Windows installer SHA-256: `1c44fbc814eac13682bc955ae8a302f8a810abbb913d40974c012dc40f13bbfd`. Existing publisher certificate and DigiCert timestamp retained; the local self-signed certificate is not a trusted root.
+
+
+## Existing-installation replacement follow-up (2026-09-09)
+
+Windows setup replaces and SHA-256 verifies existing catalog-owned manager copies, including other installed worlds, before downloading and again before reporting success. This prevents an old NEC shortcut from retaining the v0.5.0 embedded catalog after installing Japan.
+
+Mac installation now replaces exact catalog-owned mod and tile folders without requiring a prior receipt, using the existing staging, link checks and journal rollback. Obsolete files within selected folders are replaced; unrelated folders and saves remain out of scope.
+
+Validation: 24 Windows/native tests and 10 Mac backend tests pass locally. GitHub run [34392348304](https://github.com/martig7/subway-builder-open-world/actions/runs/34392348304) passed on Apple Silicon and Intel, including manual-install replacement, rollback, server lifecycle, mounted app and UI checks. Full release map downloads were not repeated; the signed catalog and map assets are unchanged.
+
+Refreshed installer hashes:
+
+- `Subway-Builder-Open-World-Setup.exe`: `feb320cd232bb160b9471e0397ec88ff59544285435a2696da7a8e79b337ee43`
+- `Open-World-Manager-osx-arm64-v0.6.0.dmg`: `0f3d3c95391f07bfcd94c49355974268366ea23146b57943896c7d6129a25c63`
+- `Open-World-Manager-osx-x64-v0.6.0.dmg`: `23290bf0dc1debf0d8ffee308cad30a20f200549998fe8f66d068694dfb39bbf`
