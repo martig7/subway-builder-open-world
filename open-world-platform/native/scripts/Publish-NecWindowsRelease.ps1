@@ -247,7 +247,7 @@ $releaseBody = @(
     '',
     '## Download',
     '',
-    "Download exactly one file: [Subway-Builder-Open-World-Setup.exe]($($ReleaseAssetBaseUrl.TrimEnd('/'))/Subway-Builder-Open-World-Setup.exe) ($(Format-ReleaseByteSize (Get-Item -LiteralPath $publishedSetup).Length)).",
+    "Windows: download [Subway-Builder-Open-World-Setup.exe]($($ReleaseAssetBaseUrl.TrimEnd('/'))/Subway-Builder-Open-World-Setup.exe) ($(Format-ReleaseByteSize (Get-Item -LiteralPath $publishedSetup).Length)).",
     '',
     "macOS: [Apple Silicon]($($ReleaseAssetBaseUrl.TrimEnd('/'))/Open-World-Manager-osx-arm64-v$Version.dmg) or [Intel]($($ReleaseAssetBaseUrl.TrimEnd('/'))/Open-World-Manager-osx-x64-v$Version.dmg). The DMGs are produced and verified by the macOS workflow; attach both before publication.",
     '',
@@ -282,3 +282,4 @@ $checksumLines = Get-ChildItem -LiteralPath $resolvedOutput -File |
 Write-Host "Created self-signed Subway Builder Open World release $Version"
 Write-Host "Certificate thumbprint: $($certificate.Thumbprint)"
 Write-Host "Output: $resolvedOutput"
+
