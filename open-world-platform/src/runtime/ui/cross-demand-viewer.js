@@ -1,7 +1,8 @@
 import { CrossDemandModel } from '../cross-demand-model.js';
 import { demandPanelContent } from './cross-demand-presentation.js';
+import { nativeDemandIgnoresClick, nativeDemandPaint, readNativeDemandPresentation } from './native-demand-presentation.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'simplified-cross-demand-panel-v3';
+export const CROSS_DEMAND_PANEL_VERSION = 'native-demand-dot-parity-v1';
 
 // Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
 // uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.
@@ -23,25 +24,6 @@ export function clipDemandDotsToRenderHalo(data, virtualization) {
   ));
   return features.length === data.features.length ? data : { ...data, features };
 }
-
-// Demand radii are geographic metres. MapLibre circle radii are pixels, so
-// convert metres with the Web Mercator scale and double pixels at every zoom.
-// Deliberately omit the native demand layer's additional 2^(zoom * 0.75)
-// enlargement: that changes the dot's world size instead of preserving it.
-const DECK_EARTH_CIRCUMFERENCE_METRES = 40_030_000;
-const DECK_TILE_SIZE = 512;
-const KC_REFERENCE_LATITUDE = 39.1;
-const MAPLIBRE_MAX_ZOOM = 24;
-const PIXELS_PER_METRE_AT_ZOOM_ZERO = DECK_TILE_SIZE
-  / (DECK_EARTH_CIRCUMFERENCE_METRES * Math.cos(KC_REFERENCE_LATITUDE * Math.PI / 180));
-const radiusFactorAtZoom = (zoom) => PIXELS_PER_METRE_AT_ZOOM_ZERO * 2 ** zoom;
-
-const zoomScaledMetres = (metres) => ['interpolate', ['exponential', 2], ['zoom'],
-  0, ['*', metres, radiusFactorAtZoom(0)],
-  MAPLIBRE_MAX_ZOOM, ['*', metres, radiusFactorAtZoom(MAPLIBRE_MAX_ZOOM)],
-];
-const zoomScaledRadius = zoomScaledMetres(['get', 'baseRadius']);
-const zoomScaledStrokeWidth = zoomScaledMetres(['case', ['get', 'selected'], 20, 4]);
 
 function ensureMapArtifacts(map) {
   if (!map?.getSource?.(POINTS_SOURCE)) map?.addSource?.(POINTS_SOURCE, { type: 'geojson', data: EMPTY });
@@ -68,12 +50,12 @@ function ensureMapArtifacts(map) {
     minzoom: 10,
     layout: { visibility: 'none' },
     paint: {
-      'circle-radius': zoomScaledRadius,
+      'circle-radius': 0,
       'circle-color': ['get', 'color'],
       'circle-opacity': 1,
       'circle-stroke-color': '#000000',
       'circle-stroke-opacity': 1,
-      'circle-stroke-width': zoomScaledStrokeWidth,
+      'circle-stroke-width': 0,
       'circle-pitch-alignment': 'map',
       'circle-pitch-scale': 'map',
     },
@@ -101,13 +83,14 @@ export class CrossDemandOverlayController {
     this.modeFilter = 'all'; this.faded = false; this.openRequest = 0;
     this.pointsKey = null; this.detailsKey = null; this.detailCache = null;
     this.pendingMapRefresh = false; this.modelRevision = 0;
+    this.nativePaintKey = null;
     this.active = false; this.status = 'closed'; this.error = null;
     this.viewMode = 'residents';
     this.selectedPointId = null; this.selectedPopIndex = null;
     this.model = null; this.rawData = null; this.map = null; this.listeners = new Set();
     this.selectedDrivingPath = null; this.routeStatus = 'idle'; this.routeRequest = 0;
     this.handlePointClick = (event) => {
-      if (!this.active || this.selectedPopIndex != null) return;
+      if (!this.active || this.selectedPopIndex != null || this.#ignoresPointClick()) return;
       const p = event.point;
       const features = event.features ?? (p && this.map?.getLayer?.(POINT_LAYER)
         ? this.map.queryRenderedFeatures?.([[p.x - 4, p.y - 4], [p.x + 4, p.y + 4]], { layers: [POINT_LAYER] }) : []);
@@ -118,10 +101,11 @@ export class CrossDemandOverlayController {
       })[0];
       if (nearest) this.selectPoint(nearest.properties.id);
     };
-    this.handleMouseEnter = () => { if (this.map) this.map.getCanvas().style.cursor = 'pointer'; };
-    this.handleMouseLeave = () => { if (this.map) this.map.getCanvas().style.cursor = ''; };
-    this.handleStyle = () => { this.pointsKey = this.detailsKey = null; this.#refreshMap(); };
+    this.handleMouseEnter = () => { if (this.map && !this.#ignoresPointClick()) this.map.getCanvas().style.cursor = 'pointer'; };
+    this.handleMouseLeave = () => { if (this.map && !this.#ignoresPointClick()) this.map.getCanvas().style.cursor = ''; };
+    this.handleStyle = () => { this.nativePaintKey = this.pointsKey = this.detailsKey = null; this.#refreshMap(); };
     this.handleIdle = () => { if (this.pendingMapRefresh) this.#refreshMap(); };
+    this.handleRender = () => { if (this.active) this.#syncNativePaint(); };
     this.unsubscribeRuntime = runtime.subscribe?.((event) => {
       if (event?.type !== 'cross-mode-share' || !this.rawData) return;
       const view = this.runtime.view();
@@ -135,6 +119,17 @@ export class CrossDemandOverlayController {
   }
 
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  #ignoresPointClick() { return nativeDemandIgnoresClick(this.map?.getCanvas?.()?.ownerDocument); }
+  #syncNativePaint() {
+    if (!this.map?.getLayer?.(POINT_LAYER)) return;
+    const presentation = readNativeDemandPresentation(this.api, this.map);
+    const key = JSON.stringify([presentation, this.viewMode]);
+    if (key === this.nativePaintKey) return;
+    this.nativePaintKey = key;
+    for (const [name, value] of Object.entries(nativeDemandPaint(presentation, this.viewMode))) {
+      this.map.setPaintProperty?.(POINT_LAYER, name, value);
+    }
+  }
   #emit() { for (const listener of this.listeners) listener(this.snapshot()); }
   snapshot() {
     return {
@@ -151,6 +146,7 @@ export class CrossDemandOverlayController {
     if (this.map === map) return this.#refreshMap();
     this.detachMap();
     this.map = map;
+    this.nativePaintKey = null;
     this.pointsKey = this.detailsKey = null;
     map.on('click', this.handlePointClick);
     map.on('mouseenter', POINT_LAYER, this.handleMouseEnter);
@@ -159,6 +155,7 @@ export class CrossDemandOverlayController {
     // redraw loop. `style.load` is the one event where sources need rehydrating.
     map.on('style.load', this.handleStyle);
     map.on('idle', this.handleIdle);
+    map.on('render', this.handleRender);
     this.#refreshMap();
   }
 
@@ -169,11 +166,13 @@ export class CrossDemandOverlayController {
     try { this.map.off('mouseleave', POINT_LAYER, this.handleMouseLeave); } catch {}
     try { this.map.off('style.load', this.handleStyle); } catch {}
     try { this.map.off('idle', this.handleIdle); } catch {}
+    try { this.map.off('render', this.handleRender); } catch {}
     try {
       const canvas = this.map.getCanvas?.();
-      if (canvas?.style) canvas.style.cursor = '';
+      if (canvas?.style?.cursor === 'pointer') canvas.style.cursor = '';
     } catch {}
     this.map = null;
+    this.nativePaintKey = null;
   }
 
   dispose() {
@@ -310,6 +309,7 @@ export class CrossDemandOverlayController {
     if (!this.map?.isStyleLoaded?.()) { this.pendingMapRefresh = true; return; }
     this.pendingMapRefresh = false;
     ensureMapArtifacts(this.map);
+    this.#syncNativePaint();
     const ready = this.active && this.status === 'ready' && this.model;
     const popSelected = ready && this.selectedPopIndex != null;
     this.#setVisibility(POINT_LAYER, Boolean(ready && !popSelected));

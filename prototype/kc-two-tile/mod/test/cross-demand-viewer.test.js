@@ -19,32 +19,6 @@ function overlayMap(sources, layers) {
   };
 }
 
-function evaluateRadius(expression, zoom, properties) {
-  if (!Array.isArray(expression)) return expression;
-  const [operator, ...args] = expression;
-  if (operator === 'zoom') return zoom;
-  if (operator === 'get') return properties[args[0]];
-  if (operator === 'case') return evaluateRadius(args[evaluateRadius(args[0], zoom, properties) ? 1 : 2], zoom, properties);
-  if (operator === '*') return args.reduce((product, value) => product * evaluateRadius(value, zoom, properties), 1);
-  if (operator === '^') return evaluateRadius(args[0], zoom, properties) ** evaluateRadius(args[1], zoom, properties);
-  if (operator === 'interpolate') {
-    const input = evaluateRadius(args[1], zoom, properties);
-    const stops = args.slice(2);
-    for (let index = 0; index < stops.length - 2; index += 2) {
-      const leftInput = stops[index]; const leftOutput = evaluateRadius(stops[index + 1], zoom, properties);
-      const rightInput = stops[index + 2]; const rightOutput = evaluateRadius(stops[index + 3], zoom, properties);
-      if (input <= rightInput) {
-        const base = args[0][1];
-        const ratio = base === 1 ? (input - leftInput) / (rightInput - leftInput)
-          : (base ** (input - leftInput) - 1) / (base ** (rightInput - leftInput) - 1);
-        return leftOutput + (rightOutput - leftOutput) * ratio;
-      }
-    }
-    return evaluateRadius(stops.at(-1), zoom, properties);
-  }
-  throw new Error(`Unsupported radius expression operator: ${operator}`);
-}
-
 test('presents station names and ordered route names in transit legs', () => {
   assert.deepEqual(transitLegPresentation({
     originStationId: 'station-uuid-1',
@@ -100,33 +74,6 @@ test('registers a native toolbar panel and map-backed cross-demand layers', () =
   assert.equal(typeof controller.detachMap, 'function');
   assert.equal('colorMode' in controller.snapshot(), false);
   assert.equal(typeof controller.setColorMode, 'undefined');
-});
-
-test('keeps demand bubbles at a constant geographic size through high zoom', () => {
-  const layers = [];
-  const api = {
-    map: { registerSource() {}, registerLayer() {} },
-    hooks: {}, ui: { addToolbarPanel() {} },
-    utils: { React: { createElement: () => null, useState: () => {}, useEffect: () => {} } },
-  };
-  const controller = registerCrossDemandViewer({
-    api,
-    runtime: { getActiveTileId: () => 'KCW', view: () => ({ activeTileId: 'KCW', gatewayLedger: {} }) },
-    tilePackages: { loadCrossDemand: async () => null },
-  });
-  controller.attachMap(overlayMap([], layers));
-
-  const radiusExpression = layers.find((layer) => layer.id === 'kc-cross-demand-points').paint['circle-radius'];
-  const strokeExpression = layers.find((layer) => layer.id === 'kc-cross-demand-points').paint['circle-stroke-width'];
-  const baseRadiusMetres = 40;
-  const latitude = 39.1;
-  for (const zoom of [3, 10, 13, 18, 22, 24]) {
-    const nativePixelsPerMetre = 512 * 2 ** zoom / (40_030_000 * Math.cos(latitude * Math.PI / 180));
-    const nativePixels = baseRadiusMetres * nativePixelsPerMetre;
-    assert.ok(Math.abs(evaluateRadius(radiusExpression, zoom, { baseRadius: baseRadiusMetres }) - nativePixels) < 0.01);
-    const nativeStrokePixels = 4 * nativePixelsPerMetre;
-    assert.ok(Math.abs(evaluateRadius(strokeExpression, zoom, { selected: false }) - nativeStrokePixels) < 0.01);
-  }
 });
 
 test('point selection replaces the global demand field with the selected point and its endpoints', async () => {

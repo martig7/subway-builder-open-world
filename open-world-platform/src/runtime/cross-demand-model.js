@@ -149,6 +149,7 @@ export class CrossDemandModel {
         properties: {
           id: point.id,
           population: mode === 'all' ? point[massField] : point[modeField][mode],
+          latitudeScale: 1 / Math.cos(Math.max(-89.9, Math.min(89.9, point.location[1])) * Math.PI / 180),
           baseRadius: selectedId === point.id ? 80 : demandPointRadius(mode === 'all' ? point[massField] : point[modeField][mode], viewMode),
           color: modeShareColor(mode === 'all' ? point[modeField] : { [mode]: point[modeField][mode] }),
           selected: selectedId === point.id,

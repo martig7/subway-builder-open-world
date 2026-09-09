@@ -1,5 +1,48 @@
 # Native-style cross-city demand panel
 
+## Native demand sizing and construction tools
+
+The population field now uses the native layer's live radius scale and the
+game's demand-bubble setting. A bounded sample of unselected native features
+calibrates the population-to-radius multiplier against the current tile. Native
+selection views are excluded from calibration because their destination dots
+use a different curve. Residents, workers, logarithmic scaling and the selected
+location's fixed radius follow their corresponding native sizing rules.
+
+MapLibre radii convert metres using deck's current projection: each location's
+latitude at lower zooms, and the viewport latitude in its high-zoom projection.
+The outline is centered on the native radius, including when a tiny dot's
+outline covers its whole fill. Native scale and camera updates repaint the
+field without rebuilding its GeoJSON. This replaces the former fixed Kansas
+City latitude and independent scaling.
+
+Cross-demand map clicks and hover cursors read the committed native UI context's
+`userActionObj.ignoreClick`, the same flag used by native demand. The public mod
+API does not expose this flag; the adapter recognizes the mounted provider by
+its fields, without importing a hashed game module or retaining an old React
+provider across tile switches. Disposal removes the render listener along with
+the click and hover handlers.
+
+Validation for `native-demand-dot-parity-v1`: 738 platform/regression tests and
+6 Japan consumer tests passed. The new failing checks first reproduced the
+scale, projection/outline and construction-click discrepancies. Live checks
+then evaluated the installed MapLibre expressions against actual native
+features at zooms 10, 13 and 18, with native bubble scales 1 and 5. Diameters
+matched to floating-point precision in Osaka and Kyoto. Both native and cross
+clicks were suppressed with the parallel-track tool selected; cross selection
+worked again with the tool cleared.
+
+The active consumer was `prototype/japan/mod`, manifest `local.japan-open-world`.
+The release installation uses `%APPDATA%/metro-maker4/mods/local.japan-open-world`,
+so its verified `index.js` was updated directly after the consumer build, with
+the prior bundle backed up locally. Built and installed timestamps and SHA-256
+matched; the reloaded panel reported the new marker. PMTiles returned HTTP 200
+with `native-pmtiles-directory-v4`. The Osaka–Kyoto–Osaka round trip preserved
+the native session, clock, pause state and network counts; camera and bubble
+scale were restored.
+
+## Panel behavior
+
 The cross-city demand panel follows the native demand workflow: Residents or
 Workers, a selected demand location, then a selected commuter group. It uses
 the game's font and theme classes, native mode colors and icons, counts alongside
