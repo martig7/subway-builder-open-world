@@ -3,6 +3,8 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^https://')][string]$ReleaseAssetBaseUrl,
     [Parameter(Mandatory = $true)][Alias('ModRoot')][string]$NecModRoot,
     [Parameter(Mandatory = $true)][Alias('TileRoot')][string]$NecTileRoot,
+    [string]$JapanModRoot,
+    [string]$JapanTileRoot,
     [string]$TokyoModRoot,
     [string]$TokyoTileRoot,
     [Parameter(Mandatory = $true)][string]$Output,
@@ -29,6 +31,11 @@ $resolvedTokyoModRoot = if ($TokyoModRoot) { [System.IO.Path]::GetFullPath($Toky
 $resolvedTokyoTileRoot = if ($TokyoTileRoot) { [System.IO.Path]::GetFullPath($TokyoTileRoot) } else { $null }
 if ($resolvedTokyoModRoot -and -not (Test-Path -LiteralPath $resolvedTokyoModRoot -PathType Container)) { throw "Tokyo mod source directory is missing: $resolvedTokyoModRoot" }
 if ($resolvedTokyoTileRoot -and -not (Test-Path -LiteralPath $resolvedTokyoTileRoot -PathType Container)) { throw "Tokyo tile package directory is missing: $resolvedTokyoTileRoot" }
+if ([string]::IsNullOrWhiteSpace($JapanModRoot) -ne [string]::IsNullOrWhiteSpace($JapanTileRoot)) { throw 'JapanModRoot and JapanTileRoot must be supplied together.' }
+$resolvedJapanModRoot = if ($JapanModRoot) { [System.IO.Path]::GetFullPath($JapanModRoot) } else { $null }
+$resolvedJapanTileRoot = if ($JapanTileRoot) { [System.IO.Path]::GetFullPath($JapanTileRoot) } else { $null }
+if ($resolvedJapanModRoot -and -not (Test-Path -LiteralPath $resolvedJapanModRoot -PathType Container)) { throw "Japan mod source directory is missing: $resolvedJapanModRoot" }
+if ($resolvedJapanTileRoot -and -not (Test-Path -LiteralPath $resolvedJapanTileRoot -PathType Container)) { throw "Japan tile package directory is missing: $resolvedJapanTileRoot" }
 New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
 
 $inferredArtifactsRoot = Split-Path -Parent (Split-Path -Parent $resolvedTileRoot)
@@ -79,6 +86,31 @@ if ($resolvedTokyoModRoot) {
     $resolvedTokyoModDist = Join-Path $resolvedTokyoModRoot 'dist'
 }
 
+if ($resolvedJapanModRoot) {
+    $japanArtifactsRoot = Split-Path -Parent (Split-Path -Parent $resolvedJapanTileRoot)
+    $expectedJapanTileRoot = [System.IO.Path]::GetFullPath((Join-Path $japanArtifactsRoot 'mod\tiles'))
+    $normalizedJapanTileRoot = $resolvedJapanTileRoot.TrimEnd([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar))
+    if (-not [string]::Equals($expectedJapanTileRoot, $normalizedJapanTileRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'JapanTileRoot must be the generated mod\tiles directory.'
+    }
+    $priorJapanArtifactsRoot = $env:JAPAN_ARTIFACTS_ROOT
+    $priorJapanPackagedTileRoot = $env:JAPAN_PACKAGED_TILE_ROOT
+    Push-Location $resolvedJapanModRoot
+    try {
+        $env:JAPAN_ARTIFACTS_ROOT = $japanArtifactsRoot
+        $env:JAPAN_PACKAGED_TILE_ROOT = $resolvedJapanTileRoot
+        npm run build:release
+        if ($LASTEXITCODE -ne 0) { throw 'Japan–Kanagawa release mod build failed.' }
+    } finally {
+        if ($null -eq $priorJapanArtifactsRoot) { Remove-Item Env:JAPAN_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
+        else { $env:JAPAN_ARTIFACTS_ROOT = $priorJapanArtifactsRoot }
+        if ($null -eq $priorJapanPackagedTileRoot) { Remove-Item Env:JAPAN_PACKAGED_TILE_ROOT -ErrorAction SilentlyContinue }
+        else { $env:JAPAN_PACKAGED_TILE_ROOT = $priorJapanPackagedTileRoot }
+        Pop-Location
+    }
+    $resolvedJapanModDist = Join-Path $resolvedJapanModRoot 'dist'
+}
+
 $certificate = & (Join-Path $PSScriptRoot 'Get-OrCreateSelfSignedCertificate.ps1')
 if (-not $certificate.HasPrivateKey) { throw 'The self-signed release certificate has no private key.' }
 
@@ -105,6 +137,7 @@ dotnet run --project $packager -c Release -- `
     --output $resolvedOutput `
     --base-url $ReleaseAssetBaseUrl `
     --version $Version `
+    --expected-tiles 36 `
     --map-parts 4 `
     --manifest-name release-manifest-nec.json
 if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed.' }
@@ -129,8 +162,29 @@ if ($resolvedTokyoModRoot) {
     if ($LASTEXITCODE -ne 0) { throw 'Tokyo–Kanagawa release packaging failed.' }
 }
 
+if ($resolvedJapanModRoot) {
+    dotnet run --project $packager -c Release -- `
+        --mod-dist $resolvedJapanModDist `
+        --tile-root $resolvedJapanTileRoot `
+        --server-exe $serverExecutable `
+        --output $resolvedOutput `
+        --base-url $ReleaseAssetBaseUrl `
+        --version $Version `
+        --product-id 'Japan Open World' `
+        --product-name 'Japan–Kanagawa Open World' `
+        --manifest-id local.japan-open-world `
+        --asset-prefix japan `
+        --tile-prefix JP `
+        --expected-tiles 47 `
+        --map-parts 12 `
+        --port 8799 `
+        --manifest-name release-manifest-japan.json
+    if ($LASTEXITCODE -ne 0) { throw 'Japan–Kanagawa release packaging failed.' }
+}
+
 $worldManifests = @((Get-Content -Raw -LiteralPath (Join-Path $resolvedOutput 'release-manifest-nec.json') | ConvertFrom-Json))
 if ($resolvedTokyoModRoot) { $worldManifests += (Get-Content -Raw -LiteralPath (Join-Path $resolvedOutput 'release-manifest-tokyo-kanagawa.json') | ConvertFrom-Json) }
+if ($resolvedJapanModRoot) { $worldManifests += (Get-Content -Raw -LiteralPath (Join-Path $resolvedOutput 'release-manifest-japan.json') | ConvertFrom-Json) }
 $catalogPath = Join-Path $resolvedOutput 'release-catalog.json'
 $releaseCatalog = [ordered]@{ schemaVersion = 1; version = $Version; worlds = $worldManifests }
 [System.IO.File]::WriteAllText($catalogPath, ($releaseCatalog | ConvertTo-Json -Depth 20) + [Environment]::NewLine)
@@ -149,6 +203,14 @@ try {
 } finally {
     $rsa.Dispose()
 }
+
+# The macOS app embeds the same exact signed catalog as Windows setup.
+$envelope = [ordered]@{
+    certificate = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($certificatePath))
+    signature = [System.IO.File]::ReadAllText($signaturePath).Trim()
+    catalog = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($catalogPath))
+}
+[System.IO.File]::WriteAllText((Join-Path $resolvedOutput 'release-envelope.json'), ($envelope | ConvertTo-Json -Compress) + [Environment]::NewLine)
 
 $setupProject = Join-Path $nativeRoot 'src\OpenWorld.Installer\OpenWorld.Installer.csproj'
 dotnet publish $setupProject -c Release -r win-x64 --self-contained true `

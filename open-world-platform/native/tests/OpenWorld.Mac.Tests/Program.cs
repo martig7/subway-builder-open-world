@@ -82,15 +82,19 @@ try
     {
         if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") throw new Exception("Full release smoke is Actions-only");
         var real = new MacInstallation(catalog, Path.Combine(root, "real-manager"), Path.Combine(root, "real-game"), args[0], false);
-        var id = catalog.Worlds[0].Product.ManifestId;
-        await real.InstallAsync([id], null, new Reporter(p => { if (p.Stage == InstallStage.Installing) Console.WriteLine(p.CurrentItem); }), CancellationToken.None);
-        await real.VerifyAsync(id, CancellationToken.None);
-        try {
-            await real.StartAsync();
-            Assert((await real.StatusAsync()).StartsWith("Running"), "Real NEC tile server is not healthy");
-        } finally { await real.StopAsync(); }
-        await real.UninstallAsync(id);
-        Console.WriteLine("PASS real GitHub NEC download, hashes, full install, verification, server health and uninstall");
+        var assetRoot = Environment.GetEnvironmentVariable("OPEN_WORLD_RELEASE_ASSET_ROOT");
+        foreach (var world in catalog.Worlds)
+        {
+            var id = world.Product.ManifestId;
+            await real.InstallAsync([id], assetRoot, new Reporter(p => { if (p.Stage == InstallStage.Installing) Console.WriteLine(p.CurrentItem); }), CancellationToken.None);
+            await real.VerifyAsync(id, CancellationToken.None);
+            try {
+                await real.StartAsync();
+                Assert((await real.StatusAsync()).StartsWith("Running"), $"{id} tile server is not healthy");
+            } finally { await real.StopAsync(); }
+            await real.UninstallAsync(id);
+            Console.WriteLine($"PASS real {id} download, hashes, full install, verification, server health and uninstall");
+        }
     }
     ReleaseManifest Fixture(string tile, string id)
     {

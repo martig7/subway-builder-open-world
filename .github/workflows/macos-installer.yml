@@ -1,6 +1,11 @@
 name: macOS installer and manager
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Draft or published release containing the matching signed envelope and assets'
+        required: false
+        type: string
   push:
     branches: [codex/macos-installer]
     paths: ['open-world-platform/native/**', '.github/workflows/macos-installer.yml', 'VERSION']
@@ -25,6 +30,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Download candidate release assets
+        if: inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/release-assets"
+          cp "$RUNNER_TEMP/release-assets/release-envelope.json" open-world-platform/native/src/OpenWorld.MacBackend/release-envelope.json
       - name: Build native manager and DMG
         run: bash open-world-platform/native/macos/build-manager.sh '${{ matrix.rid }}' "$RUNNER_TEMP/manager-build"
       - name: Mount DMG and install app copy
@@ -37,8 +51,10 @@ jobs:
           cp "$RUNNER_TEMP/manager-build/"*.dmg artifacts/
       - name: Installer safety and server lifecycle tests
         run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server"
-      - name: Real NEC GitHub install smoke
-        if: matrix.rid == 'osx-arm64'
+      - name: Real NEC and Japan release install smoke
+        if: inputs.release_tag != ''
+        env:
+          OPEN_WORLD_RELEASE_ASSET_ROOT: ${{ runner.temp }}/release-assets
         run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server" --full-release
       - name: Live UI backend integration
         env:

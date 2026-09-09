@@ -66,11 +66,14 @@ static async Task<int> FullReleaseSmoke(string releaseRootArgument, string scrat
     try
     {
         var catalog = ReleaseCatalog.Parse(await File.ReadAllTextAsync(Path.Combine(releaseRoot, "release-catalog.json")));
-        if (catalog.Worlds.Count != 1) throw new InvalidDataException("Release smoke test requires exactly one World.");
-        var manifest = catalog.Worlds[0];
+        using var certificate = new X509Certificate2(await File.ReadAllBytesAsync(Path.Combine(releaseRoot, "publisher.cer")));
+        ReleaseSignature.Verify(await File.ReadAllBytesAsync(Path.Combine(releaseRoot, "release-catalog.json")),
+            Convert.FromBase64String((await File.ReadAllTextAsync(Path.Combine(releaseRoot, "release-catalog.json.sig"))).Trim()), certificate, certificate.Thumbprint);
+        foreach (var manifest in catalog.Worlds)
+        {
         var locations = new InstallLocations(
-            Path.Combine(scratchRoot, "program"),
-            Path.Combine(scratchRoot, "program", "server"),
+            Path.Combine(scratchRoot, "program", manifest.Product.ManifestId),
+            Path.Combine(scratchRoot, "program", manifest.Product.ManifestId, "server"),
             Path.Combine(scratchRoot, "game", "mods", manifest.Product.ManifestId),
             Path.Combine(scratchRoot, "game", "cities", "data"),
             Path.Combine(scratchRoot, "cache"),
@@ -106,6 +109,7 @@ static async Task<int> FullReleaseSmoke(string releaseRootArgument, string scrat
         if (!File.Exists(Path.Combine(locations.ModRoot, "index.js"))) throw new InvalidDataException("Smoke install is missing the mod bundle.");
         if (!File.Exists(locations.ServerExecutablePath)) throw new InvalidDataException("Smoke install is missing the tile-server executable.");
         Console.WriteLine($"PASS full release cancellation/resume smoke: {manifest.TileIds.Count} tiles, {manifest.Assets.Count} assets, version {manifest.Product.Version}");
+        }
         return 0;
     }
     finally

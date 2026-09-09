@@ -52,14 +52,13 @@ verifies the requested semantic version, and declares
 build used by its development mod.
 
 ```powershell
-./scripts/Publish-OpenWorldWindowsRelease.ps1 `
-  -Version 0.1.0 `
-  -ReleaseAssetBaseUrl https://github.com/OWNER/REPO/releases/download/v0.1.0 `
+./scripts/Publish-NecWindowsRelease.ps1 `
+  -ReleaseAssetBaseUrl https://github.com/OWNER/REPO/releases/download/v0.6.0 `
   -NecModRoot ../../../prototype/nec-corridor/mod `
   -NecTileRoot ../../../prototype/nec-corridor/generated/mod/tiles `
-  -TokyoModRoot ../../../prototype/tokyo-kanagawa/mod `
-  -TokyoTileRoot ../../../prototype/tokyo-kanagawa/generated/mod/tiles `
-  -Output ../../../prototype/nec-corridor/generated/release/v0.1.0
+  -JapanModRoot ../../../prototype/japan/mod `
+  -JapanTileRoot ../../../prototype/japan/generated/mod/tiles `
+  -Output ../../../prototype/nec-corridor/generated/release/v0.6.0
 ```
 
 The first run creates a five-year RSA code-signing certificate in the current
@@ -84,3 +83,34 @@ To build standalone server packages using the repository's central version:
 The Windows binary is signed with the same self-signed publisher certificate as
 setup. The placeholder macOS binaries are unsigned and must be signed and
 notarized on macOS before they can provide a normal Gatekeeper experience.
+
+### v0.6.0 verification before publication
+
+Japan keeps manifest ID `local.japan-open-world`, including existing saves and
+installed-world registration. Setup offers NEC and Japan independently. Both
+use the shared service on port 8799. Stored native route indexes/binaries ship
+with every tile; the world-wide cross-route archive ships with the initial tile.
+
+The packager splits NEC into four ZIPs and Japan into twelve ZIPs and rejects a
+part over 1.9 GB before compression. Every ZIP has a bounded tile allowlist and
+recorded byte size/SHA-256. Packaging never regenerates geography or demand.
+
+`release-envelope.json` contains only the signed catalog and public certificate,
+using the same bytes embedded by Windows setup. Copy it into
+`src/OpenWorld.MacBackend/release-envelope.json` before committing the candidate.
+The macOS workflow can download it directly from a draft release by supplying
+`release_tag: v0.6.0`; its GitHub token allows draft asset access. The workflow
+builds/mounts the DMG and runs a full install, file verification, service health,
+and uninstall for **every** catalog world on both Apple Silicon and Intel.
+The local asset folder still requires catalog sizes and hashes; it bypasses no
+verification. UI screenshots and diagnostics are retained as workflow artifacts.
+
+Windows real-asset verification uses an isolated fresh scratch directory:
+
+```powershell
+dotnet run --project tests/OpenWorld.Native.Tests -c Release -- `
+  --release-smoke D:/OpenWorldReleases/v0.6.0 D:/OpenWorldReleases/smoke-v060
+```
+
+Keep the GitHub release draft until these checks pass. Neither workflow publishes
+it automatically. macOS artifacts are ad-hoc signed, not notarized.
