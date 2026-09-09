@@ -120,6 +120,48 @@ test('world grid rejects startup clicks without queuing navigation and unlocks a
   });
 });
 
+for (const paused of [true, false]) test(`grid tile switch excludes cached operating time from the native handoff (paused=${paused})`, async t => {
+  let grid; let captured; let navigated = false;
+  const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
+  t.mock.method(GeographicContextOverlayController.prototype, 'readRuntimeActiveTileId', function () {
+    grid = this; return readActive.call(this);
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  t.mock.method(WorldTileRuntime.prototype, 'stageNavigationTransition', async function (tileId) {
+    // Use the production lean snapshot path used by route navigation, without
+    // loading map packages or changing the native game in this unit test.
+    captured = await this.game.captureSnapshot({ cityCode: 'JP_TOKYO_MAINLAND', data: {
+      routes: [], stations: [], tracks: [], trains: [],
+    } });
+    return { worldId: 'world-A', tileId };
+  });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'navigateTo', () => { navigated = true; });
+  await harness(async ({ controller, state, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    state.timeConfig = { paused: true, timeSpeed: 'ultrafast', elapsedSeconds: 25000 };
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    state.trains = [{ id: 'train-A', operationalTime: { totalSeconds: 100, lastChargedAt: 24990 },
+      timings: [{ arrivalTime: 25000 }] }];
+    await controller.cachedSimulation.setEnabled(true);
+    assert.equal(controller.cachedSimulation.snapshot().status, 'ready', JSON.stringify(controller.cachedSimulation.snapshot()));
+    state.setTimeConfig({ paused: false });
+    for (let i = 0; i < 20; i++) await state.handleIncrementGameState();
+    state.setTimeConfig({ paused });
+    const elapsed = state.timeConfig.elapsedSeconds;
+    assert.ok(elapsed > 25000);
+    await grid.onTileSelect('JP_KANAGAWA_MAINLAND');
+    assert.equal(navigated, true);
+    // Native operating charges multiply this gap by the train's hourly cost.
+    // Only the ten unpaid native seconds from before cached mode remain due.
+    assert.equal(captured.data.elapsedSeconds - captured.data.trains[0].operationalTime.lastChargedAt, 10);
+    assert.equal(captured.data.trains[0].timings[0].arrivalTime, elapsed);
+    assert.equal(controller.cachedSimulation.snapshot().enabled, false);
+    assert.equal(state.timeConfig.paused, paused);
+  });
+});
+
 test('game end during startup identity lookup prevents boot and UI resurrection', async t => {
   const gate = deferred(); const entered = deferred(); let bootCalls = 0;
   const originalResolve = WorldIdentityResolver.prototype.resolve;

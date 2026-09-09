@@ -693,6 +693,10 @@ export function startOpenWorld({
     gridTileSwitchingId = tileId;
     try {
       api.ui?.showNotification?.(`Switching to ${tile.name}…`, 'info', 'Open World');
+      // The lean navigation snapshot copies live trains without generateSave's
+      // cached-time rebase. Finish settlement/rebasing before capturing it;
+      // onGameEnd runs after capture and cannot repair the retained handoff.
+      await cachedSimulation.setEnabled(false);
       const transition = await runtime.stageNavigationTransition(tileId);
       const retirement = game.prepareTileRenderingRetirement(tileId, {
         onReport: report => { diagnostics.tileRenderingRetirement = report; },
