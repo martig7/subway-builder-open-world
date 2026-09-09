@@ -9,7 +9,7 @@ The release remains **draft**, including after these checks, pending an explicit
 | Northeast Corridor | `northeast-corridor-open-world` | 36 | 4 | 3.96 GiB |
 | Japan | `local.japan-open-world` | 47 | 12 | 7.40 GiB |
 
-Japan keeps its existing installation/save identity. Both worlds include stored native driving-route archives for every tile and their cross-world archive in the initial tile. No geography was regenerated for release packaging. ZIPs are checked against the 1.9 GB packaging budget and have scoped tile allowlists. All 20 catalog assets matched GitHub's uploaded byte size and SHA-256 digest.
+Japan keeps its existing installation/save identity. Both worlds include stored native driving-route archives for every tile and their world-wide cross-tile archive in the initial tile. No geography was regenerated for release packaging. ZIPs are checked against the 1.9 GB packaging budget and have scoped tile allowlists. All 20 catalog assets matched GitHub's uploaded byte size and SHA-256 digest.
 
 ## Verification
 
@@ -31,3 +31,7 @@ The draft uses authenticated downloads followed by the installer's verified loca
 | macOS Intel DMG | `15297f6ea3ded401929a12e735bdd3b78d4ac47fc7498d9a04f9a6f85e30a697` |
 
 The DMGs come from the successful full-payload workflow. Adding them and refreshing release notes/checksums does not change any signed catalog, map ZIP, or Windows setup hash.
+
+Final draft: https://github.com/martig7/subway-builder-open-world/releases/tag/untagged-2aec8c720f7eb8b19cea
+
+All 33 release assets are uploaded, including both verified Mac DMGs. Every entry in the final checksum file matches GitHub's asset digest; all 20 signed catalog assets also match their declared size. The release was rechecked as draft after the final notes and asset updates.
