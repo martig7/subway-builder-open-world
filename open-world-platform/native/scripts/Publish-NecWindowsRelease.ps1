@@ -100,7 +100,7 @@ if ($resolvedJapanModRoot) {
         $env:JAPAN_ARTIFACTS_ROOT = $japanArtifactsRoot
         $env:JAPAN_PACKAGED_TILE_ROOT = $resolvedJapanTileRoot
         npm run build:release
-        if ($LASTEXITCODE -ne 0) { throw 'Japan–Kanagawa release mod build failed.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Japan release mod build failed.' }
     } finally {
         if ($null -eq $priorJapanArtifactsRoot) { Remove-Item Env:JAPAN_ARTIFACTS_ROOT -ErrorAction SilentlyContinue }
         else { $env:JAPAN_ARTIFACTS_ROOT = $priorJapanArtifactsRoot }
@@ -171,7 +171,7 @@ if ($resolvedJapanModRoot) {
         --base-url $ReleaseAssetBaseUrl `
         --version $Version `
         --product-id 'Japan Open World' `
-        --product-name 'Japan–Kanagawa Open World' `
+        --product-name 'Japan Open World' `
         --manifest-id local.japan-open-world `
         --asset-prefix japan `
         --tile-prefix JP `
@@ -179,7 +179,7 @@ if ($resolvedJapanModRoot) {
         --map-parts 12 `
         --port 8799 `
         --manifest-name release-manifest-japan.json
-    if ($LASTEXITCODE -ne 0) { throw 'Japan–Kanagawa release packaging failed.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Japan release packaging failed.' }
 }
 
 $worldManifests = @((Get-Content -Raw -LiteralPath (Join-Path $resolvedOutput 'release-manifest-nec.json') | ConvertFrom-Json))
