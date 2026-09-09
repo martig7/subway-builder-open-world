@@ -72,11 +72,12 @@ test('a service with another version or data root is neither stopped nor replace
   }
 });
 
-test('a healthy shared server is reused without spawning a competing process', async t => {
+for (const prefix of ['', '\uFEFF']) {
+test(`a healthy shared server is reused with ${prefix ? 'UTF-8 BOM' : 'plain UTF-8'} registration`, async t => {
   const registryRoot = await mkdtemp(path.join(os.tmpdir(), 'open-world-server-registry-'));
   t.after(() => rm(registryRoot, { recursive: true, force: true }));
   const world = registration('local.test-world', ['TEST_TILE']);
-  await writeFile(path.join(registryRoot, `${world.manifestId}.json`), JSON.stringify(world));
+  await writeFile(path.join(registryRoot, `${world.manifestId}.json`), prefix + JSON.stringify(world));
   const result = await startSharedServer({ registryRoot, registration: world, port: 8799 }, { runtime: { healthTile: 'TEST_TILE/0/0/0.mvt' } }, {
     spawnImpl() { assert.fail('a healthy server must not be restarted'); },
     async fetchImpl(url) {
@@ -87,6 +88,7 @@ test('a healthy shared server is reused without spawning a competing process', a
   });
   assert.equal(result.status, 'shared-native-running');
 });
+}
 
 test('shared registry preserves NEC and adds Japan to the same server union', () => {
   const nec = registration('northeast-corridor-open-world', ['NEC_CP00_RP00']);

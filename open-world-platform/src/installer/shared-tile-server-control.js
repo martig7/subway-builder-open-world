@@ -28,7 +28,8 @@ async function readRegistrations(root) {
   const files = await readdir(root);
   const registrations = [];
   for (const file of files.filter(name => name.endsWith('.json')).sort()) {
-    const entry = JSON.parse(await readFile(path.join(root, file), 'utf8'));
+    // Windows PowerShell writes UTF-8 registrations with a leading BOM.
+    const entry = JSON.parse((await readFile(path.join(root, file), 'utf8')).replace(/^\uFEFF/, ''));
     if (file !== `${entry.manifestId}.json`) throw new Error(`Invalid World registration filename: ${file}`);
     registrations.push(entry);
   }
