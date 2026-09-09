@@ -6,6 +6,11 @@ on:
         description: 'Draft or published release containing the matching signed envelope and assets'
         required: false
         type: string
+      full_payload:
+        description: 'Download and install full world ZIPs (false tests draft access and signed catalog only)'
+        required: false
+        type: boolean
+        default: true
   push:
     branches: [codex/macos-installer]
     paths: ['open-world-platform/native/**', '.github/workflows/macos-installer.yml', 'VERSION']
@@ -37,9 +42,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          FULL_PAYLOAD: ${{ inputs.full_payload }}
         run: |
           mkdir -p "$RUNNER_TEMP/release-assets"
-          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/release-assets"
+          if [ "$FULL_PAYLOAD" = true ]; then
+            gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/release-assets"
+          else
+            gh release download "$RELEASE_TAG" --pattern release-envelope.json --dir "$RUNNER_TEMP/release-assets"
+          fi
           cp "$RUNNER_TEMP/release-assets/release-envelope.json" open-world-platform/native/src/OpenWorld.MacBackend/release-envelope.json
       - name: Build native manager and DMG
         run: bash open-world-platform/native/macos/build-manager.sh '${{ matrix.rid }}' "$RUNNER_TEMP/manager-build"
@@ -54,7 +64,7 @@ jobs:
       - name: Installer safety and server lifecycle tests
         run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server"
       - name: Real NEC and Japan release install smoke
-        if: inputs.release_tag != ''
+        if: inputs.release_tag != '' && inputs.full_payload
         env:
           OPEN_WORLD_RELEASE_ASSET_ROOT: ${{ runner.temp }}/release-assets
         run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server" --full-release
