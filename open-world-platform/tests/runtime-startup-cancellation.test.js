@@ -56,7 +56,7 @@ async function harness(run) {
     return controller;
   };
   try {
-    await run({ controller: restart(), restart, state, hooks, idle, errors, ui, unsubscribed });
+    await run({ controller: restart(), restart, api, state, hooks, idle, errors, ui, unsubscribed });
   } finally {
     for (const controller of controllers) controller.dispose();
     Object.assign(console, savedConsole);
@@ -66,6 +66,64 @@ async function harness(run) {
     for (const [key, value] of savedGlobals) globalThis[key] = value;
   }
 }
+
+for (const scenario of ['available', 'delayed', 'ended']) test(`transition completion handles missed map-ready (${scenario})`, async t => {
+  const delayed = scenario !== 'available';
+  let grid; let activeTile = 'JP_TOKYO_MAINLAND'; let pending = null;
+  const attachments = [];
+  t.mock.method(GeographicContextOverlayController.prototype, 'attachMap', function (map) {
+    grid = this; this.map = map; attachments.push(map);
+  });
+  t.mock.method(GeographicContextOverlayController.prototype, 'refresh', () => {});
+  t.mock.method(WorldTileRuntime.prototype, 'getActiveTileId', () => activeTile);
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  t.mock.method(WorldTileRuntime.prototype, 'completeStagedTransition', async tile => { activeTile = tile; });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'pending', () => pending);
+  t.mock.method(HashCityNavigationAdapter.prototype, 'complete', () => { pending = null; });
+  const map = () => {
+    const listeners = new Map();
+    return { listeners,
+      on(event, callback) { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event).add(callback); },
+      off(event, callback) { listeners.get(event)?.delete(callback); },
+      getSource: () => null, getLayer: () => null, isStyleLoaded: () => true };
+  };
+  await harness(async ({ controller, api, state, hooks, idle, errors }) => {
+    const oldMap = map(); const newMap = map();
+    api.utils.getMap = () => oldMap;
+    hooks.get('onMapReady')(oldMap);
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(grid.map, oldMap);
+    oldMap._removed = true;
+    let publishedMap = delayed ? oldMap : newMap;
+    api.utils.getMap = () => publishedMap;
+    pending = { worldId: state.gameSessionId, from: activeTile, tileId: 'JP_KANAGAWA_MAINLAND', transitionId: 'missed-map-ready' };
+    state.cityCode = pending.tileId;
+    const completion = controller.lifecycle.cityLoad(state.cityCode, { authoritative: true });
+    if (delayed) {
+      while (controller.diagnostics.mapAttachment?.status !== 'waiting-for-live-map') {
+        await new Promise(resolve => setImmediate(resolve));
+      }
+      assert.notEqual(pending, null, 'navigation stays pending while the host exposes its removed map');
+      if (scenario === 'ended') controller.dispose();
+      publishedMap = newMap;
+    }
+    await completion;
+    if (scenario === 'ended') {
+      assert.equal(attachments.includes(newMap), false, 'an ended session cannot attach to the replacement map');
+      return;
+    }
+    assert.equal(grid.map, newMap, 'completion must attach controllers to the replacement map without a map-ready event');
+    assert.equal(controller.diagnostics.mapAttachment.reason, 'tile-navigation-complete');
+    assert.equal(controller.diagnostics.mapAttachment.liveMapMatches, true);
+    assert.deepEqual(errors, []);
+    const styleListeners = newMap.listeners.get('style.load').size;
+    hooks.get('onMapReady')(newMap);
+    assert.equal(grid.map, newMap, 'a late readiness callback keeps the live map');
+    assert.equal(newMap.listeners.get('style.load').size, styleListeners, 'late readiness must not duplicate style listeners');
+    assert.ok(attachments.includes(newMap));
+  });
+});
 
 test('native save notifications do not materialize the full World view to read identity', async t => {
   let viewReads = 0;

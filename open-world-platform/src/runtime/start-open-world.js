@@ -1006,15 +1006,8 @@ export function startOpenWorld({
         });
         projectionOverlayController = runtime.fullNativeNetworkEnabled
           ? null : registerNetworkProjectionOverlay({ api, runtime });
-        if (!latestMap) latestMap = api.utils?.getMap?.() ?? null;
-        if (latestMap) {
-          syncCityScopedMapControllers({
-            map: latestMap,
-            cityCode: loadedCityCode,
-            cityCodes: registration.cities,
-            controllers: [crossDemandController, projectionOverlayController, geographicContextController],
-          });
-        }
+        await reconcileLiveMap('startup');
+        if (!ownsSession(startingSession)) return;
         diagnostics.startupMapRefresh = refreshCityScopedMapArtifacts({
           map: latestMap,
           controller: geographicContextController,
@@ -1355,12 +1348,16 @@ export function startOpenWorld({
       const modeShare = await recalculateCrossModeShare('tile-transition', api.gameState.getCurrentDay?.() ?? null, false, cityLoadSession);
       if (!ownsSession(cityLoadSession)) return;
       settlementReady = modeShare != null;
+      // A replacement native map can become available without another
+      // onMapReady notification. Reacquire and attach before refreshing it.
+      await reconcileLiveMap('tile-navigation-complete');
+      if (!ownsSession(cityLoadSession)) return;
       navigation.complete(pending);
-      if (latestMap && !latestMap._removed) repairLoadedMap(latestMap, 'tile-navigation-complete');
       diagnostics.transitionMapRefresh = refreshCityScopedMapArtifacts({
         map: latestMap,
         controller: geographicContextController,
       });
+      diagnostics.latestGridNavigation = { status: 'completed', tileId: loadedCityCode };
       ensurePanel();
       const finishedAt = Date.now();
       const measured = readPendingPerformance();
@@ -1449,11 +1446,31 @@ export function startOpenWorld({
     }
   }
 
-  ownedHooks.onGameInit(() => { void handleGameInitialized(); });
-  ownedHooks.onGameLoaded((saveName) => { void handleGameLoaded(saveName); });
-  ownedHooks.onGameSaved((saveName) => { void handleGameSaved(saveName); });
-  ownedHooks.onMapReady((map) => {
-    if (!isCurrent()) return;
+  async function reconcileLiveMap(reason) {
+    const owner = session;
+    const cityCode = currentCityCode();
+    // Native city loading can finish before React publishes its new map.
+    // Keep the navigation pending until that map exists, without attaching an
+    // ended session's controllers if another lifecycle takes over meanwhile.
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (!ownsSession(owner) || currentCityCode() !== cityCode) return;
+      const liveMap = api.utils?.getMap?.();
+      const map = liveMap ?? latestMap;
+      if (map && !map._removed) {
+        attachRuntimeMap(map, reason);
+        return;
+      }
+      if (!map && reason === 'startup') return;
+      diagnostics.mapAttachment = {
+        version: 'live-map-reattachment-v2', reason, cityCode, status: 'waiting-for-live-map',
+      };
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error('The native map was not available after the tile loaded');
+  }
+
+  function attachRuntimeMap(map, reason) {
+    if (!isCurrent() || !map || map._removed) return;
     rememberNavigationCamera(navigation.pending());
     if (latestMap && tileSourceStyleHandler) {
       try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
@@ -1466,6 +1483,13 @@ export function startOpenWorld({
       controllers: [crossDemandController, projectionOverlayController, geographicContextController],
     });
     latestMap = map;
+    diagnostics.mapAttachment = {
+      version: 'live-map-reattachment-v2',
+      reason,
+      cityCode: loadedCityCode,
+      status: ownsLoadedCity ? 'attached' : 'foreign-city',
+      liveMapMatches: api.utils?.getMap?.() === map,
+    };
     roadLabelSourceGuard.attach(map);
     if (!ownsLoadedCity) {
       detachAutosaveIdleGuard();
@@ -1479,9 +1503,14 @@ export function startOpenWorld({
       globalThis.requestAnimationFrame?.(refresh) ?? refresh();
     };
     map.on?.('style.load', tileSourceStyleHandler);
-    repairLoadedMap(map, 'map-ready');
+    repairLoadedMap(map, reason);
     void ensureLifecyclePanel();
-  });
+  }
+
+  ownedHooks.onGameInit(() => { void handleGameInitialized(); });
+  ownedHooks.onGameLoaded((saveName) => { void handleGameLoaded(saveName); });
+  ownedHooks.onGameSaved((saveName) => { void handleGameSaved(saveName); });
+  ownedHooks.onMapReady(map => attachRuntimeMap(map, 'map-ready'));
   ownedHooks.onCityLoad(handleCityLoad);
   registerCrossTileClockHooks(ownedHooks, {
     hourChanged: () => { if (isCurrent() && ownsCurrentCity()) void settleCrossTileCommutes('hourly'); },

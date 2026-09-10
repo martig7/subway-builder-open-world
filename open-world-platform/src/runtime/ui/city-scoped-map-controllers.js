@@ -4,16 +4,18 @@ export const CITY_SCOPED_MAP_CONTROLLERS_VERSION = 'city-scoped-map-controllers-
 
 export function refreshCityScopedMapArtifacts({ map, controller }) {
   if (!map || typeof controller?.refresh !== 'function') return { status: 'unavailable' };
+  if (map._removed) return { status: 'map-removed' };
   const refresh = () => {
-    try { controller.refresh(); } catch {}
+    if (map._removed) return { status: 'map-removed' };
+    try { controller.refresh(); return { status: 'refreshed' }; }
+    catch (error) { return { status: 'failed', error: error?.message ?? String(error) }; }
   };
   if (map.isStyleLoaded?.() === false) {
     if (typeof map.once !== 'function') return { status: 'style-not-ready' };
     map.once('idle', refresh);
     return { status: 'deferred-until-idle' };
   }
-  refresh();
-  return { status: 'refreshed' };
+  return refresh();
 }
 
 /**

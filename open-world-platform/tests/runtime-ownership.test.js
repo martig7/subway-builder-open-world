@@ -145,11 +145,12 @@ function createHost(activeCityCode, { publicCityCode = activeCityCode, currentMa
 
 test('a 1.7 runtime keeps the live store city when public and delayed lifecycle reports are stale', async () => {
   const cameraMoves = [];
+  let center = { lng: -75, lat: 40 };
   const map = {
     getZoom: () => 11,
-    getCenter: () => ({ lng: -75, lat: 40 }),
+    getCenter: () => center,
     getSource: () => null,
-    jumpTo: (camera) => cameraMoves.push(camera),
+    jumpTo: (camera) => { cameraMoves.push(camera); center = { lng: camera.center[0], lat: camera.center[1] }; },
     on() {},
     off() {},
   };
@@ -203,7 +204,7 @@ test('a 1.7 runtime keeps the live store city when public and delayed lifecycle 
 
     host.hooks.callbacks.get('onMapReady')[0](map);
     assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.cityCode, 'JP_TOKYO_MAINLAND');
-    assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.status, 'recentered');
+    assert.equal(globalThis.__tokyoKanagawaDiagnostics__.mapCameraRepair.status, 'current');
     assert.equal(cameraMoves.length, 1, 'camera repair must target the live tile instead of the stale public city');
     map.getZoom = () => 4;
     overviewNavigation = JSON.stringify({ worldId: 'runtime-ownership-session', from: 'JP_KANAGAWA_MAINLAND', tileId: 'JP_TOKYO_MAINLAND', transitionId: 'camera-overview-test' });
