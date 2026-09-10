@@ -113,6 +113,12 @@ const CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = Symbol.for('open-world.canoni
 const CANONICAL_NATIVE_INTERLINING_CACHE_BINDING = Symbol.for('open-world.canonical-native-interlining-cache-binding');
 const CANONICAL_NATIVE_INTERLINING_CACHE_ORIGINAL = Symbol.for('open-world.canonical-native-interlining-cache-original');
 const CURRENT_CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = 5;
+const RAIL_RENDER_REVISIONS = Symbol.for('open-world.rail-render-revisions');
+const RAIL_RENDER_REVISION_GUARD = Symbol.for('open-world.rail-render-revision-guard');
+const RAIL_RENDER_REVISION_GUARD_VERSION = Symbol.for('open-world.rail-render-revision-guard-version');
+const RAIL_RENDER_REVISION_GUARD_ORIGINAL = Symbol.for('open-world.rail-render-revision-guard-original');
+const CURRENT_RAIL_RENDER_REVISIONS_VERSION = 2;
+const CACHED_SIMULATION_OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_PASS_THROUGH_PLATFORM_PENALTY = 10.1;
 const NATIVE_TURNBACK_WRONG_WAY_PENALTY = 25;
 const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
@@ -547,6 +553,153 @@ function installCanonicalNativeInterliningCache(adapter, state) {
   adapter[CANONICAL_NATIVE_INTERLINING_CACHE_BINDING] = binding;
   state.recalculateAllRouteGeojsons = guarded;
   return { installed: true, reused: false };
+}
+
+function railRenderReferences(state, key) {
+  const payload = state?.[key] ?? null;
+  if (key === 'tracksGeojsonFeatures') {
+    return [
+      payload,
+      payload?.lines,
+      payload?.lines?.geojson,
+      payload?.lines?.geojson?.features,
+      payload?.base,
+      payload?.base?.geojson,
+      payload?.base?.geojson?.features,
+    ];
+  }
+  return [payload, payload?.geojson, payload?.geojson?.features, payload?.polygons];
+}
+
+function sameRailRenderReferences(previous, current) {
+  return previous?.length === current.length
+    && current.every((value, index) => value === previous[index]);
+}
+
+function hasRailRenderPayloads(state) {
+  const tracks = state?.tracksGeojsonFeatures;
+  const trains = state?.trainWindowsGeojson;
+  return Boolean(
+    tracks?.lines?.geojson && Array.isArray(tracks.lines.geojson.features)
+    && tracks?.base?.geojson && Array.isArray(tracks.base.geojson.features)
+    && Array.isArray(tracks.lines.polygons) && Array.isArray(tracks.base.polygons)
+    && trains?.geojson && Array.isArray(trains.geojson.features)
+    && Array.isArray(trains.polygons),
+  );
+}
+
+function railRenderSessionKey(state) {
+  const sessionId = state?.gameSessionId;
+  const cityCode = state?.cityCode;
+  return sessionId != null && cityCode != null ? `${sessionId}\u0000${cityCode}` : null;
+}
+
+function commitRailRenderAction(binding, callbacks, kind) {
+  const live = callbacks?.getState?.();
+  binding[kind] += 1;
+  binding[`${kind.slice(0, -1)}References`] = railRenderReferences(
+    live,
+    kind === 'tracks' ? 'tracksGeojsonFeatures' : 'trainWindowsGeojson',
+  );
+}
+
+function installRailRenderRevisionGuards(callbacks, state, binding) {
+  const actions = [['setTracks', 'tracks'], ['setTrainWindowsGeojson', 'trains']];
+  for (const [actionName, kind] of actions) {
+    const current = state?.[actionName];
+    if (typeof current !== 'function') continue;
+    if (current[RAIL_RENDER_REVISION_GUARD]
+      && current[RAIL_RENDER_REVISION_GUARD_VERSION] === CURRENT_RAIL_RENDER_REVISIONS_VERSION) {
+      current[RAIL_RENDER_REVISION_GUARD].callbacks = callbacks;
+      current[RAIL_RENDER_REVISION_GUARD].binding = binding;
+      continue;
+    }
+    const original = current[RAIL_RENDER_REVISION_GUARD_ORIGINAL] ?? current;
+    const guard = { callbacks, binding };
+    const wrapped = function railRenderRevisionGuard(...args) {
+      const result = original.apply(this, args);
+      if (result && typeof result.then === 'function') {
+        return Promise.resolve(result).then((value) => {
+          commitRailRenderAction(guard.binding, guard.callbacks, kind);
+          return value;
+        });
+      }
+      commitRailRenderAction(guard.binding, guard.callbacks, kind);
+      return result;
+    };
+    Object.defineProperties(wrapped, {
+      [RAIL_RENDER_REVISION_GUARD]: { value: guard },
+      [RAIL_RENDER_REVISION_GUARD_VERSION]: { value: CURRENT_RAIL_RENDER_REVISIONS_VERSION },
+      [RAIL_RENDER_REVISION_GUARD_ORIGINAL]: { value: original },
+    });
+    state[actionName] = wrapped;
+  }
+}
+
+function cachedSimulationSuppressesNativeTicks(state) {
+  const controller = state?.handleIncrementGameState?.[CACHED_SIMULATION_OWNER]?.controller;
+  if (!controller) return false;
+  if (typeof controller.isTickSuppressionActive === 'function') {
+    return controller.isTickSuppressionActive() === true;
+  }
+  try {
+    return controller.snapshot?.().enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+function readRailRenderRevisions(callbacks, state) {
+  if (!callbacks || (typeof callbacks !== 'object' && typeof callbacks !== 'function')) return null;
+  if (!hasRailRenderPayloads(state)) return null;
+  const trackReferences = railRenderReferences(state, 'tracksGeojsonFeatures');
+  const trainReferences = railRenderReferences(state, 'trainWindowsGeojson');
+  const sessionKey = railRenderSessionKey(state);
+  if (sessionKey == null) return null;
+  let binding = callbacks[RAIL_RENDER_REVISIONS];
+  if (!binding || binding.version !== CURRENT_RAIL_RENDER_REVISIONS_VERSION) {
+    binding = {
+      version: CURRENT_RAIL_RENDER_REVISIONS_VERSION,
+      tracks: Number.isSafeInteger(binding?.tracks) ? binding.tracks + 1 : 0,
+      trains: Number.isSafeInteger(binding?.trains) ? binding.trains + 1 : 0,
+      sessionKey,
+      trackReferences,
+      trainReferences,
+    };
+    callbacks[RAIL_RENDER_REVISIONS] = binding;
+  } else {
+    if (binding.sessionKey !== sessionKey) {
+      binding.tracks += 1;
+      binding.trains += 1;
+      binding.sessionKey = sessionKey;
+      binding.trackReferences = trackReferences;
+      binding.trainReferences = trainReferences;
+    } else if (!sameRailRenderReferences(binding.trackReferences, trackReferences)) {
+      binding.tracks += 1;
+      binding.trackReferences = trackReferences;
+    }
+    if (binding.sessionKey === sessionKey
+      && !sameRailRenderReferences(binding.trainReferences, trainReferences)) {
+      binding.trains += 1;
+      binding.trainReferences = trainReferences;
+    }
+  }
+  installRailRenderRevisionGuards(callbacks, state, binding);
+  const timeConfig = state?.timeConfig ?? {};
+  return {
+    tracks: binding.tracks,
+    // The native base-track style is encoded in the same complete render
+    // payload as its geometry. Deck layer props remain the authority for UI
+    // style changes that do not rebuild this payload.
+    trackStyles: binding.tracks,
+    trains: binding.trains,
+    trainStyles: binding.trains,
+    // Native Ultra still simulates trains. Only Open World's cached simulation
+    // owns/suppresses the native game tick; elapsedSeconds and native speed are
+    // therefore not train-render invalidation signals.
+    trainSimulationActive: timeConfig.paused !== true
+      && !cachedSimulationSuppressesNativeTicks(state),
+  };
 }
 
 function unwrapNativeFinanceMethod(method) {
@@ -1865,6 +2018,15 @@ export class SubwayBuilderGameAdapter {
       }
       const revision = binding?.cache?.revision;
       return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
+    } catch {
+      return null;
+    }
+  }
+
+  getRailRenderRevisions() {
+    if (this.nativeNetworkMode !== CANONICAL_NATIVE_NETWORK_MODE) return null;
+    try {
+      return readRailRenderRevisions(this.callbacks, this.callbacks?.getState?.());
     } catch {
       return null;
     }

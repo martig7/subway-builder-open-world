@@ -571,6 +571,17 @@ export class WorldTileRuntime {
     const revision = this.game?.getInterliningRevision?.();
     return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
   }
+  getRailRenderRevisions() {
+    const revisions = this.game?.getRailRenderRevisions?.();
+    if (!revisions || typeof revisions !== 'object') return null;
+    const keys = ['tracks', 'trackStyles', 'trains', 'trainStyles'];
+    if (!keys.every((key) => Number.isSafeInteger(revisions[key]) && revisions[key] >= 0)
+      || typeof revisions.trainSimulationActive !== 'boolean') return null;
+    return Object.fromEntries([
+      ...keys.map((key) => [key, revisions[key]]),
+      ['trainSimulationActive', revisions.trainSimulationActive],
+    ]);
+  }
   getWorldId() { return (this.world ?? this.viewWorldFallback)?.worldId ?? null; }
   view({ includeDemandDetails = true } = {}) {
     const world = this.world ?? this.viewWorldFallback;

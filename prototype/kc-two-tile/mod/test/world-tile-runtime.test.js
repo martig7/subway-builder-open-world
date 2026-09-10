@@ -49,9 +49,15 @@ test('reads the active tile without constructing a full runtime view', async () 
   await runtime.boot('active-tile-accessor', 'KCW');
   runtime.view = () => { throw new Error('full runtime view constructed'); };
   game.getInterliningRevision = () => 7;
+  game.getRailRenderRevisions = () => ({
+    tracks: 2, trackStyles: 3, trains: 4, trainStyles: 5, trainSimulationActive: false,
+  });
 
   assert.equal(runtime.getActiveTileId(), 'KCW');
   assert.equal(runtime.getInterliningRevision(), 7);
+  assert.deepEqual(runtime.getRailRenderRevisions(), {
+    tracks: 2, trackStyles: 3, trains: 4, trainStyles: 5, trainSimulationActive: false,
+  });
 });
 
 test('packaged revenue compilation skips disabled native expense and audit forecasts', async () => {

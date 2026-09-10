@@ -195,6 +195,9 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   };
   const controller = {
     snapshot,
+    isTickSuppressionActive() {
+      return stopping != null || (enabled && !disposed && isReady());
+    },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     invalidate() {
       revision++; dependencies = null; preparation.invalidate();

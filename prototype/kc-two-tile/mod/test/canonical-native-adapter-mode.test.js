@@ -28,6 +28,12 @@ function fixture() {
     trackGroups: [],
     stations: [],
     trains: [],
+    tracksGeojsonFeatures: {
+      lines: { geojson: { type: 'FeatureCollection', features: [] }, polygons: [] },
+      base: { geojson: { type: 'FeatureCollection', features: [] }, polygons: [] },
+    },
+    trainWindowsGeojson: { geojson: { type: 'FeatureCollection', features: [] }, polygons: [] },
+    timeConfig: { paused: false, timeSpeed: 'normal', elapsedSeconds: 0 },
     stNodes: [],
     portolanDiagram: null,
     portolanProgress: null,
@@ -52,6 +58,7 @@ function fixture() {
     recordRouteFinancials() {},
     setCompletedCommutes() {},
     setTracks() { native.trackCalls++; },
+    setTrainWindowsGeojson(value) { state.trainWindowsGeojson = value; },
     handleIncrementGameState() { native.tickCalls++; },
     simulateCommutes: async () => {},
     calculatePaths: async () => {},
@@ -163,6 +170,106 @@ test('canonical activation deduplicates repeated native interlining for unchange
   await afterStoreReplacement;
   assert.equal(recalculationCalls, 3);
   assert.equal(testFixture.native.setTimeConfigCalls, 2, 'the repaired action must be republished');
+});
+
+test('canonical rail render revisions follow native payload identity and native tick ownership', () => {
+  const testFixture = fixture();
+  const adapter = new SubwayBuilderGameAdapter({ callbacks: testFixture.callbacks, api: {} });
+  adapter.activateCanonicalNativeNetworkMode();
+
+  assert.deepEqual(adapter.getRailRenderRevisions(), {
+    tracks: 0,
+    trackStyles: 0,
+    trains: 0,
+    trainStyles: 0,
+    trainSimulationActive: true,
+  });
+
+  testFixture.state.timeConfig = { paused: false, timeSpeed: 'ultrafast', elapsedSeconds: 1000 };
+  assert.deepEqual(adapter.getRailRenderRevisions(), {
+    tracks: 0,
+    trackStyles: 0,
+    trains: 0,
+    trainStyles: 0,
+    trainSimulationActive: true,
+  });
+
+  testFixture.state.trains = [{ id: 'train-a', progress: 0.5 }];
+  testFixture.state.timeConfig.elapsedSeconds = 2000;
+  assert.equal(adapter.getRailRenderRevisions().trains, 0,
+    'non-rendering native train updates must not invalidate the Deck cache');
+
+  const cachedOwner = Symbol.for('open-world.cached-simulation');
+  Object.defineProperty(testFixture.state.handleIncrementGameState, cachedOwner, {
+    value: { controller: { isTickSuppressionActive: () => true } },
+  });
+  testFixture.state.timeConfig = { paused: false, timeSpeed: 'normal', elapsedSeconds: 2000 };
+  assert.equal(adapter.getRailRenderRevisions().trainSimulationActive, false,
+    'cached mode suppresses native train simulation independently of native speed');
+  testFixture.state.handleIncrementGameState[cachedOwner].controller.isTickSuppressionActive = () => false;
+  testFixture.state.timeConfig.paused = true;
+  assert.equal(adapter.getRailRenderRevisions().trainSimulationActive, false,
+    'pause suppresses train simulation when cached mode is off');
+  testFixture.state.timeConfig.paused = false;
+
+  testFixture.state.trainWindowsGeojson = {
+    geojson: { type: 'FeatureCollection', features: [{ id: 'train-a' }] },
+    polygons: [],
+  };
+  assert.equal(adapter.getRailRenderRevisions().trains, 1);
+  testFixture.state.tracksGeojsonFeatures.lines.geojson = {
+    type: 'FeatureCollection', features: [{ id: 'track-a' }],
+  };
+  const changed = adapter.getRailRenderRevisions();
+  assert.equal(changed.tracks, 1);
+  assert.equal(changed.trackStyles, 1);
+
+  const reloaded = new SubwayBuilderGameAdapter({ callbacks: testFixture.callbacks, api: {} });
+  reloaded.activateCanonicalNativeNetworkMode();
+  assert.equal(reloaded.getRailRenderRevisions().tracks, 1,
+    'a hot reload must adopt the retained monotonic revision contract');
+});
+
+test('canonical rail render action guards invalidate same-reference in-place edits', () => {
+  const testFixture = fixture();
+  const trackFeature = { id: 'track-a', geometry: { coordinates: [[0, 0], [1, 1]] } };
+  const trainFeature = { id: 'train-a', geometry: { coordinates: [0, 0] } };
+  testFixture.state.tracksGeojsonFeatures.lines.geojson.features.push(trackFeature);
+  testFixture.state.trainWindowsGeojson.geojson.features.push(trainFeature);
+  const originalTrackPayload = testFixture.state.tracksGeojsonFeatures;
+  const originalTrainPayload = testFixture.state.trainWindowsGeojson;
+  testFixture.state.setTracks = function setTracksInPlace() {
+    trackFeature.geometry.coordinates[0][0] = 2;
+  };
+  testFixture.state.setTrainWindowsGeojson = function setTrainWindowsInPlace(payload) {
+    payload.geojson.features[0].geometry.coordinates[0] = 2;
+  };
+  const adapter = new SubwayBuilderGameAdapter({ callbacks: testFixture.callbacks, api: {} });
+  adapter.activateCanonicalNativeNetworkMode();
+  assert.equal(adapter.getRailRenderRevisions().tracks, 0);
+
+  testFixture.state.setTracks({ newTracks: testFixture.state.tracks });
+  testFixture.state.setTrainWindowsGeojson(originalTrainPayload);
+  const changed = adapter.getRailRenderRevisions();
+  assert.equal(testFixture.state.tracksGeojsonFeatures, originalTrackPayload);
+  assert.equal(testFixture.state.trainWindowsGeojson, originalTrainPayload);
+  assert.equal(changed.tracks, 1);
+  assert.equal(changed.trains, 1);
+});
+
+test('canonical rail render revisions reject unknown payload shapes and invalidate a new native session', () => {
+  const testFixture = fixture();
+  const adapter = new SubwayBuilderGameAdapter({ callbacks: testFixture.callbacks, api: {} });
+  adapter.activateCanonicalNativeNetworkMode();
+  assert.equal(adapter.getRailRenderRevisions().tracks, 0);
+
+  testFixture.state.gameSessionId = 'session-b';
+  const nextSession = adapter.getRailRenderRevisions();
+  assert.equal(nextSession.tracks, 1);
+  assert.equal(nextSession.trains, 1);
+
+  testFixture.state.trainWindowsGeojson = { geojson: { type: 'FeatureCollection' } };
+  assert.equal(adapter.getRailRenderRevisions(), null);
 });
 
 test('Portolan cache waits for the deferred diagram before accepting a cache hit', async () => {

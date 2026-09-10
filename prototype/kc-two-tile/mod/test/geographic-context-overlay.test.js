@@ -8,6 +8,7 @@ import { NativeDemandDeckOverlay, CROSS_DEMAND_DECK_LAYER } from '../../../../op
 import {
   geographicContextLayerIds,
   mapLayerDiagnostic,
+  MOVEMENT_DECK_GUARD_VERSION,
   registerGeographicContextOverlay,
   tileBoundaryGeoJson,
 } from '../../../../open-world-platform/src/runtime/ui/geographic-context-overlay.js';
@@ -1295,7 +1296,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 24;
+  previousPatch.version = MOVEMENT_DECK_GUARD_VERSION - 1;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1305,7 +1306,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
-  assert.equal(map.__deck[guardKey].version, 25);
+  assert.equal(map.__deck[guardKey].version, MOVEMENT_DECK_GUARD_VERSION);
   firstController.dispose();
   reloadedController.dispose();
 });

@@ -67,7 +67,7 @@ test('partial-hour and midnight postings conserve fares, rides and full-network 
   assert.notEqual(a.postingId, b.postingId);
 });
 
-function fixture(evaluate = async () => calculated()) {
+function fixture(evaluate = async () => calculated(), isReady = () => true) {
   let nativeTicks = 0, nativeCommutes = 0, nativePaths = 0;
   const postings = [], hours = [], days = [];
   const state = { gameSessionId: 'one', cityCode: 'A', timeConfig: { paused: true, timeSpeed: 'ultrafast', elapsedSeconds: 25000 },
@@ -81,16 +81,30 @@ function fixture(evaluate = async () => calculated()) {
   };
   const game = { captureCrossTileNetworkProfile: network, calculateNativeFinanceProfile: () => ({ expenseProfile: {} }),
     postBackgroundNativeFinanceNow: posting => { postings.push(posting); return { applied: true }; } };
-  const controller = createCachedSimulation({ game, getState: () => state, api: { utils: {} }, evaluate,
+  const controller = createCachedSimulation({ game, getState: () => state, api: { utils: {} }, evaluate, isReady,
     onHour: async hour => hours.push(hour), onDay: async day => days.push(day) });
   return { state, game, controller, postings, hours, days, native: () => ({ nativeTicks, nativeCommutes, nativePaths }) };
 }
 
+test('tick-suppression status follows the wrapper readiness dispatch condition', async () => {
+  let ready = true;
+  const f = fixture(undefined, () => ready);
+  await f.controller.setEnabled(true);
+  assert.equal(f.controller.isTickSuppressionActive(), true);
+  ready = false;
+  assert.equal(f.controller.isTickSuppressionActive(), false);
+  await f.state.handleIncrementGameState();
+  assert.equal(f.native().nativeTicks, 1, 'an unready cache delegates to native simulation');
+  await f.controller.dispose();
+});
+
 test('cached ticks bypass all native simulation, reuse assignments, honor pause and restore physical fleet', async () => {
   const f = fixture();
+  assert.equal(f.controller.isTickSuppressionActive(), false);
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await f.controller.setEnabled(true);
+  assert.equal(f.controller.isTickSuppressionActive(), true);
   const trains = f.state.trains;
   await f.state.handleIncrementGameState();
   assert.equal(f.state.timeConfig.elapsedSeconds, 25000);
@@ -109,6 +123,7 @@ test('cached ticks bypass all native simulation, reuse assignments, honor pause 
   assert.ok(f.postings.length > 0);
   assert.deepEqual(f.hours, [7, 8]);
   await f.controller.setEnabled(false);
+  assert.equal(f.controller.isTickSuppressionActive(), false);
   assert.equal(f.state.trains[0].id, trains[0].id);
   assert.equal(f.state.trains[0].timings[0].arrivalTime, 29800);
   await f.state.handleIncrementGameState();
