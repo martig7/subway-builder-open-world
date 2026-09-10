@@ -53,6 +53,7 @@ export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
 
 export const OPEN_WORLD_PLATFORM_RELEASE = 'open-world-platform-v1';
 export const STARTUP_MAP_RECOVERY_VERSION = 'startup-map-recovery-v1';
+export const OPEN_WORLD_MAX_TRACK_LENGTH_METERS = 100_000;
 
 export function startOpenWorld({
   definition,
@@ -90,6 +91,8 @@ export function startOpenWorld({
   } = createOpenWorldCityRegistration({ definition, tileCatalog });
   const api = subwayBuilderHost;
   if (!api) throw new Error(`${logLabel} SubwayBuilderAPI is unavailable`);
+  // Permit intercity rail segments up to 100 km through the native rules API.
+  api.modifyConstants?.({ MAX_TRACK_LENGTH: OPEN_WORLD_MAX_TRACK_LENGTH_METERS });
   // The native construction/purchase menus need types even at the main menu,
   // before this consumer becomes the active World or a native save is loaded.
   const intercityTrains = registerIntercityTrains(api);
