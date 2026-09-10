@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LandSelection } from '../../../../open-world-platform/src/runtime/ui/land-selection.js';
 import { renderedWaterColor } from '../../../../open-world-platform/src/runtime/ui/world-context-theme.js';
+import { NativeDemandDeckOverlay, CROSS_DEMAND_DECK_LAYER } from '../../../../open-world-platform/src/runtime/ui/native-demand-deck.js';
 
 import {
   geographicContextLayerIds,
@@ -16,7 +17,7 @@ function fixtureDeckLayer(id, props = {}) {
     id,
     props: { id, visible: true, data: [], ...props },
     clone(overrides = {}) {
-      return fixtureDeckLayer(id, { ...this.props, ...overrides });
+      return fixtureDeckLayer(overrides.id ?? id, { ...this.props, ...overrides });
     },
   };
 }
@@ -1294,7 +1295,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
   const guardKey = '__openWorldMovementDeckVisibilityGuard';
   const previousPatch = map.__deck[guardKey];
   const previousWrapper = map.__deck.setProps;
-  previousPatch.version = 23;
+  previousPatch.version = 24;
 
   const reloadedController = registerGeographicContextOverlay({
     runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} },
@@ -1304,9 +1305,42 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
   assert.notStrictEqual(map.__deck[guardKey], previousPatch);
   assert.notStrictEqual(map.__deck.setProps, previousWrapper);
-  assert.equal(map.__deck[guardKey].version, 24);
+  assert.equal(map.__deck[guardKey].version, 25);
   firstController.dispose();
   reloadedController.dispose();
+});
+
+test('shared deck guard composes cross demand without polluting native input or replaying camera layers', () => {
+  const map = fixtureMap();
+  const native = fixtureDeckLayer('demand-points', { pointRadiusScale: 1 });
+  const nativeTree = [native];
+  map.__deck.props.layers = nativeTree;
+  const overlay = new NativeDemandDeckOverlay({ api: {}, onClick() {}, onHover() {} });
+  overlay.attachMap(map);
+  overlay.update({ active: true, viewMode: 'residents', faded: false, data: {
+    features: [{ properties: { population: 500, selected: false, color: '#ff0000' },
+      geometry: { type: 'Point', coordinates: [-74.5, 40.5] } }],
+  } });
+  const controller = registerGeographicContextOverlay({
+    runtime: { getActiveTileId: () => 'A', subscribe: () => () => {} }, tileCatalog: catalog,
+  });
+  controller.attachMap(map);
+  const cross = () => map.__deck.props.layers.flat(Infinity).find(layer => layer.id === CROSS_DEMAND_DECK_LAYER);
+  const first = cross();
+  assert.ok(first);
+  assert.equal(map.__deck.__openWorldMovementDeckVisibilityGuard.nativeLayers, nativeTree);
+  map.__deck.setProps({ layers: nativeTree });
+  assert.equal(cross(), first);
+  map.setZoom(12.5); map.listeners.get('zoom')();
+  assert.equal(cross(), first, 'crossing a road threshold reuses the native demand layer');
+  map.setZoom(9); map.listeners.get('zoom')();
+  assert.equal(cross().props.visible, false);
+  map.setZoom(13); map.listeners.get('zoom')();
+  assert.equal(cross().props.visible, true);
+  overlay.detachMap();
+  assert.equal(cross(), undefined);
+  assert.equal(map.__deck.__openWorldMovementDeckVisibilityGuard.nativeLayers, nativeTree);
+  controller.dispose();
 });
 
 test('hidden Deck frames skip spatial scans and restore the latest coordinates and native visibility', () => {

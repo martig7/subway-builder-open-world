@@ -11,6 +11,7 @@ import { syncNativeParkLanduse, releaseNativeParkLanduse } from './native-park-l
 import { ensureWorldVegetation, releaseWorldVegetation, WORLD_VEGETATION_LAYER } from './world-vegetation.js';
 import { LandSelection } from './land-selection.js';
 import { attachGlyphWarmup } from './glyph-warmup.js';
+import { appendCrossDemandDeckLayer } from './native-demand-deck.js';
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const BOUNDARY_SOURCE_ID = 'open-world-tile-boundaries-source';
 const TILE_SELECTION_LAYER_ID = 'open-world-tile-selection';
@@ -56,7 +57,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-const MOVEMENT_DECK_GUARD_VERSION = 24;
+const MOVEMENT_DECK_GUARD_VERSION = 25;
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_VERSION = 'spatial-source-distance-km-v2';
@@ -2277,7 +2278,7 @@ function applyMovementDeckVisibility(deck, { force = false } = {}) {
     patch.lastAppliedLayers = maskedLayers;
     mapMovePerfMeasure(
       'deck.native-setProps',
-      () => patch.originalSetProps.call(deck, { layers: maskedLayers }),
+      () => patch.originalSetProps.call(deck, { layers: appendCrossDemandDeckLayer(patch.map, patch.nativeLayers, maskedLayers) }),
       { source: 'apply', layerCount: Array.isArray(maskedLayers) ? maskedLayers.length : null },
     );
     return maskedLayers;
@@ -2399,12 +2400,13 @@ function installMovementDeckVisibilityGuard(
         patch.lastAppliedNativeLayers = nextProps.layers;
         patch.lastAppliedSignature = signature;
         patch.lastAppliedLayers = maskedLayers;
+        const renderedLayers = appendCrossDemandDeckLayer(patch.map, nextProps.layers, maskedLayers);
         forwarded = {
           ...forwarded,
-          layers: maskedLayers,
+          layers: renderedLayers,
         };
         const onlyLayers = Object.keys(nextProps).every((key) => key === 'layers');
-        if (onlyLayers && sameRenderedLayerTree(this.props?.layers, maskedLayers)) {
+        if (onlyLayers && sameRenderedLayerTree(this.props?.layers, renderedLayers)) {
           railClipDebugLog('deck-setProps-skip', () => ({
             reason: canReuseMaskedTree ? 'masked-layer-tree-unchanged' : 'same-masked-layer-reference',
             layerCount: Array.isArray(maskedLayers) ? maskedLayers.length : null,

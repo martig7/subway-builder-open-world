@@ -1,8 +1,9 @@
 import { CrossDemandModel } from '../cross-demand-model.js';
 import { demandPanelContent } from './cross-demand-presentation.js';
-import { nativeDemandIgnoresClick, nativeDemandPaint, readNativeDemandPresentation } from './native-demand-presentation.js';
+import { nativeDemandIgnoresClick } from './native-demand-presentation.js';
+import { NativeDemandDeckOverlay } from './native-demand-deck.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'native-demand-dot-parity-v1';
+export const CROSS_DEMAND_PANEL_VERSION = 'native-demand-deck-rendering-v2';
 
 // Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
 // uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.
@@ -83,7 +84,7 @@ export class CrossDemandOverlayController {
     this.modeFilter = 'all'; this.faded = false; this.openRequest = 0;
     this.pointsKey = null; this.detailsKey = null; this.detailCache = null;
     this.pendingMapRefresh = false; this.modelRevision = 0;
-    this.nativePaintKey = null;
+    this.pointsData = EMPTY;
     this.active = false; this.status = 'closed'; this.error = null;
     this.viewMode = 'residents';
     this.selectedPointId = null; this.selectedPopIndex = null;
@@ -92,7 +93,7 @@ export class CrossDemandOverlayController {
     this.handlePointClick = (event) => {
       if (!this.active || this.selectedPopIndex != null || this.#ignoresPointClick()) return;
       const p = event.point;
-      const features = event.features ?? (p && this.map?.getLayer?.(POINT_LAYER)
+      const features = event.features ?? this.nativeOverlay.pick(p) ?? (p && this.map?.getLayer?.(POINT_LAYER)
         ? this.map.queryRenderedFeatures?.([[p.x - 4, p.y - 4], [p.x + 4, p.y + 4]], { layers: [POINT_LAYER] }) : []);
       const nearest = features?.filter(f => this.model?.pointById.has(f.properties?.id)).sort((a, b) => {
         if (!p || !this.map?.project) return 0;
@@ -103,9 +104,12 @@ export class CrossDemandOverlayController {
     };
     this.handleMouseEnter = () => { if (this.map && !this.#ignoresPointClick()) this.map.getCanvas().style.cursor = 'pointer'; };
     this.handleMouseLeave = () => { if (this.map && !this.#ignoresPointClick()) this.map.getCanvas().style.cursor = ''; };
-    this.handleStyle = () => { this.nativePaintKey = this.pointsKey = this.detailsKey = null; this.#refreshMap(); };
+    this.handleStyle = () => { this.pointsKey = this.detailsKey = null; this.#refreshMap(); };
     this.handleIdle = () => { if (this.pendingMapRefresh) this.#refreshMap(); };
-    this.handleRender = () => { if (this.active) this.#syncNativePaint(); };
+    this.nativeOverlay = new NativeDemandDeckOverlay({ api,
+      onClick: info => { if (info.object) this.handlePointClick({ features: [info.object] }); },
+      onHover: info => { if (info.object) this.handleMouseEnter(); else this.handleMouseLeave(); },
+    });
     this.unsubscribeRuntime = runtime.subscribe?.((event) => {
       if (event?.type !== 'cross-mode-share' || !this.rawData) return;
       const view = this.runtime.view();
@@ -120,15 +124,10 @@ export class CrossDemandOverlayController {
 
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   #ignoresPointClick() { return nativeDemandIgnoresClick(this.map?.getCanvas?.()?.ownerDocument); }
-  #syncNativePaint() {
-    if (!this.map?.getLayer?.(POINT_LAYER)) return;
-    const presentation = readNativeDemandPresentation(this.api, this.map);
-    const key = JSON.stringify([presentation, this.viewMode]);
-    if (key === this.nativePaintKey) return;
-    this.nativePaintKey = key;
-    for (const [name, value] of Object.entries(nativeDemandPaint(presentation, this.viewMode))) {
-      this.map.setPaintProperty?.(POINT_LAYER, name, value);
-    }
+  #syncNativeOverlay() {
+    this.nativeOverlay.update({ data: this.pointsData,
+      active: this.active && this.status === 'ready' && this.selectedPopIndex == null,
+      viewMode: this.viewMode, faded: this.faded });
   }
   #emit() { for (const listener of this.listeners) listener(this.snapshot()); }
   snapshot() {
@@ -146,7 +145,7 @@ export class CrossDemandOverlayController {
     if (this.map === map) return this.#refreshMap();
     this.detachMap();
     this.map = map;
-    this.nativePaintKey = null;
+    this.nativeOverlay.attachMap(map);
     this.pointsKey = this.detailsKey = null;
     map.on('click', this.handlePointClick);
     map.on('mouseenter', POINT_LAYER, this.handleMouseEnter);
@@ -155,7 +154,6 @@ export class CrossDemandOverlayController {
     // redraw loop. `style.load` is the one event where sources need rehydrating.
     map.on('style.load', this.handleStyle);
     map.on('idle', this.handleIdle);
-    map.on('render', this.handleRender);
     this.#refreshMap();
   }
 
@@ -166,13 +164,12 @@ export class CrossDemandOverlayController {
     try { this.map.off('mouseleave', POINT_LAYER, this.handleMouseLeave); } catch {}
     try { this.map.off('style.load', this.handleStyle); } catch {}
     try { this.map.off('idle', this.handleIdle); } catch {}
-    try { this.map.off('render', this.handleRender); } catch {}
+    this.nativeOverlay.detachMap();
     try {
       const canvas = this.map.getCanvas?.();
       if (canvas?.style?.cursor === 'pointer') canvas.style.cursor = '';
     } catch {}
     this.map = null;
-    this.nativePaintKey = null;
   }
 
   dispose() {
@@ -296,7 +293,10 @@ export class CrossDemandOverlayController {
   #setVisibility(layerId, visible) {
     if (this.map?.getLayer(layerId)) this.map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
   }
-  #setData(sourceId, data) { this.map?.getSource(sourceId)?.setData(data); }
+  #setData(sourceId, data) {
+    if (sourceId === POINTS_SOURCE) this.pointsData = data;
+    this.map?.getSource(sourceId)?.setData(data);
+  }
 
   #clipDemandDots(data) {
     return clipDemandDotsToRenderHalo(
@@ -309,10 +309,10 @@ export class CrossDemandOverlayController {
     if (!this.map?.isStyleLoaded?.()) { this.pendingMapRefresh = true; return; }
     this.pendingMapRefresh = false;
     ensureMapArtifacts(this.map);
-    this.#syncNativePaint();
     const ready = this.active && this.status === 'ready' && this.model;
     const popSelected = ready && this.selectedPopIndex != null;
-    this.#setVisibility(POINT_LAYER, Boolean(ready && !popSelected));
+    // Retain the source for panel data and hot reload, but deck owns dot pixels.
+    this.#setVisibility(POINT_LAYER, false);
     this.#setVisibility(CONNECTION_LAYER, Boolean(ready && this.selectedPointId && !popSelected));
     this.#setVisibility(POP_LINE_LAYER, Boolean(popSelected));
     this.#setVisibility(ENDPOINT_LAYER, Boolean(ready && (this.selectedPointId || popSelected)));
@@ -321,6 +321,7 @@ export class CrossDemandOverlayController {
     this.map.setPaintProperty?.(POINT_LAYER, 'circle-stroke-opacity', opacity);
     if (!ready) {
       if (this.pointsKey !== 'closed') { this.#setData(POINTS_SOURCE, EMPTY); this.#setData(DETAILS_SOURCE, EMPTY); }
+      this.#syncNativeOverlay();
       this.pointsKey = this.detailsKey = 'closed'; return;
     }
     const pointsKey = popSelected ? 'pop-selected' : `${this.modelRevision}/${this.viewMode}/${this.selectedPointId}/${this.modeFilter}`;
@@ -328,6 +329,7 @@ export class CrossDemandOverlayController {
       this.#setData(POINTS_SOURCE, popSelected ? EMPTY : this.#clipDemandDots(this.model.pointFeatures(this.viewMode, this.selectedPointId, this.modeFilter)));
       this.pointsKey = pointsKey;
     }
+    this.#syncNativeOverlay();
     const detailsKey = `${this.modelRevision}/${this.viewMode}/${this.selectedPointId}/${this.selectedPopIndex}/${this.routeRequest}/${this.routeStatus}`;
     if (detailsKey === this.detailsKey) return;
     const details = popSelected

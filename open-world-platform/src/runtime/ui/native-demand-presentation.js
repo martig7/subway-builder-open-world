@@ -1,8 +1,8 @@
 // Read the live native layer, including settings supplied by the game or another
 // mod. Never retain native demand arrays or React providers across tile changes.
-function demandLayer(layers) {
+export function findNativeDemandLayer(layers) {
   for (const layer of layers ?? []) {
-    if (Array.isArray(layer)) { const found = demandLayer(layer); if (found) return found; }
+    if (Array.isArray(layer)) { const found = findNativeDemandLayer(layer); if (found) return found; }
     else if (layer?.id === 'demand-points') return layer;
   }
   return null;
@@ -16,9 +16,9 @@ export function nativeDemandRadius(population, viewMode, logarithmic = false) {
     : Math.sqrt(population / Math.PI) * (homes ? 6.5 : 2.5);
 }
 
-export function readNativeDemandPresentation(api, map, storage = globalThis.localStorage) {
+export function readNativeDemandPresentation(api, map, storage = globalThis.localStorage, nativeLayer = null) {
   const deck = map?.__deck;
-  const layer = demandLayer(deck?.__openWorldMovementDeckVisibilityGuard?.nativeLayers ?? deck?.props?.layers);
+  const layer = nativeLayer ?? findNativeDemandLayer(deck?.__openWorldMovementDeckVisibilityGuard?.nativeLayers ?? deck?.props?.layers);
   let logarithmic = false;
   try { logarithmic = JSON.parse(storage?.getItem('featureFlags') ?? '{}')?.DEMAND_DOT_SCALING === true; } catch {}
   let scale = api?.actions?.getDemandBubbleScale?.() ?? 1;
@@ -42,10 +42,6 @@ export function readNativeDemandPresentation(api, map, storage = globalThis.loca
     scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
     radiusScale: Number.isFinite(layer?.props?.pointRadiusScale) ? layer.props.pointRadiusScale : 1,
     logarithmic,
-    latitude: map?.getCenter?.()?.lat ?? 39.1,
-    // deck uses each point's latitude in Web Mercator, then switches to
-    // viewport-relative metre units in its high-zoom auto-offset projection.
-    pointLatitude: deck?.getViewports?.()?.[0]?.projectionMode === 1,
   };
 }
 
@@ -70,24 +66,4 @@ export function nativeDemandIgnoresClick(document = globalThis.document) {
     }
   }
   return false;
-}
-
-export function nativeDemandPaint(presentation, viewMode) {
-  const { scale, radiusScale, logarithmic, latitude, pointLatitude } = presentation;
-  const homes = viewMode !== 'workers';
-  const mass = ['get', 'population'];
-  const radius = logarithmic
-    ? ['+', homes ? 4 : 3, ['*', ['min', ['/', ['ln', ['max', 1, mass]], Math.log(10000)], 1], homes ? 36 : 27]]
-    : ['*', ['sqrt', ['/', mass, Math.PI]], homes ? 6.5 : 2.5];
-  const metres = ['*', ['case', ['get', 'selected'], 80, radius], scale * radiusScale];
-  const width = ['case', ['get', 'selected'], 20, 4];
-  // deck centers the stroke on the radius; MapLibre places it outside the fill.
-  // Cap the stroke for tiny dots so their outer radius also remains identical.
-  const fill = ['max', 0, ['-', metres, ['/', width, 2]]];
-  const stroke = ['min', width, ['+', metres, ['/', width, 2]]];
-  const factor = pointLatitude ? ['*', 512 / 40030000, ['get', 'latitudeScale']]
-    : 512 / (40030000 * Math.cos(latitude * Math.PI / 180));
-  const pixels = value => ['interpolate', ['exponential', 2], ['zoom'],
-    0, ['*', value, factor], 24, ['*', value, factor, 2 ** 24]];
-  return { 'circle-radius': pixels(fill), 'circle-stroke-width': pixels(stroke) };
 }

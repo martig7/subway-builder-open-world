@@ -1,45 +1,56 @@
 # Native-style cross-city demand panel
 
-## Native demand sizing and construction tools
+## Native demand rendering and construction tools
 
-The population field now uses the native layer's live radius scale and the
-game's demand-bubble setting. A bounded sample of unselected native features
-calibrates the population-to-radius multiplier against the current tile. Native
-selection views are excluded from calibration because their destination dots
-use a different curve. Residents, workers, logarithmic scaling and the selected
-location's fixed radius follow their corresponding native sizing rules.
+Cross-demand dots now clone the game's `GeoJsonLayer` and join the existing
+shared deck layer composition. Population radii follow the native residents,
+workers, logarithmic and selected-location curves, calibrated from a bounded
+sample of ordinary native demand. The active native layer supplies its radius
+scale. Native selection views are excluded from calibration because their
+connected destinations use a different curve.
 
-MapLibre radii convert metres using deck's current projection: each location's
-latitude at lower zooms, and the viewport latitude in its high-zoom projection.
-The outline is centered on the native radius, including when a tiny dot's
-outline covers its whole fill. Native scale and camera updates repaint the
-field without rebuilding its GeoJSON. This replaces the former fixed Kansas
-City latitude and independent scaling.
+Inspection of the installed game's `GameMain-COH5GUdy.js` found that
+`DeckglDemandLayer({ pitch = 0, zoom = 13 })` is invoked as
+`DeckglDemandLayer({ pitch })`. Its radius scale therefore stays at 1; deck's
+projection uniforms handle fractional zoom and latitude. The cross layer now
+uses that same renderer, projection, centered outline and antialiasing. Fade
+uses native layer opacity 0.33, including deck's own gamma adjustment.
 
-Cross-demand map clicks and hover cursors read the committed native UI context's
-`userActionObj.ignoreClick`, the same flag used by native demand. The public mod
-API does not expose this flag; the adapter recognizes the mounted provider by
-its fields, without importing a hashed game module or retaining an old React
-provider across tile switches. Disposal removes the render listener along with
-the click and hover handlers.
+The earlier MapLibre implementation rewrote radius expressions from a `render`
+listener, including when crossing deck's projection boundary. That correction
+loop has been removed. A regression reproduced 118 paint writes in 60 simulated
+camera frames. Camera motion now produces zero paint writes and preserves the
+same layer and attribute data. Panel actions and actual native demand-scale
+changes still update the corresponding layer inputs.
 
-Validation for `native-demand-dot-parity-v1`: 738 platform/regression tests and
-6 Japan consumer tests passed. The new failing checks first reproduced the
-scale, projection/outline and construction-click discrepancies. Live checks
-then evaluated the installed MapLibre expressions against actual native
-features at zooms 10, 13 and 18, with native bubble scales 1 and 5. Diameters
-matched to floating-point precision in Osaka and Kyoto. Both native and cross
-clicks were suppressed with the parallel-track tool selected; cross selection
-worked again with the tool cleared.
+The shared deck guard composes the cross layer after masking native input;
+mod-owned dots never become canonical native layers. Guard generation 25
+replaces the previous wrapper during hot reload. Closing, disposal and loss of
+the native template retire the cached layer so deck never receives a finalized
+instance again. The existing MapLibre source remains available for panel data,
+with its old circle layer hidden.
 
-The active consumer was `prototype/japan/mod`, manifest `local.japan-open-world`.
-The release installation uses `%APPDATA%/metro-maker4/mods/local.japan-open-world`,
-so its verified `index.js` was updated directly after the consumer build, with
-the prior bundle backed up locally. Built and installed timestamps and SHA-256
-matched; the reloaded panel reported the new marker. PMTiles returned HTTP 200
-with `native-pmtiles-directory-v4`. The Osaka–Kyoto–Osaka round trip preserved
-the native session, clock, pause state and network counts; camera and bubble
-scale were restored.
+Cross-demand picking uses deck with the same four-pixel tolerance. Click and
+hover handlers read the committed native UI context's
+`userActionObj.ignoreClick`, also used by native demand. The public mod API does
+not expose this flag; the adapter recognizes the mounted provider by its fields
+without retaining a provider across tile switches.
+
+Validation for `native-demand-deck-rendering-v2`: 740 platform/regression tests
+and 6 Japan tests passed. Built and installed bundle hashes and timestamps
+matched for `prototype/japan/mod` / `local.japan-open-world`, installed at
+`%APPDATA%/metro-maker4/mods/local.japan-open-world`. The reloaded panel reported
+the new marker and guard generation 25. A warmed live zoom trace recorded
+183 frames, zero layer identity changes, unchanged demand data and zero demand
+attribute updates; median frame time was 7.5 ms and the 95th percentile was
+11.1 ms. This is a single trace, not a general frame-rate benchmark.
+
+Live native/cross comparisons in Osaka and Kyoto matched radius values and
+renderer constructors at bubble scales 1 and 5. GPU picking found the cross
+layer's actual demand features. Construction-tool selection blocked clicks and
+normal selection worked after clearing the tool. The round trip preserved the
+session, clock, pause state and network counts; camera and bubble scale were
+restored. PMTiles returned HTTP 200 with `native-pmtiles-directory-v4`.
 
 ## Panel behavior
 
