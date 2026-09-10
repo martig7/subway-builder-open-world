@@ -1427,7 +1427,7 @@ test('coalesces styledata bursts and reads one layer snapshot for all range rule
   }
 });
 
-test('native-hidden binary ribbons invalidate clipping before their next visible frame', () => {
+test('native-hidden binary ribbons with an unknown revision invalidate clipping before reveal', () => {
   const map = fixtureMap();
   const data = { length: 1, startIndices: new Uint32Array([0, 2]), attributes: {
     getPath: { size: 2, value: new Float64Array([-74.8, 40.5, -74.2, 40.5]) },
@@ -1435,7 +1435,7 @@ test('native-hidden binary ribbons invalidate clipping before their next visible
   const layer = fixtureDeckLayer('portolan-ribbons', { data });
   map.__deck.props.layers = [layer];
   const controller = registerGeographicContextOverlay({
-    runtime: { getActiveTileId: () => 'A', getInterliningRevision: () => 1 }, tileCatalog: catalog,
+    runtime: { getActiveTileId: () => 'A' }, tileCatalog: catalog,
   });
   controller.attachMap(map);
   assert.equal(map.__deck.props.layers[0].props.data.length, 1);

@@ -64,7 +64,7 @@ function boundsIntersect(left, right) {
     && left[1] <= right[3] && left[3] >= right[1];
 }
 
-function pointInBounds(point, bounds) {
+export function pointInBounds(point, bounds) {
   return Array.isArray(point) && point.length >= 2
     && finite(point[0]) && finite(point[1])
     && number(point[0]) >= bounds[0] && number(point[0]) <= bounds[2]

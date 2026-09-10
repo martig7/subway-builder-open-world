@@ -4,6 +4,7 @@ import {
   createRendererVirtualization,
   createStationMarkerVisibilityAdapter,
   normalizeRenderDistance,
+  pointInBounds,
   virtualizeGeoJsonData,
 } from './renderer-virtualization.js';
 import { readWorldContextTheme, syncWorldContextTheme } from './world-context-theme.js';
@@ -58,8 +59,8 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-export const MOVEMENT_DECK_GUARD_VERSION = 31;
-export const RAIL_RENDER_CACHE_VERSION = 'rail-render-revision-active-viewport-v31';
+export const MOVEMENT_DECK_GUARD_VERSION = 33;
+export const RAIL_RENDER_CACHE_VERSION = 'rail-route-clip-contained-v33';
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_VERSION = 'spatial-source-distance-km-v2';
@@ -1479,6 +1480,55 @@ function portolanBinaryPathData(value) {
   return { source: value, startIndices, attributes, path, vertexCount };
 }
 
+function canonicalBinaryAttribute(attribute, vertexCount) {
+  const value = attribute?.value;
+  const size = Number(attribute?.size);
+  return ArrayBuffer.isView(value)
+    && typeof value.length === 'number'
+    && !String(value.constructor?.name).startsWith('Big')
+    && Number.isSafeInteger(size)
+    && size >= 1
+    && value.length === vertexCount * size;
+}
+
+function portolanBinaryInsideOneRegion(binary, haloBounds) {
+  if (!Array.isArray(haloBounds)
+    || haloBounds.length === 0
+    || !ArrayBuffer.isView(binary.startIndices)
+    || typeof binary.startIndices.length !== 'number'
+    || binary.startIndices[0] !== 0
+    || !Object.values(binary.attributes).every(
+      attribute => canonicalBinaryAttribute(attribute, binary.vertexCount),
+    )) return false;
+
+  const candidateBounds = [...haloBounds];
+  const point = [0, 0];
+  for (let featureIndex = 0; featureIndex < binary.source.length; featureIndex += 1) {
+    const start = Number(binary.startIndices[featureIndex]);
+    const end = Number(binary.startIndices[featureIndex + 1]);
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)
+      || start < 0 || end > binary.vertexCount || end - start < 2) return false;
+    let previousX; let previousY;
+    for (let vertexIndex = start; vertexIndex < end; vertexIndex += 1) {
+      const x = Number(binary.path.value[vertexIndex * 2]);
+      const y = Number(binary.path.value[vertexIndex * 2 + 1]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)
+        || (vertexIndex > start && x === previousX && y === previousY)) return false;
+      point[0] = x;
+      point[1] = y;
+      for (let candidateIndex = candidateBounds.length - 1; candidateIndex >= 0; candidateIndex -= 1) {
+        if (!pointInBounds(point, candidateBounds[candidateIndex])) {
+          candidateBounds.splice(candidateIndex, 1);
+        }
+      }
+      if (!candidateBounds.length) return false;
+      previousX = x;
+      previousY = y;
+    }
+  }
+  return candidateBounds.length > 0;
+}
+
 function sampleBinaryAttribute(attribute, vertexIndex) {
   const source = attribute?.value;
   const size = Number(attribute?.size);
@@ -1879,14 +1929,19 @@ function maskMovementDeckLayers(
     if (retainedStatic?.sourceSnapshot) retainedStatic.revalidate = true;
     else if (source) spatialCache?.delete(source);
     const nativeData = layers.props?.data;
-    if (nativeData && typeof nativeData === 'object') spatialCache?.delete(nativeData);
+    if (nativeData && typeof nativeData === 'object'
+      && !(isPortolanRibbon && interliningRevision != null)) {
+      spatialCache?.delete(nativeData);
+    }
     const previousHidden = layerCache?.get(layerId);
     movementCache?.delete(String(layerId).toLowerCase());
     // Reliable rail revisions make the retained rendered data safe across a
     // hidden interval. Keep it so overview/disabled-layer toggles do not
     // recut frozen trains or static tracks on reveal. Unknown revisions retain
     // the mutation-safe legacy invalidation behavior.
-    if (railGeometryRevision(layerId, railRenderRevisions) == null) {
+    const reliableRailGeometryRevision = railGeometryRevision(layerId, railRenderRevisions)
+      ?? (isVolatileRail ? interliningRevision : null);
+    if (reliableRailGeometryRevision == null) {
       interliningCache?.delete(String(layerId).toLowerCase());
     }
     // Deck updates attributes on invisible layers too. Keep one inert layer
@@ -1908,8 +1963,13 @@ function maskMovementDeckLayers(
   const dataEntry = layerData(layers);
   const source = dataEntry?.[1] ?? (isRoad ? layers.props?.tileSource : undefined);
   const portolanBinary = isPortolanRibbon ? portolanBinaryPathData(layers?.props?.data) : null;
+  // Portolan ribbons remain visible in both overview and detail bands. Their
+  // clipped binary geometry changes only with the render region, so crossing
+  // the overview threshold must not rebuild otherwise identical buffers.
   const maskSignature = virtualization
-    ? layerMaskSignature(layerId, zoom, virtualization)
+    ? isPortolanRibbon
+      ? virtualizationSignature(virtualization)
+      : layerMaskSignature(layerId, zoom, virtualization)
     : null;
   const cachedLayer = layerCache?.get(layerId);
   if (
@@ -1945,17 +2005,32 @@ function maskMovementDeckLayers(
     const cached = spatialCache?.get(portolanBinary.source);
     const cacheHit = cached?.signature === maskSignature
       && cached?.interliningRevision === interliningRevision;
+    if (diagnostics) {
+      if (cacheHit) diagnostics.binaryClipCacheHits += 1;
+      else diagnostics.binaryClipBuilds += 1;
+    }
+    // A retained native source may mutate its typed arrays in place. Re-copy
+    // after a revision change so Deck observes new buffer identities.
     const renderedData = cacheHit
       ? cached.renderedData
       : mapMovePerfMeasure(
         'deck.interlining.clip',
-        () => clipPortolanBinaryPaths(portolanBinary, virtualization),
+        () => (
+          interliningRevision != null
+          && !(cached && cached.interliningRevision !== interliningRevision)
+          && portolanBinaryInsideOneRegion(portolanBinary, virtualization?.haloBounds)
+            ? portolanBinary.source
+            : clipPortolanBinaryPaths(portolanBinary, virtualization)
+        ),
         {
           layerId,
           sourceCount: portolanBinary.source.length,
           haloBounds: virtualization?.haloBounds?.length ?? 0,
         },
       );
+    if (!cacheHit && renderedData === portolanBinary.source && diagnostics) {
+      diagnostics.binaryClipPassThroughs += 1;
+    }
     if (!cacheHit) spatialCache?.set(portolanBinary.source, {
       signature: maskSignature,
       interliningRevision,
@@ -2471,6 +2546,9 @@ export function installMovementDeckVisibilityGuard(
       diagnostics: {
         cacheVersion: RAIL_RENDER_CACHE_VERSION,
         geometryCacheHits: 0,
+        binaryClipBuilds: 0,
+        binaryClipCacheHits: 0,
+        binaryClipPassThroughs: 0,
         legacyGeometryComparisons: 0,
         trainFeaturesProcessed: 0,
         hiddenLayerReuses: 0,
