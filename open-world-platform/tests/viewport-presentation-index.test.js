@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  createStableGeoJsonChunks,
-  createViewportPresentationIndex,
-} from '../src/runtime/ui/viewport-presentation-index.js';
+import { createViewportPresentationIndex } from '../src/runtime/ui/viewport-presentation-index.js';
 
 const point = (id, longitude, latitude) => ({
   type: 'Feature',
@@ -187,57 +184,4 @@ test('treats null and array coordinate scalars as unknown geometry instead of Gr
   const result = index.query({ viewportBounds: [50, 50, 51, 51] });
   assert.deepEqual(result.features, malformed, 'unknown geometry must be retained conservatively');
   assert.equal(result.stats.broadFeatures, 2);
-});
-
-test('stable GeoJSON chunks bound data arrays and preserve identities for one revision', () => {
-  const features = Array.from({ length: 10 }, (_, index) => point(String(index), index / 100, 0));
-  const chunks = createStableGeoJsonChunks({ cellSize: 1, maxFeaturesPerChunk: 3 });
-  assert.equal(chunks.update(features, { revision: 1 }), true);
-  const built = chunks.chunks;
-  assert.ok(built.every((chunk) => chunk.features.length <= 3));
-  assert.deepEqual(built.flatMap((chunk) => chunk.features), features);
-  assert.equal(new Set(built.flatMap((chunk) => chunk.features)).size, features.length);
-
-  const first = chunks.query({ viewportBounds: [-0.1, -0.1, 0.1, 0.1] });
-  const movedInsidePadding = chunks.query({ viewportBounds: [-0.05, -0.05, 0.12, 0.05] });
-  assert.strictEqual(movedInsidePadding.chunks, first.chunks);
-  assert.equal(movedInsidePadding.signature, first.signature);
-  assert.equal(chunks.update([...features], { revision: 1 }), false);
-  assert.strictEqual(chunks.chunks, built);
-});
-
-test('stable chunks select crossing and unknown features without duplicating canonical objects', () => {
-  const crossing = {
-    type: 'Feature', properties: { id: 'crossing' },
-    geometry: { type: 'LineString', coordinates: [[-2, 0], [2, 0]] },
-  };
-  const unknown = { type: 'Feature', properties: { id: 'unknown' }, geometry: null };
-  const away = point('away', 10, 10);
-  const chunks = createStableGeoJsonChunks({ cellSize: 0.25, maxFeaturesPerChunk: 2 });
-  chunks.update([crossing, unknown, away], { revision: 'tracks-1' });
-
-  const result = chunks.query({ viewportBounds: [-0.1, -0.1, 0.1, 0.1], paddingRatio: 0 });
-  const selected = result.chunks.flatMap((chunk) => chunk.features);
-  assert.ok(selected.includes(crossing));
-  assert.ok(selected.includes(unknown));
-  assert.ok(!selected.includes(away));
-  assert.strictEqual(selected.find((feature) => feature === crossing), crossing);
-});
-
-test('stable chunk IDs are deterministic and metadata references stay bounded', () => {
-  const features = Array.from({ length: 600 }, (_, index) => ({
-    type: 'Feature', properties: { id: index },
-    geometry: { type: 'LineString', coordinates: [[-120, index / 100], [120, index / 100]] },
-  }));
-  const options = { cellSize: 0.1, maxFeaturesPerChunk: 64, maxGridReferences: 500 };
-  const left = createStableGeoJsonChunks(options);
-  const right = createStableGeoJsonChunks(options);
-  left.update(features, { revision: 1 });
-  right.update(features, { revision: 1 });
-  assert.deepEqual(left.chunks.map((chunk) => chunk.id), right.chunks.map((chunk) => chunk.id));
-  assert.ok(left.chunks.every((chunk) => chunk.features.length <= 64));
-  const result = left.query({ viewportBounds: [-1, -1, 1, 7] });
-  assert.ok(result.stats.gridReferences <= 500);
-  assert.ok(result.stats.broadChunks > 0);
-  assert.equal(new Set(left.chunks.flatMap((chunk) => chunk.features)).size, features.length);
 });

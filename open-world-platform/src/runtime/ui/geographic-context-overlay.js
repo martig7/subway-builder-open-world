@@ -12,7 +12,7 @@ import { ensureWorldVegetation, releaseWorldVegetation, WORLD_VEGETATION_LAYER }
 import { LandSelection } from './land-selection.js';
 import { attachGlyphWarmup } from './glyph-warmup.js';
 import { appendCrossDemandDeckLayer } from './native-demand-deck.js';
-import { createStableGeoJsonChunks, createViewportPresentationIndex } from './viewport-presentation-index.js';
+import { createViewportPresentationIndex } from './viewport-presentation-index.js';
 const EMPTY = Object.freeze({ type: 'FeatureCollection', features: [] });
 const BOUNDARY_SOURCE_ID = 'open-world-tile-boundaries-source';
 const TILE_SELECTION_LAYER_ID = 'open-world-tile-selection';
@@ -58,9 +58,8 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-export const MOVEMENT_DECK_GUARD_VERSION = 30;
-export const RAIL_RENDER_CACHE_VERSION = 'rail-render-revision-chunk-mask-v30';
-const TRACK_DORMANT_CHUNK_LIMIT = 64;
+export const MOVEMENT_DECK_GUARD_VERSION = 31;
+export const RAIL_RENDER_CACHE_VERSION = 'rail-render-revision-active-viewport-v31';
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_VERSION = 'spatial-source-distance-km-v2';
@@ -1451,24 +1450,6 @@ function sameDeckRenderProps(previous, current) {
   return stableRenderValueEqual(previousProps.updateTriggers, currentProps.updateTriggers);
 }
 
-function sameTrackChunkRenderProps(previous, current) {
-  if (sameDeckRenderProps(previous, current)) return true;
-  const previousProps = previous?.props ?? {};
-  const currentProps = current?.props ?? {};
-  const previousTrigger = previousProps.updateTriggers?.getLineColor;
-  const currentTrigger = currentProps.updateTriggers?.getLineColor;
-  if (typeof previousProps.getLineColor !== 'function'
-    || typeof currentProps.getLineColor !== 'function'
-    || previousTrigger == null
-    || currentTrigger == null
-    || !stableRenderValueEqual(previousTrigger, currentTrigger)) return false;
-  const withoutLineColor = layer => ({
-    ...layer,
-    props: { ...layer.props, getLineColor: null },
-  });
-  return sameDeckRenderProps(withoutLineColor(previous), withoutLineColor(current));
-}
-
 function isVolatileRailLayerId(id) {
   return typeof id === 'string' && VOLATILE_RAIL_LAYER_ID_RE.test(id);
 }
@@ -1836,7 +1817,6 @@ function maskMovementDeckLayers(
   diagnostics = null,
   viewportBounds = null,
   viewportIndexCache = null,
-  trackChunkCache = null,
   refitViewport = false,
   volatilePassCache = null,
 ) {
@@ -1855,7 +1835,6 @@ function maskMovementDeckLayers(
       diagnostics,
       viewportBounds,
       viewportIndexCache,
-      trackChunkCache,
       refitViewport,
       resolvedVolatilePassCache,
     ));
@@ -1902,12 +1881,6 @@ function maskMovementDeckLayers(
     const nativeData = layers.props?.data;
     if (nativeData && typeof nativeData === 'object') spatialCache?.delete(nativeData);
     const previousHidden = layerCache?.get(layerId);
-    if (/^tracks(?:-under)?$/i.test(String(layerId))) {
-      const chunkState = trackChunkCache?.get(layerId);
-      chunkState?.layers?.clear?.();
-      chunkState?.activeIds?.clear?.();
-      if (chunkState) chunkState.dormantIds = [];
-    }
     movementCache?.delete(String(layerId).toLowerCase());
     // Reliable rail revisions make the retained rendered data safe across a
     // hidden interval. Keep it so overview/disabled-layer toggles do not
@@ -1995,111 +1968,13 @@ function maskMovementDeckLayers(
     const retainedGeometry = /^(tracks|trains(?:-under)?)$/i.test(String(layerId))
       && (layerId === 'tracks' || dataShape.endsWith('feature-collection'));
     const retainedTrain = retainedGeometry && /^trains(?:-under)?$/i.test(String(layerId));
-    const frozenTrain = retainedTrain && railRenderRevisions?.trainSimulationActive === false;
-    const viewportEligible = (retainedGeometry && !frozenTrain) || isVolatileRail;
+    const viewportEligible = retainedTrain && railRenderRevisions?.trainSimulationActive === true;
     const geometryRevision = retainedGeometry
       ? railGeometryRevision(layerId, railRenderRevisions)
       : isVolatileRail ? interliningRevision : null;
     const styleRevision = retainedGeometry
       ? railStyleRevision(layerId, railRenderRevisions)
       : isVolatileRail ? interliningRevision : null;
-    const chunkableTrack = layerId === 'tracks'
-      && geometryRevision != null
-      && styleRevision != null
-      && viewportBounds
-      && reusableDeckLayer(layers)
-      && layers.props?.pickable === false;
-    if (chunkableTrack) {
-      const chunkRevision = `${String(geometryRevision)}:${String(styleRevision)}:${virtualizationSignature(virtualization)}`;
-      let chunkState = trackChunkCache?.get(layerId);
-      if (chunkState?.revision !== chunkRevision) {
-        const clipped = mapMovePerfMeasure(
-          'deck.track-chunks.clip',
-          () => virtualization.renderInputs({ features: source }, { clip: true }).features,
-          { layerId, sourceCount: source.length },
-        );
-        const chunkIndex = createStableGeoJsonChunks({
-          cellSize: 1,
-          maxFeaturesPerChunk: 1024,
-        });
-        chunkIndex.update(clipped, { revision: chunkRevision });
-        chunkState = {
-          revision: chunkRevision,
-          chunkIndex,
-          inputLayer: layers,
-          layers: new Map(),
-          data: new Map(),
-          activeIds: new Set(),
-          dormantIds: [],
-        };
-        trackChunkCache?.set(layerId, chunkState);
-        if (diagnostics) diagnostics.trackChunkBuilds += 1;
-      }
-      const styleChanged = !sameTrackChunkRenderProps(chunkState.inputLayer, layers);
-      const selection = chunkState.chunkIndex.query({
-        viewportBounds,
-        haloBounds: virtualization?.haloBounds,
-        refit: refitViewport,
-      });
-      const selectedChunkIds = new Set(selection.chunks.map(chunk => chunk.id));
-      for (const chunkId of chunkState.activeIds) {
-        if (!selectedChunkIds.has(chunkId) && !chunkState.dormantIds.includes(chunkId)) {
-          chunkState.dormantIds.push(chunkId);
-        }
-      }
-      chunkState.dormantIds = chunkState.dormantIds.filter(chunkId => !selectedChunkIds.has(chunkId));
-      while (chunkState.dormantIds.length > TRACK_DORMANT_CHUNK_LIMIT) {
-        const evictedId = chunkState.dormantIds.shift();
-        chunkState.layers.delete(evictedId);
-      }
-      const selectedLayers = selection.chunks.map((chunk) => {
-        let chunkLayer = chunkState.layers.get(chunk.id);
-        let renderedData = chunkState.data.get(chunk.id);
-        if (!renderedData) {
-          renderedData = dataShape.endsWith('feature-collection')
-            ? { ...sourceContainer, features: chunk.features }
-            : chunk.features;
-          chunkState.data.set(chunk.id, renderedData);
-        }
-        if (!chunkLayer || styleChanged || chunkLayer.props?.visible === false) {
-          chunkLayer = cloneLayerWithOverrides(layers, {
-            id: `${layerId}-open-world-chunk-${chunk.id.replace(/[^a-z0-9_-]+/gi, '-')}`,
-            data: renderedData,
-            visible: true,
-          });
-        }
-        chunkState.layers.set(chunk.id, chunkLayer);
-        return chunkLayer;
-      });
-      for (const chunkId of chunkState.dormantIds) {
-        const chunkLayer = chunkState.layers.get(chunkId);
-        if (!chunkLayer) continue;
-        if (styleChanged || chunkLayer.props?.visible !== false) {
-          chunkState.layers.set(chunkId, cloneLayerWithOverrides(layers, {
-            id: chunkLayer.id ?? chunkLayer.props?.id,
-            data: chunkState.data.get(chunkId),
-            visible: false,
-          }));
-        }
-      }
-      chunkState.activeIds = selectedChunkIds;
-      chunkState.inputLayer = layers;
-      if (diagnostics) {
-        diagnostics.trackChunkQueries += 1;
-        diagnostics.trackChunksSelected += selectedLayers.length;
-        diagnostics.lastViewport = {
-          layerId,
-          signature: selection.signature,
-          presentationBounds: selection.presentationBounds,
-          ...selection.stats,
-          selectedChunks: selectedLayers.length,
-        };
-      }
-      const retainedLayers = chunkState.chunkIndex.chunks
-        .map(chunk => chunkState.layers.get(chunk.id))
-        .filter(Boolean);
-      return retainedLayers;
-    }
     let viewportQuery = null;
     if (viewportEligible && geometryRevision != null && styleRevision != null && viewportBounds) {
       const viewportKey = String(layerId).toLowerCase();
@@ -2530,7 +2405,6 @@ function applyMovementDeckVisibility(deck, { force = false, refitViewport = fals
         patch.diagnostics,
         patch.map?.getBounds?.(),
         patch.viewportIndexCache,
-        patch.trackChunkCache,
         refitViewport,
       ),
       { layerCount: Array.isArray(patch.nativeLayers) ? patch.nativeLayers.length : null, force },
@@ -2594,7 +2468,6 @@ export function installMovementDeckVisibilityGuard(
       movementCache: new Map(),
       interliningCache: new Map(),
       viewportIndexCache: new Map(),
-      trackChunkCache: new Map(),
       diagnostics: {
         cacheVersion: RAIL_RENDER_CACHE_VERSION,
         geometryCacheHits: 0,
@@ -2607,9 +2480,6 @@ export function installMovementDeckVisibilityGuard(
         viewportCandidatesVisited: 0,
         viewportSelectedFeatures: 0,
         lastViewport: null,
-        trackChunkBuilds: 0,
-        trackChunkQueries: 0,
-        trackChunksSelected: 0,
       },
       lastAppliedNativeLayers: null,
       lastAppliedSignature: null,
@@ -2686,7 +2556,6 @@ export function installMovementDeckVisibilityGuard(
               patch.diagnostics,
               patch.map?.getBounds?.(),
               patch.viewportIndexCache,
-              patch.trackChunkCache,
             ),
             {
               source: 'native-setProps',
@@ -2739,7 +2608,6 @@ export function installMovementDeckVisibilityGuard(
   patch.movementCache ??= new Map();
   patch.interliningCache ??= new Map();
   patch.viewportIndexCache ??= new Map();
-  patch.trackChunkCache ??= new Map();
   patch.owners.add(owner);
   toolboxRenderDebugLog('deck-guard-sync', {
     mapObjectId: toolboxRenderObjectId(map),
@@ -2757,12 +2625,30 @@ export function installMovementDeckVisibilityGuard(
   return deck;
 }
 
+function hasVisibleTrainLayer(layers) {
+  if (Array.isArray(layers)) return layers.some(hasVisibleTrainLayer);
+  if (!layers || typeof layers !== 'object') return false;
+  const layerId = layers.id ?? layers.props?.id;
+  return /^trains(?:-under)?$/i.test(String(layerId))
+    && (layers.props?.visible ?? layers.visible) !== false;
+}
+
+function shouldQueryActiveTrainViewport(patch) {
+  const revisions = patch?.railRenderRevisionProvider?.();
+  return revisions?.trainSimulationActive === true
+    && revisions.trains != null
+    && revisions.trainStyles != null
+    && isDetailedMovementZoom(patch?.map?.getZoom?.())
+    && hasVisibleTrainLayer(patch?.nativeLayers);
+}
+
 function applyMovementDeckCameraChange(deck, { refitViewport = false } = {}) {
   const patch = deck?.[MOVEMENT_DECK_GUARD_KEY];
   return applyMovementDeckVisibility(deck, {
-    // Camera bounds affect only layers with a live presentation index. Legacy
-    // revision fallbacks retain the original visibility-band fast path.
-    force: Boolean(patch?.viewportIndexCache?.size || patch?.trackChunkCache?.size),
+    // Query only currently simulated, visible train layers. Stale indexes from
+    // an earlier active interval must not cause work while cached simulation,
+    // pause, overview visibility, or user layer hiding freezes presentation.
+    force: shouldQueryActiveTrainViewport(patch),
     refitViewport,
   });
 }
