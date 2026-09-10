@@ -47,6 +47,7 @@ import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
 import { createCachedSimulation } from './cached-simulation.js';
 import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js';
+import { registerIntercityTrains } from './intercity-trains.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
 
@@ -89,6 +90,9 @@ export function startOpenWorld({
   } = createOpenWorldCityRegistration({ definition, tileCatalog });
   const api = subwayBuilderHost;
   if (!api) throw new Error(`${logLabel} SubwayBuilderAPI is unavailable`);
+  // The native construction/purchase menus need types even at the main menu,
+  // before this consumer becomes the active World or a native save is loaded.
+  const intercityTrains = registerIntercityTrains(api);
   const tileBase = globalThis[definition.runtime.tileBaseGlobal]
     ?? `http://127.0.0.1:${definition.runtime.tileServerPort}`;
   const registration = registerPilotCities(api, { tileBase });
@@ -141,6 +145,7 @@ export function startOpenWorld({
       platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
       definition,
       registration,
+      intercityTrains,
       status: 'dormant',
       dispose,
     });
@@ -337,6 +342,7 @@ export function startOpenWorld({
   let tileSourceStyleHandler = null;
   let renderDistanceToolbarRegistered = false;
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
+    intercityTrains,
     runtimeAuditVersion: RUNTIME_AUDIT_VERSION,
     generation,
     platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
