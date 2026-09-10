@@ -3,7 +3,7 @@ import { demandPanelContent } from './cross-demand-presentation.js';
 import { nativeDemandIgnoresClick } from './native-demand-presentation.js';
 import { NativeDemandDeckOverlay } from './native-demand-deck.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'native-demand-deck-rendering-v2';
+export const CROSS_DEMAND_PANEL_VERSION = 'native-demand-screen-pass-v3';
 
 // Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
 // uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.
@@ -105,7 +105,10 @@ export class CrossDemandOverlayController {
     this.handleMouseEnter = () => { if (this.map && !this.#ignoresPointClick()) this.map.getCanvas().style.cursor = 'pointer'; };
     this.handleMouseLeave = () => { if (this.map && !this.#ignoresPointClick()) this.map.getCanvas().style.cursor = ''; };
     this.handleStyle = () => { this.pointsKey = this.detailsKey = null; this.#refreshMap(); };
-    this.handleIdle = () => { if (this.pendingMapRefresh) this.#refreshMap(); };
+    this.handleIdle = () => {
+      if (this.pendingMapRefresh) this.#refreshMap();
+      this.nativeOverlay.ensureDrawLayer();
+    };
     this.nativeOverlay = new NativeDemandDeckOverlay({ api,
       onClick: info => { if (info.object) this.handlePointClick({ features: [info.object] }); },
       onHover: info => { if (info.object) this.handleMouseEnter(); else this.handleMouseLeave(); },

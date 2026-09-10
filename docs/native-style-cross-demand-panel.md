@@ -2,6 +2,21 @@
 
 ## Native demand rendering and construction tools
 
+The `native-demand-screen-pass-v3` follow-up fixes invisible cross-demand dots.
+Adding a layer to the shared deck tree enabled GPU picking but did not register
+it with the interleaved map's screen framebuffer. The overlay now creates the
+game's native `MapboxLayer` adapter for its layer ID, restores that registration
+after a style reload, and removes it when the panel closes or is disposed.
+This does not restore the per-frame size correction loop.
+
+Validation: 741 platform/regression tests and 6 Japan tests passed, including a
+screen-pass regression covering close, reopen, style reload and disposal. The
+Japan consumer was rebuilt and installed with matching bundle hashes and
+timestamps. After reloading, a screenshot confirmed visible dots on the Osaka
+map; the layer contained 6,825 features. A live close/reopen and zoom check recorded 42 screen
+draws and zero demand-size paint corrections. The earlier v2 checks below
+verified data and picking but missed the absent screen registration.
+
 Cross-demand dots now clone the game's `GeoJsonLayer` and join the existing
 shared deck layer composition. Population radii follow the native residents,
 workers, logarithmic and selected-location curves, calibrated from a bounded

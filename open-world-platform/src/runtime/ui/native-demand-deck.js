@@ -28,6 +28,7 @@ export class NativeDemandDeckOverlay {
     this.layer = null;
     this.key = null;
     this.map = null;
+    this.drawLayer = null;
   }
 
   attachMap(map) {
@@ -43,6 +44,7 @@ export class NativeDemandDeckOverlay {
     const map = this.map;
     if (map?.[OWNER] === this) {
       delete map[OWNER];
+      this.removeDrawLayer();
       this.refresh();
     }
     this.map = null;
@@ -62,15 +64,41 @@ export class NativeDemandDeckOverlay {
   }
 
   refresh() {
+    if (!this.active || this.data.length === 0) this.removeDrawLayer();
     const deck = this.map?.__deck;
     const nativeLayers = deck?.__openWorldMovementDeckVisibilityGuard?.nativeLayers;
     if (nativeLayers != null && !this.map?._removed) deck.setProps({ layers: nativeLayers });
+  }
+
+  ensureDrawLayer() {
+    const map = this.map, deck = map?.__deck;
+    if (!this.active || this.data.length === 0 || !map?.isStyleLoaded?.()) return;
+    const existing = map.getLayer?.(CROSS_DEMAND_DECK_LAYER);
+    if (existing) { this.drawLayer = existing.implementation ?? existing; return; }
+    const registrations = deck?.userData?.mapboxLayers;
+    if (!registrations) return;
+    const native = [...registrations].find(layer => layer.id === 'demand-points');
+    if (typeof native?.render !== 'function') return;
+    // Being present in deck's layer tree enables picking, but does not bind a
+    // layer to the interleaved map's screen pass. Use the game's MapboxLayer
+    // adapter, which selects this root layer ID and uses the map's framebuffer.
+    this.drawLayer = new native.constructor({ id: CROSS_DEMAND_DECK_LAYER, deck });
+    map.addLayer(this.drawLayer);
+  }
+
+  removeDrawLayer() {
+    const current = this.map?.getLayer?.(CROSS_DEMAND_DECK_LAYER);
+    if (current && (current.implementation ?? current) === this.drawLayer) {
+      this.map.removeLayer(CROSS_DEMAND_DECK_LAYER);
+    }
+    this.drawLayer = null;
   }
 
   layerFor(nativeLayers) {
     if (!this.active || this.data.length === 0) { this.layer = this.key = null; return null; }
     const native = findNativeDemandLayer(nativeLayers);
     if (typeof native?.clone !== 'function') { this.layer = this.key = null; return null; }
+    this.ensureDrawLayer();
     const style = readNativeDemandPresentation(this.api, this.map, undefined, native);
     const visible = (this.map?.getZoom?.() ?? 13) >= 10;
     const key = JSON.stringify([style, this.viewMode, this.faded, visible]);

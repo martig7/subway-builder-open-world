@@ -13,6 +13,15 @@ function setup() {
   const root = { __reactContainer$test: { stateNode: { current } } };
   const document = { getElementById: () => root };
   const canvas = { style: { cursor: 'crosshair' }, ownerDocument: document };
+  class NativeMapboxLayer {
+    constructor(props) { this.props = props; this.id = props.id; this.type = 'custom'; }
+    onAdd(map) { this.map = map; map.__deck.userData.mapboxLayers.add(this); }
+    onRemove() { this.map.__deck.userData.mapboxLayers.delete(this); }
+    render() {
+      return this.map.__deck.props.layers.flat(Infinity)
+        .filter(layer => layer.id === this.id && layer.props.visible).flatMap(layer => layer.props.data);
+    }
+  }
   const native = { id: 'demand-points', props: {
     pointRadiusScale: 1, pointRadiusUnits: 'meters', stroked: true,
     updateTriggers: { data: [true, null, 0, 1] }, data: [],
@@ -20,13 +29,15 @@ function setup() {
   const map = {
     isStyleLoaded: () => true, getSource: id => sources.get(id), getLayer: id => layers.get(id),
     addSource(id, source) { sources.set(id, { ...source, setData(data) { this.data = data; } }); },
-    addLayer(layer) { layers.set(layer.id, layer); },
+    addLayer(layer) { layers.set(layer.id, layer); layer.onAdd?.(map); },
+    removeLayer(id) { layers.get(id)?.onRemove?.(); layers.delete(id); },
     setPaintProperty(id, key, value) { layers.get(id).paint[key] = value; },
     setLayoutProperty(id, key, value) { layers.get(id).layout[key] = value; },
     getCenter: () => ({ lat: latitude }), getZoom: () => zoom, getCanvas: () => canvas,
     on(type, ...args) { handlers.set(type, args.at(-1)); }, off(type) { handlers.delete(type); },
   };
   map.__deck = {
+    userData: { isExternal: true, mapboxLayers: new Set() },
     props: { layers: [native] },
     __openWorldMovementDeckVisibilityGuard: { nativeLayers: [native] },
     setProps(props) {
@@ -34,6 +45,7 @@ function setup() {
       if (props.layers) this.props.layers = appendCrossDemandDeckLayer(map, props.layers, props.layers);
     },
   };
+  map.addLayer(new NativeMapboxLayer({ id: 'demand-points', deck: map.__deck }));
   const api = { actions: { getDemandBubbleScale: () => scale },
     gameState: { getDemandData: () => ({ points: new Map([['native', { residents: 500, jobs: 500 }]]) }) } };
   const controller = new CrossDemandOverlayController({ api,
@@ -51,6 +63,22 @@ function setup() {
     layer() { return map.__deck.props.layers.flat(Infinity).find(layer => layer.id === CROSS_DEMAND_DECK_LAYER); },
   };
 }
+
+test('cross demand participates in the native map screen pass, not only deck picking', async () => {
+  const s = setup(); await s.controller.open();
+  const drawLayer = s.map.getLayer(CROSS_DEMAND_DECK_LAYER);
+  assert.equal(drawLayer?.type, 'custom', 'demand needs a native MapboxLayer screen draw registration');
+  assert.equal(drawLayer.render().length, 1, 'the screen pass must draw the resident dot');
+  s.submit(); assert.equal(s.map.getLayer(CROSS_DEMAND_DECK_LAYER), drawLayer);
+  s.controller.close(); assert.equal(s.map.getLayer(CROSS_DEMAND_DECK_LAYER), undefined);
+  await s.controller.open();
+  const replacement = s.map.getLayer(CROSS_DEMAND_DECK_LAYER);
+  s.map.removeLayer(CROSS_DEMAND_DECK_LAYER); // Native style reload removed custom layers.
+  s.handlers.get('idle')();
+  assert.ok(s.map.getLayer(CROSS_DEMAND_DECK_LAYER));
+  assert.notEqual(s.map.getLayer(CROSS_DEMAND_DECK_LAYER), replacement);
+  s.controller.dispose(); assert.equal(s.map.getLayer(CROSS_DEMAND_DECK_LAYER), undefined);
+});
 
 test('cross dots use the native renderer, metre radius, centered outline and current population scale', async () => {
   const s = setup(); await s.controller.open();
