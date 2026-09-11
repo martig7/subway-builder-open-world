@@ -48,6 +48,7 @@
   "release": {
     "platformCompatibility": "^1.0.0",
     "artifactSelection": "explicit",
-    "artifactLayout": "split-map-demand-v1"
+    "artifactLayout": "split-map-demand-v1",
+    "installDirectoryName": "local.japan-open-world"
   }
 }

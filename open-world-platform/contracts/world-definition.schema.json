@@ -84,7 +84,8 @@
       "properties": {
         "platformCompatibility": { "type": "string", "minLength": 1 },
         "artifactSelection": { "enum": ["explicit"] },
-        "artifactLayout": { "enum": ["split-map-demand-v1", "packaged-tile-directories-v1"] }
+        "artifactLayout": { "enum": ["split-map-demand-v1", "packaged-tile-directories-v1"] },
+        "installDirectoryName": { "$ref": "#/$defs/stableId" }
       }
     }
   },

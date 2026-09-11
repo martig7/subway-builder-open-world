@@ -18,9 +18,28 @@ test('installer resolves a manifest-scoped target under the application data roo
   assert.equal(targets.targetPath, 'C:\\fixture\\metro-maker4\\mods\\nec-corridor-open-world');
 });
 
+test('installer honors an explicit deployment directory alias', () => {
+  const definition = {
+    identity: { manifestId: 'local.japan-open-world' },
+    release: { installDirectoryName: 'local.japan-open-world' },
+  };
+  const targets = resolveInstallTargets({ definition, applicationDataPath: 'C:\\fixture\\metro-maker4' });
+  assert.equal(targets.targetPath, 'C:\\fixture\\metro-maker4\\mods\\local.japan-open-world');
+});
+
 test('installer rejects an unsafe manifest suffix', () => {
   assert.throws(() => resolveInstallTargets({
     definition: { identity: { manifestId: 'local..' } },
     applicationDataPath: 'C:\\fixture\\metro-maker4',
-  }), /Unsafe mod id/);
+  }), /Unsafe mod install directory/);
+});
+
+test('installer rejects an unsafe explicit deployment directory alias', () => {
+  assert.throws(() => resolveInstallTargets({
+    definition: {
+      identity: { manifestId: 'local.japan-open-world' },
+      release: { installDirectoryName: '../japan-open-world' },
+    },
+    applicationDataPath: 'C:\\fixture\\metro-maker4',
+  }), /Unsafe mod install directory/);
 });

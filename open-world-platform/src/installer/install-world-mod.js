@@ -23,8 +23,8 @@ function applicationDataPathForPlatform(platform = process.platform, environment
 }
 
 export function resolveInstallTargets({ definition, applicationDataPath = applicationDataPathForPlatform() }) {
-  const directoryName = definition.identity.manifestId.split('.').at(-1);
-  if (!directoryName || !/^[a-zA-Z0-9_-]+$/.test(directoryName)) throw new Error(`Unsafe mod id: ${definition.identity.manifestId}`);
+  const directoryName = definition.release?.installDirectoryName ?? definition.identity.manifestId.split('.').at(-1);
+  if (!directoryName || !/^[a-zA-Z0-9._-]+$/.test(directoryName)) throw new Error(`Unsafe mod install directory: ${directoryName ?? definition.identity.manifestId}`);
   const appData = path.resolve(applicationDataPath);
   const modsPath = path.join(appData, 'mods');
   const citiesDataPath = path.join(appData, 'cities', 'data');
