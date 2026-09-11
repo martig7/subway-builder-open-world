@@ -178,6 +178,40 @@ test('world grid rejects startup clicks without queuing navigation and unlocks a
   });
 });
 
+for (const endDuringPaint of [false, true]) test(`grid switching notification paints before preparation (ended=${endDuringPaint})`, async t => {
+  let grid; let painted = false; let paint;
+  const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
+  t.mock.method(GeographicContextOverlayController.prototype, 'readRuntimeActiveTileId', function () {
+    grid = this; return readActive.call(this);
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  t.mock.method(WorldTileRuntime.prototype, 'stageNavigationTransition', async tileId => {
+    assert.equal(painted, true, 'the switching alert must paint before preparing the native handoff');
+    return { worldId: 'world-A', tileId };
+  });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'navigateTo', () => {});
+  await harness(async ({ controller, idle, api, hooks }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    t.mock.method(api.ui, 'showNotification', () => {
+      paint = setTimeout(() => {
+        painted = true;
+        if (endDuringPaint) hooks.get('onGameEnd')();
+      }, 0);
+    });
+    const disable = controller.cachedSimulation.setEnabled;
+    t.mock.method(controller.cachedSimulation, 'setEnabled', function (...args) {
+      assert.equal(painted, true, 'the switching alert must paint before cached settlement starts');
+      return disable.apply(this, args);
+    });
+    try {
+      const result = await grid.onTileSelect('JP_KANAGAWA_MAINLAND');
+      if (endDuringPaint) assert.equal(result.status, 'cancelled');
+    }
+    finally { clearTimeout(paint); t.mock.restoreAll(); }
+  });
+});
+
 for (const paused of [true, false]) test(`grid tile switch excludes cached operating time from the native handoff (paused=${paused})`, async t => {
   let grid; let captured; let navigated = false;
   const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;

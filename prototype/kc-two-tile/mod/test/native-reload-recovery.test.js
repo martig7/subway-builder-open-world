@@ -334,7 +334,8 @@ test('reload guard replaces a previous hot-reload generation and restores the na
   const oldWrapper = () => calls.push('old');
   Object.defineProperty(oldWrapper, ORIGINAL_RELOAD_KEY, { value: nativeReload });
   const electron = { reloadWindow: oldWrapper };
-  const globalObject = { [RELOAD_GUARD_KEY]: { version: 0 } };
+  const previousGuard = { version: 5 };
+  const globalObject = { [RELOAD_GUARD_KEY]: previousGuard };
 
   const guard = installNativeReloadRecoveryGuard({
     globalObject,
@@ -345,6 +346,7 @@ test('reload guard replaces a previous hot-reload generation and restores the na
   });
 
   assert.equal(guard.version, NATIVE_RELOAD_RECOVERY_VERSION);
+  assert.notEqual(globalObject[RELOAD_GUARD_KEY], previousGuard);
   assert.notEqual(electron.reloadWindow, oldWrapper);
   electron.reloadWindow();
   assert.deepEqual(calls, ['native']);

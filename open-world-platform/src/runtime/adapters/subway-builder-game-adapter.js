@@ -1,4 +1,5 @@
 import { runFrameBudgeted } from '../frame-budget.js';
+import { shareNativeSaveReferences } from '../native-save-reference-sharing.js';
 import { armTileRenderingRetirement } from '../tile-rendering-retirement.js';
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
 import { NativeCommuteIndex } from '../native-commute-index.js';
@@ -217,7 +218,7 @@ export function prepareNativeTileRestoreSnapshot(snapshot, {
       if (target && Object.hasOwn(target, 'cityUid')) target.cityUid = uid;
     }
   }
-  const result = structuredClone(draft);
+  const result = structuredClone(shareNativeSaveReferences(draft));
   if (preserveNativeFinance && result.data.routeFinancials !== undefined) {
     result.data.routeFinancials = normalizeNativeRouteFinancialsEnvelope(
       result.data.routeFinancials, result.data.financialHistory, { copy: false },

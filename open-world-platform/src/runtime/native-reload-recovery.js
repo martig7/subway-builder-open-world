@@ -1,9 +1,11 @@
+import { shareNativeSaveReferences } from './native-save-reference-sharing.js';
+
 const RECOVERY_METADATA_KEY = 'openWorldNativeRecovery';
 const RELOAD_GUARD_KEY = '__openWorldNativeReloadRecoveryGuard__';
 const ORIGINAL_RELOAD_KEY = '__openWorldNativeReloadRecoveryOriginal__';
 const RELOAD_GUARD_VERSION_KEY = '__openWorldNativeReloadRecoveryVersion__';
 
-export const NATIVE_RELOAD_RECOVERY_VERSION = 5;
+export const NATIVE_RELOAD_RECOVERY_VERSION = 6;
 export const NATIVE_RECOVERY_CHECKPOINT_INTERVAL_MS = 15_000;
 
 function nativeSaveData(snapshot) {
@@ -92,7 +94,7 @@ export async function stageNativeRecovery({
   }
   assertNativeSave(snapshot);
   const recoveryId = randomUUID();
-  const handoff = structuredClone(snapshot);
+  const handoff = structuredClone(shareNativeSaveReferences(snapshot));
   handoff.cityCode = destinationCityCode;
   handoff.cityUid = destinationCityCode;
   if (handoff.data && Object.hasOwn(handoff.data, 'cityCode')) {

@@ -48,11 +48,13 @@ import { monitorSharedTileServerHealth } from './tile-server-health.js';
 import { createCachedSimulation } from './cached-simulation.js';
 import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js';
 import { registerIntercityTrains } from './intercity-trains.js';
+import { yieldBrowserPaint } from './frame-budget.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
 
 export const OPEN_WORLD_PLATFORM_RELEASE = 'open-world-platform-v1';
 export const STARTUP_MAP_RECOVERY_VERSION = 'startup-map-recovery-v1';
+export const TILE_SWITCH_PRESENTATION_VERSION = 'tile-switch-paint-before-handoff-v2';
 export const OPEN_WORLD_MAX_TRACK_LENGTH_METERS = 100_000;
 
 export function startOpenWorld({
@@ -702,6 +704,14 @@ export function startOpenWorld({
     gridTileSwitchingId = tileId;
     try {
       api.ui?.showNotification?.(`Switching to ${tile.name}…`, 'info', 'Open World');
+      diagnostics.latestGridNavigation = { status: 'switching', tileId,
+        version: TILE_SWITCH_PRESENTATION_VERSION, notificationRequestedAt: Date.now() };
+      await yieldBrowserPaint();
+      // The player can load/end a session while the notification is painting.
+      if (!isCurrent() || !ready || !ownsSession(owner) || !ownsCurrentCity()) {
+        return { status: 'cancelled', tileId };
+      }
+      diagnostics.latestGridNavigation.preparationStartedAt = Date.now();
       // The lean navigation snapshot copies live trains without generateSave's
       // cached-time rebase. Finish settlement/rebasing before capturing it;
       // onGameEnd runs after capture and cannot repair the retained handoff.

@@ -1,6 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareNativeTileRestoreSnapshot } from '../src/runtime/adapters/subway-builder-game-adapter.js';
+import { stageNativeRecovery } from '../src/runtime/native-reload-recovery.js';
+
+test('tile snapshots and recovery handoffs share repeated historical routes without changing values or source data', async () => {
+  const path = [{ routeId: 'R', stationIds: ['a', 'b'] }];
+  const snapshot = { cityCode: 'old', data: { tracks: [], routes: [], trains: [],
+    completedCommutes: [{ popId: 'one', stationRoutes: structuredClone(path) },
+      { popId: 'two', stationRoutes: structuredClone(path) }] } };
+  const before = structuredClone(snapshot);
+  const captured = prepareNativeTileRestoreSnapshot(snapshot, { cityCode: 'old' });
+  let handoff;
+  await stageNativeRecovery({ snapshot, destinationCityCode: 'next',
+    electron: { setPendingSave: async value => { handoff = value; return { success: true }; } } });
+  for (const result of [captured, handoff]) {
+    assert.equal(JSON.stringify(result.data), JSON.stringify(before.data));
+    assert.equal(result.data.completedCommutes[0].stationRoutes, result.data.completedCommutes[1].stationRoutes);
+    assert.notEqual(result.data.completedCommutes[0].stationRoutes, snapshot.data.completedCommutes[0].stationRoutes);
+  }
+  captured.data.completedCommutes[0].stationRoutes[0].stationIds.push('c');
+  assert.deepEqual(snapshot, before);
+  assert.deepEqual(handoff.data, before.data);
+});
 
 test('restoring finance skips overwritten history and traverses retained history once', () => {
   let oldReads = 0, newReads = 0;

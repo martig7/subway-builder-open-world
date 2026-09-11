@@ -10,7 +10,7 @@ import {
   routeTileIdsById,
   stripNetworkFromSnapshot,
 } from './network-projection.js';
-import { CANONICAL_NATIVE_NETWORK_MODE } from './shared-transit-network.js';
+import { CANONICAL_NATIVE_NETWORK_MODE, SHARED_TRANSIT_STATE_KEYS } from './shared-transit-network.js';
 import { fareSegmentsFromStationRoutes, quoteJourneyFare } from './journey-fare.js';
 import { repairNativeStateRouteTimings } from './route-timing-integrity.js';
 import {
@@ -191,7 +191,12 @@ function summarizeLineage(world) {
 }
 
 function createCanonicalNetwork(source, revision = 0) {
-  const groupRepair = repairStationTrackGroupIntegrity(source?.data ?? source);
+  const state = source?.data ?? source;
+  // Repairs own topology only. Do not clone native journey/financial history
+  // that createGlobalNetwork discards immediately afterward.
+  const networkState = Object.fromEntries(SHARED_TRANSIT_STATE_KEYS
+    .filter(key => Object.hasOwn(state, key)).map(key => [key, state[key]]));
+  const groupRepair = repairStationTrackGroupIntegrity(networkState);
   const routeRepair = repairNativeStateRouteTimings(groupRepair.state);
   return createGlobalNetwork(routeRepair.state, revision);
 }
@@ -1337,8 +1342,10 @@ export class WorldTileRuntime {
     return this.#enqueue(async () => {
       const sourceId = this.world.activeTileId;
       const transitionId = `${this.world.worldId}:${this.world.revision}:${sourceId}->${tileId}`;
+      const checkpoint = createFrameBudget();
       await this.tilePackages.prepare(tileId); // fail before pausing or persisting
       const draft = deepCopy(this.world);
+      await checkpoint();
       await this.#registerCommuteCatalog(draft, tileId);
       let lease = false;
       let recoveryStage = null;
@@ -1349,10 +1356,12 @@ export class WorldTileRuntime {
         await this.#captureAuthoritativeGlobals(draft);
         const sourceSnapshot = await this.game.captureSnapshot(draft.tiles[sourceId].snapshot);
         await this.game.validateSnapshot(sourceSnapshot);
+        await checkpoint();
         if (this.networkProjection) {
           await this.#adoptProjectionSnapshot(draft, sourceId, sourceSnapshot, { restore: false });
         }
         else draft.tiles[sourceId].snapshot = sourceSnapshot;
+        await checkpoint();
         const sourceProfile = await this.#captureNetworkProfile(draft, sourceId);
         if (sourceProfile) draft.tiles[sourceId].networkProfile = sourceProfile;
         this.#applyActivity(draft, await this.game.reconcileActiveResults());
@@ -1373,6 +1382,7 @@ export class WorldTileRuntime {
           nativeSnapshot: deepCopy(sourceSnapshot),
         };
         assertWorld(draft, this.tileIds);
+        await checkpoint();
         if (stageNativeRecovery != null) {
           if (typeof stageNativeRecovery !== 'function') {
             throw new TypeError('stageNativeRecovery must be a function');
@@ -2352,7 +2362,9 @@ export class WorldTileRuntime {
       snapshot,
       (Number(world.globalNetwork?.revision) || 0) + 1,
     );
-    const canonicalSnapshot = createNativeNetworkSnapshot(snapshot, nextNetwork);
+    // Without a restore, only the topology-free tile base is retained. The
+    // canonical network already owns the repaired transit state.
+    const canonicalSnapshot = restore === true ? createNativeNetworkSnapshot(snapshot, nextNetwork) : snapshot;
     const reconciliation = {
       accepted: true,
       changed: !world.globalNetwork || nextNetwork.hash !== world.globalNetwork.hash,
@@ -2415,7 +2427,8 @@ export class WorldTileRuntime {
       network: world.globalNetwork,
       activeTileId: tileId,
       catalog: this.tileCatalog,
-      baseSnapshot: canonicalSnapshot,
+      // Presentation consumes the network; native finance/history belongs
+      // exclusively to the separate canonical restore payload.
     });
     trace?.('projection-built', {
       restorePolicy: restore,
@@ -2496,7 +2509,6 @@ export class WorldTileRuntime {
         network: world.globalNetwork,
         activeTileId: destinationId,
         catalog: this.tileCatalog,
-        baseSnapshot: canonicalSnapshot,
       });
       trace?.('destination-projection-built', {
         destinationId,
