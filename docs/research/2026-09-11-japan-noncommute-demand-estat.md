@@ -9,8 +9,8 @@ The best official control for adding domestic non-commute cross-tile demand is t
 The user's proposed prefecture-to-prefecture control followed by population-density allocation is directionally sound, but it leaves official precision unused and gives poor destination locations. A stronger version is:
 
 1. Conserve each directed **207-zone-to-207-zone** flow, split by purpose and representative/used mode as needed.
-2. Allocate origins within the origin zone using residential population, rather than across the entire prefecture.
-3. Allocate destinations using purpose-specific weights: employment for business, attractions/accommodation and visitor evidence for tourism, and population plus visitor-serving activity for private/homecoming. Pure population density is a reasonable fallback for origins and private visits, but a weak general destination model.
+2. Allocate origins within the origin zone from the project's origin-side distribution, upgraded from the current worker/student marginal to total residential population where the source represents resident trip production.
+3. Allocate destinations from the project's existing endpoint/worker distribution, not from the origin population surface. Purpose-specific evidence should refine that endpoint surface only where it measures destination intensity—for example, employment/commercial activity for business and accommodation/attractions for tourism; residential population is justified for the home endpoint of private/homecoming travel, not as the generic destination fallback.
 4. Treat the missing metropolitan-area pairs as a separate source problem. The national trunk survey intentionally omits flows within the Tokyo, Chukyo, and Kinki metropolitan groupings, so Tokyo–Kanagawa and the other internal metro prefecture pairs are structural zeroes, not measured zero demand. [MLIT zone definition](https://www.mlit.go.jp/sogoseisaku/soukou/content/001340155.pdf)
 
 This source produces **zone-to-zone estimates, not point-to-point observations**. The 207 zones are groupings of municipalities and are explicitly described as smaller than a prefecture but larger than a municipality. Some are still very coarse: the published zone correspondence groups all 23 Tokyo wards into one `23区` zone. Any building, station, or coordinate endpoint is therefore synthetic and must not be presented as observed. [MLIT survey summary](https://www.mlit.go.jp/common/001297857.pdf), [published 207-zone correspondence](https://www.mlit.go.jp/seisakutokatsu/jyunryuudou/doc/207_Zone2005.pdf)
@@ -25,6 +25,8 @@ Current demand is commute/school demand only:
 - Origin marginals are 2020 Census 250 m mesh residents aged 15+ who work or study.
 - Destination capacity is 2021 Economic Census 500 m all-industry employment.
 - The evidence compiler retains atomic municipalities/wards, then the national packager aggregates those controls to directed prefecture pairs. It places each cross-prefecture cohort by weighted sampling from 250 m commuter-origin sites and 500 m job sites. See [`estat_japan_prefecture.py`](../../map-creator/src/open_world_map_creator/demand/estat_japan_prefecture.py) and [`package_japan.py`](../../map-creator/src/open_world_map_creator/demand/package_japan.py).
+- Point reuse currently stops at an important boundary. [`boundary_sites.py`](../../map-creator/src/open_world_map_creator/demand/boundary_sites.py) builds one owner-wide site set and assigns every source prefecture's home and job weights onto it; [`building_sites.py`](../../map-creator/src/open_world_map_creator/demand/building_sites.py) derives each canonical `demand-site-...` ID from the clustered member-building IDs. [`owned_ledger.py`](../../map-creator/src/open_world_map_creator/demand/owned_ledger.py) then deduplicates native endpoints by that ID and accumulates their resident/job mass across all native cohorts. [`package_japan.py`](../../map-creator/src/open_world_map_creator/demand/package_japan.py) independently deduplicates cross-tile endpoints by the same ID and accumulates cross resident/worker mass. Thus coordinates and IDs are shared, but a site used by both native and cross cohorts appears once in `tiles/<tile>/demand_data.json.gz` **and again** in `world/cross_demand.json.gz`; there is no global point-record merge across those files.
+- The runtime preserves that separation: [`cross-demand-model.js`](../../open-world-platform/src/runtime/cross-demand-model.js) indexes only the cross file, while [`native-demand-deck.js`](../../open-world-platform/src/runtime/ui/native-demand-deck.js) appends a separate cross-demand layer to the native demand layer. Identical site IDs therefore do not by themselves prevent overlapping dots. A new non-commute source must not create a third site cloud or renderer.
 - The latest v7 generation report records 69,466,356 accepted commuter-flow mass, of which 6,038,347 is cross-prefecture, represented by all 2,082 possible non-self directed prefecture pairs and 33,553 cross-prefecture cohorts. Those counts confirm that the current published national layer is a **47×47 control**, even though its raw Census evidence was municipality-to-municipality.
 - Packaged cross demand uses commute-shaped `07:30` outward and `17:30` return departures. Non-commute travel would need an explicit temporal policy rather than inheriting those times by accident.
 
@@ -88,15 +90,24 @@ Use 2015 207-zone residence-to-travel-destination tables. Keep four purposes and
 1. Derive the daily mass from annual all-mode flow, or retain separate weekday/holiday scenarios.
 2. Use autumn purpose shares only where sample reliability is adequate; otherwise shrink the cell toward its prefecture-pair or national purpose mix.
 3. Generate deterministic cohorts while conserving the zone-pair total and record source vintage, source cell, purpose, and reliability metadata.
-4. Allocate the origin within its 207 zone from a **total-resident 250 m mesh**. The current commuter 250 m marginal can bootstrap a prototype, but it underrepresents children, retirees, and other nonworkers who travel for private or tourism purposes.
-5. Allocate the destination within its 207 zone from a blended purpose-specific surface:
-   - business: employee/job density and commercial establishments;
-   - tourism: accommodation capacity, official attraction/visitor counts where available, and visitor-serving POIs;
-   - private/homecoming: resident population, with a smaller urban-service weight;
-   - other/unknown: a documented blend rather than an unlabelled population fallback.
-6. Apply land/building ownership and placement constraints using the existing boundary-site pipeline, but keep the statistical claim at 207-zone resolution.
+4. Allocate the origin within its 207 zone from the **origin-side distribution**. Use a total-resident 250 m mesh for resident-origin non-commute flows; the current commuter/student 250 m marginal is only a prototype fallback because it omits children, retirees, and other nonworkers.
+5. Allocate the destination within its 207 zone from the **existing endpoint/worker distribution** (currently the 500 m job mesh projected onto the shared sites), then refine that distribution only with defensible purpose-specific endpoint evidence:
+   - business: job density plus commercial establishments;
+   - tourism: the endpoint distribution plus accommodation capacity, official attraction/visitor counts where available, and visitor-serving POIs;
+   - private/homecoming: residential density where the endpoint is semantically a home, otherwise retain the endpoint distribution;
+   - other/unknown: the endpoint distribution or a documented blend, never an unlabelled copy of the origin population surface.
+6. Apply land/building ownership and placement constraints using the existing boundary-site pipeline, but keep the statistical claim at 207-zone resolution. Build or load the canonical owner-wide sites once, and assign commuter and non-commute origin/endpoint weights onto those same site IDs; do not independently cluster a non-commute point set.
+7. Keep commuter and non-commute **cohort ledgers** separate for provenance and tuning, but publish one canonical point catalog keyed by `Site.id`. Accumulate resident-origin and destination/worker mass by `(site ID, view role)` across every cohort class before presentation. Native and cross demand may remain separate self-contained pop files for simulation, but any repeated point record must have the same owner and coordinates, and the map must render one coalesced feature per site ID. The presentation path should replace/suppress the native and cross features for a shared ID with their summed feature; merely drawing a second layer at the same coordinates is not a merge.
 
-The project already has most of the mechanical pieces: a national directed-pair ledger, deterministic weighted endpoint pickers, fine residential and job mesh inputs, building anchoring, route enrichment, and mass-conservation audits. The new work is primarily a source adapter, 207-zone geography/crosswalk, purpose-aware weights, temporal semantics, and a distinct non-commute ledger.
+The project already has most of the mechanical pieces: a national directed-pair ledger, deterministic weighted endpoint pickers, fine residential and job mesh inputs, building anchoring, route enrichment, and mass-conservation audits. The new work is primarily a source adapter, 207-zone geography/crosswalk, role-correct purpose-aware weights, temporal semantics, a distinct non-commute cohort ledger, and a cross-file canonical-point/presentation merge.
+
+Add publication tests and report fields that prove the merge rather than relying on visual inspection:
+
+- every cohort endpoint resolves to exactly one canonical site ID;
+- duplicate IDs across native and cross files have identical owner and coordinates;
+- for each site and view role, the canonical displayed mass equals the sum of commuter and non-commute endpoint mass from native and cross cohorts;
+- rendered point-feature IDs are unique, including when one site participates in native commuter, cross commuter, native non-commute, and cross non-commute cohorts;
+- total mass is conserved separately by source/purpose and jointly across all cohort classes.
 
 ### Phase 2: fill structural gaps
 
@@ -113,6 +124,6 @@ Use the newer tourism survey, accommodation residence matrix, common-standard vi
 
 ## Decision
 
-Proceed with the user's proposal, but replace “prefecture OD then population density” with **“207-zone OD then purpose-specific spatial allocation.”** Prefecture OD is an acceptable minimal prototype or reliability-pooling fallback; it should not be the intended final resolution. The hard limitation is not lack of national non-commute data. It is the age and scope holes of the latest released net-flow survey, particularly its deliberate exclusion of internal three-metro flows and its lack of point endpoints.
+Proceed with the user's proposal, but replace “prefecture OD then population density” with **“207-zone OD, origin-side production weights, endpoint/worker-side attraction weights, and one shared canonical point catalog.”** Prefecture OD is an acceptable minimal prototype or reliability-pooling fallback; it should not be the intended final resolution. The hard limitation is not lack of national non-commute data. It is the age and scope holes of the latest released net-flow survey, particularly its deliberate exclusion of internal three-metro flows and its lack of point endpoints.
 
 Before implementation, download and profile the 2015 207-zone residence-to-travel-destination workbooks plus their reliability workbooks. Produce three audits before generating game cohorts: coverage by tile pair, flow mass by purpose/mode/day type, and the share of each pair in reliability bands. That will show whether the fine OD should be used directly, pooled to prefecture pairs, or partially shrunk for sparse cells.
