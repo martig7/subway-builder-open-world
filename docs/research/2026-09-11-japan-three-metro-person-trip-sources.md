@@ -4,7 +4,7 @@ Date: 2026-09-11. Scope: official online sources for the Tokyo, Chukyo, and Kink
 
 ## Answer
 
-Yes. Each region has an official **Person Trip (PT) survey** with purpose-specific and representative-mode OD estimates at sub-prefecture zone resolution. These are more useful than Passenger Regional Flow for learning non-commute purpose shares, time profiles, mode mix, and within-prefecture topology. They are not direct replacements for the national net-flow totals: all three are expanded resident person-day samples for a typical weekday, include commute and school, and omit trips made only by people resident outside the survey area.
+Yes. Each region has an official **Person Trip (PT) survey** with purpose-specific and representative-mode OD estimates at sub-prefecture zone resolution. For a game that treats a typical day multiplied by 365 as a year, these expanded weekday person-trip estimates can be the direct controls for the metro holes. Commute/school and their return legs must first be removed, and the small geographic coverage gaps must be extrapolated. Sum across representative modes and discard the observed mode dimension so gameplay remains free to change mode share.
 
 | Region | Best e-Stat table | Independent official portal | Coverage and principal limitation |
 | --- | --- | --- | --- |
@@ -16,9 +16,11 @@ The official [2015 Metropolitan Transportation Census tables](https://www.mlit.g
 
 ## Recommended use in the demand model
 
-1. Retain the calibrated 2017 Passenger Regional Flow and 2021 Road Census values as full-prefecture support/control sources for the missing pair totals.
-2. Use each regional PT survey to estimate non-commute purpose shares, representative-mode shares, time profiles, and sub-prefecture OD topology after explicitly removing commute and school. Preserve return-home legs rather than mirroring outbound trips.
-3. For Tokyo and Kinki, aggregate and rake the zone OD to each filled prefecture-pair control. For Chukyo, rake only the covered-area topology and allocate the uncovered portions of Gifu and Mie with the national model's resident-origin and purpose-aware attraction weights.
-4. Record the regional PT year, zone pair, day type, purpose definition, expansion status, and coverage flag. Do not label a PT-derived endpoint as an observed coordinate or a PT daily estimate as an annual net-flow count.
+1. Use each regional PT survey as an all-mode daily person-trip control. Sum mutually exclusive representative-mode categories exactly once, then discard mode; do not rake the result to an observed road, rail, or bus share.
+2. Remove commute and school. Reconstruct return-home purpose from person/tour-level data where available; with only aggregate OD, retain the estimated non-commute fraction using the reciprocal home-based outbound purpose mix. Do not drop all returns or invent a mirrored trip.
+3. Multiply the expanded typical-weekday estimate by 365 for the game-year mass. Do not apply another survey expansion after using the published estimate.
+4. Use Tokyo directly except for a small population-based Tokyo-island extrapolation, and use Kinki directly for the four target prefectures. For Chukyo, extrapolate the uncovered portions of Gifu and Mie with purpose-specific covered-area trip rates, municipal population, distance, and destination-attraction weights.
+5. Keep Passenger Regional Flow, Road Census, and the Metropolitan Transportation Census as validation only. Their mode-specific/gross volumes can flag implausible estimates but should not enter conserved game demand.
+6. Record the regional PT year, zone pair, purpose rule, return-home rule, expansion status, and coverage-extrapolation flag. Do not label a PT-derived endpoint as an observed coordinate.
 
-In short: the three regional surveys solve the **purpose and topology** problem much better than the 2017 gross-flow table, but they should be raked to compatible pair totals rather than stacked as additional demand.
+In short: the three regional surveys can supply the **daily all-mode mass, purpose, and topology** for the metro gaps. Only return-purpose attribution and incomplete survey geography need modeling; observed mode share need not constrain the game.
