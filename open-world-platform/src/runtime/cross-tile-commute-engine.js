@@ -484,11 +484,11 @@ export function advanceCommutesTo(world, targetHour) {
 }
 
 /**
- * Reconstruct aggregate commute positions at an older native-save clock.
- * Used only when an explicitly aliased tile save has no matching sidecar
- * checkpoint. Network/mode-share inputs survive, while future settlement
- * counters are discarded because the native save's wallet/history is the
- * authoritative timeline.
+ * Reconstruct recent aggregate commute positions at a Native Save's clock.
+ * Used for a new World Record or when an explicitly aliased tile save has no
+ * matching sidecar checkpoint. Network/mode-share inputs survive, while replay
+ * settlement counters are discarded because the Native Save's wallet/history
+ * is the authoritative timeline.
  */
 export function rebaseCommutesTo(world, targetHour) {
   migrateCommuteLedger(world);

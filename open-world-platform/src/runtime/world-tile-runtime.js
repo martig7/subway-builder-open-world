@@ -366,6 +366,29 @@ export class WorldTileRuntime {
           wallet: this.world.wallet,
         });
         const authoritativeHour = Math.floor(this.world.elapsedSeconds / 3600);
+        if (!persistedWorld) {
+          // A new World Record has no off-tile history to catch up. Establish
+          // recent commuter positions at the Native Save's clock instead of
+          // replaying every day since hour zero (potentially thousands of days).
+          const initializationStartedAt = this.now();
+          rebaseCommutesTo(this.world, authoritativeHour);
+          this.world.worldTime = authoritativeHour;
+          const backlogs = projectCommuteBacklogs(this.world, this.tileIds);
+          for (const [tileId, tile] of Object.entries(this.world.tiles)) {
+            tile.lastSimulatedTime = authoritativeHour;
+            tile.aggregate.backlog = backlogs[tileId];
+          }
+          const finance = this.world.backgroundNativeFinance;
+          finance.lastSettledHour = authoritativeHour;
+          finance.lastRevenueSettledHour = authoritativeHour;
+          finance.lastExpenseSettledHour = authoritativeHour;
+          trace('commute-clock-initialized', {
+            version: 'startup-native-clock-baseline-v1',
+            authoritativeHour,
+            elapsedSeconds: this.world.elapsedSeconds,
+            milliseconds: Math.max(0, this.now() - initializationStartedAt),
+          });
+        }
         this.#ensureBackgroundFinanceClock(this.world, authoritativeHour);
         if (!this.revenueAccrual) this.#recoverLegacySettlementBaseline(this.world, authoritativeHour);
         if ((allowLiveFallback || nativeAuthoritativeLoad) && authoritativeHour < this.world.worldTime) {
