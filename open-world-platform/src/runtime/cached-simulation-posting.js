@@ -1,3 +1,5 @@
+import { wholePeopleInInterval } from './whole-people.js';
+
 /** Integrate cached hourly rates over exactly the interval owned by this mode. */
 export function* cachedSimulationPostingSteps({ profile, expenses, from, to, sessionId }) {
   const result = { revenue: 0, expenseCategories: {}, revenueByRoute: {}, expensesByRoute: {},
@@ -26,7 +28,10 @@ export function* cachedSimulationPostingSteps({ profile, expenses, from, to, ses
     add(result.expensesByRoute, row.expensesByRoute, 1);
     add(result.expenseCategories, row.expenseCategories, 1);
     for (const commute of value?.completedCommutes ?? []) {
-      result.completedCommutes.push({ ...commute, size: commute.size * fraction,
+      const hourStart = hour * 3600;
+      const size = wholePeopleInInterval(commute.size, start - hourStart, end - hourStart, 3600);
+      if (size <= 0) continue;
+      result.completedCommutes.push({ ...commute, size,
         popId: `cached-native:${sessionId}:${commute.popId}:${commute.origin}:${start}:${end}`,
         journeyStart: start, journeyEnd: end,
       });

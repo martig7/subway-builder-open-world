@@ -4,9 +4,10 @@ import {
   calculateNativeRevenueProfile,
   createNativeTopologyFinancePolicy,
   deterministicNativeDepartureTimes,
+  NATIVE_RIDERSHIP_RECORDING_VERSION,
 } from './native-finance-model.js';
 
-const EVALUATOR_SCHEMA_VERSION = 5;
+const EVALUATOR_SCHEMA_VERSION = 6;
 const POP_FIELDS = Object.freeze([
   'id', 'mass', 'homeIndex', 'workIndex', 'gatewayIndex',
   'drivingSeconds', 'drivingDistance', 'homeDepartureTime', 'workDepartureTime',
@@ -235,7 +236,7 @@ function ridershipByRoute(calculated) {
       result[routeId] = (result[routeId] ?? 0) + journey.transitMass;
     }
   }
-  return result;
+  return Object.fromEntries(Object.entries(result).map(([routeId, riders]) => [routeId, Math.round(riders)]));
 }
 
 /**
@@ -382,6 +383,7 @@ function nativeDemandAssignments(demand, sources, outward, homeward) {
 export function isCurrentOffTileNativeDemandProfile(profile) {
   return profile?.source === 'off-tile-estimator'
     && profile?.evaluatorSchemaVersion === EVALUATOR_SCHEMA_VERSION
+    && profile?.ridershipRecording === NATIVE_RIDERSHIP_RECORDING_VERSION
     && typeof profile?.contextKey === 'string'
     && profile.contextKey.length > 0
     && typeof profile?.evaluationKey === 'string'

@@ -1,10 +1,12 @@
+import { wholePeople, wholePeopleDistribution } from './whole-people.js';
+
 const DEFAULT_GATEWAY_CAPACITY_PER_HOUR = 10_000;
 const MORNING_DEPARTURE_HOUR = 7;
 const EVENING_DEPARTURE_HOUR = 17;
 // Subway Builder 1.6 annualizes each representative daily fare before posting
 // it to the wallet and route ledger (RULES.FARE_MULTIPLIER.default).
 const NATIVE_FARE_MULTIPLIER = 365;
-const COMMUTE_LEDGER_SCHEMA_VERSION = 2;
+const COMMUTE_LEDGER_SCHEMA_VERSION = 3;
 
 function finiteNonNegative(value, label) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}`);
@@ -120,6 +122,7 @@ export function createCommuteEntry(rawFlow) {
     modeChoice: baselineModeChoice(flow.mass),
     transitJourneys: [],
     transitTrips: 0,
+    transitTripRemainder: 0,
     fareRevenue: 0,
   };
   entry.settlementTemplate = compileSettlementTemplate(entry);
@@ -128,12 +131,17 @@ export function createCommuteEntry(rawFlow) {
 
 function migrateEntry(entry, { compileTemplate = true } = {}) {
   if (entry?.flow) {
+    const priorTransitTrips = finiteNonNegative(entry.transitTrips ?? 0, `transit trips: ${entry.flow.id}`);
+    const storedRemainder = Number(entry.transitTripRemainder);
     const migrated = {
-    ...entry,
-    modeChoice: migrateModeChoice(entry.modeChoice, entry.flow.mass),
-    transitJourneys: Array.isArray(entry.transitJourneys) ? entry.transitJourneys : [],
-    transitTrips: finiteNonNegative(entry.transitTrips ?? 0, `transit trips: ${entry.flow.id}`),
-    fareRevenue: finiteNonNegative(entry.fareRevenue ?? 0, `fare revenue: ${entry.flow.id}`),
+      ...entry,
+      modeChoice: migrateModeChoice(entry.modeChoice, entry.flow.mass),
+      transitJourneys: Array.isArray(entry.transitJourneys) ? entry.transitJourneys : [],
+      transitTrips: wholePeople(priorTransitTrips),
+      transitTripRemainder: Number.isSafeInteger(priorTransitTrips)
+        && Number.isFinite(storedRemainder) && Math.abs(storedRemainder) <= 0.5
+        ? storedRemainder : priorTransitTrips - wholePeople(priorTransitTrips),
+      fareRevenue: finiteNonNegative(entry.fareRevenue ?? 0, `fare revenue: ${entry.flow.id}`),
     };
     if (compileTemplate) migrated.settlementTemplate = compileSettlementTemplate(migrated);
     return migrated;
@@ -155,6 +163,7 @@ function migrateEntry(entry, { compileTemplate = true } = {}) {
     modeChoice: migrateModeChoice(entry.modeChoice, flow.mass),
     transitJourneys: [],
     transitTrips: 0,
+    transitTripRemainder: 0,
     fareRevenue: 0,
   };
   if (compileTemplate) migrated.settlementTemplate = compileSettlementTemplate(migrated);
@@ -217,12 +226,15 @@ export function migrateCommuteLedger(world) {
   world.gatewayCatalog ??= {};
   world.crossPopModeChoices ??= {};
   world.crossTileFinancials ??= { transitTrips: 0, fareRevenue: 0, pendingNativeRevenue: 0 };
-  world.crossTileFinancials.transitTrips = finiteNonNegative(world.crossTileFinancials.transitTrips ?? 0, 'cross-tile transit trips');
+  world.crossTileFinancials.transitTrips = wholePeople(finiteNonNegative(
+    world.crossTileFinancials.transitTrips ?? 0, 'cross-tile transit trips'));
   world.crossTileFinancials.fareRevenue = finiteNonNegative(world.crossTileFinancials.fareRevenue ?? 0, 'cross-tile fare revenue');
   world.crossTileFinancials.pendingNativeRevenue = finiteNonNegative(world.crossTileFinancials.pendingNativeRevenue ?? 0, 'pending native fare revenue');
   world.pendingCrossTileAttribution ??= { revenueByRoute: {}, completedCommutes: [] };
   world.pendingCrossTileAttribution.revenueByRoute ??= {};
-  world.pendingCrossTileAttribution.completedCommutes ??= [];
+  world.pendingCrossTileAttribution.completedCommutes = (world.pendingCrossTileAttribution.completedCommutes ?? [])
+    .map((commute) => ({ ...commute, size: wholePeople(commute?.size) }))
+    .filter((commute) => commute.size > 0);
   if (!Number.isSafeInteger(world.commuteNextActivityHour)
     || world.commuteNextActivityHour <= world.commuteLastProcessedHour) {
     world.commuteNextActivityHour = nextActivityHour(world, world.commuteLastProcessedHour);
@@ -241,10 +253,12 @@ export function assertCommuteLedger(world) {
     if (Math.abs(total - entry.flow.mass) > 1e-9) throw new Error(`Gateway mass is not conserved for flow ${id}`);
     const modeTotal = Object.values(entry.modeChoice ?? {}).reduce((sum, value) => sum + finiteNonNegative(value, `mode share: ${id}`), 0);
     if (Math.abs(modeTotal - entry.flow.mass) > 1e-9) throw new Error(`Mode-share mass is not conserved for flow ${id}`);
-    finiteNonNegative(entry.transitTrips ?? 0, `transit trips: ${id}`);
+    if (!Number.isSafeInteger(entry.transitTrips)) throw new Error(`Transit trips are not whole people for flow ${id}`);
     finiteNonNegative(entry.fareRevenue ?? 0, `fare revenue: ${id}`);
   }
-  finiteNonNegative(world.crossTileFinancials?.transitTrips ?? 0, 'cross-tile transit trips');
+  if (!Number.isSafeInteger(world.crossTileFinancials?.transitTrips)) {
+    throw new Error('Cross-tile transit trips are not whole people');
+  }
   finiteNonNegative(world.crossTileFinancials?.fareRevenue ?? 0, 'cross-tile fare revenue');
   finiteNonNegative(world.crossTileFinancials?.pendingNativeRevenue ?? 0, 'pending native fare revenue');
   for (const [popId, modes] of Object.entries(world.crossPopModeChoices ?? {})) {
@@ -331,7 +345,10 @@ function reversedStationRoutes(stationRoutes) {
 function creditFareRevenue(world, entry, dispatchedMass, direction, hour) {
   const legacyFare = finiteNonNegative(Number(world.farePolicy?.fare ?? 0), 'cross-tile fare');
   const template = settlementTemplateFor(entry);
-  const transitMass = dispatchedMass * template.transitShare;
+  const estimatedTransitMass = dispatchedMass * template.transitShare;
+  const accumulatedTransitMass = estimatedTransitMass + (entry.transitTripRemainder ?? 0);
+  const transitMass = wholePeople(accumulatedTransitMass);
+  entry.transitTripRemainder = accumulatedTransitMass - transitMass;
   const unquotedTransitShare = Math.max(0, template.transitShare - template.quotedTransitShare);
   const fareRevenue = roundedMoney(dispatchedMass
     * (template.farePerDispatchedMass + unquotedTransitShare * legacyFare)
@@ -343,16 +360,20 @@ function creditFareRevenue(world, entry, dispatchedMass, direction, hour) {
   world.crossTileFinancials.fareRevenue += fareRevenue;
   world.crossTileFinancials.pendingNativeRevenue += fareRevenue;
   const pending = world.pendingCrossTileAttribution;
-  for (const journey of template.journeys) {
-    const size = dispatchedMass * journey.sizePerDispatchedMass;
+  const journeySizes = new Map(wholePeopleDistribution(template.journeys.map((journey, index) =>
+    [index, dispatchedMass * journey.sizePerDispatchedMass]), transitMass));
+  for (let journeyIndex = 0; journeyIndex < template.journeys.length; journeyIndex++) {
+    const journey = template.journeys[journeyIndex];
+    const estimatedSize = dispatchedMass * journey.sizePerDispatchedMass;
+    const size = journeySizes.get(journeyIndex) ?? 0;
     if (!(size > 0)) continue;
     const stationRoutes = direction === 'toHome'
       ? reversedStationRoutes(journey.stationRoutes)
       : structuredClone(journey.stationRoutes);
     const journeyStart = hour * 3_600;
-    const journeyFareRevenue = roundedMoney(size * (journey.fare ?? legacyFare) * NATIVE_FARE_MULTIPLIER);
+    const journeyFareRevenue = roundedMoney(estimatedSize * (journey.fare ?? legacyFare) * NATIVE_FARE_MULTIPLIER);
     const journeyRevenueByRoute = Object.fromEntries(Object.entries(journey.revenueByRoute ?? {}).map(
-      ([routeId, routeFare]) => [routeId, roundedMoney(size * routeFare * NATIVE_FARE_MULTIPLIER)],
+      ([routeId, routeFare]) => [routeId, roundedMoney(estimatedSize * routeFare * NATIVE_FARE_MULTIPLIER)],
     ));
     // Aggregate the finalized per-commute amounts instead of a rounded
     // per-person weight. Tiny transit shares can be worth less than one cent
@@ -503,6 +524,7 @@ export function rebaseCommutesTo(world, targetHour) {
     // The replay establishes positions only; future-derived cumulative totals
     // do not belong to the older native save timeline.
     entry.transitTrips = 0;
+    entry.transitTripRemainder = 0;
     entry.fareRevenue = 0;
   }
   world.crossModeShare = null;

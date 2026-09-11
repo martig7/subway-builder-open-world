@@ -26,7 +26,8 @@ test('native revenue profile reuses calculated native transit shares and fares',
     },
   }]);
 
-  assert.equal(profile.schemaVersion, 4);
+  assert.equal(profile.schemaVersion, 5);
+  assert.equal(profile.ridershipRecording, 'whole-person-ridership-v1');
   assert.equal(profile.hourly[8].revenue, 2 * 3 * 365);
   assert.equal(profile.hourly[18].revenue, 2 * 3 * 365);
   assert.equal(profile.hourly[8].revenueByRoute.A, 1 * 3 * 365);
@@ -39,7 +40,7 @@ test('native revenue profile uses the bundled all-day commute distribution when 
   const profile = calculateNativeRevenueProfile([{
     lastCommute: {
       modeChoice: { transit: 2 },
-      transitPaths: [{ fareCost: 3, segments: [{ routeId: 'A' }] }],
+      transitPaths: [{ fareCost: 3, segments: [{ routeId: 'A', stationIds: ['a', 'b'] }] }],
     },
   }]);
   const total = profile.hourly.reduce((sum, hour) => sum + hour.revenue, 0);
@@ -50,6 +51,9 @@ test('native revenue profile uses the bundled all-day commute distribution when 
   assert.ok(profile.hourly[17].revenue > profile.hourly[19].revenue);
   assert.ok(profile.hourly[8].revenue < profile.dailyRevenue / 2);
   assert.ok(Math.abs(profile.hourly[8].revenueByRoute.A - profile.hourly[8].revenue) < 1e-6);
+  const riders = profile.hourly.flatMap((hour) => hour.completedCommutes ?? []).map((commute) => commute.size);
+  assert.ok(riders.every(Number.isSafeInteger));
+  assert.equal(riders.reduce((sum, count) => sum + count, 0), 4);
 });
 
 test('cached two-spike revenue profiles migrate without loading remote native demand', () => {
@@ -69,7 +73,7 @@ test('cached two-spike revenue profiles migrate without loading remote native de
     hourly: oldHourly,
   });
 
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.equal(migrated.hourly.filter(({ revenue }) => revenue > 0).length, 24);
   assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + hour.revenue, 0) - 200) < 1e-9);
   assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + (hour.financeOwnedRevenue ?? 0), 0) - 80) < 1e-9);
@@ -114,7 +118,7 @@ test('native revenue profile prices 1.7 commute directions independently', () =>
     },
   }]);
 
-  assert.equal(profile.schemaVersion, 4);
+  assert.equal(profile.schemaVersion, 5);
   assert.equal(profile.commuteModel, 'directional-v1');
   assert.equal(profile.hourly[8].revenue, 3 * 2 * 365);
   assert.deepEqual(profile.hourly[8].revenueByRoute, { outbound: 3 * 2 * 365 });
@@ -381,7 +385,8 @@ test('inactive native journeys retain counts, direction, transfers and absolute 
   const outward = backgroundFinanceForHour({finance,activeTileId:'A',hour:31,nativeTopologyComplete:true});
   assert.equal(outward.revenue,0);
   assert.equal(outward.completedCommutes.length,1);
-  assert.equal(outward.completedCommutes[0].size,2.5);
+  assert.equal(outward.completedCommutes[0].size,3);
+  assert.ok(Number.isSafeInteger(outward.completedCommutes[0].size));
   assert.equal(outward.completedCommutes[0].origin,'home');
   assert.equal(outward.completedCommutes[0].journeyStart,111600);
   assert.equal(outward.completedCommutes[0].stationRoutes.length,2);
@@ -389,6 +394,22 @@ test('inactive native journeys retain counts, direction, transfers and absolute 
   assert.equal(homeward.completedCommutes[0].size,1);
   assert.equal(homeward.completedCommutes[0].origin,'work');
   assert.notEqual(outward.completedCommutes[0].popId,homeward.completedCommutes[0].popId);
+});
+
+test('cached fractional ridership migrates to conserved whole-person records', () => {
+  const hourly = Array.from({ length: 24 }, () => ({ revenue: 0, revenueByRoute: {} }));
+  const commute = { popId: 'p', origin: 'home', stationRoutes: [{ routeId: 'r', stationIds: ['a','b'] }] };
+  hourly[7].completedCommutes = [{ ...commute, size: 2.4 }];
+  hourly[8].completedCommutes = [{ ...commute, size: 1.4 }];
+
+  const migrated = migrateCachedNativeRevenueProfile({ schemaVersion: 4, hourly, ridershipByRoute: { r: 3.8 } });
+  const riders = migrated.hourly.flatMap((hour) => hour.completedCommutes ?? []).map((record) => record.size);
+
+  assert.equal(migrated.schemaVersion, 5);
+  assert.equal(migrated.ridershipRecording, 'whole-person-ridership-v1');
+  assert.ok(riders.every(Number.isSafeInteger));
+  assert.equal(riders.reduce((sum, count) => sum + count, 0), 4);
+  assert.equal(migrated.ridershipByRoute.r, 4);
 });
 
 test('native stop-based paths produce route stats without walking legs', () => {

@@ -1,9 +1,11 @@
 import { quoteJourneyFare } from './journey-fare.js';
+import { wholePeople, wholePeopleDistribution } from './whole-people.js';
 
 const HOURS_PER_DAY = 24;
 const NATIVE_ANNUALIZATION = 365;
-const NATIVE_REVENUE_PROFILE_SCHEMA_VERSION = 4;
+const NATIVE_REVENUE_PROFILE_SCHEMA_VERSION = 5;
 const COMMUTE_DIRECTIONS = Object.freeze(['homeToWork', 'workToHome']);
+export const NATIVE_RIDERSHIP_RECORDING_VERSION = 'whole-person-ridership-v1';
 
 /**
  * Finance ownership is deliberately independent from the topology sidecar.
@@ -118,6 +120,43 @@ function departureDistribution(seconds, fallbackProbabilities) {
   return fallbackProbabilities.map((probability, hour) => [hour, probability]);
 }
 
+function wholeCompletedCommuteHours(hourly) {
+  const result = hourly.map((hour) => ({
+    ...hour,
+    ...(Array.isArray(hour?.completedCommutes) ? { completedCommutes: [] } : {}),
+  }));
+  const groups = new Map();
+  for (let hour = 0; hour < hourly.length; hour++) {
+    for (const commute of hourly[hour]?.completedCommutes ?? []) {
+      const key = JSON.stringify([commute?.popId, commute?.origin, commute?.stationRoutes ?? []]);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ hour, commute, weight: Math.max(0, finite(commute?.size, 0)) });
+    }
+  }
+  for (const entries of groups.values()) {
+    const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
+    const counts = new Map(wholePeopleDistribution(entries.map((entry, index) => [index, entry.weight]), total));
+    for (let index = 0; index < entries.length; index++) {
+      const count = counts.get(index) ?? 0;
+      if (count > 0) result[entries[index].hour].completedCommutes.push({ ...entries[index].commute, size: count });
+    }
+  }
+  return result;
+}
+
+function recordWholeRidership(profile) {
+  if (profile?.ridershipRecording === NATIVE_RIDERSHIP_RECORDING_VERSION) return profile;
+  return {
+    ...profile,
+    hourly: wholeCompletedCommuteHours(profile.hourly),
+    ...(profile.ridershipByRoute ? { ridershipByRoute: Object.fromEntries(
+      Object.entries(profile.ridershipByRoute).map(([routeId, riders]) =>
+        [routeId, wholePeople(riders)]),
+    ) } : {}),
+    ridershipRecording: NATIVE_RIDERSHIP_RECORDING_VERSION,
+  };
+}
+
 function addRevenueToDistribution(hourly, distribution, oneWayRevenue, revenueByRoute, owned) {
   for (const [hour, probability] of distribution) {
     const bucket = hourly[hour];
@@ -169,7 +208,7 @@ export function migrateCachedNativeRevenueProfile(profile) {
   // fields (including route/track references used by recovery) while adding a
   // finance-only ownership marker.
   const withOwnership = (candidate) => ({
-    ...candidate,
+    ...recordWholeRidership(candidate),
     revenueOwnership: candidate.revenueOwnership ?? 'native-active-or-mod-inactive',
   });
   if (profile.schemaVersion !== 2) {
@@ -364,11 +403,12 @@ export function calculateNativeRevenueProfile(pops = [], {
         .map(({ routeId, stationIds }) => ({ routeId, stationIds: [...stationIds] }));
       if (stationRoutes.length) {
         const departure = direction === 'homeToWork' ? pop.homeDepartureTime : pop.workDepartureTime;
-        for (const [hour, probability] of departureDistribution(departure,
-          direction === 'homeToWork' ? NATIVE_HOME_DEPARTURE_PROBABILITIES : NATIVE_WORK_DEPARTURE_PROBABILITIES)) {
+        for (const [hour, riders] of wholePeopleDistribution(departureDistribution(departure,
+          direction === 'homeToWork' ? NATIVE_HOME_DEPARTURE_PROBABILITIES : NATIVE_WORK_DEPARTURE_PROBABILITIES),
+          transitMass)) {
           hourly[hour].completedCommutes ??= [];
           hourly[hour].completedCommutes.push({
-            popId: String(pop.id), size: transitMass * probability, stationRoutes,
+            popId: String(pop.id), size: riders, stationRoutes,
             journeyStart: hour * 3600 + (Number.isFinite(departure) ? departure % 3600 : 0),
             journeyEnd: hour * 3600 + (Number.isFinite(departure) ? departure % 3600 : 0)
               + Math.max(0, finite(path?.totalClockSeconds, finite(path?.totalTime, finite(summary?.transitTime, 0)))),
@@ -397,6 +437,7 @@ export function calculateNativeRevenueProfile(pops = [], {
   );
   return {
     schemaVersion: NATIVE_REVENUE_PROFILE_SCHEMA_VERSION,
+    ridershipRecording: NATIVE_RIDERSHIP_RECORDING_VERSION,
     hourly,
     transitPopulation,
     dailyRevenue,

@@ -95,6 +95,9 @@ test('off-tile evaluator computes local mode share, ridership, and hourly revenu
   assert.ok(result.profile.transitPopulation > 0);
   assert.ok(result.profile.dailyRevenue > 0);
   assert.ok(result.profile.ridershipByRoute.R > 0);
+  assert.ok(Number.isSafeInteger(result.profile.ridershipByRoute.R));
+  assert.ok(result.profile.hourly.flatMap((hour) => hour.completedCommutes ?? [])
+    .every((commute) => Number.isSafeInteger(commute.size)));
   assert.equal(result.profile.modeChoicePopulation.transit, result.profile.transitPopulation);
   assert.ok(Math.abs(
     result.profile.hourly.reduce((total, hour) => total + hour.revenue, 0)

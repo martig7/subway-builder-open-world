@@ -859,9 +859,10 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
   };
   for (const tileId of runtime.world.tileIds) {
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
-      schemaVersion: 4,
+      schemaVersion: 5,
+      ridershipRecording: 'whole-person-ridership-v1',
       source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 5,
+      evaluatorSchemaVersion: 6,
       contextKey: `${tileId}:context`,
       evaluationKey: `${tileId}:cached`,
       tileId,
@@ -897,9 +898,10 @@ test('passive mode-share cache invalidates when fare or timetable context change
   };
   for (const tileId of runtime.world.tileIds) {
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
-      schemaVersion: 4,
+      schemaVersion: 5,
+      ridershipRecording: 'whole-person-ridership-v1',
       source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 5,
+      evaluatorSchemaVersion: 6,
       contextKey: `${tileId}:context`,
       evaluationKey: `${tileId}:cached`,
       tileId,
@@ -2568,7 +2570,7 @@ test('mod reload migrates a remote cached revenue profile without revisiting tha
   await reloaded.boot('remote-finance-profile-migration', 'KCW');
 
   const migrated = reloaded.view().backgroundNativeFinance.tileRevenueProfiles.KCE;
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.equal(migrated.commuteModel, 'legacy-round-trip');
   assert.equal(migrated.hourly.filter(({ revenue }) => revenue > 0).length, 24);
   assert.ok(Math.abs(migrated.hourly.reduce((sum, hour) => sum + hour.revenue, 0) - 200) < 1e-9);

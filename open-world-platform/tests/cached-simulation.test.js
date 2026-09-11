@@ -62,7 +62,11 @@ test('partial-hour and midnight postings conserve fares, rides and full-network 
   assert.equal(whole.revenue, 200);
   assert.equal(whole.revenue, a.revenue + b.revenue);
   assert.equal(whole.expensesByRoute.r, 100);
-  assert.ok(Math.abs(whole.completedCommutes.reduce((n, c) => n + c.size, 0) - 60 * 200 / 3600) < 1e-10);
+  assert.equal(whole.completedCommutes.reduce((n, c) => n + c.size, 0), 3);
+  assert.equal(whole.completedCommutes.reduce((n, c) => n + c.size, 0),
+    a.completedCommutes.reduce((n, c) => n + c.size, 0)
+      + b.completedCommutes.reduce((n, c) => n + c.size, 0));
+  assert.ok(whole.completedCommutes.every((commute) => Number.isSafeInteger(commute.size)));
   assert.deepEqual(whole.hourlyPostings.map(row => row.hour), [23, 24]);
   assert.notEqual(a.postingId, b.postingId);
 });

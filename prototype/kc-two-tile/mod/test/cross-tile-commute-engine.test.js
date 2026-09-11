@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorld } from '../../../../open-world-platform/src/runtime/world-model.js';
-import { advanceCommutesTo, applyModeShares, assertCommuteLedger, projectCommutesForTile, registerCommuteCatalog } from '../../../../open-world-platform/src/runtime/cross-tile-commute-engine.js';
+import { advanceCommutesTo, applyModeShares, assertCommuteLedger, migrateCommuteLedger, projectCommutesForTile, registerCommuteCatalog } from '../../../../open-world-platform/src/runtime/cross-tile-commute-engine.js';
 
 const catalog = {
   buildHash: 'commute-test-v1',
@@ -136,6 +136,52 @@ test('small transit shares retain route fare attribution until final settlement 
   assert.equal(world.crossTileFinancials.pendingNativeRevenue, 1_095);
   assert.equal(completed.revenueByRoute.route, 1_095);
   assert.equal(world.pendingCrossTileAttribution.revenueByRoute.route, 1_095);
+});
+
+test('fractional cross-tile mode shares record conserved whole riders across capacity batches', () => {
+  const world = createWorld({ worldId: 'whole-rider-attribution', tileIds: ['KCW', 'KCE'] });
+  registerCommuteCatalog(world, {
+    buildHash: 'whole-rider-attribution-v1', gateways: [{ id: 'central', capacityPerHour: 5 }],
+    buckets: [{ id: 'flow', homeTileId: 'KCW', workTileId: 'KCE', gatewayId: 'central', mass: 10, defaultTravelSeconds: 3600 }],
+  });
+  applyModeShares(world, new Map([['KCW|KCE|central', {
+    driving: 7.5, walking: 0, transit: 2.5, unknown: 0,
+  }]]), {
+    transitJourneys: new Map([['KCW|KCE|central', [{
+      popId: 'fractional-pop', transitMass: 2.5, totalClockSeconds: 900,
+      fare: 3, stationRoutes: [{ routeId: 'route', stationIds: ['west-home', 'east-work'] }],
+    }]]]),
+  });
+
+  advanceCommutesTo(world, 7);
+  assert.equal(world.crossTileFinancials.transitTrips, 1);
+  advanceCommutesTo(world, 8);
+
+  const recorded = world.pendingCrossTileAttribution.completedCommutes;
+  assert.equal(world.crossTileFinancials.transitTrips, 3);
+  assert.equal(world.gatewayLedger.flow.transitTrips, 3);
+  assert.ok(recorded.every((commute) => Number.isSafeInteger(commute.size)));
+  assert.equal(recorded.reduce((sum, commute) => sum + commute.size, 0), 3);
+});
+
+test('legacy fractional cross-tile ridership migrates to whole-person records', () => {
+  const world = createWorld({ worldId: 'whole-rider-migration', tileIds: ['KCW', 'KCE'] });
+  registerCommuteCatalog(world, {
+    buildHash: 'whole-rider-migration-v1', gateways: [{ id: 'central', capacityPerHour: 5 }],
+    buckets: [{ id: 'flow', homeTileId: 'KCW', workTileId: 'KCE', gatewayId: 'central', mass: 10, defaultTravelSeconds: 3600 }],
+  });
+  world.commuteLedgerSchemaVersion = 2;
+  world.gatewayLedger.flow.transitTrips = 2.5;
+  world.crossTileFinancials.transitTrips = 2.5;
+  world.pendingCrossTileAttribution.completedCommutes = [{ popId: 'legacy', size: 2.5 }];
+
+  migrateCommuteLedger(world);
+
+  assert.equal(world.commuteLedgerSchemaVersion, 3);
+  assert.equal(world.gatewayLedger.flow.transitTrips, 3);
+  assert.equal(world.gatewayLedger.flow.transitTripRemainder, -0.5);
+  assert.equal(world.crossTileFinancials.transitTrips, 3);
+  assert.equal(world.pendingCrossTileAttribution.completedCommutes[0].size, 3);
 });
 
 test('skips inert hours and processes only scheduled commute events', () => {
