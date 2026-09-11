@@ -6,7 +6,7 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v6';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v7';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -248,24 +248,29 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         const original = current[OWNER]?.original ?? current;
         const wrapper = function (...args) {
           if (stopping && name === 'handleIncrementGameState') return stopping;
-          if (!enabled || disposed || !isReady()) return original.apply(this, args);
-          if (name === 'handleIncrementGameState') return tick();
+          if (disposed) return original.apply(this, args);
+          const cachedActive = enabled && isReady();
           if (name === 'generateSave') {
-            flush();
+            if (cachedActive) flush();
             const rebaseSave = save => {
-              if (!enabled || !save?.data || getState().gameSessionId !== sessionId) return save;
+              if (!cachedActive || !enabled || disposed || !save?.data || getState().gameSessionId !== sessionId) return save;
               const elapsed = save.data.elapsedSeconds;
-              return shareNativeSaveReferences({ ...save, data: { ...save.data,
+              return { ...save, data: { ...save.data,
                 ...(Number.isFinite(save.data.lastInfrastructureChargeTime) ? {
                   lastInfrastructureChargeTime: save.data.lastInfrastructureChargeTime + elapsed - startedAt,
                 } : {}),
                 trains: (save.data.trains ?? []).map(train => rebaseFrozenTrain(train, elapsed)),
-              } });
+              } };
             };
             const save = original.apply(this, args);
-            prefetch();
-            return typeof save?.then === 'function' ? save.then(rebaseSave) : rebaseSave(save);
+            if (cachedActive) prefetch();
+            // Sharing repeated route lists reduces Electron's synchronous data
+            // handoff in native mode too, without changing serialized save values.
+            const prepareSave = value => shareNativeSaveReferences(rebaseSave(value));
+            return typeof save?.then === 'function' ? save.then(prepareSave) : prepareSave(save);
           }
+          if (!cachedActive) return original.apply(this, args);
+          if (name === 'handleIncrementGameState') return tick();
           if (name === 'simulateCommutes') { counters.suppressedCommutes++; return Promise.resolve(); }
           counters.suppressedPathSearches++;
           const query = args[0]?.query;

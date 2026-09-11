@@ -184,6 +184,48 @@ test('late worker results cannot mutate another save or a disabled mode', async 
   await f.controller.dispose();
 });
 
+test('normal native saves share route references without changing data or settling cached time', async () => {
+  for (const ready of [true, false]) {
+    const f = fixture(undefined, () => ready);
+    const path = [{ routeId: 'r', stationIds: ['a', 'b'] }];
+    const nativeSave = { name: 'manual', data: { elapsedSeconds: 25000,
+      lastInfrastructureChargeTime: 24900, trains: structuredClone(f.state.trains),
+      compressedDemandData: { c: [{ sr: structuredClone(path) }, { sr: structuredClone(path) }] },
+      completedCommutes: [{ stationRoutes: structuredClone(path) }] } };
+    const before = structuredClone(nativeSave);
+    f.state.generateSave = function (options) {
+      assert.equal(this, f.state);
+      assert.equal(options.name, 'manual');
+      return nativeSave;
+    };
+    f.controller.attach();
+    const save = f.state.generateSave({ name: 'manual' });
+    assert.equal(save.then, undefined, 'the native synchronous contract is preserved');
+    assert.deepEqual(save, before);
+    assert.equal(JSON.stringify(save), JSON.stringify(before));
+    assert.deepEqual(nativeSave, before);
+    assert.notEqual(nativeSave.data.compressedDemandData.c[0].sr, nativeSave.data.compressedDemandData.c[1].sr);
+    assert.equal(save.data.compressedDemandData.c[0].sr, save.data.compressedDemandData.c[1].sr);
+    assert.equal(save.data.completedCommutes[0].stationRoutes, save.data.compressedDemandData.c[0].sr);
+    assert.equal(f.postings.length, 0);
+    await f.controller.dispose();
+  }
+});
+
+test('normal promise-returning saves retain their values and share repeated paths', async () => {
+  const f = fixture();
+  const path = [{ routeId: 'r', stationIds: ['a', 'b'] }];
+  const nativeSave = { data: { completedCommutes: [
+    { stationRoutes: structuredClone(path) }, { stationRoutes: structuredClone(path) },
+  ] } };
+  f.state.generateSave = async () => nativeSave;
+  f.controller.attach();
+  const save = await f.state.generateSave();
+  assert.deepEqual(save, nativeSave);
+  assert.equal(save.data.completedCommutes[0].stationRoutes, save.data.completedCommutes[1].stationRoutes);
+  await f.controller.dispose();
+});
+
 test('hot reload unwraps a previous generation and disposal restores the native action', async () => {
   const f = fixture();
   const previous = f.state.handleIncrementGameState;
@@ -191,17 +233,35 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v5', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v6', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v6');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v7');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
   assert.equal(f.state.handleIncrementGameState, original);
+});
+
+test('hot reload replaces the old save wrapper and restores the native generator on disposal', async () => {
+  const f = fixture();
+  const owner = Symbol.for('open-world.cached-simulation');
+  const original = f.state.generateSave[owner].original;
+  await f.controller.dispose();
+  const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
+  const oldPatch = { version: 'open-world-cached-simulation-v6', original };
+  Object.defineProperty(obsolete, owner, { value: oldPatch });
+  f.state.generateSave = obsolete;
+  const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
+  assert.notEqual(f.state.generateSave, obsolete);
+  assert.notEqual(f.state.generateSave[owner], oldPatch);
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v7');
+  assert.deepEqual(f.state.generateSave(), original.call(f.state));
+  await current.dispose();
+  assert.equal(f.state.generateSave, original);
 });
 
 test('network edits preserving a train billing cursor cannot replay already estimated operating time', async () => {
