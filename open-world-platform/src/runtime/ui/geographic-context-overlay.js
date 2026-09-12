@@ -59,8 +59,8 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-export const MOVEMENT_DECK_GUARD_VERSION = 33;
-export const RAIL_RENDER_CACHE_VERSION = 'rail-route-clip-contained-v33';
+export const MOVEMENT_DECK_GUARD_VERSION = 34;
+export const RAIL_RENDER_CACHE_VERSION = 'rail-render-bounded-static-snapshots-v34';
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
 const SPATIAL_SOURCE_GUARD_VERSION = 'spatial-source-distance-km-v2';
@@ -1657,6 +1657,41 @@ function snapshotInterlinedValue(value) {
   );
 }
 
+const STATIC_SNAPSHOT_VALUE_BUDGET = 32_768;
+const STATIC_SNAPSHOT_TOO_LARGE = Symbol('static-snapshot-too-large');
+
+function boundedStaticGeometrySnapshot(source) {
+  // This detached copy only saves a re-clip when static geometry crosses a
+  // hidden zoom band. Large road collections can otherwise duplicate hundreds
+  // of thousands of coordinate arrays for the duration of a city session.
+  // Bound both retained data and work before allocating a large array.
+  let remaining = STATIC_SNAPSHOT_VALUE_BUDGET;
+  const copy = value => {
+    if (--remaining < 0) return STATIC_SNAPSHOT_TOO_LARGE;
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value) || ArrayBuffer.isView(value)) {
+      if (value.length > remaining) return STATIC_SNAPSHOT_TOO_LARGE;
+      const result = new Array(value.length);
+      for (let index = 0; index < value.length; index++) {
+        const child = copy(value[index]);
+        if (child === STATIC_SNAPSHOT_TOO_LARGE) return child;
+        result[index] = child;
+      }
+      return result;
+    }
+    const result = Object.create(null);
+    for (const key in value) {
+      if (!Object.hasOwn(value, key)) continue;
+      const child = copy(value[key]);
+      if (child === STATIC_SNAPSHOT_TOO_LARGE) return child;
+      result[key] = child;
+    }
+    return result;
+  };
+  const result = copy(source);
+  return result === STATIC_SNAPSHOT_TOO_LARGE ? null : result;
+}
+
 export function sameInterlinedSnapshotValue(value, snapshot) {
   if (Object.is(value, snapshot)) return true;
   const valueIsSequence = Array.isArray(value) || ArrayBuffer.isView(value);
@@ -1923,8 +1958,8 @@ function maskMovementDeckLayers(
     const source = hiddenDataEntry?.[1];
     const retainedStatic = retainStaticGeometry && hiddenDataEntry?.[0].endsWith('feature-collection')
       ? spatialCache?.get(source) : null;
-    // Road and platform geometry is static across zoom bands. Keep clipped data
-    // and uploaded buffers, then validate the detached snapshot on reveal.
+    // Small static geometry keeps its detached validation copy across zoom
+    // bands. Large sources drop that optional cache and re-clip on reveal.
     // Hidden native updates may mutate the same array, so identity is not proof.
     if (retainedStatic?.sourceSnapshot) retainedStatic.revalidate = true;
     else if (source) spatialCache?.delete(source);
@@ -1953,7 +1988,10 @@ function maskMovementDeckLayers(
     }
     const hiddenLayer = cloneLayerWithOverrides(layers, {
       visible: false,
-      ...(retainedStatic?.sourceSnapshot ? { data: retainedStatic.renderedData } : {}),
+      // Keep the already uploaded data even when its optional validation cache
+      // was evicted above. Submitting the full native source here would rebuild
+      // invisible GPU attributes solely because the layer became hidden.
+      ...(retainedStatic ? { data: retainedStatic.renderedData } : {}),
     });
     layerCache?.set(layerId, { hidden: true, inputLayer: layers, layer: hiddenLayer });
     return hiddenLayer;
@@ -2209,7 +2247,7 @@ function maskMovementDeckLayers(
         sourceSnapshot: railGeometryRevision(layerId, railRenderRevisions) == null
           ? snapshotInterlinedValue(source)
           : null,
-      } : retainedStaticGeometry ? { sourceSnapshot: snapshotInterlinedValue(source) } : isVolatileRail ? {
+      } : retainedStaticGeometry ? { sourceSnapshot: boundedStaticGeometrySnapshot(source) } : isVolatileRail ? {
         interliningRevision,
         sourceSnapshot: interliningRevision == null ? snapshotInterlinedValue(source) : null,
       } : isMovement ? {

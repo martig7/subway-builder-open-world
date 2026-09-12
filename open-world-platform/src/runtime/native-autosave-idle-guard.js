@@ -1,5 +1,5 @@
 const GUARD = '__openWorldAutosaveIdleGuard__';
-export const NATIVE_AUTOSAVE_IDLE_VERSION = 'native-autosave-idle-v2';
+export const NATIVE_AUTOSAVE_IDLE_VERSION = 'native-autosave-idle-v4';
 
 // The game exposes no autosave scheduling API. Recognize its mounted callback
 // by behavior, without importing a version-specific hashed bundle. If its shape
@@ -40,15 +40,41 @@ export function findNativeAutosaveRef(document = globalThis.document) {
 export function installNativeAutosaveIdleGuard({ ref, isMoving = () => false,
   getIdentity = () => 'current', now = () => performance.now(), quietMs = 1500,
   maxDelayMs = 30000, setTimeoutFn = globalThis.setTimeout?.bind(globalThis),
-  clearTimeoutFn = globalThis.clearTimeout?.bind(globalThis) } = {}) {
+  clearTimeoutFn = globalThis.clearTimeout?.bind(globalThis), onActivity = () => {} } = {}) {
   ref?.[GUARD]?.dispose();
-  const descriptor = ref && Object.getOwnPropertyDescriptor(ref, 'current');
+  let descriptor = ref && Object.getOwnPropertyDescriptor(ref, 'current');
   if (!descriptor?.configurable || typeof descriptor.value !== 'function') {
     return { installed: false, dispose() {}, snapshot: () => ({ installed: false }) };
   }
   let native = descriptor.value, pending = null, timer = null, disposed = false;
+  // React replaces this callback as its captured state changes. Keep only the
+  // property flags: retaining descriptor.value would pin the first callback's
+  // obsolete store/module graph even after native points at its replacement.
+  descriptor = { configurable: descriptor.configurable, enumerable: descriptor.enumerable,
+    writable: descriptor.writable };
   let lastMovement = -Infinity;
   const stats = { deferred: 0, idleSaves: 0, deadlineSaves: 0, cancelled: 0 };
+  const note = (stage, started) => {
+    if (disposed) return;
+    try { onActivity(stage, { durationMs: Math.max(0, now() - started) }); } catch {}
+  };
+  function invokeNative(receiver, args) {
+    const started = now();
+    note('native-autosave.start', started);
+    let result;
+    try { result = native.apply(receiver, args); }
+    catch (error) { note('native-autosave.error', started); throw error; }
+    // This is only the callback's first synchronous slice. Later awaited work
+    // can still block; the memory sampler records that event-loop gap separately.
+    note('native-autosave.callback-return', started);
+    if (typeof result?.then === 'function') {
+      Promise.resolve(result).then(
+        () => note('native-autosave.complete', started),
+        () => note('native-autosave.error', started),
+      );
+    } else note('native-autosave.complete', started);
+    return result;
+  }
   const cancel = () => {
     if (timer !== null) clearTimeoutFn?.(timer);
     timer = null;
@@ -70,14 +96,15 @@ export function installNativeAutosaveIdleGuard({ ref, isMoving = () => false,
     const work = pending;
     pending = null;
     stats[deadline ? 'deadlineSaves' : 'idleSaves']++;
-    try { Promise.resolve(native.apply(work.receiver, work.args)).then(work.resolve, work.reject); }
+    try { Promise.resolve(invokeNative(work.receiver, work.args)).then(work.resolve, work.reject); }
     catch (error) { work.reject(error); }
   };
   function wrapper(...args) {
     if (pending) return pending.promise;
     const time = now();
     if (isMoving()) lastMovement = time;
-    if (disposed || time - lastMovement >= quietMs) return native.apply(this, args);
+    if (disposed) return native.apply(this, args);
+    if (time - lastMovement >= quietMs) return invokeNative(this, args);
     let resolve, reject;
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
     pending = { promise, resolve, reject, args, receiver: this, started: time, identity: getIdentity() };

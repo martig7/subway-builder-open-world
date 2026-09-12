@@ -454,7 +454,8 @@ test('autosave checkpoint reports one reconciled per-stage performance profile',
 });
 
 test('autosave commits through one checkpoint persistence operation and refreshes presentation metadata', async () => {
-  const { runtime, storage } = setupProjectedRuntime();
+  let clock = 0;
+  const { runtime, storage } = setupProjectedRuntime({ now: () => (clock += 5) });
   const telemetry = [];
   runtime.telemetry = (event) => telemetry.push(event);
   await runtime.boot('single-autosave-commit', 'T0');
@@ -471,7 +472,9 @@ test('autosave commits through one checkpoint persistence operation and refreshe
   assert.equal(checkpointSaves, 1);
   const profile = telemetry.find(({ phase }) => phase === 'autosave-performance');
   assert.equal(profile.projectionStatus, 'reconciled');
-  assert.equal(profile.stages.snapshotCapture, 0);
+  // This direct checkpoint captures a snapshot; measure its stage with the
+  // controlled clock rather than assuming it finishes in the same wall millisecond.
+  assert.equal(profile.stages.snapshotCapture, 5);
 });
 
 test('accepted in-window construction does not reload the save or change pause state', async () => {

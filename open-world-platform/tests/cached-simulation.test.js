@@ -71,7 +71,7 @@ test('partial-hour and midnight postings conserve fares, rides and full-network 
   assert.notEqual(a.postingId, b.postingId);
 });
 
-function fixture(evaluate = async () => calculated(), isReady = () => true) {
+function fixture(evaluate = async () => calculated(), isReady = () => true, options = {}) {
   let nativeTicks = 0, nativeCommutes = 0, nativePaths = 0;
   const postings = [], hours = [], days = [];
   const state = { gameSessionId: 'one', cityCode: 'A', timeConfig: { paused: true, timeSpeed: 'ultrafast', elapsedSeconds: 25000 },
@@ -86,7 +86,7 @@ function fixture(evaluate = async () => calculated(), isReady = () => true) {
   const game = { captureCrossTileNetworkProfile: network, calculateNativeFinanceProfile: () => ({ expenseProfile: {} }),
     postBackgroundNativeFinanceNow: posting => { postings.push(posting); return { applied: true }; } };
   const controller = createCachedSimulation({ game, getState: () => state, api: { utils: {} }, evaluate, isReady,
-    onHour: async hour => hours.push(hour), onDay: async day => { days.push(day); await controller.refreshAtMidnight(day); } });
+    onHour: async hour => hours.push(hour), onDay: async day => { days.push(day); await controller.refreshAtMidnight(day); }, ...options });
   return { state, game, controller, postings, hours, days, native: () => ({ nativeTicks, nativeCommutes, nativePaths }) };
 }
 
@@ -338,13 +338,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v8', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v9', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v9');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v10');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -357,16 +357,36 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const original = f.state.generateSave[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v8', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v9', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v9');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v10');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);
+});
+
+test('save stage diagnostics contain timings without retaining payloads and cannot interrupt saving', async () => {
+  const phases = [];
+  const f = fixture(undefined, undefined, { onSavePhase(stage, details) {
+    phases.push({ stage, details });
+    throw new Error('Diagnostic observer failed');
+  } });
+  const save = f.state.generateSave();
+  assert.ok(save.data.trains.length);
+  assert.deepEqual(phases.map(value => value.stage), ['generate.start', 'generate.end', 'sharing.end']);
+  assert.ok(phases.every(value => Object.keys(value.details).join(',') === 'durationMs'
+    && value.details.durationMs >= 0));
+  phases.length = 0;
+  const failure = new Error('Native save failed');
+  f.state.generateSave = async () => { throw failure; };
+  f.controller.attach();
+  await assert.rejects(f.state.generateSave(), error => error === failure);
+  assert.deepEqual(phases.map(value => value.stage), ['generate.start', 'generate.error']);
+  await f.controller.dispose();
 });
 
 test('network edits preserving a train billing cursor cannot replay already estimated operating time', async () => {

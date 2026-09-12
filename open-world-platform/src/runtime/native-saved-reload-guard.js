@@ -3,7 +3,7 @@ const ORIGINAL = '__openWorldNativeReloadRecoveryOriginal__';
 const VERSION = '__openWorldNativeReloadRecoveryVersion__';
 const SAVED_FILE = '__openWorldSavedReloadFile__';
 const SAVE_TIMELINE = '__openWorldSavedReloadTimeline__';
-export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v6';
+export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v7';
 const inGame = location => location?.pathname === '/game' || location?.hash?.replace(/^#/, '').split('?')[0] === '/game';
 const pendingSave = result => result?.save ?? result?.data ?? null;
 const sameSave = (save, file) => {
@@ -20,7 +20,11 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
   location = globalThis.location, getSessionId, getCityCode, getLoadedSave, now = () => Date.now(), logger = console,
   intervalMs = 15000, setIntervalFn = globalThis.setInterval?.bind(globalThis),
   clearIntervalFn = globalThis.clearInterval?.bind(globalThis) } = {}) {
-  const previous = globalObject[GUARD]; previous?.dispose?.();
+  const previous = globalObject[GUARD];
+  // The old controller's callbacks can retain an entire retired world runtime.
+  // Carry only its compact file identity into the new guard's closures.
+  const previousSavedFile = previous?.savedFile;
+  previous?.dispose?.();
   const retired = Promise.resolve(previous?.flush?.());
   const readPendingInfo = electron?.__openWorldGetPendingSaveInfo ?? electron?.getPendingSave;
   if (typeof electron?.reloadWindow !== 'function' || typeof electron?.getMostRecentSaves !== 'function'
@@ -58,10 +62,10 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
       if(result?.success===false)throw new Error(result.error??'Could not inspect the pending native save');
       const existing=pendingSave(result),legacy=existing?.metadata?.openWorldNativeRecovery;
       owned=!existing || (legacy?.schemaVersion===1 && legacy.reason==='renderer-reload')
-        || (previous?.savedFile && sameSave(existing,previous.savedFile))
+        || (previousSavedFile && sameSave(existing,previousSavedFile))
         || (globalObject[SAVED_FILE] && sameSave(existing,globalObject[SAVED_FILE]))
         || (loadedSave && sameSave(existing, loadedSave));
-      const retainedFile = globalObject[SAVED_FILE] ?? previous?.savedFile;
+      const retainedFile = globalObject[SAVED_FILE] ?? previousSavedFile;
       if (retainedFile && sameSave(existing, retainedFile)) {
         // Autosave retention may already have pruned this file. Its valid
         // pending payload is still in the main process; do not decode it again.

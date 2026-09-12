@@ -6,7 +6,7 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v9';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v10';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -55,7 +55,7 @@ export function publishCachedDemand(state, assignments) {
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
   onHour = async () => {}, onDay = async () => {}, workerSource = null,
-  postingWorkerSource = null, evaluate = null } = {}) {
+  postingWorkerSource = null, evaluate = null, onSavePhase = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
@@ -65,6 +65,11 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   let cacheContext = null, pendingMidnightRefresh = false;
   let sessionId = null, status = 'off', error = null;
   const counters = { calculations: 0, ticks: 0, suppressedCommutes: 0, suppressedPathSearches: 0, milliseconds: 0 };
+  const savePhase = (stage, started) => {
+    try { onSavePhase?.(stage, { durationMs: performance.now() - started }); } catch {
+      // Diagnostics never change the native save result or error.
+    }
+  };
   const preparation = createHourlyPostingPreparation({ workerSource: postingWorkerSource,
     prepareNative: (posting, budget) => game.prepareBackgroundNativeFinance?.(posting, { includeFinancialHistory: false }, budget) });
   const snapshot = () => ({ version: CACHED_SIMULATION_VERSION, enabled, status, error,
@@ -300,6 +305,8 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           if (disposed) return original.apply(this, args);
           const cachedActive = enabled && isReady();
           if (name === 'generateSave') {
+            const started = performance.now();
+            savePhase('generate.start', started);
             if (cachedActive) { observeFrozenTrains(getState()); flush(); }
             const rebaseSave = save => {
               if (!cachedActive || !enabled || disposed || !save?.data || getState().gameSessionId !== sessionId) return save;
@@ -311,12 +318,22 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
                 trains: (save.data.trains ?? []).map(train => rebaseFrozenTrain(train, elapsed)),
               } };
             };
-            const save = original.apply(this, args);
+            let save;
+            try { save = original.apply(this, args); }
+            catch (error) { savePhase('generate.error', started); throw error; }
             if (cachedActive) prefetch();
             // Sharing repeated route lists reduces Electron's synchronous data
             // handoff in native mode too, without changing serialized save values.
-            const prepareSave = value => shareNativeSaveReferences(rebaseSave(value));
-            return typeof save?.then === 'function' ? save.then(prepareSave) : prepareSave(save);
+            const prepareSave = value => {
+              savePhase('generate.end', started);
+              const sharingStarted = performance.now();
+              const result = shareNativeSaveReferences(rebaseSave(value));
+              savePhase('sharing.end', sharingStarted);
+              return result;
+            };
+            return typeof save?.then === 'function' ? save.then(prepareSave, error => {
+              savePhase('generate.error', started); throw error;
+            }) : prepareSave(save);
           }
           if (!cachedActive) return original.apply(this, args);
           if (name === 'handleIncrementGameState') return tick();

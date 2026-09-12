@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { installNativeSavedReloadGuard, NATIVE_SAVED_RELOAD_VERSION } from '../src/runtime/native-saved-reload-guard.js';
 
 function fixture({ frozen = true, pending = null } = {}) {
@@ -155,7 +156,7 @@ test('hot reload replaces the preceding guard and wrapper, preserving its saved-
   const f = fixture({ frozen: false }), original = f.electron.reloadWindow;
   const old = installNativeSavedReloadGuard(f.options); await old.flush();
   const oldWrapper = f.electron.reloadWindow;
-  old.version = 'previous-generation';
+  old.version = 'native-saved-reload-v6';
   const guard = installNativeSavedReloadGuard(f.options); await guard.flush();
   assert.notEqual(guard, old); assert.notEqual(f.electron.reloadWindow, oldWrapper);
   assert.equal(f.electron.reloadWindow.__openWorldNativeReloadRecoveryVersion__, NATIVE_SAVED_RELOAD_VERSION);
@@ -163,6 +164,41 @@ test('hot reload replaces the preceding guard and wrapper, preserving its saved-
   await f.electron.reloadWindow();
   assert.equal(f.calls.reloads, 1); assert.equal(f.calls.loads.length, 1, 'retained pending save is not decoded again');
   guard.dispose(); assert.equal(f.electron.reloadWindow, original);
+});
+
+test('a replacement guard releases its retired controller and session callback', () => {
+  // Collection needs a fresh task after creating a WeakRef, and an explicit GC
+  // in a child keeps this regression independent of the suite's launch flags.
+  const moduleUrl = new URL('../src/runtime/native-saved-reload-guard.js', import.meta.url).href;
+  execFileSync(process.execPath, ['--max-old-space-size=128', '--expose-gc', '--input-type=module', '--eval', `
+    import assert from 'node:assert/strict';
+    import { setImmediate } from 'node:timers/promises';
+    import { installNativeSavedReloadGuard } from ${JSON.stringify(moduleUrl)};
+    const globalObject = {};
+    const electron = {
+      reloadWindow() {},
+      async getPendingSave() { return { success: true, data: null }; },
+      async getMostRecentSaves() { return { success: true, saves: [] }; },
+      async loadAndSetPendingSave() { return { success: true }; },
+    };
+    const options = { globalObject, electron, location: { hash: '#/game' },
+      getCityCode: () => 'JP_A', intervalMs: 0 };
+    function installRetired() {
+      const snapshot = { session: 'session', values: new Array(1000).fill(1) };
+      return { guard: installNativeSavedReloadGuard({ ...options, getSessionId: () => snapshot.session }),
+        snapshot: new WeakRef(snapshot) };
+    }
+    let retired = installRetired();
+    await retired.guard.flush();
+    const oldController = new WeakRef(retired.guard), oldSnapshot = retired.snapshot;
+    retired = null;
+    const current = installNativeSavedReloadGuard({ ...options, getSessionId: () => 'session' });
+    await current.flush();
+    for (let i = 0; i < 8; i++) { await setImmediate(); globalThis.gc(); }
+    assert.equal(oldController.deref() === undefined, true, 'replacement retained the retired guard');
+    assert.equal(oldSnapshot.deref() === undefined, true, 'replacement retained the retired session callback');
+    current.dispose();
+  `], { stdio: 'pipe', timeout: 15000 });
 });
 
 test('leaving the game clears only the file this guard staged', async () => {

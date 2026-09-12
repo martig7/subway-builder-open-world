@@ -49,6 +49,8 @@ import { createCachedSimulation } from './cached-simulation.js';
 import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js';
 import { registerIntercityTrains } from './intercity-trains.js';
 import { yieldBrowserPaint } from './frame-budget.js';
+import { installRendererMemoryDiagnostics } from './renderer-memory-diagnostics.js';
+import { createRendererTileCacheBudget } from './renderer-tile-cache-budget.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
 
@@ -315,8 +317,12 @@ export function startOpenWorld({
   let latestMap = api.utils?.getMap?.() ?? null;
   let autosaveIdleGuard = null, autosaveIdleMap = null;
   const noteAutosaveMapMovement = () => autosaveIdleGuard?.noteMovement?.();
+  const noteMapMoveStart = () => rendererMemory.recordActivity('map.move.start', { tileId: currentCityCode() });
+  const noteMapMoveEnd = () => rendererMemory.recordActivity('map.move.end', { tileId: currentCityCode() });
   function detachAutosaveIdleGuard() {
     autosaveIdleMap?.off?.('move', noteAutosaveMapMovement);
+    autosaveIdleMap?.off?.('movestart', noteMapMoveStart);
+    autosaveIdleMap?.off?.('moveend', noteMapMoveEnd);
     autosaveIdleGuard?.dispose();
     autosaveIdleGuard = null;
     autosaveIdleMap = null;
@@ -329,9 +335,12 @@ export function startOpenWorld({
       ref: findNativeAutosaveRef(),
       isMoving: () => Boolean(latestMap?.isMoving?.()),
       getIdentity: () => ownsCurrentCity() ? `${api.gameState.getGameSessionId?.()}:${currentCityCode()}` : null,
+      onActivity: (stage, details) => rendererMemory.recordActivity(stage, details),
     });
     autosaveIdleMap = latestMap;
     autosaveIdleMap.on?.('move', noteAutosaveMapMovement);
+    autosaveIdleMap.on?.('movestart', noteMapMoveStart);
+    autosaveIdleMap.on?.('moveend', noteMapMoveEnd);
   }
   let navigationCamera = null;
   function rememberNavigationCamera(pending) {
@@ -390,6 +399,32 @@ export function startOpenWorld({
     api.ui?.showNotification?.(`${definition.identity.name} disabled: incompatible game seam`, 'error');
     return;
   }
+  const tileCacheBudget = createRendererTileCacheBudget();
+  tileCacheBudget.attach(registration.cities.includes(currentCityCode()) ? latestMap : null);
+  let lastMemoryLogAt = -Infinity, lastMemoryPressure = null;
+  const rendererMemory = installRendererMemoryDiagnostics({
+    onSample: sample => {
+      tileCacheBudget.updatePressure(sample.pressure);
+      const pressureChanged = sample.pressure !== lastMemoryPressure;
+      lastMemoryPressure = sample.pressure;
+      if (!sample.available || (sample.at - lastMemoryLogAt < 30_000
+        && !(pressureChanged && ['elevated', 'high'].includes(sample.pressure)))) return;
+      lastMemoryLogAt = sample.at;
+      // A tiny native-log breadcrumb survives renderer reloads without retaining
+      // snapshots or synchronously persisting a large history in localStorage.
+      try {
+        const result = electron?.logInfo?.('[OpenWorld renderer memory] ' + JSON.stringify({
+          at: sample.at, usedBytes: sample.usedBytes, limitBytes: sample.limitBytes,
+          headroomBytes: sample.headroomBytes, pressure: sample.pressure,
+          activity: sample.activity, activityAgeMs: sample.activityAgeMs, gapMs: sample.gapMs,
+        }));
+        result?.catch?.(() => {});
+      } catch {}
+    },
+  });
+  diagnostics.rendererMemory = rendererMemory.snapshot;
+  diagnostics.tileCacheBudget = tileCacheBudget.snapshot;
+  rendererMemory.recordActivity('runtime.attached', { tileId: currentCityCode() });
   let session = null;
   diagnostics.nativeNetworkMode = game.activateCanonicalNativeNetworkMode();
   diagnostics.trackGroupLoadGuard = game.installTrackGroupLoadGuard();
@@ -594,6 +629,7 @@ export function startOpenWorld({
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
     onDay: flushMidnightCommutes,
+    onSavePhase: (stage, details) => rendererMemory.recordActivity(stage, details),
   });
   diagnostics.cachedSimulation = cachedSimulation.snapshot;
   function ensureSession() {
@@ -1517,9 +1553,12 @@ export function startOpenWorld({
     roadLabelSourceGuard.attach(map);
     if (!ownsLoadedCity) {
       detachAutosaveIdleGuard();
+      tileCacheBudget.attach(null);
       tileSourceStyleHandler = null;
       return;
     }
+    tileCacheBudget.attach(map);
+    rendererMemory.recordActivity('map.attached', { tileId: loadedCityCode, reason });
     stabilizeMapLayerMoves(map);
     diagnostics.mapZoom = relaxMapZoomLimits(map, { sourceMinZoom: tileCatalog.basemapMinZoom });
     tileSourceStyleHandler = () => {
@@ -1547,6 +1586,8 @@ export function startOpenWorld({
   ownedHooks.onGameEnd(() => {
     if (!isCurrent()) return;
     detachAutosaveIdleGuard();
+    tileCacheBudget.attach(null);
+    rendererMemory.recordActivity('game.end', { tileId: currentCityCode() });
     void cachedSimulation.setEnabled(false);
     const pending = navigation.pending();
     if (pending) {
@@ -1613,6 +1654,8 @@ export function startOpenWorld({
       nativeReloadRecovery.dispose();
       roadLabelSourceGuard.dispose();
       detachAutosaveIdleGuard();
+      tileCacheBudget.dispose();
+      rendererMemory.dispose();
       if (latestMap && tileSourceStyleHandler) {
         try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
       }
