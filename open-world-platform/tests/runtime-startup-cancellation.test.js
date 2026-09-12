@@ -355,6 +355,45 @@ test('schedule changes queue active demand into the midnight cross-network batch
   });
 });
 
+for (const [name, reason, change] of [
+  ['blank route creation', null, ({ state }) => state.setRoutes([...state.routes, { id: 'blank-2', stNodes: [] }])],
+  ['blank route deletion', null, ({ state }) => state.deleteRoute('blank')],
+  ['route color', null, ({ state }) => state.updateRouteProperty('r', 'color', 'blue')],
+  ['unchanged train count', null, ({ state }) => state.updateRouteProperty('r', 'idealTrainCount', 1)],
+  ['blueprint track construction', null, ({ state }) => state.setTracks({ newTracks: [{ id: 'draft', buildType: 'blueprint' }] })],
+  ['fleet and inventory replacement', null, ({ state }) => { state.trains = [...state.trains]; state.ownedTrainCount = 5; }],
+  ['committed train count', 'route-service-change', ({ state }) => state.updateRouteProperty('r', 'idealTrainCount', 2)],
+  ['committed stops', 'route-service-change', ({ state }) => state.confirmRouteChange()],
+  ['served route deletion', 'route-service-change', ({ state }) => state.deleteRoute('r')],
+  ['schedule hook', 'schedule-change', ({ hooks }) => hooks.get('onScheduleChange')()],
+  ['ticket fare hook', 'fare-change', ({ state, hooks }) => { state.transitCost = 3; hooks.get('onTicketPriceChanged')(3); }],
+  ['fare-group action', 'fare-change', ({ state }) => state.setFareGroups([])],
+]) test(`active and cross-tile queue conditions agree for ${name}`, async t => {
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  await harness(async context => {
+    const { controller, state, idle } = context;
+    state.updateRouteProperty = (id, key, value) => { state.routes = state.routes.map(route => route.id === id ? { ...route, [key]: value } : route); };
+    state.deleteRoute = id => { state.routes = state.routes.filter(route => route.id !== id); };
+    state.confirmRouteChange = () => { state.routes = state.routes.map(route => route.id === 'r' ? { ...route, stNodes: [{ id: 'a' }, { id: 'b' }] } : route); };
+    state.setFareGroups = value => { state.fareGroups = value; };
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    state.routes = [{ id: 'r', stNodes: [{ id: 'a' }], idealTrainCount: 1 }, { id: 'blank', stNodes: [] }];
+    state.previewRoute = { id: 'r' };
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    state.setTimeConfig({ paused: true, timeSpeed: 'ultrafast', elapsedSeconds: 25000 });
+    await controller.cachedSimulation.setEnabled(true);
+    assert.equal(controller.cachedSimulation.snapshot().status, 'ready');
+    change(context);
+    state.setTimeConfig({ paused: false });
+    await state.handleIncrementGameState();
+    assert.deepEqual(controller.diagnostics.midnightCommuteRefresh().dirtyReasons, reason ? [reason] : []);
+    assert.equal(controller.cachedSimulation.snapshot().pendingMidnightRefresh, reason !== null);
+    assert.equal(controller.cachedSimulation.snapshot().calculations, 1);
+  });
+});
+
 test('full disposal unregisters hooks once and disables retained lifecycle callbacks', async t => {
   let identityCalls = 0;
   t.mock.method(WorldIdentityResolver.prototype, 'resolve', async () => { identityCalls++; throw new Error('disposed callback ran'); });

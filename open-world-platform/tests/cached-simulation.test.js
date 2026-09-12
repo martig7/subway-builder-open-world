@@ -71,7 +71,7 @@ test('partial-hour and midnight postings conserve fares, rides and full-network 
   assert.notEqual(a.postingId, b.postingId);
 });
 
-function fixture(evaluate = async () => calculated(), isReady = () => true, options = {}) {
+function fixture(evaluate = async () => calculated(), isReady = () => true) {
   let nativeTicks = 0, nativeCommutes = 0, nativePaths = 0;
   const postings = [], hours = [], days = [];
   const state = { gameSessionId: 'one', cityCode: 'A', timeConfig: { paused: true, timeSpeed: 'ultrafast', elapsedSeconds: 25000 },
@@ -86,7 +86,7 @@ function fixture(evaluate = async () => calculated(), isReady = () => true, opti
   const game = { captureCrossTileNetworkProfile: network, calculateNativeFinanceProfile: () => ({ expenseProfile: {} }),
     postBackgroundNativeFinanceNow: posting => { postings.push(posting); return { applied: true }; } };
   const controller = createCachedSimulation({ game, getState: () => state, api: { utils: {} }, evaluate, isReady,
-    onHour: async hour => hours.push(hour), onDay: async day => { days.push(day); await controller.refreshAtMidnight(day); }, ...options });
+    onHour: async hour => hours.push(hour), onDay: async day => { days.push(day); await controller.refreshAtMidnight(day); } });
   return { state, game, controller, postings, hours, days, native: () => ({ nativeTicks, nativeCommutes, nativePaths }) };
 }
 
@@ -136,22 +136,22 @@ test('cached ticks bypass all native simulation, reuse assignments, honor pause 
 });
 
 test('rail and fare edits retain assignments through daytime and coalesce at midnight', async () => {
-  const invalidations = [];
-  const f = fixture(undefined, undefined, { onInvalidated: reason => invalidations.push(reason) });
+  const f = fixture();
   await f.controller.setEnabled(true);
   const assignments = f.state.demandData;
   f.state.routes = [{ id: 'new' }];
+  f.controller.invalidate(); // Shared committed-service notification.
   f.state.setTimeConfig({ paused: false });
   await f.state.handleIncrementGameState();
   assert.equal(f.controller.snapshot().calculations, 1);
   f.state.transitCost = 7;
+  f.controller.invalidate(); // Shared fare notification.
   await f.state.handleIncrementGameState();
   f.controller.invalidate();
   await f.state.handleIncrementGameState();
   assert.equal(f.controller.snapshot().calculations, 1);
   assert.equal(f.state.demandData, assignments);
   assert.equal(f.controller.snapshot().pendingMidnightRefresh, true);
-  assert.ok(invalidations.length > 0, 'unhooked dependency changes must also schedule the shared midnight job');
   f.state.setTimeConfig({ elapsedSeconds: 86390 });
   await f.state.handleIncrementGameState();
   assert.equal(f.state.timeConfig.elapsedSeconds, 86400, 'stop exactly at midnight before publishing new rates');
@@ -160,6 +160,39 @@ test('rail and fare edits retain assignments through daytime and coalesce at mid
   await f.state.handleIncrementGameState();
   assert.equal(f.state.timeConfig.elapsedSeconds, 86640);
   assert.equal(f.controller.snapshot().calculations, 2);
+  await f.controller.dispose();
+});
+
+test('raw route, track, fleet and inventory replacements do not queue a commute refresh', async () => {
+  const f = fixture();
+  await f.controller.setEnabled(true);
+  f.state.setTimeConfig({ paused: false });
+  f.state.routes = [{ id: 'blank', stNodes: [] }];
+  f.state.tracks = [{ id: 'blueprint', buildType: 'blueprint' }];
+  f.state.trains = f.state.trains.map(train => ({ ...train }));
+  f.state.ownedTrainCount = 20;
+  await f.state.handleIncrementGameState();
+  assert.equal(f.controller.snapshot().pendingMidnightRefresh, false);
+  assert.equal(f.controller.snapshot().calculations, 1);
+  f.state.routes = [{ ...f.state.routes[0], color: 'blue' }];
+  assert.equal((await f.controller.refreshAtMidnight(1)).status, 'not-dirty');
+  await f.controller.dispose();
+});
+
+test('reference and fleet changes during refresh retain assignments and account for new trains', async () => {
+  let finish;
+  const f = fixture(() => new Promise(resolve => { finish = resolve; }));
+  const enabling = f.controller.setEnabled(true);
+  await new Promise(resolve => setImmediate(resolve));
+  f.state.routes = [...f.state.routes];
+  f.state.trains = [...f.state.trains, { id: 'new', operationalTime: { lastChargedAt: 25000 } }];
+  finish(calculated()); await enabling;
+  assert.equal(f.controller.snapshot().status, 'ready');
+  assert.equal(f.controller.snapshot().calculations, 1);
+  assert.equal(f.controller.snapshot().pendingMidnightRefresh, false);
+  f.state.setTimeConfig({ paused: false }); await f.state.handleIncrementGameState();
+  assert.equal(f.state.generateSave().data.trains.find(train => train.id === 'new').operationalTime.lastChargedAt,
+    f.state.timeConfig.elapsedSeconds, 'a train created while routing was pending must not replay cached time');
   await f.controller.dispose();
 });
 
@@ -305,13 +338,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v7', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v8', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v8');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v9');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -324,13 +357,13 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const original = f.state.generateSave[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v7', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v8', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v8');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v9');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);

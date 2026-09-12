@@ -30,6 +30,12 @@ concurrently, and duplicate day hooks await that same batch. The cached clock
 stops exactly at midnight, settling old rates to the boundary, and waits for
 both calculations before the next tick. Incomplete work remains queued.
 
+Both commute owners use the same committed-service observer and public schedule
+and fare hooks. Blank route design/deletion, cosmetic edits, construction,
+inventory changes, and live train/reference replacements do not independently
+queue demand work in cached mode. Raw store changes can update expense rates and
+billing anchors without widening the shared commute invalidation policy.
+
 Enabling the mode still prepares assignments immediately. A changed save, Tile
 View, or demand set cannot reuse another context's assignments until midnight.
 A late worker response cannot publish into another save, a disabled mode, or

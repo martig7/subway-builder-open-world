@@ -570,20 +570,18 @@ export function startOpenWorld({
     }
   }
 
-  const serviceChanged = (reason = 'route-service-change') => {
+  // One classification/gate feeds both commute owners; cached ticks must not
+  // widen this policy when construction or rendering replaces store arrays.
+  const queueCommuteRefresh = (reason, networkChanged) => {
     if (!ready || !isCurrent() || !ownsCurrentCity()) return;
-    runtime.markDerivedNetworkDirty(reason);
+    if (networkChanged) runtime.markDerivedNetworkDirty(reason);
     revenueAccrual.invalidate();
     session?.modeShareInvalidation.markDirty(reason);
     cachedSimulation.invalidate();
   };
+  const serviceChanged = (reason = 'route-service-change') => queueCommuteRefresh(reason, true);
   const scheduleChanged = () => serviceChanged('schedule-change');
-  const fareChanged = () => {
-    if (!ready || !isCurrent() || !ownsCurrentCity()) return;
-    revenueAccrual.invalidate();
-    session?.modeShareInvalidation.markDirty('fare-change');
-    cachedSimulation.invalidate();
-  };
+  const fareChanged = () => queueCommuteRefresh('fare-change', false);
   // Native UI day numbers are one-based; cached ticks use elapsed-day indices.
   // Normalize both notifications to the actual clock for batch deduplication.
   const flushMidnightCommutes = () => session?.modeShareInvalidation.flushAtMidnight(
@@ -596,11 +594,6 @@ export function startOpenWorld({
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
     onDay: flushMidnightCommutes,
-    onInvalidated: reason => {
-      runtime.markDerivedNetworkDirty(reason);
-      revenueAccrual.invalidate();
-      session?.modeShareInvalidation.markDirty(reason);
-    },
   });
   diagnostics.cachedSimulation = cachedSimulation.snapshot;
   function ensureSession() {

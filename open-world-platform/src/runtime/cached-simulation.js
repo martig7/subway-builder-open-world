@@ -6,7 +6,7 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v8';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v9';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -54,7 +54,7 @@ export function publishCachedDemand(state, assignments) {
 
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
-  onHour = async () => {}, onDay = async () => {}, onInvalidated = () => {}, workerSource = null,
+  onHour = async () => {}, onDay = async () => {}, workerSource = null,
   postingWorkerSource = null, evaluate = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createCrossTileRoutingCache();
@@ -131,6 +131,13 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     if (posted.applied !== false) latest.totalLifetimeRidership = (latest.totalLifetimeRidership ?? 0)
       + posting.completedCommutes.reduce((sum, commute) => sum + commute.size, 0);
   };
+  const updateExpenses = state => {
+    flush(); observeFrozenTrains(state);
+    cache.expenses = game.calculateNativeFinanceProfile(state.cityCode, state, { includeRevenue: false }).expenseProfile;
+    dependencies = dependencyList(getState());
+    preparation.setProfile({ profile: cache.profile, expenses: cache.expenses, sessionId });
+    prefetch();
+  };
   const refresh = async () => {
     if (refreshPromise) return refreshPromise;
     const run = async () => {
@@ -139,7 +146,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       await flush();
       observeFrozenTrains(state);
       status = 'calculating'; notify();
-      const initial = dependencyList(state), begin = performance.now();
+      const initial = contextOf(state), begin = performance.now();
       const demand = { points: values(state.demandData.points), pops: values(state.demandData.popsMap)
         .map(({ id, size, residenceId, jobId, drivingSeconds, drivingDistance, homeDepartureTime, workDepartureTime }) =>
           ({ id, size, residenceId, jobId, drivingSeconds, drivingDistance, homeDepartureTime, workDepartureTime })) };
@@ -150,9 +157,12 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         : await worker.evaluate(new TextEncoder().encode(JSON.stringify(demand)), input)
           ?? evaluateOffTileNativeDemand({ ...input, demand, routingCache });
       const live = getState();
-      const current = dependencyList(live);
+      // Shared service/fare notifications advance revision. Cosmetic/reference
+      // replacements neither invalidate a journey nor queue another midnight.
+      const current = contextOf(live);
       if (disposed || !enabled || revision !== token || initial.some((value, i) => value !== current[i])) return false;
       if (result.assignments?.length !== demand.pops.length) throw new Error('Incomplete cached demand calculation.');
+      observeFrozenTrains(live);
       publishCachedDemand(live, result.assignments);
       cache = { ...result, expenses: game.calculateNativeFinanceProfile(state.cityCode, live,
         { includeRevenue: false }).expenseProfile };
@@ -184,7 +194,9 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     if (busy) return busy;
     busy = (async () => {
       if (!unchanged(getState())) {
-        if (canReuseAssignments(getState())) controller.invalidate();
+        // Raw collection changes update costs and billing anchors only. The
+        // shared committed-service/fare handlers alone queue commute refreshes.
+        if (canReuseAssignments(getState())) updateExpenses(getState());
         else if (!await refresh()) return;
       }
       const state = getState();
@@ -220,11 +232,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       if (enabled && !disposed && canReuseAssignments(state)) {
         // Keep routing off the edit/tick path. Expense rates and train billing
         // anchors are cheap to update and must still take effect at edit time.
-        flush(); observeFrozenTrains(state);
-        cache.expenses = game.calculateNativeFinanceProfile(state.cityCode, state, { includeRevenue: false }).expenseProfile;
-        dependencies = dependencyList(state); pendingMidnightRefresh = true;
-        preparation.setProfile({ profile: cache.profile, expenses: cache.expenses, sessionId });
-        prefetch(); onInvalidated('cached-simulation-change'); notify();
+        pendingMidnightRefresh = true; updateExpenses(state); notify();
         return;
       }
       dependencies = null; preparation.invalidate();
@@ -238,7 +246,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     },
     async refreshAtMidnight(day) {
       if (!enabled || disposed || !isReady()) return { status: 'disabled', day };
-      if (!pendingMidnightRefresh && unchanged(getState())) return { status: 'not-dirty', day };
+      if (!pendingMidnightRefresh && canReuseAssignments(getState())) return { status: 'not-dirty', day };
       try {
         const applied = await refresh();
         if (!applied && enabled && !disposed) {
