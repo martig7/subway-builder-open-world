@@ -1,6 +1,6 @@
 import { RoutingLRU, indexRoutingGraph, compileRoutingCorridors } from './routing-graph-index.js';
 
-export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v1';
+export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v2';
 const EARTH_RADIUS_M = 6_371_000;
 // Subway Builder's straight-line station catchment uses RULES.WALKING_SPEED
 // (1 m/s), not WALKING_SPEED_ACCURATE_PATH (1.5 m/s).
@@ -220,6 +220,7 @@ export function createNetworkProfile({ tileId, stations = [], routes = [], train
 
 function addEdge(adjacency, from, edge) {
   if (!adjacency.has(from)) adjacency.set(from, []);
+  edge.toStateKey = routeStateKey(edge.to, edge.type === 'ride' ? edge.routeStateId : null);
   adjacency.get(from).push(edge);
 }
 
@@ -283,11 +284,11 @@ function routingStats() {
     catchmentHits: 0, catchmentMisses: 0, driveAccessCandidates: 0,
     graphBuilds: 0, graphHits: 0, spatialIndexHits: 0, connectivityIndexHits: 0,
     connectivityRejects: 0, searches: 0, sourceSearchHits: 0, exactPathHits: 0,
-    settledStates: 0, relaxedEdges: 0, corridorEdges: 0, retainedSearchLabels: 0 };
+    settledStates: 0, relaxedEdges: 0, createdLabels: 0, corridorEdges: 0, retainedSearchLabels: 0 };
 }
 
 /** Session-owned derived data only. World changes discard every cached dependency. */
-export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 30_000, maxPaths = 8_192, maxCatchments = 65_536 } = {}) {
+export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 30_000, maxPaths = 8_192, maxCatchments = 65_536, searchKernel = null } = {}) {
   let world = null, previous = null, geometryKey = null, topologyKey = null, topologyIndex = null, regionSequence = 0;
   const sourceSearches = new RoutingLRU(maxSearchLabels, tree => tree.labels.size);
   const paths = new RoutingLRU(maxPaths);
@@ -334,6 +335,7 @@ export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 
         return version;
       });
       router.sourceSearches = sourceSearches; router.exactPaths = paths; router.cacheEnabled = enabled;
+      router.searchKernel = searchKernel;
       router.ruleKeys = new Map(Object.values(router.rulesByTile).concat(router.defaultRules).map(r=>[r,JSON.stringify(r)]));
       previous = {key,router};
       return router;
@@ -535,16 +537,25 @@ function combineStationRoutes(...groups) {
 
 function routeStateKey(stationId, routeId) { return `${stationId}\u0000${routeId ?? ''}`; }
 
-function advanceRouteLabel(currentLabel, edge, rules) {
+function advanceRouteLabel(currentLabel, edge, rules, bestPerceivedSeconds = Infinity) {
   if (edge.type === 'walk') {
+    const perceivedSeconds = currentLabel.perceivedSeconds + edge.seconds * rules.PERCEIVED_TIME.WALK_MULTIPLIER;
+    if (perceivedSeconds >= bestPerceivedSeconds) return null;
     return {
-      ...currentLabel,
       stationId: edge.to,
       currentRouteId: null,
+      sourceStationId: currentLabel.sourceStationId,
       parent: currentLabel, incomingEdge: edge,
       actualTime: currentLabel.actualTime + edge.seconds,
-      perceivedSeconds: currentLabel.perceivedSeconds + edge.seconds * rules.PERCEIVED_TIME.WALK_MULTIPLIER,
+      perceivedSeconds,
+      accessWalkSeconds: currentLabel.accessWalkSeconds,
+      accessDriveSeconds: currentLabel.accessDriveSeconds,
       transferWalkSeconds: currentLabel.transferWalkSeconds + edge.seconds,
+      waitSeconds: currentLabel.waitSeconds,
+      departureShiftSeconds: currentLabel.departureShiftSeconds,
+      inVehicleSeconds: currentLabel.inVehicleSeconds,
+      boarded: currentLabel.boarded,
+      networkTileIds: currentLabel.networkTileIds,
     };
   }
   const continuing = currentLabel.currentRouteId === edge.routeStateId;
@@ -561,17 +572,22 @@ function advanceRouteLabel(currentLabel, edge, rules) {
     waitSeconds = currentLabel.boarded ? Math.max(0, departure - currentLabel.actualTime) : arrivalGap;
     vehicleSeconds = edge.inVehicleSeconds;
   }
+  const perceivedSeconds = currentLabel.perceivedSeconds
+    + departureShiftSeconds * rules.PERCEIVED_TIME.DEPARTURE_SHIFT_MULTIPLIER
+    + waitSeconds * rules.PERCEIVED_TIME.WAIT_MULTIPLIER
+    + vehicleSeconds;
+  if (perceivedSeconds >= bestPerceivedSeconds) return null;
   const ownerTileId = edge.route.ownerTileIds?.[0];
   return {
-    ...currentLabel,
     stationId: edge.to,
     currentRouteId: edge.routeStateId,
+    sourceStationId: currentLabel.sourceStationId,
     parent: currentLabel, incomingEdge: edge,
     actualTime: departure + edge.inVehicleSeconds,
-    perceivedSeconds: currentLabel.perceivedSeconds
-      + departureShiftSeconds * rules.PERCEIVED_TIME.DEPARTURE_SHIFT_MULTIPLIER
-      + waitSeconds * rules.PERCEIVED_TIME.WAIT_MULTIPLIER
-      + vehicleSeconds,
+    perceivedSeconds,
+    accessWalkSeconds: currentLabel.accessWalkSeconds,
+    accessDriveSeconds: currentLabel.accessDriveSeconds,
+    transferWalkSeconds: currentLabel.transferWalkSeconds,
     waitSeconds: currentLabel.waitSeconds + waitSeconds,
     departureShiftSeconds: currentLabel.departureShiftSeconds + departureShiftSeconds,
     inVehicleSeconds: currentLabel.inVehicleSeconds + vehicleSeconds,
@@ -693,6 +709,28 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
     const cached = router.exactPaths.get(pathKey);
     if (cached) { router.routingStats.exactPathHits++; return cached; }
   }
+  if (router.searchKernel) {
+    const searched = router.searchKernel.search(router, { starts, ends, rules, requestedDepartureSeconds,
+      bound: incumbent?.available ? incumbent.totalSeconds : Infinity });
+    if (searched) {
+      router.routingStats.searches++;
+      for (const [name, count] of Object.entries(searched.stats)) router.routingStats[name] += count;
+      let result;
+      if (searched.available) {
+        const [id, { seconds, mode }] = searched.source;
+        let label = { stationId: id, currentRouteId: null, sourceStationId: id,
+          actualTime: requestedDepartureSeconds + seconds,
+          perceivedSeconds: seconds * (mode === 'drive' ? 1 : walkWeight),
+          accessWalkSeconds: mode === 'walk' ? seconds : 0, accessDriveSeconds: mode === 'drive' ? seconds : 0,
+          transferWalkSeconds: 0, waitSeconds: 0, departureShiftSeconds: 0, inVehicleSeconds: 0,
+          boarded: false, networkTileIds: [], parent: null, incomingEdge: null };
+        for (const edge of searched.edges) label = advanceRouteLabel(label, edge, rules);
+        result = finishRouteLeg(router, label, searched.egressWalkSeconds, preferredTileId, requestedDepartureSeconds, rules);
+      } else result = incumbent?.available ? incumbent : unavailableLeg('stations-disconnected');
+      if (router.cacheEnabled) router.exactPaths.set(pathKey, result);
+      return result;
+    }
+  }
   let tree = router.cacheEnabled ? router.sourceSearches.get(sourceKey) : null;
   if (tree) { router.sourceSearches.delete(sourceKey); router.routingStats.sourceSearchHits++; }
   else { tree = {labels:new Map(),queue:new MinHeap(),settled:new Map()}; router.routingStats.searches++; }
@@ -709,6 +747,7 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
       waitSeconds: 0, departureShiftSeconds: 0, inVehicleSeconds: 0,
       boarded: false, networkTileIds: [], parent: null, incomingEdge: null,
     });
+    router.routingStats.createdLabels++;
     queue.push([perceivedSeconds, key]);
   }
   let egressWalkSeconds = null; let best = incumbent?.available ? incumbent.totalSeconds : Infinity; let bestLabel = null;
@@ -731,11 +770,12 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
       const chain = router.cacheEnabled ? router.graphIndex.corridors.get(edge) ?? [edge] : [edge];
       let previousLabel = currentLabel;
       for (let index = 0; index < chain.length; index++) {
-        const candidate = advanceRouteLabel(previousLabel, chain[index], rules);
+        const candidateKey = chain[index].toStateKey;
+        const candidate = advanceRouteLabel(previousLabel, chain[index], rules,
+          labels.get(candidateKey)?.perceivedSeconds ?? Infinity);
         router.routingStats.relaxedEdges++;
         if (!candidate) break;
-        const candidateKey = routeStateKey(candidate.stationId, candidate.currentRouteId);
-        if (candidate.perceivedSeconds >= (labels.get(candidateKey)?.perceivedSeconds ?? Infinity)) break;
+        router.routingStats.createdLabels++;
         labels.set(candidateKey, candidate);
         // Stop contraction at query destinations. Intermediate states remain
         // available to later destinations sharing this source search.
