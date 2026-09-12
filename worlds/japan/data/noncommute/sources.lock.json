@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "filename": "2015DW_207OD_DK.xls",
+      "url": "https://www.mlit.go.jp/common/001297377.xls",
+      "bytes": 1544192,
+      "sha256": "478a7a2a50d11948ef6a85ea5d616a89f807f826bd0be8041a01decf2800e90d"
+    },
+    {
+      "filename": "tokyo-2018-purpose-mode.csv",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?statInfId=000032066127&fileKind=1",
+      "bytes": 17805045,
+      "sha256": "e5aa4dd7bfb1545ba342c00ecc4813165921f4454f8e8c116eac1ab86b3b45cf"
+    },
+    {
+      "filename": "tokyo-2018-zone-code.xlsx",
+      "url": "https://www.tokyo-pt.jp/static/hp/file/data/H30_zonecode.xlsx",
+      "bytes": 254692,
+      "sha256": "e49af8b2730c6528b453a725d99a812dd781fa420fd2b9379358682b871c8895"
+    },
+    {
+      "filename": "chukyo-2022-purpose-mode.xlsx",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040268715&fileKind=0",
+      "bytes": 22643214,
+      "sha256": "99c73cd15058704c4445d7b699a8dd833f5bca8ba7076fe95310b29ec0bb4dc4"
+    },
+    {
+      "filename": "chukyo-2022-zone-code.xlsx",
+      "url": "https://www.cbr.mlit.go.jp/kikaku/chukyo-pt/offer/pdf/20260622_code.xlsx",
+      "bytes": 3483556,
+      "sha256": "1390fbb6bc8d644b05371dd783fa231e71d4652df5744d0dfd5bf366a4bc5048"
+    },
+    {
+      "filename": "kinki-2021-purpose-mode.xlsx",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040170629&fileKind=0",
+      "bytes": 6730021,
+      "sha256": "101fe5ce410b7cb9d4609202a827c25d4f87b94b9b77991846243666beae6b43"
+    },
+    {
+      "filename": "207-zone-correspondence.pdf",
+      "url": "https://www.mlit.go.jp/seisakutokatsu/jyunryuudou/doc/207_Zone2005.pdf",
+      "bytes": 672628,
+      "sha256": "31aeb3d09d518e3499df95dadc25ec572ce4aeff7782baa2cb4696fbf76cc265"
+    }
+  ]
+}

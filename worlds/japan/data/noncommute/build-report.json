@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "unit": "one-way movements per representative weekday",
+  "zoneCount": 207,
+  "mapNodeCount": 218,
+  "movementRowCount": 41170,
+  "positiveMovementRowCount": 20565,
+  "estimatedMovementsPerWeekday": "7815204.264291",
+  "roundedMovementsPerWeekday": 7815206,
+  "national": {
+    "same_prefecture_excluded": 1223,
+    "published_estimate": 20535,
+    "unreported_blank": 20526,
+    "reported_zero": 79,
+    "metropolitan_excluded": 486,
+    "estimatedMovementsPerWeekday": 3924915
+  },
+  "regional": {
+    "tokyo": {
+      "pairCount": 12,
+      "businessPrivateMovements": 1550730,
+      "commuteSchoolMovements": 3445474,
+      "returnHomeMovements": 4030167,
+      "unknownPurposeOmitted": 40255,
+      "reportedAllPurposesMovements": 9066626,
+      "classifiedPurposeMovements": 9066626,
+      "returnAllocationFraction": "0.310382",
+      "estimatedMovementsPerWeekday": "2801619.849956",
+      "roundedMovementsPerWeekday": 2801621
+    },
+    "chukyo": {
+      "pairCount": 6,
+      "businessPrivateMovements": 168616,
+      "commuteSchoolMovements": 171046,
+      "returnHomeMovements": 234155,
+      "unknownPurposeOmitted": 2134,
+      "reportedAllPurposesMovements": 575951,
+      "classifiedPurposeMovements": 575951,
+      "returnAllocationFraction": "0.496423",
+      "estimatedMovementsPerWeekday": "284855.907556",
+      "roundedMovementsPerWeekday": 284856
+    },
+    "kinki": {
+      "pairCount": 12,
+      "businessPrivateMovements": 452060,
+      "commuteSchoolMovements": 795324,
+      "returnHomeMovements": 970605,
+      "unknownPurposeOmitted": 4170,
+      "reportedAllPurposesMovements": 2222159,
+      "classifiedPurposeMovements": 2222159,
+      "returnAllocationFraction": "0.362406",
+      "estimatedMovementsPerWeekday": "803813.506779",
+      "roundedMovementsPerWeekday": 803814
+    }
+  },
+  "zoneCentroids": {
+    "crosswalk-population-weighted": 207
+  },
+  "checks": {
+    "nationalZoneCountIs207": true,
+    "nationalCellsPartitioned": true,
+    "regionalPairCountIs30": true,
+    "allMovementRowsHaveOneSource": true,
+    "movementPairKeysAreUnique": true,
+    "regionalPurposeTotalsReconcile": true,
+    "allMapEndpointsResolve": true,
+    "allZoneCoordinatesFinite": true
+  }
+}
