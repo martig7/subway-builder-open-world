@@ -3,7 +3,7 @@ const ORIGINAL = '__openWorldNativeReloadRecoveryOriginal__';
 const VERSION = '__openWorldNativeReloadRecoveryVersion__';
 const SAVED_FILE = '__openWorldSavedReloadFile__';
 const SAVE_TIMELINE = '__openWorldSavedReloadTimeline__';
-export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v5';
+export const NATIVE_SAVED_RELOAD_VERSION = 'native-saved-reload-v6';
 const inGame = location => location?.pathname === '/game' || location?.hash?.replace(/^#/, '').split('?')[0] === '/game';
 const pendingSave = result => result?.save ?? result?.data ?? null;
 const sameSave = (save, file) => {
@@ -22,8 +22,9 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
   clearIntervalFn = globalThis.clearInterval?.bind(globalThis) } = {}) {
   const previous = globalObject[GUARD]; previous?.dispose?.();
   const retired = Promise.resolve(previous?.flush?.());
+  const readPendingInfo = electron?.__openWorldGetPendingSaveInfo ?? electron?.getPendingSave;
   if (typeof electron?.reloadWindow !== 'function' || typeof electron?.getMostRecentSaves !== 'function'
-    || typeof electron?.getPendingSave !== 'function'
+    || typeof readPendingInfo !== 'function'
     || typeof electron?.loadAndSetPendingSave !== 'function') return {installed:false,dispose() {},flush:async()=>{}};
   let original=electron.reloadWindow;
   while(typeof original?.[ORIGINAL]==='function')original=original[ORIGINAL];
@@ -32,8 +33,7 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
   const stats={queries:0,staged:0,unchanged:0,lastSave:null,error:null};
   const remove = () => (electron.removePendingSave??electron.clearPendingSave)?.call(electron);
   const cleanup = async file => {
-    if(typeof electron.getPendingSave!=='function')return;
-    const result=await electron.getPendingSave();
+    const result=await readPendingInfo.call(electron);
     if(result?.success!==false && sameSave(pendingSave(result),file))await remove();
     if (sameSave(globalObject[SAVED_FILE], file)) delete globalObject[SAVED_FILE];
   };
@@ -51,9 +51,9 @@ export function installNativeSavedReloadGuard({ globalObject = globalThis, elect
     }
     const sessionKey = JSON.stringify([session, city]);
     if(checkedSession!==sessionKey) {
-      // Read a full pending payload only once, to preserve an explicitly
-      // selected save and retire the preceding live-snapshot implementation.
-      const result=await electron.getPendingSave();
+      // Identity is enough to preserve an explicitly selected save. Older
+      // hosts without the compact read retain the original full-save fallback.
+      const result=await readPendingInfo.call(electron);
       if(cancelled())return {status:'skipped'};
       if(result?.success===false)throw new Error(result.error??'Could not inspect the pending native save');
       const existing=pendingSave(result),legacy=existing?.metadata?.openWorldNativeRecovery;

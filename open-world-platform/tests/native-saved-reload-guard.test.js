@@ -63,6 +63,26 @@ test('frozen bridge stages completed files without repeatedly copying pending or
   guard.dispose();
 });
 
+test('save identity inspection uses the compact host read on startup and cleanup', async () => {
+  const f = fixture(); let infoReads = 0;
+  f.electron.__openWorldGetPendingSaveInfo = async () => {
+    infoReads++;
+    const { data, ...info } = f.getPending() ?? {};
+    return { success: true, data: f.getPending() ? info : null };
+  };
+  f.electron.getPendingSave = () => assert.fail('identity inspection copied the full native save');
+  const guard = installNativeSavedReloadGuard(f.options);
+  await guard.flush();
+  assert.equal(guard.snapshot().error, null);
+  assert.equal(infoReads, 1);
+  assert.deepEqual(f.calls.loads, ['saved.metro']);
+  f.location.hash = '#/'; f.listeners.get('hashchange')();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(infoReads, 2);
+  assert.equal(f.calls.clears, 1);
+  guard.dispose();
+});
+
 test('tile handoff suspension prevents a timer from replacing its pending native save', async () => {
   const f = fixture(), guard = installNativeSavedReloadGuard(f.options);
   await guard.flush();
