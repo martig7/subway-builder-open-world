@@ -71,7 +71,7 @@ test('partial-hour and midnight postings conserve fares, rides and full-network 
   assert.notEqual(a.postingId, b.postingId);
 });
 
-function fixture(evaluate = async () => calculated(), isReady = () => true) {
+function fixture(evaluate = async () => calculated(), isReady = () => true, options = {}) {
   let nativeTicks = 0, nativeCommutes = 0, nativePaths = 0;
   const postings = [], hours = [], days = [];
   const state = { gameSessionId: 'one', cityCode: 'A', timeConfig: { paused: true, timeSpeed: 'ultrafast', elapsedSeconds: 25000 },
@@ -86,7 +86,7 @@ function fixture(evaluate = async () => calculated(), isReady = () => true) {
   const game = { captureCrossTileNetworkProfile: network, calculateNativeFinanceProfile: () => ({ expenseProfile: {} }),
     postBackgroundNativeFinanceNow: posting => { postings.push(posting); return { applied: true }; } };
   const controller = createCachedSimulation({ game, getState: () => state, api: { utils: {} }, evaluate, isReady,
-    onHour: async hour => hours.push(hour), onDay: async day => days.push(day) });
+    onHour: async hour => hours.push(hour), onDay: async day => { days.push(day); await controller.refreshAtMidnight(day); }, ...options });
   return { state, game, controller, postings, hours, days, native: () => ({ nativeTicks, nativeCommutes, nativePaths }) };
 }
 
@@ -135,19 +135,91 @@ test('cached ticks bypass all native simulation, reuse assignments, honor pause 
   await f.controller.dispose();
 });
 
-test('network/fare edits invalidate the cache before another tick advances time', async () => {
-  const f = fixture();
+test('rail and fare edits retain assignments through daytime and coalesce at midnight', async () => {
+  const invalidations = [];
+  const f = fixture(undefined, undefined, { onInvalidated: reason => invalidations.push(reason) });
   await f.controller.setEnabled(true);
+  const assignments = f.state.demandData;
   f.state.routes = [{ id: 'new' }];
   f.state.setTimeConfig({ paused: false });
   await f.state.handleIncrementGameState();
-  assert.equal(f.controller.snapshot().calculations, 2);
+  assert.equal(f.controller.snapshot().calculations, 1);
   f.state.transitCost = 7;
   await f.state.handleIncrementGameState();
-  assert.equal(f.controller.snapshot().calculations, 3);
   f.controller.invalidate();
   await f.state.handleIncrementGameState();
-  assert.equal(f.controller.snapshot().calculations, 4);
+  assert.equal(f.controller.snapshot().calculations, 1);
+  assert.equal(f.state.demandData, assignments);
+  assert.equal(f.controller.snapshot().pendingMidnightRefresh, true);
+  assert.ok(invalidations.length > 0, 'unhooked dependency changes must also schedule the shared midnight job');
+  f.state.setTimeConfig({ elapsedSeconds: 86390 });
+  await f.state.handleIncrementGameState();
+  assert.equal(f.state.timeConfig.elapsedSeconds, 86400, 'stop exactly at midnight before publishing new rates');
+  assert.equal(f.controller.snapshot().calculations, 2);
+  assert.equal(f.controller.snapshot().pendingMidnightRefresh, false);
+  await f.state.handleIncrementGameState();
+  assert.equal(f.state.timeConfig.elapsedSeconds, 86640);
+  assert.equal(f.controller.snapshot().calculations, 2);
+  await f.controller.dispose();
+});
+
+test('paused rail edits do no routing and enabling remains an immediate calculation', async () => {
+  const f = fixture();
+  await f.controller.setEnabled(true);
+  f.state.routes = [{ id: 'edited' }];
+  f.controller.invalidate(); f.controller.invalidate();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.controller.snapshot().calculations, 1);
+  assert.equal(f.controller.snapshot().status, 'ready');
+  await f.controller.setEnabled(false);
+  await f.controller.setEnabled(true);
+  assert.equal(f.controller.snapshot().calculations, 2);
+  assert.equal(f.controller.snapshot().pendingMidnightRefresh, false);
+  await f.controller.dispose();
+});
+
+test('a replaced demand set cannot use the previous tile assignments until midnight', async () => {
+  const f = fixture();
+  await f.controller.setEnabled(true);
+  f.state.demandData = structuredClone(f.state.demandData);
+  f.state.setTimeConfig({ paused: false });
+  await f.state.handleIncrementGameState();
+  assert.equal(f.controller.snapshot().calculations, 2);
+  await f.controller.dispose();
+});
+
+test('deferred commute updates still settle expense changes at the edit time', async () => {
+  const f = fixture();
+  let hourlyCost = 3600;
+  f.game.calculateNativeFinanceProfile = () => ({ expenseProfile: { routeHourly: { r: Array(24).fill(hourlyCost) } } });
+  await f.controller.setEnabled(true);
+  f.state.setTimeConfig({ elapsedSeconds: 25010 });
+  hourlyCost = 7200; f.controller.invalidate();
+  assert.equal(f.postings.at(-1).expensesByRoute.r, 10);
+  f.state.setTimeConfig({ elapsedSeconds: 25020 }); f.state.generateSave();
+  assert.equal(f.postings.at(-1).expensesByRoute.r, 20);
+  assert.equal(f.controller.snapshot().calculations, 1);
+  await f.controller.dispose();
+});
+
+test('an edit during midnight work discards its result and stays queued for the next batch', async () => {
+  let finish;
+  const f = fixture(async () => finish ? await new Promise(resolve => { finish = resolve; }) : calculated());
+  await f.controller.setEnabled(true);
+  f.controller.invalidate();
+  finish = true;
+  const running = f.controller.refreshAtMidnight(1);
+  await new Promise(resolve => setImmediate(resolve));
+  const previous = f.state.demandData;
+  f.state.routes = [{ id: 'late-edit' }]; f.controller.invalidate();
+  finish(calculated());
+  assert.equal((await running).status, 'stale');
+  assert.equal(f.state.demandData, previous);
+  assert.equal(f.controller.snapshot().pendingMidnightRefresh, true);
+  finish = null;
+  await f.controller.refreshAtMidnight(2);
+  assert.equal(f.controller.snapshot().calculations, 2);
+  assert.equal(f.controller.snapshot().pendingMidnightRefresh, false);
   await f.controller.dispose();
 });
 
@@ -233,13 +305,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v6', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v7', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v7');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v8');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -252,13 +324,13 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const original = f.state.generateSave[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v6', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v7', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v7');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v8');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);

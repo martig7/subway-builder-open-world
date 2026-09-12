@@ -584,13 +584,23 @@ export function startOpenWorld({
     session?.modeShareInvalidation.markDirty('fare-change');
     cachedSimulation.invalidate();
   };
+  // Native UI day numbers are one-based; cached ticks use elapsed-day indices.
+  // Normalize both notifications to the actual clock for batch deduplication.
+  const flushMidnightCommutes = () => session?.modeShareInvalidation.flushAtMidnight(
+    Math.floor(game.callbacks.getState().timeConfig.elapsedSeconds / 86400),
+  );
   const cachedSimulation = createCachedSimulation({
     game, api, getState: () => game.callbacks.getState(),
     workerSource: workerSources.nativeDemandEvaluator,
     postingWorkerSource: workerSources.hourlyFinance,
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
-    onDay: day => session?.modeShareInvalidation.flushAtMidnight(day),
+    onDay: flushMidnightCommutes,
+    onInvalidated: reason => {
+      runtime.markDerivedNetworkDirty(reason);
+      revenueAccrual.invalidate();
+      session?.modeShareInvalidation.markDirty(reason);
+    },
   });
   diagnostics.cachedSimulation = cachedSimulation.snapshot;
   function ensureSession() {
@@ -614,7 +624,9 @@ export function startOpenWorld({
     });
     const modeShareInvalidation = createDailyModeShareInvalidation({
       recalculate: (reason, day) => recalculateCrossModeShare(reason, day, false, owner),
+      refreshActiveTile: day => ownsSession(owner) ? cachedSimulation.refreshAtMidnight(day) : { status: 'disabled', day },
     });
+    diagnostics.midnightCommuteRefresh = modeShareInvalidation.snapshot;
     const crossModeShares = createCrossModeShareEvaluator({ workerSource: workerSources.crossModeShare ?? null });
     diagnostics.crossModeShareWorker = crossModeShares.diagnostics;
     const disposeObserver = game.observeSharedTransitChanges(({ reason }) => {
@@ -1533,7 +1545,10 @@ export function startOpenWorld({
   ownedHooks.onCityLoad(handleCityLoad);
   registerCrossTileClockHooks(ownedHooks, {
     hourChanged: () => { if (isCurrent() && ownsCurrentCity()) void settleCrossTileCommutes('hourly'); },
-    dayChanged: (day) => { if (isCurrent() && ownsCurrentCity()) void session?.modeShareInvalidation.flushAtMidnight(day); },
+    dayChanged: () => {
+      if (isCurrent() && ownsCurrentCity()) void flushMidnightCommutes()
+        ?.catch(error => console.warn(`${logLabel} midnight commute refresh failed`, error));
+    },
   });
   registerModeShareInvalidationHooks(ownedHooks, { scheduleChanged, fareChanged });
   ownedHooks.onGameEnd(() => {

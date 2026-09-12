@@ -6,7 +6,7 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v7';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v8';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -54,7 +54,7 @@ export function publishCachedDemand(state, assignments) {
 
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
-  onHour = async () => {}, onDay = async () => {}, workerSource = null,
+  onHour = async () => {}, onDay = async () => {}, onInvalidated = () => {}, workerSource = null,
   postingWorkerSource = null, evaluate = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createCrossTileRoutingCache();
@@ -62,11 +62,13 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   let enabled = false, disposed = false, busy = null, refreshPromise = null, stopping = null;
   let modeRequest = 0;
   let revision = 0, cache = null, dependencies = null, settledAt = null, startedAt = null;
+  let cacheContext = null, pendingMidnightRefresh = false;
   let sessionId = null, status = 'off', error = null;
   const counters = { calculations: 0, ticks: 0, suppressedCommutes: 0, suppressedPathSearches: 0, milliseconds: 0 };
   const preparation = createHourlyPostingPreparation({ workerSource: postingWorkerSource,
     prepareNative: (posting, budget) => game.prepareBackgroundNativeFinance?.(posting, { includeFinancialHistory: false }, budget) });
   const snapshot = () => ({ version: CACHED_SIMULATION_VERSION, enabled, status, error,
+    pendingMidnightRefresh,
     saveReferenceSharing: NATIVE_SAVE_REFERENCE_SHARING_VERSION,
     ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
     assignedPops: cache?.assignments.length ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
@@ -74,7 +76,12 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   const notify = () => { for (const listener of listeners) listener(snapshot()); };
   const dependencyList = state => [state.gameSessionId, state.cityCode, state.routes, state.stations, state.tracks,
     state.trackGroups, state.trains, state.gradeCrossings, state.fareGroups, state.transitCost, state.demandData?.popsMap,
-    JSON.stringify(api.utils?.getPathfindingRules?.()), state.ownedTrainCount];
+    JSON.stringify(api.utils?.getPathfindingRules?.()), state.ownedTrainCount, state.demandData?.points];
+  const contextOf = state => [state.gameSessionId, state.cityCode, state.demandData?.popsMap, state.demandData?.points];
+  const canReuseAssignments = state => {
+    const next = contextOf(state);
+    return cache != null && cacheContext?.every((value, i) => value === next[i]);
+  };
   const unchanged = state => { const next = dependencyList(state); return dependencies?.every((value, i) => value === next[i]); };
   // Route regeneration replaces train objects while retaining their billing
   // cursor. Object replacement must not make already estimated time unpaid.
@@ -85,6 +92,15 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   const rebaseFrozenTrain = (train, elapsed) => rebaseCachedTrain(train,
     elapsed - (frozenTrains.get(train.id)?.at ?? elapsed), elapsed,
     elapsed - billingStart(train, elapsed));
+  const observeFrozenTrains = state => {
+    for (const train of state.trains ?? []) {
+      const frozen = frozenTrains.get(train.id);
+      if (frozen?.train !== train || frozen.chargedAt !== train.operationalTime?.lastChargedAt) {
+        frozenTrains.set(train.id, { train, at: state.timeConfig.elapsedSeconds,
+          chargedAt: train.operationalTime?.lastChargedAt, billingAt: billingStart(train, state.timeConfig.elapsedSeconds) });
+      }
+    }
+  };
   const clearMovements = state => {
     state.setPopMovementsMap?.(new Map());
     state.setAllStationTrainPopMovements?.({ stations: new Map(), trains: new Map() });
@@ -100,7 +116,8 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     const state = getState(), from = state.timeConfig.elapsedSeconds, step = tickStep(state);
     if (sessionId !== state.gameSessionId) return;
     const boundary = (Math.floor(from / 3600) + 1) * 3600;
-    void preparation.prepare(settledAt, from + Math.ceil((boundary - from) / step) * step);
+    void preparation.prepare(settledAt, Math.min(from + Math.ceil((boundary - from) / step) * step,
+      (Math.floor(from / 86400) + 1) * 86400));
   };
   const flush = () => {
     const state = getState(), to = state.timeConfig.elapsedSeconds;
@@ -120,13 +137,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       const state = getState(), token = revision;
       if (!isReady() || !state.demandData?.popsMap) throw new Error('Wait for the World to finish loading.');
       await flush();
-      for (const train of state.trains ?? []) {
-        const frozen = frozenTrains.get(train.id);
-        if (frozen?.train !== train || frozen.chargedAt !== train.operationalTime?.lastChargedAt) {
-          frozenTrains.set(train.id, { train, at: state.timeConfig.elapsedSeconds,
-            chargedAt: train.operationalTime?.lastChargedAt, billingAt: billingStart(train, state.timeConfig.elapsedSeconds) });
-        }
-      }
+      observeFrozenTrains(state);
       status = 'calculating'; notify();
       const initial = dependencyList(state), begin = performance.now();
       const demand = { points: values(state.demandData.points), pops: values(state.demandData.popsMap)
@@ -152,6 +163,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       }
       clearMovements(getState());
       dependencies = dependencyList(getState());
+      cacheContext = contextOf(getState()); pendingMidnightRefresh = false;
       sessionId = state.gameSessionId;
       settledAt = getState().timeConfig.elapsedSeconds;
       preparation.setProfile({ profile: cache.profile, expenses: cache.expenses, sessionId });
@@ -172,13 +184,16 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     if (busy) return busy;
     busy = (async () => {
       if (!unchanged(getState())) {
-        if (!await refresh()) return;
+        if (canReuseAssignments(getState())) controller.invalidate();
+        else if (!await refresh()) return;
       }
       const state = getState();
       if (!enabled || disposed || state.timeConfig.paused) return;
       const from = state.timeConfig.elapsedSeconds;
       const step = tickStep(state);
-      const to = from + step;
+      // Settle the old rates exactly to midnight before either worker replaces
+      // them. The next tick uses the new day's profiles with no overshoot.
+      const to = Math.min(from + step, (Math.floor(from / 86400) + 1) * 86400);
       state.setTimeConfig({ elapsedSeconds: to });
       state.processBondInterest?.();
       counters.ticks++;
@@ -200,7 +215,19 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     invalidate() {
-      revision++; dependencies = null; preparation.invalidate();
+      revision++;
+      const state = getState();
+      if (enabled && !disposed && canReuseAssignments(state)) {
+        // Keep routing off the edit/tick path. Expense rates and train billing
+        // anchors are cheap to update and must still take effect at edit time.
+        flush(); observeFrozenTrains(state);
+        cache.expenses = game.calculateNativeFinanceProfile(state.cityCode, state, { includeRevenue: false }).expenseProfile;
+        dependencies = dependencyList(state); pendingMidnightRefresh = true;
+        preparation.setProfile({ profile: cache.profile, expenses: cache.expenses, sessionId });
+        prefetch(); onInvalidated('cached-simulation-change'); notify();
+        return;
+      }
+      dependencies = null; preparation.invalidate();
       if (enabled && !disposed && isReady()) {
         void (async () => {
           while (enabled && !disposed && isReady() && !unchanged(getState())) {
@@ -208,6 +235,17 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           }
         })().catch(fail);
       }
+    },
+    async refreshAtMidnight(day) {
+      if (!enabled || disposed || !isReady()) return { status: 'disabled', day };
+      if (!pendingMidnightRefresh && unchanged(getState())) return { status: 'not-dirty', day };
+      try {
+        const applied = await refresh();
+        if (!applied && enabled && !disposed) {
+          pendingMidnightRefresh = true; status = cache ? 'ready' : 'calculating'; notify();
+        }
+        return { status: applied ? 'refreshed' : 'stale', day };
+      } catch (failure) { fail(failure); throw failure; }
     },
     async setEnabled(value) {
       const request = ++modeRequest;
@@ -217,7 +255,8 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       if (value) {
         enabled = true; revision++; status = 'calculating';
         startedAt = getState().timeConfig.elapsedSeconds; sessionId = getState().gameSessionId;
-        settledAt = startedAt; cache = null; dependencies = null; frozenTrains.clear(); notify();
+        settledAt = startedAt; cache = null; dependencies = null; cacheContext = null; pendingMidnightRefresh = false;
+        frozenTrains.clear(); notify();
         try { await refresh(); } catch (failure) { fail(failure); }
       } else {
         enabled = false; revision++;
@@ -225,6 +264,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         await busy; await refreshPromise; await flush();
         const state = getState();
         if (state.gameSessionId === sessionId) {
+          observeFrozenTrains(state);
           clearMovements(state);
           // Preserve the fleet and its physical positions; move absolute timing
           // anchors forward by the time spent using estimates.
@@ -234,7 +274,8 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           getState().setTimeConfig({});
         }
         preparation.invalidate();
-        cache = null; dependencies = null; status = 'off'; error = null; notify();
+        cache = null; dependencies = null; cacheContext = null; pendingMidnightRefresh = false;
+        status = 'off'; error = null; notify();
         })();
         try { await stopping; } finally { stopping = null; }
       }
@@ -251,7 +292,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           if (disposed) return original.apply(this, args);
           const cachedActive = enabled && isReady();
           if (name === 'generateSave') {
-            if (cachedActive) flush();
+            if (cachedActive) { observeFrozenTrains(getState()); flush(); }
             const rebaseSave = save => {
               if (!cachedActive || !enabled || disposed || !save?.data || getState().gameSessionId !== sessionId) return save;
               const elapsed = save.data.elapsedSeconds;

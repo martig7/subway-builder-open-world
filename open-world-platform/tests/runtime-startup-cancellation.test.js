@@ -314,6 +314,47 @@ test('deferred demand from an ended session cannot run on the replacement worker
   });
 });
 
+test('schedule changes queue active demand into the midnight cross-network batch and hold the tick', async t => {
+  const cross = deferred(), entered = deferred();
+  let midnightCalls = 0;
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async options => {
+    if (options.reason !== 'midnight-change') return { status: 'cached' };
+    midnightCalls++; entered.resolve(); return cross.promise;
+  });
+  await harness(async ({ controller, state, hooks, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    await controller.cachedSimulation.setEnabled(true);
+    assert.equal(controller.cachedSimulation.snapshot().calculations, 1);
+    hooks.get('onScheduleChange')(); hooks.get('onScheduleChange')();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(controller.cachedSimulation.snapshot().calculations, 1);
+    assert.equal(controller.cachedSimulation.snapshot().pendingMidnightRefresh, true);
+    state.setTimeConfig({ elapsedSeconds: 86390, paused: false, timeSpeed: 'ultrafast' });
+    let completed = false;
+    const tick = state.handleIncrementGameState().then(() => { completed = true; });
+    await entered.promise;
+    hooks.get('onDayChange')(1);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(controller.cachedSimulation.snapshot().calculations, 2);
+    assert.equal(state.timeConfig.elapsedSeconds, 86400);
+    assert.equal(completed, false, 'active completion cannot release the tick while cross work is pending');
+    const duplicateTick = state.handleIncrementGameState();
+    cross.resolve({ status: 'recalculated' });
+    await Promise.all([tick, duplicateTick]);
+    assert.equal(midnightCalls, 1);
+    assert.equal(state.timeConfig.elapsedSeconds, 86400);
+    assert.equal(controller.diagnostics.midnightCommuteRefresh().lastRun.activeTileRefresh.status, 'refreshed');
+    hooks.get('onScheduleChange')();
+    hooks.get('onDayChange')(2); // Native UI uses day 2 for the same elapsed-day boundary.
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(midnightCalls, 1, 'a late native day label cannot consume tomorrow\'s edits');
+    assert.equal(controller.cachedSimulation.snapshot().pendingMidnightRefresh, true);
+  });
+});
+
 test('full disposal unregisters hooks once and disables retained lifecycle callbacks', async t => {
   let identityCalls = 0;
   t.mock.method(WorldIdentityResolver.prototype, 'resolve', async () => { identityCalls++; throw new Error('disposed callback ran'); });

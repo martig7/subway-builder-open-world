@@ -22,8 +22,19 @@ than the annualization multiplier used for money.
 Assignments include both commute directions for every loaded native pop,
 including walking, driving and unknown outcomes. Native demand maps, pop cards
 and route highlights consume native-shaped results from the same calculations.
-Service/fare edits invalidate calculations. A late worker response cannot
-publish into another save or a disabled mode. Time waits for a current cache.
+Service/fare edits mark commute assignments stale for the next midnight. The
+current assignments continue through the day; expense rates and train billing
+anchors still update at edit time. Multiple edits coalesce into one shared
+midnight batch. Its active-tile worker and cross-network recalculation start
+concurrently, and duplicate day hooks await that same batch. The cached clock
+stops exactly at midnight, settling old rates to the boundary, and waits for
+both calculations before the next tick. Incomplete work remains queued.
+
+Enabling the mode still prepares assignments immediately. A changed save, Tile
+View, or demand set cannot reuse another context's assignments until midnight.
+A late worker response cannot publish into another save, a disabled mode, or
+over a newer edit. An edit during a running batch remains queued for the next
+midnight. Caches are never allowed to cross a save or demand replacement.
 
 Caches and the toggle are not persisted as a second save authority. Saving
 preserves the synchronous native save contract, settles the current interval,
