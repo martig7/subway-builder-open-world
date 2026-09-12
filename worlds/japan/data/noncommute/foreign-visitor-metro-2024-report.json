@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "url": "https://www.mlit.go.jp/sogoseisaku/soukou/content/2024_Nationality_OD.xlsx",
+    "filename": "ffdata-2024-nationality-od.xlsx",
+    "sha256": "05b5b9b9bfb01b91c44a99be4991d8bfb00d364e397636b1c7e307655e1a0a2a",
+    "bytes": 488462,
+    "sheet": "全国籍全機関",
+    "sourceUnit": "thousand persons per year"
+  },
+  "year": 2024,
+  "calendarDays": 366,
+  "status": "separate_non_additive_comparison; not in movements.csv or map-data.json",
+  "directedPairCount": 30,
+  "annualVisitorLegsByRegion": {
+    "tokyo": 5148701,
+    "chukyo": 750370,
+    "kinki": 13192837
+  },
+  "annualVisitorLegs": 19091908,
+  "calendarDayAverageVisitorLegs": "52163.683060"
+}

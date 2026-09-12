@@ -44,3 +44,24 @@ The script rewrites `movements.csv`, `zones.csv`, `map-data.json`,
 `sources.lock.json`, and `build-report.json`. Source hashes make the build input
 set auditable. Original survey downloads remain ignored because they are large
 binary inputs.
+
+## Foreign-visitor comparison (not combined)
+
+`foreign-visitor-metro-2024.csv` is a separate 30-pair companion from MLIT's
+2024 FF-Data `全国籍全機関` domestic-visit OD sheet. It covers inbound foreign
+visitors, not all people who live outside a destination prefecture. The source
+is annual, in thousands of visitor legs; the companion also divides by the
+366 days of 2024 to show a **calendar-day average**, not a representative
+weekday. Repeated prefecture visits may count multiple times. The source can
+miss short visits; it does not provide 207-zone endpoints.
+
+The companion is **not added** to `movements.csv`, `map-data.json`, or the
+7.82-million weekday control. The main national survey's foreign-visitor
+overlap is unresolved, and the resident PT sources are from different years.
+Use the comparison to scope a later visitor scenario, not as a direct uplift.
+
+Download the official [2024 nationality OD workbook](https://www.mlit.go.jp/sogoseisaku/soukou/content/2024_Nationality_OD.xlsx)
+as `map-creator/data/sources/japan/noncommute/raw/ffdata-2024-nationality-od.xlsx`,
+then run `python worlds/japan/data/noncommute/build_foreign_visitor_companion.py`.
+The build verifies the source hash and records it, the exact conversion, and
+regional totals in `foreign-visitor-metro-2024-report.json`.
