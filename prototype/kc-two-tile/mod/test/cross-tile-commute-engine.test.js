@@ -177,7 +177,7 @@ test('legacy fractional cross-tile ridership migrates to whole-person records', 
 
   migrateCommuteLedger(world);
 
-  assert.equal(world.commuteLedgerSchemaVersion, 3);
+  assert.equal(world.commuteLedgerSchemaVersion, 4);
   assert.equal(world.gatewayLedger.flow.transitTrips, 3);
   assert.equal(world.gatewayLedger.flow.transitTripRemainder, -0.5);
   assert.equal(world.crossTileFinancials.transitTrips, 3);

@@ -3,7 +3,7 @@ import { demandPanelContent } from './cross-demand-presentation.js';
 import { nativeDemandIgnoresClick } from './native-demand-presentation.js';
 import { NativeDemandDeckOverlay } from './native-demand-deck.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'native-demand-screen-pass-v3';
+export const CROSS_DEMAND_PANEL_VERSION = 'one-way-movements-v1';
 
 // Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
 // uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.
@@ -210,7 +210,7 @@ export class CrossDemandOverlayController {
   }
 
   setViewMode(viewMode) {
-    if (!['residents', 'workers'].includes(viewMode)) return;
+    if (!['residents', 'workers', 'outboundMovements', 'inboundMovements'].includes(viewMode)) return;
     this.viewMode = viewMode; this.selectedPopIndex = null; this.selectedDrivingPath = null;
     this.routeStatus = 'idle'; this.routeRequest++; this.#emit(); this.#refreshMap();
   }

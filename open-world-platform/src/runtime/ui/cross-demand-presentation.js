@@ -34,7 +34,7 @@ function rows(h, values) {
   return h('div', { className: 'flex flex-col gap-2 text-xs' }, ...values.map(([label, value]) => h('div', { key: label, className: 'flex justify-between gap-3' },
     h('span', { className: 'text-muted-foreground' }, label), h('span', { className: 'text-right tabular-nums' }, value))));
 }
-function modeRows(h, choice, population) {
+function modeRows(h, choice, population, unit = 'commuters') {
   const total = population || MODES.reduce((sum, [key]) => sum + (choice?.[key] ?? 0), 0);
   const known = MODES.reduce((sum, [key]) => sum + (choice?.[key] ?? 0), 0);
   return h('div', { className: 'flex flex-col gap-2' }, ...MODES.map(([key, label, color, glyph]) => {
@@ -43,7 +43,7 @@ function modeRows(h, choice, population) {
       h('div', { className: 'mb-1 flex items-center gap-1 text-xs' }, icon(h, glyph), h('span', { className: 'flex-1 font-medium' }, label),
         h('span', { className: 'tabular-nums' }, number(count)), h('span', { className: 'w-12 text-right tabular-nums' }, `${percent.toFixed(1)}%`)),
       h('div', { className: 'h-1.5 overflow-hidden rounded bg-secondary' }, h('div', { style: { width: `${Math.min(100, percent)}%`, height: '100%', backgroundColor: color } })));
-  }), total > known + 0.5 && h('p', { className: 'text-xs text-muted-foreground' }, `${number(total - known)} commuters awaiting mode calculation`));
+  }), total > known + 0.5 && h('p', { className: 'text-xs text-muted-foreground' }, `${number(total - known)} ${unit} awaiting mode calculation`));
 }
 function modeStrip(h, choice, mass) {
   return h('div', { className: 'flex h-2 flex-1 overflow-hidden rounded bg-secondary', 'aria-hidden': true }, ...MODES.map(([key, , color]) =>
@@ -55,8 +55,9 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
   const content = [];
   if (pop) {
     const comparison = pop.modeChoiceComparison, driving = comparison?.driving, walking = comparison?.walking, path = pop.transitPath;
-    content.push(back('Demand point details', () => c.backToPoint()), heading(h, `${number(pop.mass)} Commuters`, 'people'),
-      heading(h, 'Transportation choices'), modeRows(h, pop.modeChoice, pop.mass),
+    const oneWay = pop.tripType === 'oneWay';
+    content.push(back('Demand point details', () => c.backToPoint()), heading(h, `${number(pop.mass)} ${oneWay ? 'One-way movements/day' : 'Commuters'}`, 'people'),
+      heading(h, 'Transportation choices'), modeRows(h, pop.modeChoice, pop.mass, oneWay ? 'movements' : 'commuters'),
       h('div', { className: 'flex gap-2' }, button(h, 'Show whole route', () => c.fitRoute(panelRef?.current?.getBoundingClientRect()), { disabled: s.routeStatus === 'loading' })),
       h('p', { role: 'status', className: 'text-xs text-muted-foreground' }, s.routeStatus === 'loading' ? 'Loading driving route…'
         : s.routeStatus === 'geometric-no-road-route' || s.routeStatus === 'geometric-fallback' ? 'No road route found. Showing an approximate connection.' : 'Driving route shown in red.'),
@@ -76,37 +77,47 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
         ['Driving and parking cost', Number.isFinite(driving?.moneyCost) ? `$${driving.moneyCost.toFixed(2)}` : '—'],
       ])),
       section(heading(h, 'Walking', 'walk'), rows(h, [['Walking time', tripDuration(walking?.clockSeconds)]])),
-      section(h('div', { className: 'grid grid-cols-2 gap-2' }, ...[['home', 'Home point'], ['work', 'Work point']].map(([kind, label]) =>
+      section(h('div', { className: 'grid grid-cols-2 gap-2' }, ...[['home', oneWay ? 'Origin point' : 'Home point'], ['work', oneWay ? 'Destination point' : 'Work point']].map(([kind, label]) =>
         button(h, [h('span', { key: 'label', className: 'flex items-center justify-center gap-1' }, icon(h, kind), label),
           h('span', { key: 'tile', className: 'mt-1 block text-muted-foreground' }, c.tileName(pop[kind].tileId))], () => c.focusEndpoint(kind), { key: kind }))),
-        rows(h, [['Home departure time', pop.homeDepartureTime ?? '—'], ['Work departure time', pop.workDepartureTime ?? '—']])),
+        rows(h, oneWay ? [['Departure time', pop.homeDepartureTime ?? '—']] :
+          [['Home departure time', pop.homeDepartureTime ?? '—'], ['Work departure time', pop.workDepartureTime ?? '—']])),
       advanced);
   } else {
     const summary = c.model.summary(s.viewMode, s.selectedPointId);
+    const movementView = s.viewMode === 'outboundMovements' || s.viewMode === 'inboundMovements';
+    const inboundView = s.viewMode === 'workers' || s.viewMode === 'inboundMovements';
+    const viewLabel = ({ residents: 'Residents', workers: 'Workers', outboundMovements: 'Trips from',
+      inboundMovements: 'Trips to' })[s.viewMode] ?? 'Residents';
     if (point) content.push(back('All cross-city demand', () => c.clearSelection()), heading(h, 'Demand point details'),
       h('p', { className: 'text-xs text-muted-foreground' }, c.tileName(point.point.tileId)));
-    content.push(h('div', { className: 'flex gap-1' }, ...[['residents', 'Residents', 'home'], ['workers', 'Workers', 'work']].map(([view, label, glyph]) =>
+    content.push(h('div', { className: 'grid grid-cols-2 gap-1' }, ...[['residents', 'Residents', 'home'], ['workers', 'Workers', 'work'],
+      ['outboundMovements', 'Trips from', 'home'], ['inboundMovements', 'Trips to', 'work']].map(([view, label, glyph]) =>
       button(h, [icon(h, glyph), label], () => c.setViewMode(view), { key: view, 'aria-pressed': s.viewMode === view,
         className: `flex flex-1 items-center justify-center gap-2 rounded border py-2 text-xs ${s.viewMode === view ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}` }))),
       h('label', { className: 'flex items-center gap-2 text-xs' }, h('input', { type: 'checkbox', checked: s.faded, onChange: e => c.setFaded(e.target.checked) }), 'Fade demand layer'),
-      !point && h('p', { className: 'text-xs text-muted-foreground' }, 'Click a demand dot to inspect its commuters and destinations.'),
-      heading(h, point ? (s.viewMode === 'workers' ? 'Worker mode share' : 'Resident mode share') : 'Cross-city demand stats', 'people'),
-      modeRows(h, summary.modeChoice, summary.population));
+      !point && h('p', { className: 'text-xs text-muted-foreground' }, movementView
+        ? 'Click a trip dot to inspect estimated one-way movements and destinations.'
+        : 'Click a demand dot to inspect its commuters and destinations.'),
+      heading(h, point ? `${viewLabel} mode share` : movementView ? 'One-way movement stats' : 'Cross-city demand stats', 'people'),
+      modeRows(h, summary.modeChoice, summary.population, movementView ? 'movements' : 'commuters'));
     if (point) {
-      content.push(heading(h, `${number(point.population)} ${s.viewMode === 'workers' ? 'Workers' : 'Residents'} (${number(point.popCount)} ${point.popCount === 1 ? 'pop' : 'pops'})`, s.viewMode === 'workers' ? 'work' : 'home'),
+      content.push(heading(h, `${number(point.population)} ${viewLabel}${movementView ? '/day' : ''} (${number(point.popCount)} ${point.popCount === 1 ? 'pop' : 'pops'})`, inboundView ? 'work' : 'home'),
         h('div', { className: 'flex flex-col gap-1', style: { maxHeight: 280, overflowY: 'auto' } }, ...point.pops.map(item => {
-          const destination = s.viewMode === 'workers' ? item.home : item.work;
+          const destination = inboundView ? item.home : item.work;
           return button(h, [h('div', { key: 'counts', className: 'flex items-center gap-2' }, icon(h, 'people'), h('span', null, number(item.mass)),
             h('span', { className: 'text-muted-foreground' }, item.homeDepartureTime ?? '—'), modeStrip(h, item.modeChoice, item.mass)),
-          h('div', { key: 'destination', className: 'mt-1 flex justify-between gap-2 text-muted-foreground' }, h('span', null, `${s.viewMode === 'workers' ? 'From' : 'To'} ${c.tileName(destination.tileId)}`), h('span', null, tripDuration(item.drivingSeconds)))],
+          h('div', { key: 'destination', className: 'mt-1 flex justify-between gap-2 text-muted-foreground' }, h('span', null, `${inboundView ? 'From' : 'To'} ${c.tileName(destination.tileId)}`), h('span', null, tripDuration(item.drivingSeconds)))],
           () => c.selectPop(item.index), { key: item.id, 'data-cross-pop-id': item.id,
-            'aria-label': `${number(item.mass)} commuters ${s.viewMode === 'workers' ? 'from' : 'to'} ${c.tileName(destination.tileId)}, driving ${tripDuration(item.drivingSeconds)}`,
+            'aria-label': `${number(item.mass)} ${movementView ? 'one-way movements' : 'commuters'} ${inboundView ? 'from' : 'to'} ${c.tileName(destination.tileId)}, driving ${tripDuration(item.drivingSeconds)}`,
             className: 'rounded bg-secondary/60 px-2 py-1.5 text-left text-xs hover:bg-secondary focus-visible:outline focus-visible:outline-2' });
         })),
         h('div', { className: 'flex justify-between gap-2' }, page > 0 && button(h, 'Previous', () => setPage(Math.max(0, page - 40))),
           page === 0 && limit === 5 && point.popCount > 5 ? button(h, `Show ${Math.min(35, point.popCount - 5)} more`, () => setLimit(40))
             : page + limit < point.popCount && button(h, 'Next 40', () => { setPage(page + limit); setLimit(40); })));
-    } else content.push(h('p', { className: 'text-xs text-muted-foreground' }, `${number(s.stats.population)} commuters across ${number(s.stats.points)} locations`));
+    } else content.push(h('p', { className: 'text-xs text-muted-foreground' }, movementView
+      ? `${number(s.stats.oneWayMovements)} one-way movements per representative day`
+      : `${number(s.stats.population)} commuters across ${number(s.stats.points)} locations`));
   }
   return h('div', { ref: panelRef, className: 'flex flex-col gap-3 p-2 text-sm', 'data-cross-demand-version': s.version,
     style: { maxHeight: 'calc(100vh - 150px)', overflowY: 'auto', fontFamily: 'inherit' },

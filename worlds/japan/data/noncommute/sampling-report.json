@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "unit": "one-way movements per representative weekday",
+  "placementResolution": "directed prefecture pairs; 207-zone controls aggregated once",
+  "baseCatalogSha256": "5016042b3ce8763c3fa12a2b2692c9dcc8c4c213596ec0574c39d66269b31b29",
+  "baseCrossDemandSha256": "755b3aec8b325f5c106aca4acee2b82f3b7431f97b25cd542954943fd2830e49",
+  "movementLedgerSha256": "894f92c7a4b9b982ec2f136ac4833decb77721007d805f57280608ab358f197a",
+  "canonicalSiteCount": 246943,
+  "directedPairCount": 2149,
+  "sampledGroupCount": 40360,
+  "roundedMovementMass": 7815206,
+  "placedMovementMass": 7815206,
+  "unplaced": [],
+  "uniformFallbackPairs": [],
+  "crossPointCount": 57655,
+  "crossPopCount": 73913
+}

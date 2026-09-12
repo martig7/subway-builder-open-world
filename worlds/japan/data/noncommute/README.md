@@ -45,6 +45,55 @@ The script rewrites `movements.csv`, `zones.csv`, `map-data.json`,
 set auditable. Original survey downloads remain ignored because they are large
 binary inputs.
 
+## One-way game-demand sampling
+
+`sample_one_way_demand.py` samples the movement ledger onto the canonical site
+IDs already present in a Japan demand package. Its outputs are
+`sampled_pairs.csv`, `sampling-report.json`, and augmented World-level
+`cross_commutes.json`/`cross_demand.json.gz` artifacts. The sample and report
+are tracked here; the augmented binary/runtime artifacts belong in the
+generated demand package, not this evidence directory.
+
+This first build aggregates the published 207-zone national rows to directed
+**prefecture** controls before sampling. The available 207-zone coordinates
+are representative points, not polygons that can validate site containment.
+Every directed prefecture count is rounded once, divided into groups of at most
+200, and sampled with stable source/pair/group/endpoint seeds. Origin sites use
+the existing resident/commuter weights and destination sites the existing job
+weights; zero-weight groups use uniform fallback and missing groups fail.
+The catalog marks these rows `tripType: oneWay`, meaning **one departure per
+representative day, no automatically generated return**. Version one uses a
+simple noon departure and geometric, pair-weighted travel-time estimate rather
+than a detailed non-commute schedule or fresh road routing. They are movement
+controls, not additional resident or worker stock. The generated report records
+input hashes, conservation, site count, coverage and fallback counts.
+
+For example, from the repository root, with an existing generated Japan demand
+package:
+
+```powershell
+python worlds/japan/data/noncommute/sample_one_way_demand.py --ledger worlds/japan/data/noncommute/movements.csv --base-demand prototype/japan/generated/demand --output prototype/japan/generated/noncommute-one-way
+```
+
+The checked-in `sampled_pairs.csv` and `sampling-report.json` were generated on
+`richmpc` from the existing Japan demand package. Only after verifying the
+report and base hashes should the augmented World artifacts replace the two
+World files in that package for a consumer build.
+
+The Japan consumer also pins a stored route archive to the exact cross-demand
+bytes. `augment_one_way_routes.py` copies all existing road-route records
+unchanged, adds explicit geometric fallback records for the new one-way pop
+IDs, and verifies that the old points, pops and gateways are prefix-identical.
+Its `route-augmentation-report.json` is tracked here. The resulting route
+archive and manifest replace only the generated cross-route files, not native
+tile routes. The new trips have not been individually OSRM-routed. Run this
+against the unmodified baseline route archive, before replacing its cross
+files with the result:
+
+```powershell
+python worlds/japan/data/noncommute/augment_one_way_routes.py --base-demand prototype/japan/generated/demand/world/cross_demand.pre-oneway.json.gz --augmented-demand prototype/japan/generated/noncommute-one-way --base-routes prototype/japan/generated/routes --output prototype/japan/generated/noncommute-one-way/routes
+```
+
 ## Foreign-visitor comparison (not combined)
 
 `foreign-visitor-metro-2024.csv` is a separate 30-pair companion from MLIT's

@@ -43,6 +43,23 @@ test('summaries conserve cached mode counts; map filters use assigned modes', ()
   assert.equal(withLocations.summaryCache.size, 4);
 });
 
+test('one-way trips have their own origin and destination dots without inflating resident or worker stock', () => {
+  const typed = { ...raw, pops: [...raw.pops,
+    ['one-way', 25, 0, 1, 0, '12:00', '', 13942, 320004, 'oneWay']] };
+  const model = new CrossDemandModel(typed, {}, choices);
+  assert.equal(model.stats.population, 200);
+  assert.equal(model.stats.oneWayMovements, 25);
+  assert.equal(model.pointFeatures('residents').features[0].properties.population, 200);
+  assert.equal(model.pointFeatures('workers').features[0].properties.population, 200);
+  assert.equal(model.pointFeatures('outboundMovements').features[0].properties.population, 25);
+  assert.equal(model.pointFeatures('inboundMovements').features[0].properties.population, 25);
+  assert.equal(model.pointDetails('home', 'outboundMovements').popCount, 1);
+  assert.equal(model.pointDetails('work', 'inboundMovements').popCount, 1);
+  assert.equal(model.summary('outboundMovements').population, 25);
+  assert.equal(model.connections('home', 'outboundMovements').features[0].properties.mass, 25);
+  assert.equal(model.popDetails(1).tripType, 'oneWay');
+});
+
 test('route completion and fading do not rebuild demand dots or repeat trip inspection', async () => {
   const s = setup(); await s.controller.open(); s.controller.selectPoint('home'); s.controller.selectPop(0);
   s.controller.popDetails(); s.controller.popDetails();

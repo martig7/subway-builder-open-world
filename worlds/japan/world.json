@@ -34,7 +34,7 @@
     "routingProfile": "osrm-driving-v1",
     "routeGeometry": "stored-driving-routes-v1",
     "nativePopPrefixes": ["jp-national-local-", "jp-tk-local-"],
-    "crossPopPrefixes": ["jp-national-cross-", "jp-tk-cross-"]
+    "crossPopPrefixes": ["jp-national-cross-", "jp-tk-cross-", "jp-noncommute-"]
   },
   "runtime": {
     "storageNamespace": "open-world-sidecar-local.japan-open-world-v1",

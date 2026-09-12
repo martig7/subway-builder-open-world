@@ -24,7 +24,7 @@ const ledger = {
 
 test('decodes compact cross demand and builds resident/worker projections', () => {
   const model = new CrossDemandModel(data, ledger);
-  assert.deepEqual(model.stats, { points: 3, pops: 2, population: 10 });
+  assert.deepEqual(model.stats, { points: 3, pops: 2, population: 10, oneWayMovements: 0 });
   assert.equal(model.pointFeatures('residents').features.length, 1);
   assert.equal(model.pointFeatures('workers').features.length, 2);
   assert.equal(model.pointDetails('home', 'residents').popCount, 2);

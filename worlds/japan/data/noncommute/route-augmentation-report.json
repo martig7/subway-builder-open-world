@@ -1,0 +1,10 @@
+{
+  "baseRouteCount": 33553,
+  "oneWayGeometricRoutes": 40360,
+  "augmentedRouteCount": 73913,
+  "baseDemandSha256": "755b3aec8b325f5c106aca4acee2b82f3b7431f97b25cd542954943fd2830e49",
+  "augmentedDemandSha256": "7ce63e7b4c21f85111fc0f9da9cfabf605956b2320036c84c5bc8ae0029f29c5",
+  "archiveBytes": 207327124,
+  "routeIndexSha256": "9c999d8239ca5c270ddd7ee53faa1f52321a8e41c21af0392fa200003dc1d3f7",
+  "routeDataSha256": "21106093cb9c0d3ff1fc82e517bec9f73a19d2164ac585ae91c227f8bdf7e86d"
+}

@@ -52,6 +52,7 @@ test('Japan Open World owns every prefecture through one manifest', async () => 
   assert.equal(catalog.tiles.filter(({ status }) => status === 'selected').length, 47);
   assert.equal(new Set(catalog.tiles.map(({ prefCode }) => prefCode)).size, 47);
   assert.equal(new Set(catalog.tiles.map(({ gameCityCode }) => gameCityCode)).size, 47);
+  assert.ok(definition.demand.crossPopPrefixes.includes('jp-noncommute-'));
 });
 
 test('Japan separates centrally stored computation geometry from zoom-dependent display data', async () => {

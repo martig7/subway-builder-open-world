@@ -6,7 +6,7 @@ const EVENING_DEPARTURE_HOUR = 17;
 // Subway Builder 1.6 annualizes each representative daily fare before posting
 // it to the wallet and route ledger (RULES.FARE_MULTIPLIER.default).
 const NATIVE_FARE_MULTIPLIER = 365;
-const COMMUTE_LEDGER_SCHEMA_VERSION = 3;
+const COMMUTE_LEDGER_SCHEMA_VERSION = 4;
 
 function finiteNonNegative(value, label) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}`);
@@ -101,17 +101,23 @@ function normalizeFlow(raw) {
     ? Number(raw.travelSeconds ?? raw.defaultTravelSeconds) / 3600
     : 1);
   const travelHours = Math.max(1, Math.ceil(Number(travelValue)));
+  const tripType = raw.tripType ?? 'commute';
+  const departureHour = raw.departureHour ?? (tripType === 'oneWay' ? 12 : MORNING_DEPARTURE_HOUR);
   if (!raw.id || !homeTileId || !workTileId || !gatewayId || !Number.isFinite(travelHours)) {
     throw new Error(`Invalid cross-tile commute flow: ${raw.id ?? '<unnamed>'}`);
   }
-  return { id: raw.id, homeTileId, workTileId, gatewayId, mass, travelHours };
+  if (!['commute', 'oneWay'].includes(tripType)) throw new Error(`Invalid cross-tile trip type: ${tripType}`);
+  if (!Number.isInteger(departureHour) || departureHour < 0 || departureHour > 23) {
+    throw new Error(`Invalid cross-tile departure hour: ${departureHour}`);
+  }
+  return { id: raw.id, homeTileId, workTileId, gatewayId, mass, travelHours, tripType, departureHour };
 }
 
 export function createCommuteEntry(rawFlow) {
   const flow = normalizeFlow(rawFlow);
   const entry = {
     flow,
-    atHome: flow.mass,
+    atHome: flow.tripType === 'oneWay' ? 0 : flow.mass,
     queuedToWork: 0,
     toWork: [],
     atWork: 0,
@@ -250,7 +256,13 @@ export function assertCommuteLedger(world) {
     positions.forEach((value) => finiteNonNegative(value, `commute balance: ${id}`));
     events.forEach((event) => finiteNonNegative(event.mass, `commute event mass: ${id}`));
     const total = positions.reduce((sum, value) => sum + value, 0) + eventMass(events);
-    if (Math.abs(total - entry.flow.mass) > 1e-9) throw new Error(`Gateway mass is not conserved for flow ${id}`);
+    if (entry.flow.tripType === 'oneWay') {
+      if (entry.atHome !== 0 || entry.atWork !== 0 || entry.queuedToHome !== 0 || entry.toHome.length) {
+        throw new Error(`One-way flow has commuter return state: ${id}`);
+      }
+    } else if (Math.abs(total - entry.flow.mass) > 1e-9) {
+      throw new Error(`Gateway mass is not conserved for flow ${id}`);
+    }
     const modeTotal = Object.values(entry.modeChoice ?? {}).reduce((sum, value) => sum + finiteNonNegative(value, `mode share: ${id}`), 0);
     if (Math.abs(modeTotal - entry.flow.mass) > 1e-9) throw new Error(`Mode-share mass is not conserved for flow ${id}`);
     if (!Number.isSafeInteger(entry.transitTrips)) throw new Error(`Transit trips are not whole people for flow ${id}`);
@@ -318,7 +330,11 @@ function processArrivals(entries, hour) {
   for (const entry of entries) {
     const workRemaining = [];
     for (const event of entry.toWork) {
-      if (event.arrivalHour <= hour) entry.atWork += event.mass;
+      if (event.arrivalHour <= hour) {
+        // One-way rows are recurring daily movement controls, not a stock of
+        // people who must return to the synthetic origin.
+        if (entry.flow.tripType !== 'oneWay') entry.atWork += event.mass;
+      }
       else workRemaining.push(event);
     }
     entry.toWork = workRemaining;
@@ -436,7 +452,10 @@ function nextActivityHour(world, currentHour) {
       if (event.arrivalHour > currentHour) next = Math.min(next, event.arrivalHour);
     }
     if (entry.queuedToWork > 0 || entry.queuedToHome > 0) next = Math.min(next, currentHour + 1);
-    if (entry.atHome > 0) next = Math.min(next, nextScheduledHour(currentHour, MORNING_DEPARTURE_HOUR));
+    if (entry.flow.tripType === 'oneWay' || entry.atHome > 0) {
+      next = Math.min(next, nextScheduledHour(currentHour,
+        entry.flow.tripType === 'oneWay' ? entry.flow.departureHour : MORNING_DEPARTURE_HOUR));
+    }
     if (entry.atWork > 0) next = Math.min(next, nextScheduledHour(currentHour, EVENING_DEPARTURE_HOUR));
   }
   return Number.isFinite(next) ? next : null;
@@ -457,16 +476,20 @@ export function advanceCommutesTo(world, targetHour) {
   while (hour != null && hour <= targetHour) {
     processArrivals(entries, hour);
     const hourOfDay = ((hour % 24) + 24) % 24;
-    if (hourOfDay === MORNING_DEPARTURE_HOUR) {
-      for (const entry of entries) {
-        entry.queuedToWork += entry.atHome;
-        entry.atHome = 0;
+    for (const entry of entries) {
+      if (entry.flow.tripType === 'oneWay' && hourOfDay === entry.flow.departureHour) {
+        entry.queuedToWork += entry.flow.mass;
+      } else if (entry.flow.tripType !== 'oneWay' && hourOfDay === MORNING_DEPARTURE_HOUR) {
+          entry.queuedToWork += entry.atHome;
+          entry.atHome = 0;
       }
     }
     if (hourOfDay === EVENING_DEPARTURE_HOUR) {
       for (const entry of entries) {
-        entry.queuedToHome += entry.atWork;
-        entry.atWork = 0;
+        if (entry.flow.tripType !== 'oneWay') {
+          entry.queuedToHome += entry.atWork;
+          entry.atWork = 0;
+        }
       }
     }
     const toWork = dispatch(world, entries, hour, 'toWork');
@@ -495,7 +518,7 @@ export function rebaseCommutesTo(world, targetHour) {
   if (!Number.isSafeInteger(targetHour) || targetHour < 0) throw new Error('Invalid commute rebase time');
   const entries = Object.values(world.gatewayLedger ?? {});
   for (const entry of entries) {
-    entry.atHome = entry.flow.mass;
+    entry.atHome = entry.flow.tripType === 'oneWay' ? 0 : entry.flow.mass;
     entry.queuedToWork = 0;
     entry.toWork = [];
     entry.atWork = 0;
@@ -503,7 +526,9 @@ export function rebaseCommutesTo(world, targetHour) {
     entry.toHome = [];
   }
   const hourOfDay = ((targetHour % 24) + 24) % 24;
-  const replayStart = Math.max(0, targetHour - hourOfDay - 24);
+  const longestOneWayTrip = entries.reduce((longest, entry) =>
+    entry.flow.tripType === 'oneWay' ? Math.max(longest, entry.flow.travelHours) : longest, 0);
+  const replayStart = Math.max(0, targetHour - hourOfDay - Math.max(24, longestOneWayTrip + 24));
   const wallet = world.wallet;
   const financialSchemaVersion = world.crossTileFinancials?.schemaVersion;
   const fare = world.farePolicy?.fare;
@@ -587,7 +612,7 @@ export function projectCommutesByTile(world, tileIds) {
   for (const entry of Object.values(world.gatewayLedger)) {
     const toWork = eventMass(entry.toWork);
     const toHome = eventMass(entry.toHome);
-    global.totalCrossTileWorkers += entry.flow.mass;
+    if (entry.flow.tripType !== 'oneWay') global.totalCrossTileWorkers += entry.flow.mass;
     global.globalInTransit += toWork + toHome;
     global.globalBacklog += entry.queuedToWork + entry.queuedToHome;
     const home = projections[entry.flow.homeTileId];
