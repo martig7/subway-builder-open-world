@@ -157,6 +157,16 @@ static class RendererRecorderTests
             Check(!(await RendererRecorderController.GetAsync(port)).Enabled, "Fresh HTTP recorder must be off.");
             using (var unauthorized = await client.PostAsync("/_control/recorder", new StringContent("{\"enabled\":true}")))
                 Check(unauthorized.StatusCode == HttpStatusCode.Forbidden, "Recorder switch must require the managed instance token.");
+            using (var unauthorized = await client.PostAsync("/_control/recorder/launch-game", new StringContent("{}")))
+                Check(unauthorized.StatusCode == HttpStatusCode.Forbidden, "Game launch must require the managed instance token.");
+            Check((await RendererRecorderController.GetAsync(port)).NativeSupported, "Manager cannot detect native logging support.");
+            if (NativeLogCapture.GameIsRunning())
+            {
+                var rejected = false;
+                try { await RendererRecorderController.LaunchGameAsync(port, scratch.State); }
+                catch (InvalidOperationException ex) { rejected = ex.Message.Contains("Save and close"); }
+                Check(rejected, "Launch must leave an already-running game untouched.");
+            }
             await RendererRecorderController.SetAsync(port, scratch.State, true);
             using (var options = await client.SendAsync(new HttpRequestMessage(HttpMethod.Options, "/_diagnostics/recorder/sample")))
                 Check(options.StatusCode == HttpStatusCode.NoContent && options.Headers.Contains("Access-Control-Allow-Origin"), "Game preflight failed.");

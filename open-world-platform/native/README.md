@@ -54,6 +54,44 @@ See [the diagnostics guide](../../docs/autosave-and-renderer-memory.md) for
 measurement limits and live verification. Existing standalone collectors remain
 available for explicit CDP investigations but are unnecessary for this recorder.
 
+### Native crash logs (Windows)
+
+The enabled recorder also tails the game's `logs/metro-maker-current.log`,
+resolving `customSavesDirectory` from the bounded game settings file. It archives
+32 KiB per second at most, preserving offsets and explicitly marking skipped
+backlog or replaced files. Console history therefore survives renderer reloads
+and the game's next log rotation within the existing 64 MiB archive budget.
+
+For native output, save and close Subway Builder, then select **Launch game with
+native logs** in the manager. The instance-authenticated
+`POST /_control/recorder/launch-game` endpoint launches the installed Windows game
+with `--enable-logging=file`, `--log-file`, `--log-level=1`, and
+`ELECTRON_ENABLE_STACK_DUMPING=1`. It refuses while any `game` process is running;
+it never terminates the game. This starts recording and needs a full game launch,
+not a mod reload. `X-OpenWorld-Native-Logs: native-crash-logs-v1` and the status
+response's `nativeCapture` object expose availability and capture health.
+
+A single independent helper drains stdout/stderr in 4 KiB chunks into a bounded
+64-chunk queue and tails Chromium's native file once per second. It keeps running
+through renderer, manager, and tile-server restarts. A private versioned copy in
+`<state-root>/native-capture` avoids locking the installed server during updates.
+PID, executable path, and process start time validate its status. The helper exits
+when the game main process closes; inherited child pipes receive three seconds to
+finish. The checkbox stops the server's memory/console archive, while native
+logging continues until the game closes because its flags are startup settings.
+
+Native files are under `<log-root>/renderer-debug/native`: `captured` holds four
+4 MiB JSONL files with UTC timestamps, source, offset and text; `chromium.log`
+and `chromium.previous.log` preserve raw output. At 8 MiB, the helper copies the
+last 8 MiB and truncates the live file, preserving Chromium's inherited append
+handle. Raw logs can briefly exceed the target between one-second polls; writes
+concurrent with truncation can be omitted and rotation is marked in the archive.
+This adds about 32 MiB of rolling history. Disk failures and dropped queue chunks
+are reported without retaining an unlimited backlog or blocking pipe drainage.
+No native logging can promise a trace for a crash that emits none. Crashpad may
+still terminate without a usable stack; no heap dump, debugger, heap-limit change,
+or game-bundle modification is included.
+
 ## Development
 
 ```powershell

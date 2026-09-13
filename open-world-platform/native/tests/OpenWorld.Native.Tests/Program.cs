@@ -11,6 +11,8 @@ using OpenWorld.TileServer;
 
 if (args.Length == 3 && args[0] == "--release-smoke")
     return await FullReleaseSmoke(args[1], args[2]);
+if (args.Length == 2 && args[0] == "--native-capture-fixture")
+    return await NativeLogCaptureTests.Fixture(args[1]);
 
 var tests = new (string Name, Func<Task> Run)[]
 {
@@ -43,6 +45,10 @@ var tests = new (string Name, Func<Task> Run)[]
     ("recorder rotates scoped files and contains disk errors", RendererRecorderTests.DiskBounds),
     ("process disappearance survives an unavailable exit-code lookup", RendererRecorderTests.ProcessDisappearance),
     ("manager controls the real tile-server recorder through restart", () => RendererRecorderTests.HttpLifecycle(MinimalPmTiles())),
+    ("native stdout, stderr and Chromium trace text survive process exit", NativeLogCaptureTests.CaptureSurvivesExit),
+    ("native log cursor handles UTF-8, bursts, truncation and retention", NativeLogCaptureTests.CursorAndRotation),
+    ("native logging resolves custom saves and launches with scoped flags", NativeLogCaptureTests.LocationAndLaunch),
+    ("native capture drains output even when log and state writes fail", NativeLogCaptureTests.DiskFailureDoesNotBlockGame),
 };
 
 var failed = 0;

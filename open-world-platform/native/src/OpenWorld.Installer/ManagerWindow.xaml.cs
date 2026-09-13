@@ -149,6 +149,7 @@ public partial class ManagerWindow : Window
             try { RecorderCheckBox.IsChecked = recorderStatus.Enabled; }
             finally { updatingRecorderCheckBox = false; }
             RecorderStatusText.Text = recorderStatus.Message;
+            NativeStatusText.Text = recorderStatus.NativeMessage;
             UpdateButtonState();
         }
         finally { refreshingRecorder = false; }
@@ -172,6 +173,14 @@ public partial class ManagerWindow : Window
         Directory.CreateDirectory(directory);
         Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
     }
+
+    private async void NativeLogs_Click(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync("Launching game with native logs", async token =>
+        {
+            if (currentStatus.Condition == TileServerCondition.Stopped)
+                await TileServerController.StartAndVerifyAsync(manifest, runtime, token);
+            await RendererRecorderController.LaunchGameAsync(manifest.Product.TileServerPort, runtime.StateRoot, token);
+        }, verifyAfter: false);
 
     private async Task<bool> ExecuteAsync(string activity, Func<CancellationToken, Task> action, bool verifyAfter = true)
     {
@@ -220,6 +229,9 @@ public partial class ManagerWindow : Window
         StartupCheckBox.IsEnabled = !busy && !isPreview;
         RecorderCheckBox.IsEnabled = !busy && !isPreview && (recorderStatus.Supported || currentStatus.Condition == TileServerCondition.Stopped);
         RecordingsButton.IsEnabled = !busy && !isPreview;
+        NativeLogsButton.IsEnabled = !busy && !isPreview &&
+            (recorderStatus.NativeSupported || currentStatus.Condition == TileServerCondition.Stopped) &&
+            recorderStatus.NativeStatus is not ("running" or "starting");
     }
 
     private async void Start_Click(object sender, RoutedEventArgs e) =>

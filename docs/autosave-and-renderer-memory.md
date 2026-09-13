@@ -70,6 +70,53 @@ the real incident; the underlying autosave stall and crash remain unresolved.
 The initial capture and summary are preserved locally under the Git-ignored
 `.analysis/manager-recorder-native` directory.
 
+### Native output after a renderer crash
+
+The manager now offers **Launch game with native logs**. Save and close the game
+first, then launch it from that button. It enables Chromium warning/error/fatal
+file logging and Electron's in-process stack dumping, and starts an independent
+capture helper for stdout/stderr. A renderer reload does not erase these files.
+The tile server also archives the existing game console log while its recorder
+is enabled, including the configured custom save directory's log.
+
+**Open recordings** contains the memory/console JSONL timeline and a `native`
+folder with timestamped native output plus current/previous raw Chromium logs.
+The helper remains active until the game closes, including when the manager or
+tile server restarts. Turning off the checkbox stops memory/console archiving;
+the separately shown native session ends on game exit. Its additional rolling
+history is about 32 MiB, with a bounded 64-chunk queue and explicit loss markers
+when output exceeds disk throughput. It does not take a heap dump.
+
+The September 13 exit code `-36861` corresponds to Crashpad's
+`kTerminationCodeNotConnectedToHandler` (`0xFFFF7003`). It means Crashpad could not
+reach its handler while trying to crash/dump; it does not identify the original
+fatal condition. Native logging can preserve a fatal message or stack that was
+previously lost, but cannot recover a trace the game never emits. Electron also
+documents that `ELECTRON_ENABLE_STACK_DUMPING` has no effect if its crash reporter
+has been started. A real subsequent crash is still needed to determine whether
+this game's renderer produces a usable trace.
+
+References: [Electron logging switches](https://www.electronjs.org/docs/latest/api/command-line-switches),
+[Electron stack dumping environment variable](https://www.electronjs.org/docs/latest/api/environment-variables),
+[Crashpad termination codes](https://chromium.googlesource.com/crashpad/crashpad/+/refs/heads/main/util/win/termination_codes.h).
+
+Native tests exercise stack-shaped stdout/stderr and Chromium text surviving a
+child's exit, Unicode split across file reads, large newline-free output, bounded
+backlog and file retention, unavailable disk/state files, stale helper status,
+and authenticated launch refusal while a game is already running. These tests
+verify the recording path, not reproduction or resolution of the game's crash.
+
+Delivery check on September 13: all 33 native tests passed. The installed manager
+and trimmed server match the candidate hashes, and the service advertises
+`native-crash-logs-v1` while serving all 83 installed archives. The unchanged
+national Japan bundle sent fresh `JP_PREF_11` samples after the service restart.
+The first live check found 13 archived game-console chunks alongside renderer
+samples; server private memory was 66.6 MiB. The installed manager layout was
+rendered and inspected. Native launch verification requires the user's saved
+game to be closed and relaunched from the new button; no running game was
+terminated to perform these checks. Candidate binaries, rollback copies and the
+UI capture are local in `.analysis/native-crash-logs`.
+
 ## Save boundary
 
 The current save reproduced a 62.8-second synchronous Electron context-bridge

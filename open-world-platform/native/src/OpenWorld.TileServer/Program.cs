@@ -41,6 +41,10 @@ if (command == "version")
 var port = options.Integer("port", 8799, 1024, 65535);
 var stateRoot = ServerStateStore.ResolveRoot(options.Optional("state-root"));
 var statePath = ServerStateStore.PathFor(stateRoot, port);
+var logRoot = Path.GetFullPath(options.Optional("log-root") ?? Path.Combine(stateRoot, "logs"));
+
+if (command == "capture-game")
+    return await NativeLogCapture.RunHelperAsync(stateRoot, logRoot);
 
 if (command == "stop")
     return await StopManagedServerAsync(port, statePath);
@@ -55,7 +59,6 @@ if (command != "serve")
 }
 
 var root = Path.GetFullPath(options.Optional("root") ?? DefaultServerPaths.ResolveDataRoot());
-var logRoot = Path.GetFullPath(options.Optional("log-root") ?? Path.Combine(stateRoot, "logs"));
 var allowedIds = options.Optional("tiles")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
 if (allowedIds is { Count: 0 } || allowedIds?.Any(id => !ArchiveCatalog.IsSafeId(id)) == true)
     throw new ArgumentException("--tiles must be a comma-separated list of safe tile IDs.");
@@ -82,6 +85,7 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-PMTiles-Server-Build"] = buildVersion;
     context.Response.Headers["X-OpenWorld-Route-Archive"] = RouteArchive.Version;
     context.Response.Headers["X-OpenWorld-Debug-Recorder"] = RendererDebugRecorder.Version;
+    context.Response.Headers["X-OpenWorld-Native-Logs"] = NativeLogCapture.Version;
     context.Response.Headers[instanceHeader] = instanceId;
     try
     {
@@ -134,6 +138,28 @@ app.MapPost("/_control/stop", context =>
 });
 
 app.MapGet("/_diagnostics/recorder", WriteRecorderStatus);
+app.MapPost("/_control/recorder/launch-game", async context =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var supplied = context.Request.Headers[controlHeader].SingleOrDefault();
+    if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+        System.Text.Encoding.ASCII.GetBytes(supplied ?? string.Empty), System.Text.Encoding.ASCII.GetBytes(instanceId)))
+    { context.Response.StatusCode = 403; return; }
+    NativeCaptureStatus status;
+    try
+    {
+        status = await NativeLogCapture.LaunchAsync(stateRoot, logRoot);
+        if (status.Status == "running") recorder.SetEnabled(true);
+        else context.Response.StatusCode = 409;
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+    {
+        context.Response.StatusCode = 409;
+        status = new(NativeLogCapture.Version, "error", Error: ex.Message[..Math.Min(512, ex.Message.Length)]);
+    }
+    context.Response.ContentType = "application/json";
+    await JsonSerializer.SerializeAsync(context.Response.Body, status, TileServerJsonContext.Default.NativeCaptureStatus, context.RequestAborted);
+});
 app.MapMethods("/_diagnostics/recorder/sample", ["OPTIONS"], context =>
 {
     context.Response.Headers.CacheControl = "no-store";

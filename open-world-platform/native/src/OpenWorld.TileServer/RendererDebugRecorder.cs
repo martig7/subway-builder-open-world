@@ -7,7 +7,7 @@ namespace OpenWorld.TileServer;
 
 public sealed record RecorderSettings(bool Enabled);
 public sealed record RecorderStatus(string Version, bool Enabled, string Status, string Directory,
-    string? File, DateTimeOffset? LastSampleAt, long Records, string? Error);
+    string? File, DateTimeOffset? LastSampleAt, long Records, string? Error, NativeCaptureStatus? NativeCapture = null);
 
 /// <summary>Owns a bounded disk record outside the renderer. No game objects or unbounded queues.</summary>
 public sealed class RendererDebugRecorder : IDisposable
@@ -16,6 +16,7 @@ public sealed class RendererDebugRecorder : IDisposable
     public const int MaximumPayloadBytes = 32 * 1024;
     private readonly object gate = new();
     private readonly string settingsPath;
+    private readonly string stateRoot;
     private readonly DiagnosticFileLog log;
     private readonly Func<DateTimeOffset> now;
     private readonly GameProcessSampler processes = new();
@@ -23,11 +24,15 @@ public sealed class RendererDebugRecorder : IDisposable
     private string? clientId, captureId, error;
     private DateTimeOffset? lastSampleAt;
     private long records;
+    private NativeLogCursor? gameLog;
+    private string? gameLogPath;
+    private DateTimeOffset nextLogLookup;
 
     public RendererDebugRecorder(string stateRoot, string logRoot, Func<DateTimeOffset>? now = null,
         long fileLimit = 8 * 1024 * 1024, int fileCount = 8)
     {
         this.now = now ?? (() => DateTimeOffset.UtcNow);
+        this.stateRoot = Path.GetFullPath(stateRoot);
         settingsPath = Path.Combine(Path.GetFullPath(stateRoot), "renderer-debug-recorder.json");
         log = new DiagnosticFileLog(Path.Combine(Path.GetFullPath(logRoot), "renderer-debug"), fileLimit, fileCount);
         try
@@ -49,7 +54,7 @@ public sealed class RendererDebugRecorder : IDisposable
         lock (gate)
             return new(Version, enabled, !enabled ? "off" : error is not null ? "error" :
                 lastSampleAt is null ? "waiting" : now() - lastSampleAt > TimeSpan.FromSeconds(5) ? "unresponsive" : "recording",
-                log.DirectoryPath, log.CurrentFile, lastSampleAt, records, error);
+                log.DirectoryPath, log.CurrentFile, lastSampleAt, records, error, NativeLogCapture.Snapshot(stateRoot));
     }
 
     public void SetEnabled(bool value)
@@ -74,7 +79,7 @@ public sealed class RendererDebugRecorder : IDisposable
             silenceReported = false;
             error = null;
             if (value) Write("recorder-started", "Recording enabled in manager.");
-            else { log.Close(); processes.Dispose(); }
+            else { log.Close(); processes.Dispose(); gameLog = null; gameLogPath = null; nextLogLookup = default; }
         }
     }
 
@@ -169,6 +174,28 @@ public sealed class RendererDebugRecorder : IDisposable
             try { WriteElement("game-processes", processes.Sample()); }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
             { Write("process-sampling-unavailable", ex.Message[..Math.Min(128, ex.Message.Length)]); }
+            try
+            {
+                if (now() >= nextLogLookup)
+                {
+                    nextLogLookup = now().AddSeconds(15);
+                    var path = GameLogLocation.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+                    if (path != gameLogPath)
+                    {
+                        gameLogPath = path;
+                        gameLog = path is null ? null : new NativeLogCursor(path);
+                        if (path is not null) Write("native-log-attached", path);
+                    }
+                }
+                gameLog?.Read((text, offset) =>
+                {
+                    var chunk = new NativeLogChunk(now(), "game-console", offset, text);
+                    using var json = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(chunk, TileServerJsonContext.Default.NativeLogChunk));
+                    WriteElement("native-log", json.RootElement);
+                });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            { Write("native-log-unavailable", ex.Message[..Math.Min(512, ex.Message.Length)]); }
         }
     }
 
