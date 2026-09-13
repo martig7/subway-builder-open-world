@@ -28,15 +28,18 @@ def neighbors(xy):
     return sorted(edges)
 
 
-def merge_cells(xy,mass,*,min_weight=50,min_spacing=275,initial_cells=None,force_indices=()):
+def merge_cells(xy,mass,*,min_weight=50,min_spacing=275,initial_cells=None,force_indices=(),floor_columns=None):
     xy=np.asarray(xy,dtype=float);mass=np.asarray(mass,dtype=np.int64)
     if len(xy)==0 or xy.shape!=(len(mass),2) or mass.ndim!=2 or mass.shape[0]!=len(xy):
         raise ValueError('Expected nonempty two-dimensional sites and demand columns')
     if not np.isfinite(xy).all() or (mass<0).any() or (mass.sum(axis=1)==0).any():
         raise ValueError('Sites must have finite coordinates and positive nonnegative demand')
     if min_weight<1 or min_spacing<=0:raise ValueError('Positive merge constraints required')
+    columns=list(range(mass.shape[1])) if floor_columns is None else list(floor_columns)
+    if not columns or len(set(columns))!=len(columns) or any(i<0 or i>=mass.shape[1] for i in columns):
+        raise ValueError('Weight floor columns must be distinct valid demand columns')
     totals=mass.sum(axis=0)
-    if np.any((totals>0)&(totals<min_weight)):
+    if np.any((totals[columns]>0)&(totals[columns]<min_weight)):
         raise ValueError('A positive mode total is below the minimum; conservation makes the floor impossible')
     cells=([dict(members=list(c['members']),anchor=c['anchor'],mass=np.asarray(c['mass']).copy()) for c in initial_cells]
            if initial_cells is not None else [dict(members=[i],anchor=i,mass=mass[i].copy()) for i in range(len(xy))])
@@ -46,7 +49,8 @@ def merge_cells(xy,mass,*,min_weight=50,min_spacing=275,initial_cells=None,force
     while len(cells)>1:
         anchors=xy[[c['anchor'] for c in cells]]
         weights=np.array([c['mass'] for c in cells])
-        bad=np.any((weights>0)&(weights<min_weight),axis=1)
+        constrained=weights[:,columns]
+        bad=np.any((constrained>0)&(constrained<min_weight),axis=1)
         if force_indices:
             bad[list(force_indices)]=True
             force_indices.clear()
@@ -77,14 +81,15 @@ def merge_cells(xy,mass,*,min_weight=50,min_spacing=275,initial_cells=None,force
         cells=sorted(next_cells,key=lambda c:c['members'][0])
         rounds.append(dict(points=len(cells),spacingMerges=close_count,weightMerges=weight_count))
     final=np.array([c['mass'] for c in cells])
-    if np.any((final>0)&(final<min_weight)):raise AssertionError('Unsatisfied final native weight floor')
+    constrained=final[:,columns]
+    if np.any((constrained>0)&(constrained<min_weight)):raise AssertionError('Unsatisfied final demand weight floor')
     if not np.array_equal(final.sum(axis=0),totals):raise AssertionError('Merge did not conserve every demand column')
     if len(cells)>1:
         anchors=xy[[c['anchor'] for c in cells]]
         if cKDTree(anchors).query(anchors,k=2)[0][:,1].min()<min_spacing-1e-8:
             raise AssertionError('Unsatisfied final spacing')
     for c in cells:c['mass']=c['mass'].tolist()
-    return dict(cells=cells,rounds=rounds,minWeight=min_weight,minSpacingM=min_spacing)
+    return dict(cells=cells,rounds=rounds,minWeight=min_weight,minSpacingM=min_spacing,floorColumns=columns)
 
 
 def remap_native(native,result,*,point_prefix='merged-point-'):

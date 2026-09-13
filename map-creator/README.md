@@ -102,11 +102,13 @@ can refine a location within 30 metres; their coverage does not determine demand
 density. Each source mesh retains its integer mass and statistical OD provenance.
 
 After constructing native and cross-tile cohorts, the compiler merges adjacent
-Voronoi cells until every positive resident/job weight is at least 50 and all
-canonical sites are at least 275 metres apart. Native and cross-tile views share
-the same locations. Border conflicts trigger further merges within the owner,
-and final anchors remain existing physical-land members. Sparse areas can require
-longer merges; the report records their displacement and affected mass.
+Voronoi cells until native resident/job weights are at least 50 and all canonical
+sites are at least 275 metres apart. It then merges the cross-tile view separately
+on that shared set of locations, enforcing the same weight floor. Sparse cross
+flows therefore cannot collapse unrelated native neighborhoods. Border conflicts
+trigger further merges within the owner, and final anchors remain existing
+physical-land members. Sparse areas can require longer merges; the report records
+native and cross-tile displacement and affected mass separately.
 
 For a demand-only regeneration, reuse the source evidence, cached regional PBFs,
 building indexes, physical-land mask, and OSRM dataset. Run the national compiler

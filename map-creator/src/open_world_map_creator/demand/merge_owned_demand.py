@@ -37,7 +37,10 @@ def merge_owned_demand(native, cross, boundaries, *, minimum=50, spacing=275, pr
         forward = Transformer.from_crs('EPSG:4326', _local_metric_crs(boundaries[owner]), always_xy=True)
         xy = np.asarray([forward.transform(*p['location']) for p in ordered])
         mass = np.asarray([p['mass'] for p in ordered], dtype=np.int64)
-        merged = merge_cells(xy, mass, min_weight=minimum, min_spacing=spacing)
+        # Native home/job weights define the neighborhood granularity. A tiny
+        # cross-prefecture flow must not absorb unrelated local population while
+        # searching for another cross-prefecture endpoint with which to merge.
+        merged = merge_cells(xy, mass, min_weight=minimum, min_spacing=spacing, floor_columns=(0,1))
         states[owner] = dict(points=ordered, xy=xy, mass=mass, merged=merged)
         progress(f'[voronoi] owner {owner}: {len(points)} -> {len(merged["cells"])} sites')
 
@@ -70,7 +73,7 @@ def merge_owned_demand(native, cross, boundaries, *, minimum=50, spacing=275, pr
         for owner, indices in sorted(forced.items()):
             state = states[owner]
             state['merged'] = merge_cells(state['xy'], state['mass'], min_weight=minimum, min_spacing=spacing,
-                                         initial_cells=state['merged']['cells'], force_indices=indices)
+                                         initial_cells=state['merged']['cells'], force_indices=indices, floor_columns=(0,1))
         after = sum(len(state['merged']['cells']) for state in states.values())
         if after >= before:
             raise AssertionError('Border spacing repair made no progress')
@@ -80,11 +83,13 @@ def merge_owned_demand(native, cross, boundaries, *, minimum=50, spacing=275, pr
     mapping, representatives, reports, membership = {}, {}, {}, {}
     for owner, state in sorted(states.items()):
         displacement = np.zeros(len(state['points']))
+        state['pointIds'] = []
         for cell in state['merged']['cells']:
             members = [state['points'][i]['id'] for i in cell['members']]
             point_id = f'owner-{owner}-voronoi-' + hashlib.sha256('\n'.join(members).encode()).hexdigest()[:20]
             anchor = state['points'][cell['anchor']]
             representatives[point_id] = Site(point_id,*anchor['location'],0,0,owner,owner)
+            state['pointIds'].append(point_id)
             for member in members:
                 mapping[member] = point_id
             displacement[cell['members']] = np.linalg.norm(state['xy'][cell['members']]-state['xy'][cell['anchor']],axis=1)
@@ -96,6 +101,53 @@ def merge_owned_demand(native, cross, boundaries, *, minimum=50, spacing=275, pr
             totalsBefore=state['mass'].sum(axis=0).tolist(), totalsAfter=weights.sum(axis=0).tolist(),
             positiveWeightMedians=[float(np.median(column[column>0])) if np.any(column>0) else 0 for column in weights.T])
         membership[owner] = dict(oldPointIds=[p['id'] for p in state['points']],cells=state['merged']['cells'])
+
+    # Merge the cross view on a subset of the already-spaced canonical sites.
+    # Only cross endpoints move in this pass. Its retained member anchors remain
+    # canonical, so neither native spacing nor ownership can change.
+    cross_mapping = {}
+    for owner,state in sorted(states.items()):
+        cells = state['merged']['cells']
+        indices = [i for i,cell in enumerate(cells) if sum(cell['mass'][2:])]
+        if not indices:
+            continue
+        xy = np.asarray([state['xy'][cells[i]['anchor']] for i in indices])
+        mass = np.asarray([cells[i]['mass'][2:] for i in indices],dtype=np.int64)
+        merged = merge_cells(xy,mass,min_weight=minimum,min_spacing=spacing)
+        cross_displacement = np.zeros(len(state['points']))
+        native_displacement = np.zeros(len(state['points']))
+        for cell in cells:
+            native_displacement[cell['members']] = np.linalg.norm(
+                state['xy'][cell['members']]-state['xy'][cell['anchor']],axis=1)
+        for cell in merged['cells']:
+            anchor = cells[indices[cell['anchor']]]['anchor']
+            point_id = state['pointIds'][indices[cell['anchor']]]
+            for member in cell['members']:
+                base = indices[member]
+                cross_mapping[state['pointIds'][base]] = point_id
+                original = cells[base]['members']
+                cross_displacement[original] = np.linalg.norm(state['xy'][original]-state['xy'][anchor],axis=1)
+        native_mass = state['mass'][:,:2].sum(axis=1)
+        cross_mass = state['mass'][:,2:].sum(axis=1)
+        row = reports[owner]
+        native_sum, cross_sum = int(native_mass.sum()),int(cross_mass.sum())
+        native_cost = float(np.dot(native_displacement,native_mass))
+        cross_cost = float(np.dot(cross_displacement,cross_mass))
+        row.update(
+            maximumDisplacementM=max(float(native_displacement[native_mass>0].max()) if native_sum else 0,
+                                     float(cross_displacement[cross_mass>0].max())),
+            demandWeightedMeanDisplacementM=(native_cost+cross_cost)/(native_sum+cross_sum),
+            nativeWeightedMeanDisplacementM=native_cost/native_sum if native_sum else 0,
+            crossWeightedMeanDisplacementM=cross_cost/cross_sum,
+            endpointMassMovedOver5Km=int(native_mass[native_displacement>5000].sum()+cross_mass[cross_displacement>5000].sum()),
+            nativeEndpointMassMovedOver5Km=int(native_mass[native_displacement>5000].sum()),
+            crossEndpointMassMovedOver5Km=int(cross_mass[cross_displacement>5000].sum()),
+            crossViewInputPoints=len(indices),crossViewOutputPoints=len(merged['cells']))
+        final_cross = np.asarray([cell['mass'] for cell in merged['cells']])
+        row['positiveWeightMedians'][2:] = [float(np.median(column[column>0])) if np.any(column>0) else 0 for column in final_cross.T]
+        membership[owner]['crossPointIds'] = [state['pointIds'][i] for i in indices]
+        membership[owner]['crossCells'] = merged['cells']
+        progress(f'[voronoi] cross view {owner}: {len(indices)} -> {len(merged["cells"])} sites; native sites retained')
 
     result = {}
     for owner, payload in native.items():
@@ -113,13 +165,24 @@ def merge_owned_demand(native, cross, boundaries, *, minimum=50, spacing=275, pr
                 if not point['popIds'] or point['popIds'][-1]!=pop['id']:
                     point['popIds'].append(pop['id'])
         result[owner]=dict(points=[points[key] for key in sorted(points)],pops=pops)
-    cross_result = [replace(record,home=representatives[mapping[record.home.id]],work=representatives[mapping[record.work.id]]) for record in cross]
+    cross_result = [replace(record,home=representatives[cross_mapping[mapping[record.home.id]]],
+                           work=representatives[cross_mapping[mapping[record.work.id]]]) for record in cross]
+    used_by_owner = defaultdict(set)
+    for owner,payload in result.items():
+        used_by_owner[owner].update(point['id'] for point in payload['points'])
+    for record in cross_result:
+        used_by_owner[record.home.owner_pref].add(record.home.id)
+        used_by_owner[record.work.owner_pref].add(record.work.id)
+    for owner,ids in used_by_owner.items():
+        reports[owner]['outputPoints'] = len(ids)
+    coordinates = [ecef.transform(representatives[point_id].longitude,representatives[point_id].latitude,0)
+                   for owner,ids in sorted(used_by_owner.items()) for point_id in sorted(ids)]
     if membership_path:
-        write(membership_path,dict(version=VERSION,mapping=mapping,owners=membership))
+        write(membership_path,dict(version=VERSION,mapping=mapping,crossMapping=cross_mapping,owners=membership))
     nearest = cKDTree(coordinates).query(coordinates,k=2)[0][:,1] if len(coordinates)>1 else np.array([])
     report = dict(version=VERSION,minimumPositiveDemand=minimum,minimumSpacingM=spacing,
         measuredMinimumSpacingM=float(nearest.min()) if len(nearest) else None,
         fields=['nativeResidents','nativeJobs','crossResidents','crossWorkers'],
-        ownerPreserving=True,borderRepairRounds=border_rounds,
-        inputPoints=sum(row['inputPoints'] for row in reports.values()),outputPoints=len(representatives),owners=reports)
+        ownerPreserving=True,borderRepairRounds=border_rounds,ledgerMergePolicy='native-and-cross-views-v1',
+        inputPoints=sum(row['inputPoints'] for row in reports.values()),outputPoints=len(coordinates),owners=reports)
     return result,cross_result,report

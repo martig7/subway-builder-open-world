@@ -79,6 +79,24 @@ class RoadVoronoiDemandTests(unittest.TestCase):
             self.assertEqual(sum(p['size'] for p in payload['pops']),300)
             self.assertTrue(all(bounds[owner].covers(Point(p['location'])) for p in payload['points']))
 
+    def test_sparse_cross_view_merges_do_not_collapse_unrelated_native_demand(self):
+        bounds={'27':box(135,34,135.04,34.02),'28':box(136,34,136.02,34.02)}
+        sites=[Site(name,x,34.005,1,1,'27','27') for name,x in [('a',135.005),('b',135.010),('c',135.015)]]
+        destination=Site('d',136.005,34.005,1,1,'28','28')
+        ledger=OwnedDemandLedger(bounds,road_estimate)
+        for site in sites+[destination]:
+            ledger.add(CrossRecord(f'local-{site.id}',100,site,site,site.owner_pref,site.owner_pref))
+        ledger.add(CrossRecord('rare-cross-a',20,sites[0],destination,'27','28'))
+        ledger.add(CrossRecord('rare-cross-c',30,sites[2],destination,'27','28'))
+        native,_,cross=ledger.finish()
+        result,remapped,report=merge_owned_demand(native,cross,bounds,progress=lambda *_:None)
+        self.assertEqual(len(result['27']['points']),3,'Sparse cross-view weights must not absorb ordinary native neighborhoods')
+        self.assertEqual([p['residents'] for p in result['27']['points']],[100,100,100])
+        self.assertEqual(len({record.home.id for record in remapped}),1)
+        self.assertEqual(sum(record.mass for record in remapped),50)
+        self.assertTrue({record.home.id for record in remapped} <= {p['id'] for p in result['27']['points']})
+        self.assertGreaterEqual(report['measuredMinimumSpacingM'],275)
+
     def test_road_placement_requires_explicit_cached_support(self):
         with self.assertRaisesRegex(ValueError,'cached OSM'):
             compile_boundary_sites({'27':box(135,34,136,35)},
