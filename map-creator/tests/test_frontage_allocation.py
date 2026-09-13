@@ -1,6 +1,8 @@
 import copy
 import unittest
+from unittest.mock import patch
 import numpy as np
+import shapely
 from shapely.geometry import box,GeometryCollection
 from pyproj import Transformer
 from open_world_map_creator.demand.frontage_allocation import road_weights,allocate_integer,select_sites,assign_cells,refine_buildings
@@ -37,6 +39,19 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual([s['home'] for s in complete],[s['home'] for s in missing])
         self.assertEqual(len(complete),len(missing))
         self.assertTrue(all(np.linalg.norm(np.array(a['xy'])-b['xy'])<=30 for a,b in zip(complete,missing)))
+
+    def test_supported_mesh_crossing_water_does_not_intersect_the_full_land_polygon(self):
+        forward=Transformer.from_crs('EPSG:4326','+proj=aeqd +lat_0=36 +lon_0=139 +datum=WGS84 +units=m',always_xy=True)
+        land=box(-500,-500,500,500).difference(box(-20,-500,20,500))
+        shapely.prepare(land)
+        sites=[dict(id=str(i),xy=[x,0],anchor='road-frontage') for i,x in enumerate((-100,0,100))]
+        samples=[dict(**site,length=50,weights=[1,1]) for site in sites]
+        cells=[dict(id='river-mesh',longitude=139,latitude=36,commuters=200)]
+        with patch('shapely.intersection',wraps=shapely.intersection) as intersections:
+            weights,report,_=assign_cells(sites,samples,cells,'commuters',forward,land,GeometryCollection())
+        self.assertEqual(list(weights),[100,0,100])
+        self.assertEqual(report['assignedMass'],200)
+        self.assertEqual(intersections.call_count,0,'Road-supported meshes must not repeat a full-prefecture polygon overlay')
 
     def test_refinement_respects_water_and_owner(self):
         sites=[dict(id='a',xy=[0,0])]

@@ -84,14 +84,14 @@ def assign_cells(sites, samples, cells, field, forward, boundary, excluded, *, m
         lon, lat = cell['longitude'], cell['latitude']
         half_lon, half_lat = .003125*scale/2, (1/480)*scale/2
         footprint = transform(forward.transform, box(lon-half_lon, lat-half_lat, lon+half_lon, lat+half_lat))
-        # Prepared containment is much cheaper than intersecting a whole
-        # prefecture for every inland mesh. Only edge/water meshes need clipping.
-        if not boundary.covers(footprint):
-            footprint = footprint.intersection(boundary)
         cx, cy = forward.transform(lon, lat)
         support = defaultdict(float)
         for i in sample_tree.query_ball_point([cx, cy], 450*scale):
-            if footprint.covers(Point(sample_xy[i])):
+            point = Point(sample_xy[i])
+            # Membership in an intersection is membership in both operands.
+            # Query the prepared land geometry instead of overlaying the whole
+            # prefecture for every mesh that crosses a river or coastline.
+            if footprint.covers(point) and boundary.covers(point):
                 amount = samples[i]['length'] * samples[i]['weights'][weight_index]
                 if amount > 0:
                     support[int(sample_owner[i])] += amount
@@ -107,7 +107,7 @@ def assign_cells(sites, samples, cells, field, forward, boundary, excluded, *, m
         if not support:
             # Explicitly labelled uncertainty: bounded land within the source footprint,
             # never a census-centre dot or a multi-kilometre jump to a mapped building.
-            usable = footprint.difference(excluded)
+            usable = footprint.intersection(boundary).difference(excluded)
             if usable.is_empty:
                 # Coastal evidence can land in filled administrative water.
                 # Keep the existing bounded source-to-land allowance, recording

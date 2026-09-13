@@ -64,8 +64,9 @@ def samples_from_roads(data, forward, boundary, excluded, source_xy):
     return samples, dict(rejected)
 
 
-def build_owner_frontage(owner, source_groups, boundary, building_path, road_support, policy,
-                         *, physical_land=None, supplemental_buildings=(), cache_root=None, progress=print):
+def placement_cache_pin(owner, source_groups, boundary, building_path, road_support, policy,
+                        *, physical_land=None, supplemental_buildings=()):
+    """Explicit input identity, also used when auditing equivalent cache migrations."""
     pin = dict(version=VERSION, policy=policy, sourceGroups=source_groups,
                boundary=hashlib.sha256(shapely.to_wkb(boundary)).hexdigest(),
                buildings=digest(building_path), roads=road_support.owner_pin(owner),
@@ -74,6 +75,13 @@ def build_owner_frontage(owner, source_groups, boundary, building_path, road_sup
     # The mask identity is attached by the compiler; do not rehash its 258 MB
     # geometry once for every prefecture.
     pin['physicalLand'] = getattr(physical_land, 'source_sha256', None)
+    return pin
+
+
+def build_owner_frontage(owner, source_groups, boundary, building_path, road_support, policy,
+                         *, physical_land=None, supplemental_buildings=(), cache_root=None, progress=print):
+    pin = placement_cache_pin(owner, source_groups, boundary, building_path, road_support, policy,
+                              physical_land=physical_land, supplemental_buildings=supplemental_buildings)
     key = hashlib.sha256(json.dumps(pin, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     target = Path(cache_root) / f'owner-{owner}.json.gz' if cache_root else None
     if target and target.exists():
