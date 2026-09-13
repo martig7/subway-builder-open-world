@@ -29,7 +29,7 @@ from .owned_ledger import OwnedDemandLedger
 from .estat_japan_prefecture import load_prefecture_boundary
 
 
-COMPILER_VERSION = "estat-japan-national-package-v7-land-anchored"
+COMPILER_VERSION = "estat-japan-national-package-v8-road-voronoi"
 SPECIAL_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 
 
@@ -239,6 +239,9 @@ def compile_japan(
     maps_root: Path,
     output_root: Path,
     progress_path: Path | None = None,
+    osm_root: Path | None = None,
+    cache_root: Path | None = None,
+    placement_workers: int = 1,
 ) -> dict[str, Any]:
     progress = Progress(progress_path)
     catalog = read_json(world_root / "geography" / "tile-views.json")
@@ -256,6 +259,8 @@ def compile_japan(
             raise ValueError('Physical-land source path/hash mismatch')
         progress.emit('physical-land', 'loading')
         physical_land = PhysicalLandIndex.read(land_path)
+        physical_land.source_sha256 = land_spec['sha256']
+        physical_land.source_path = land_path
         progress.emit('physical-land', 'complete')
     if supplement_key:
         supplement_path = (world_root / supplement_key).resolve()
@@ -271,6 +276,14 @@ def compile_japan(
     if codes != [f"{value:02d}" for value in range(1, 48)]:
         raise ValueError("Japan catalog must contain prefecture codes 01..47 in order")
     progress.emit("load", "started", prefectureCount=len(codes))
+    road_support = None
+    if demand_policy.get('sitePlacement') == 'road-frontage-v1':
+        if osm_root is None or cache_root is None:
+            raise ValueError('Road-frontage compilation requires --osm-root and --cache-root; cached local inputs only')
+        from .road_support import RoadSupportCache
+        road_support = RoadSupportCache(read_json(world_root/'map.json'), osm_root, cache_root/'road-support',
+            lambda message: progress.emit('road-support', 'running', message=message))
+        road_support.prepare()
     from ..geography import ownership_boundary
     boundary_path = ownership_boundary(world_root)
     _, boundaries, _, _ = load_prefecture_boundary(set(codes), boundary_path)
@@ -287,7 +300,9 @@ def compile_japan(
         rows, placement_report = compile_boundary_sites(boundaries, sources,
             {code: maps_root / tile_id(code) / "buildings_index.bin.gz" for code in codes},
             demand_policy, lambda message: progress.emit("boundary-sites", "running", message=message),
-            supplemental_buildings=supplemental_buildings, physical_land=physical_land)
+            supplemental_buildings=supplemental_buildings, physical_land=physical_land,
+            road_support=road_support, placement_cache=cache_root/'frontage-sites' if cache_root else None,
+            placement_workers=placement_workers)
     except ValueError as error:
         progress.emit("boundary-sites", "failed", error=str(error), publicationBlocked=True)
         raise
@@ -322,6 +337,15 @@ def compile_japan(
         progress.emit("cross-demand", "complete", originPrefCode=origin_code, destinationPrefCode=destination_code, mass=mass, cohortCount=cohort_count)
 
     native_payloads, native_report_by_pref, cross_records = ledger.finish()
+    merge_report = None
+    if road_support is not None:
+        from .merge_owned_demand import merge_owned_demand
+        native_payloads, cross_records, merge_report = merge_owned_demand(native_payloads, cross_records, boundaries,
+            minimum=int(demand_policy['minimumPositiveDemand']), spacing=float(demand_policy['pointMergeDistanceM']),
+            progress=lambda message: progress.emit('voronoi-merge', 'running', message=message),
+            membership_path=output_root/'reports/voronoi-membership.json.gz')
+        for code, native in native_payloads.items():
+            native_report_by_pref[code]['pointCount'] = len(native['points'])
     compiled_mass = sum(row['nativeMass'] for row in native_report_by_pref.values()) + sum(record.mass for record in cross_records)
     if compiled_mass != sum(pair_mass.values()):
         raise AssertionError('Final ownership classification did not conserve national commute mass')
@@ -404,9 +428,10 @@ def compile_japan(
         "supplementalBuildingAnchors": supplement_report,
         "physicalLandMask": land_spec,
         "siteGeometry": site_geometry_reports,
+        "voronoiMerging": merge_report,
         "aggregation": {
             **demand_policy,
-            "fineSeedSource": "building-index-plus-attributed-footprints-v2" if supplement_report else "osm-building-index-v1",
+            "fineSeedSource": "osm-road-frontage-v1" if road_support else "building-index-plus-attributed-footprints-v2" if supplement_report else "osm-building-index-v1",
             "unanchoredSiteCount": sum(
                 int(row.get("unanchoredSiteCount", 0))
                 for row in site_geometry_reports.values()
@@ -428,7 +453,12 @@ def main() -> None:
     parser.add_argument("--maps-root", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "maps" / "tiles")
     parser.add_argument("--output-root", type=Path, default=repository_root / "prototype" / "japan" / "generated" / "demand")
     parser.add_argument("--progress-jsonl", type=Path)
+    parser.add_argument("--osm-root", type=Path, help="Existing cached regional OSM inputs; never downloaded by this compiler")
+    parser.add_argument("--cache-root", type=Path, help="Resumable road-support and owner placement cache")
+    parser.add_argument("--placement-workers", type=int, default=1)
     args = parser.parse_args()
+    if not 1 <= args.placement_workers <= 8:
+        parser.error('--placement-workers must be between 1 and 8')
     report = compile_japan(
         world_root=args.world_root,
         evidence_root=args.evidence_root,
@@ -436,6 +466,9 @@ def main() -> None:
         maps_root=args.maps_root,
         output_root=args.output_root,
         progress_path=args.progress_jsonl,
+        osm_root=args.osm_root,
+        cache_root=args.cache_root,
+        placement_workers=args.placement_workers,
     )
     print(json.dumps({"valid": True, **{key: report[key] for key in ("tileCount", "acceptedMass", "nativeMass", "boundaryAuditDivertedMass", "crossMass", "crossCohortCount")}}, sort_keys=True))
 

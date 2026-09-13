@@ -45,6 +45,8 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     native_points = 0
     native_cohorts = 0
     outside = 0
+    canonical = {}
+    native_weights = []
     for tile in selected:
         tile_root = demand_root / "tiles" / tile["id"]
         demand_path = tile_root / "demand_data.json.gz"
@@ -53,6 +55,9 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
             raise ValueError(f"Manifest mismatch for {tile['id']}")
         demand = read_gzip_json(demand_path)
         all_coordinates.extend(point['location'] for point in demand['points'])
+        for point in demand['points']:
+            canonical[point['id']] = point['location']
+            native_weights.extend([point['residents'],point['jobs']])
         point_ids = [str(point["id"]) for point in demand["points"]]
         pop_ids = [str(pop["id"]) for pop in demand["pops"]]
         if len(point_ids) != len(set(point_ids)) or len(pop_ids) != len(set(pop_ids)):
@@ -89,6 +94,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     residents = [0] * len(cross["points"])
     workers = [0] * len(cross["points"])
     cross_mass = 0
+    one_way_mass = 0
     cross_outside = 0
     valid_tile_ids = {tile["id"] for tile in selected}
     pref_for_tile = {tile["id"]: str(tile["prefCode"]) for tile in selected}
@@ -100,11 +106,19 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
             raise ValueError(f"Invalid cross endpoint in {row[pop_fields['id']]}")
         if mass <= 0 or int(row[pop_fields["drivingSeconds"]]) <= 0 or int(row[pop_fields["drivingDistance"]]) <= 0:
             raise ValueError(f"Invalid cross metrics in {row[pop_fields['id']]}")
-        residents[home] += mass
-        workers[work] += mass
+        if 'tripType' in pop_fields and len(row)>pop_fields['tripType'] and row[pop_fields['tripType']]=='oneWay':
+            one_way_mass += mass
+        else:
+            residents[home] += mass
+            workers[work] += mass
         cross_mass += mass
     for index, row in enumerate(cross["points"]):
         point_tile = row[point_fields["tileId"]]
+        point_id = str(row[point_fields['id']])
+        location = [row[point_fields['longitude']],row[point_fields['latitude']]]
+        if point_id in canonical and canonical[point_id] != location:
+            raise ValueError(f'Canonical native/cross geometry mismatch: {point_id}')
+        canonical[point_id] = location
         if point_tile not in valid_tile_ids:
             raise ValueError(f"Unknown cross point tile: {point_tile}")
         if not boundaries[pref_for_tile[point_tile]].covers(Point(float(row[point_fields["longitude"]]), float(row[point_fields["latitude"]]))):
@@ -116,9 +130,9 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     if outside:
         raise ValueError(f"{outside} native demand points are outside ownership boundaries")
     report = read_json(demand_root / 'reports' / 'japan-national-demand.json')
-    if native_mass + cross_mass != report['acceptedMass']:
+    if native_mass + cross_mass - one_way_mass != report['acceptedMass']:
         raise ValueError('National commute mass differs from accepted source controls')
-    if report.get('compilerVersion') in ('estat-japan-national-package-v6-boundary-first','estat-japan-national-package-v7-land-anchored'):
+    if report.get('compilerVersion') in ('estat-japan-national-package-v6-boundary-first','estat-japan-national-package-v7-land-anchored','estat-japan-national-package-v8-road-voronoi'):
         if cross_outside:
             raise ValueError(f'{cross_outside} cross-demand points are outside ownership boundaries')
         if report.get('ownershipBoundary', {}).get('sha256') != sha256(ownership_boundary(world_root)):
@@ -128,6 +142,22 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
             work = cross['points'][int(row[pop_fields['workPoint']])][point_fields['tileId']]
             if home == work:
                 raise ValueError('Same-owner commute was incorrectly retained as cross-tile')
+    minimum_spacing = None
+    if report.get('voronoiMerging'):
+        import numpy as np
+        from scipy.spatial import cKDTree
+        from pyproj import Transformer
+        merge = report['voronoiMerging']
+        weights = native_weights + residents + workers
+        if any(0 < value < merge['minimumPositiveDemand'] for value in weights):
+            raise ValueError('A positive native/cross demand weight is below the minimum')
+        coordinates = np.asarray(list(canonical.values()))
+        projector = Transformer.from_crs('EPSG:4979','EPSG:4978',always_xy=True)
+        xyz = np.column_stack(projector.transform(coordinates[:,0],coordinates[:,1],np.zeros(len(coordinates))))
+        if len(xyz)>1:
+            minimum_spacing = float(cKDTree(xyz).query(xyz,k=2)[0][:,1].min())
+            if minimum_spacing < merge['minimumSpacingM']:
+                raise ValueError('Canonical demand points violate minimum spacing')
     land_spec = read_json(world_root / 'demand.json').get('physicalLandMask')
     off_land = None
     if land_spec:
@@ -153,6 +183,8 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
         "crossMass": cross_mass,
         "crossOutsideRenderedBoundaryPointCount": cross_outside,
         "totalMass": native_mass + cross_mass,
+        "oneWayMass": one_way_mass,
+        "minimumCanonicalSpacingM": minimum_spacing,
         "outsideRenderedBoundary": outside,
         "offPhysicalLandPointCount": off_land,
     }

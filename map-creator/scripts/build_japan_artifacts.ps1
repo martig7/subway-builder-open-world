@@ -86,6 +86,9 @@ if (-not $SkipMaps) {
 }
 if (-not $SkipDemand) {
     python -m open_world_map_creator.demand.package_japan `
+        --osm-root $osmRoot `
+        --cache-root (Join-Path $generatedRoot 'demand-cache') `
+        --placement-workers 4 `
         --output-root (Join-Path $generatedRoot 'demand') `
         --progress-jsonl (Join-Path $progressRoot 'demand-progress.jsonl')
     if ($LASTEXITCODE -ne 0) { throw 'Japan demand packaging failed.' }

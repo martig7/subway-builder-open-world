@@ -95,12 +95,40 @@ validation gates are complete.
 
 ## Japan demand and routing workers
 
-The boundary referenced by a World Definition is authoritative for demand
-ownership. Source mesh mass is assigned to building centers from the selected
-Tile Package and merged at the World-configured radius. Sites that still fail
-the rendered-boundary audit are diverted to the cross-tile ledger; the worker
-never edits the render geometry or snaps failed demand onto a boundary edge.
-Reports and JSONL progress record the building placement and ownership audit.
+The World Definition's detailed ownership boundary determines which prefecture
+owns each demand location. Japan's national compiler uses cached OSM road frontage
+for placement, constrained by physical land and incompatible land use. Buildings
+can refine a location within 30 metres; their coverage does not determine demand
+density. Each source mesh retains its integer mass and statistical OD provenance.
+
+After constructing native and cross-tile cohorts, the compiler merges adjacent
+Voronoi cells until every positive resident/job weight is at least 50 and all
+canonical sites are at least 275 metres apart. Native and cross-tile views share
+the same locations. Border conflicts trigger further merges within the owner,
+and final anchors remain existing physical-land members. Sparse areas can require
+longer merges; the report records their displacement and affected mass.
+
+For a demand-only regeneration, reuse the source evidence, cached regional PBFs,
+building indexes, physical-land mask, and OSRM dataset. Run the national compiler
+directly; the full artifact build script also contains map stages:
+
+```powershell
+python -m open_world_map_creator.demand.package_japan `
+  --world-root <worlds/japan> `
+  --evidence-root <completed-prefecture-queue/outputs> `
+  --compatible-evidence <tokyo-kanagawa-test> `
+  --maps-root <existing-maps/tiles> `
+  --osm-root <cached-regional-pbfs> `
+  --cache-root <demand-cache> --placement-workers 4 `
+  --output-root <new-demand-root> `
+  --progress-jsonl <placement-progress.jsonl>
+```
+
+The road and per-owner placement caches pin their inputs and implementation.
+This command has no download or map-tile generation step. Re-sample any one-way
+movement controls onto the new canonical sites before routing, then regenerate
+route costs and stored geometry using the existing coordinate-keyed caches.
+Verify demand with `open_world_map_creator.demand.verify_japan` before publication.
 
 ```powershell
 $env:PYTHONPATH = 'src'

@@ -16,7 +16,7 @@ from .estat_japan_prefecture import BoundaryOwnershipIndex, relocate_into_bounda
 VERSION = 'boundary-first-building-sites-v2-land-inputs'
 
 
-def compile_boundary_sites(boundaries, sources, building_paths, policy, progress=print, *, supplemental_buildings=None, physical_land=None):
+def compile_boundary_sites(boundaries, sources, building_paths, policy, progress=print, *, supplemental_buildings=None, physical_land=None, road_support=None, placement_cache=None, placement_workers=1):
     index = BoundaryOwnershipIndex(boundaries, boundaries)
     maximum_coastal = float(policy.get('maximumBoundarySnapDistanceM', 750))
     maximum_assignment = float(policy.get('maximumCellToSiteDistanceM', 5000))
@@ -46,11 +46,47 @@ def compile_boundary_sites(boundaries, sources, building_paths, policy, progress
                     report['coastalAdjustedCellCount'] += 1
                     report['maximumBoundarySnapDistanceM'] = max(report['maximumBoundarySnapDistanceM'], distance)
                 report['ownerChangedCellCount'] += int(owner != source_pref)
-                grouped[owner][source_pref][kind].append({**cell, 'longitude': x, 'latitude': y})
+                grouped[owner][source_pref][kind].append({**cell, 'sourceLongitude':cell['longitude'],
+                    'sourceLatitude':cell['latitude'], 'longitude': x, 'latitude': y})
         progress(f'[boundary-sites] assigned source {source_pref}')
 
     by_source = {source: [] for source in sources}
+    if policy.get('sitePlacement') == 'road-frontage-v1' and placement_workers > 1:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        from .frontage_worker import initialize, build
+        if road_support is None:
+            raise ValueError('Road-frontage placement requires cached OSM support')
+        if physical_land is not None and not getattr(physical_land, 'source_path', None):
+            raise ValueError('Parallel placement requires a readable physical-land source')
+        arguments = [(owner, dict(groups), boundaries[owner], building_paths[owner], policy,
+            (supplemental_buildings or {}).get(owner, []), placement_cache) for owner,groups in sorted(grouped.items())]
+        with ProcessPoolExecutor(max_workers=placement_workers, initializer=initialize, initargs=(
+                road_support.config, road_support.osm_root, road_support.root, road_support.pins,
+                getattr(physical_land,'source_path',None), getattr(physical_land,'source_sha256',None))) as pool:
+            futures = [pool.submit(build, argument) for argument in arguments]
+            for future in as_completed(futures):
+                owner,(owner_rows,owner_report) = future.result()
+                for source,rows in owner_rows.items():
+                    by_source[source].extend(rows)
+                report['owners'][owner] = owner_report
+                progress(f'[road-sites] completed owner {owner}: {owner_report["initialSites"]} sites')
+        for sites in by_source.values():
+            sites.sort(key=lambda site:(site['owner_pref'],site['id']))
+        return by_source, report
     for owner, source_groups in sorted(grouped.items()):
+        if policy.get('sitePlacement') == 'road-frontage-v1':
+            if road_support is None:
+                raise ValueError('Road-frontage placement requires cached OSM support')
+            from .frontage_sites import build_owner_frontage
+            owner_rows, owner_report = build_owner_frontage(owner, source_groups, boundaries[owner],
+                building_paths[owner], road_support, policy, physical_land=physical_land,
+                supplemental_buildings=(supplemental_buildings or {}).get(owner, []),
+                cache_root=placement_cache, progress=progress)
+            for source, rows in owner_rows.items():
+                by_source[source].extend(rows)
+            report['owners'][owner] = owner_report
+            progress(f'[road-sites] completed owner {owner}: {owner_report["initialSites"]} sites')
+            continue
         progress(f'[boundary-sites] building owner {owner}')
         homes = [cell for group in source_groups.values() for cell in group['home']]
         jobs = [cell for group in source_groups.values() for cell in group['jobs']]
