@@ -3,7 +3,7 @@
 This change runs in the shared mod. It does not alter the game archive, native
 save format, rail topology, finances, autosave frequency, or completed-commute
 retention. The measured consumer is national Japan (`local.japan-open-world`),
-built from `prototype/japan/mod`, in `JP_KANAGAWA_MAINLAND`.
+built from `prototype/japan/mod`; captures below name their active city.
 
 ## Recording through the manager
 
@@ -11,8 +11,9 @@ The Windows Open World Manager now has **Debug recorder → Record game
 diagnostics** and **Open recordings**. Enable the checkbox once; the shared tile
 server retains the setting across manager closure, mod reload, and server restart.
 It records until switched off. The manager shows whether samples are arriving,
-the game has stopped sending them, or recording failed. No Codex session, Node
-collector, remote-debugging port, or special game launch is required.
+the game has stopped sending them, or recording failed. No Codex session or Node
+collector is required. Process/console recording works with an ordinary launch;
+precise V8 measurements require **Launch game with diagnostics**, described below.
 
 The server writes JSONL under
 `%LOCALAPPDATA%\metro-maker4\open-world-pmtiles\logs\renderer-debug`.
@@ -22,8 +23,9 @@ to be kept. `renderer-debug-recorder.json` in the adjacent `state` directory
 stores the enabled flag. Disabling recording keeps existing files.
 
 `renderer-debug-recorder-v1` sends one bounded scalar payload per second when
-enabled. It includes the active manifest/city, camera position, browser heap
-estimates, high-water sample, and short tails of save, map, and memory events.
+enabled. It includes the active manifest/city, camera position, separate browser
+estimates and verified V8 readings, high-water sample, and short tails of save,
+map, and memory events.
 Only one request is in flight; requests time out after three seconds, and an
 unavailable/disabled server is polled every five seconds. There is no retained
 upload backlog, game-state traversal, full heap dump, or forced GC. The server
@@ -37,8 +39,8 @@ resume. Silence alone is not evidence of a crash: a closed game, reload, or
 throttling can also cause it. Activities that occur entirely between the final
 upload and a crash may be lost.
 
-Browser heap counters can be rounded or stale, and their reported headroom is
-not a crash prediction. Process private bytes include more than JavaScript heap
+Browser heap counters can be rounded or stale and include external memory; they
+no longer supply headroom. Process private bytes include more than JavaScript heap
 and must not be compared directly with the browser's heap limit. Use both
 streams with the native game log to distinguish a heap estimate, total process
 growth, an autosave stall, and a process exit.
@@ -72,7 +74,7 @@ The initial capture and summary are preserved locally under the Git-ignored
 
 ### Native output after a renderer crash
 
-The manager now offers **Launch game with native logs**. Save and close the game
+The manager now offers **Launch game with diagnostics**. Save and close the game
 first, then launch it from that button. It enables Chromium warning/error/fatal
 file logging and Electron's in-process stack dumping, and starts an independent
 capture helper for stdout/stderr. A renderer reload does not erase these files.
@@ -116,6 +118,31 @@ rendered and inspected. Native launch verification requires the user's saved
 game to be closed and relaunched from the new button; no running game was
 terminated to perform these checks. Candidate binaries, rollback copies and the
 UI capture are local in `.analysis/native-crash-logs`.
+
+### Precise measurement delivery, September 13, 2026
+
+The replacement recorder passes 890 shared tests, seven Japan behavioral tests,
+and 36 native tests. The captured 116 MB stale reading is a regression fixture:
+it now yields unavailable headroom instead of normal pressure. Tests also cover
+separate backing storage, sample expiry including debugger delay, delayed save
+markers, sampling gaps, endpoint identity, bounded replies, and stalled requests.
+
+The rebuilt `prototype/japan/mod` and installed `local.japan-open-world/index.js`
+match SHA-256 `35F6A555673297AB5BDB8133BFA06FC075C02935E61948F3A44A1D53341FA818`
+and UTC timestamp `2026-09-13T22:23:46.4939784Z`, with
+`renderer-memory-pressure-v2` and `renderer-debug-recorder-runtime-v2` present.
+The installed manager and tile server match their published candidates. The
+service serves all 83 registered archives with `native-crash-logs-v2`; installed
+map packages were not regenerated or replaced. Local rollback copies and
+verification artifacts are in `.analysis/precise-memory`.
+
+After the user relaunched through the manager, the helper reported the new
+diagnostic launch and the sampler obtained a precise 4,294,705,152-byte heap limit.
+At the menu, an independent `Runtime.getHeapUsage` check read 57,901,908 bytes of
+V8 heap against the service's 57,861,332 bytes 180 ms earlier. Both reported about
+23.7 MB of backing storage separately. Native queries took approximately 1 ms;
+server and helper private memory were 70.2 and 55.2 MiB in this initial check.
+These menu values verify measurement transport, not a gameplay memory budget.
 
 ## Save boundary
 
@@ -191,7 +218,7 @@ The baseline bound works independently of heap-counter precision.
 
 ## Diagnostics during normal play
 
-`renderer-memory-pressure-v1` automatically records scalar samples every second,
+`renderer-memory-pressure-v2` automatically records scalar samples every second,
 plus save/map activity boundaries. Its fixed rings hold 300 samples, 100 events,
 and 60 activity markers. It records high-water usage, reported headroom, growth
 spikes, inferred GC drops, and gaps between observations. No game objects are
@@ -203,23 +230,52 @@ __printOpenWorldRendererMemoryDiagnostic()
 __japanDiagnostics__.tileCacheBudget()
 ```
 
-The browser's `performance.memory` counters may be quantized and stale.
+The browser's `performance.memory` counters are not usable V8 headroom.
 [Chromium's implementation](https://raw.githubusercontent.com/chromium/chromium/main/third_party/blink/renderer/core/timing/memory_info.cc)
 caches its bucketed measurements for twenty minutes; precise mode avoids that
-cache. Treat these browser counters as estimates, and use the external recorder
-for timely measurements. Headroom is not a prediction of the precise point at
-which V8, native buffers, GPU allocations, or the operating system will fail.
-The final verification launch uses `--enable-precise-memory-info`; this changes
-the launch only, without editing the game bundle. Subsequent ordinary launches
-may again expose stale browser counters; the external CDP recorder remains
-independent of that setting.
+cache, but both modes add external memory to V8's used-heap counter. The old
+recorder reported 116 MB and normal pressure seconds before two September 13
+promotion-failure OOMs. Version 2 retains that browser value as `browserUsedBytes`
+with `measurementMode: estimated`, and leaves headroom and pressure unavailable.
+
+For verified measurements, enable **Record game diagnostics**, save and fully
+close the game, then use **Launch game with diagnostics** in the updated Windows
+manager. The tile server's `renderer-v8-heap-v1` sampler reads
+[`Runtime.getHeapUsage`](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-getHeapUsage)
+once per second. `usedSize` supplies the V8 heap; `backingStorageSize` and
+`embedderHeapUsedSize` remain separate. A one-time precise heap-limit query supplies
+the budget denominator; a rounded/unverified limit is rejected. Headroom means
+reported heap limit minus V8 used heap, not free physical RAM or guaranteed GC
+promotion space. Worker isolates, complete native/GPU allocations, fragmentation,
+and unsampled peaks are not covered by this number.
+
+The manager and mod reject samples older than three seconds, including query
+response time in that age. The mod also rejects readings from before its current
+page started. A blocked query becomes unavailable, with the sample timestamp,
+query duration and gaps retained. Process private bytes continue to be sampled
+independently during a blocked renderer. The server issues only one bounded
+debugger request at a time, caps responses at 128 KiB, and waits before retrying.
+The mod receives scalar readings through its existing recorder requests; neither
+side retains game objects or forces garbage collection.
+
+The manager shows V8 usage, headroom, observed peak and separate buffers. For each
+autosave, `autosave-memory` reports a baseline within three seconds before the
+start, the observed peak, the first sample within three seconds after completion,
+minimum observed headroom, and the longest unsampled interval. Missing values stay
+unknown. The server keeps at most 600 scalar readings and matches delayed mod
+activity uploads by their original timestamps. Query response timestamps locate
+the samples; request duration records their timing uncertainty. Peaks are observed
+lower bounds, especially when a save blocks the debugger. This capture establishes
+the evidence needed to size a cache budget and pre-save reserve; it does not yet
+change eviction thresholds or add pre-autosave cleanup.
 
 Every thirty seconds, and upon entering elevated/high pressure, a compact scalar
 breadcrumb also goes through the game's existing `electron.logInfo` API when
 available. These breadcrumbs survive renderer reloads in the native log.
 
-For a capture that survives a renderer crash, start the game with its local CDP
-endpoint available and run from the repository root:
+The manager recorder survives renderer crashes without a separate Node process.
+For a standalone investigation, the older CLI collector remains available when
+the game exposes the local CDP endpoint expected by that script:
 
 ```powershell
 node --max-old-space-size=128 open-world-platform/scripts/monitor-renderer-memory.mjs --output .analysis/renderer-memory-new.jsonl --duration-seconds 900
@@ -243,7 +299,8 @@ npm test
 node scripts/build-mod.mjs
 ```
 
-Build and installation remain separate. Verify the markers in the Japan bundle
+Build and installation remain separate. Verify `renderer-memory-pressure-v2` and
+`renderer-debug-recorder-runtime-v2` in the Japan bundle
 and installed `mods/local.japan-open-world/index.js`, verify the shared PMTiles
 health response, and reload the intended mod before measuring behavior.
 
@@ -264,8 +321,9 @@ collection checks are explicit verification only, not a forced-GC gameplay loop.
 With cached simulation restored, the final eight-position camera sweep peaked
 at 1.74 GB of CDP JavaScript heap and 657 MB of backing storage, measured
 separately. Its post-collection JavaScript floor was 1.58 GB. The browser's
-broader counter peaked at 2.42 GB (56.3% of its reported limit), leaving 1.88 GB
-of reported headroom. No renderer crash was reproduced in these sweeps; this
+broader counter peaked at 2.42 GB. Its previously reported 1.88 GB headroom mixed
+external storage with V8 usage and is superseded by the separate measurements
+above. No renderer crash was reproduced in these sweeps; this
 does not establish long-session crash prevention. The recorder captured both
 save stalls and camera growth, and native-log breadcrumbs were verified in
 `D:\SubwayBuilder\logs\metro-maker-current.log`.

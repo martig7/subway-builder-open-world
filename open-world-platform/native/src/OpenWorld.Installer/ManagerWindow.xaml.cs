@@ -150,6 +150,8 @@ public partial class ManagerWindow : Window
             finally { updatingRecorderCheckBox = false; }
             RecorderStatusText.Text = recorderStatus.Message;
             NativeStatusText.Text = recorderStatus.NativeMessage;
+            HeapStatusText.Text = recorderStatus.HeapMessage;
+            SaveMemoryText.Text = recorderStatus.SaveMessage;
             UpdateButtonState();
         }
         finally { refreshingRecorder = false; }

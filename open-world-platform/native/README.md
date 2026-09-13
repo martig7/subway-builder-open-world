@@ -37,7 +37,9 @@ rotate at eight files of 8 MiB each (64 MiB total); disabling preserves the file
 The loopback server exposes `renderer-debug-recorder-v1` through:
 
 - `GET /_diagnostics/recorder`: bounded status, including enabled, last sample,
-  current file, record count, and write error. Responses are never cached.
+  current file, record count, write error, V8 heap and latest autosave window.
+  Responses are never cached. Debugger port and browser endpoint stay private in
+  the local helper state; this endpoint does not publish them.
 - `POST /_diagnostics/recorder/sample`: at most 32 KiB of allowlisted scalar
   diagnostics. Short event/activity lists are capped at 16 entries. It accepts
   the game's file/custom-app origin and rejects ordinary website origins.
@@ -48,9 +50,14 @@ The loopback server exposes `renderer-debug-recorder-v1` through:
 The mod discovers the switch every five seconds while off, then uploads at most
 once per second with one request in flight and a three-second timeout. The
 server samples game process memory independently once per second while enabled,
-so process measurements survive a frozen or crashed renderer. It does not use
-CDP, change the game's heap limit, retain game/save objects, or force collection.
-See [the diagnostics guide](../../docs/autosave-and-renderer-memory.md) for
+so process measurements survive a frozen or crashed renderer. A separate sampler
+reads scalar V8 heap usage through CDP after a managed diagnostic launch. It uses
+one request at a time, a three-second deadline, 128 KiB response limit and bounded
+retry delay. V8 usage and backing storage remain separate; stale/unavailable
+readings supply no headroom. The manager shows observed save peaks and sampling
+gaps, using at most 600 scalar readings to match delayed save-boundary uploads.
+This does not change the game's heap limit, retain game/save objects, or force
+collection. See [the diagnostics guide](../../docs/autosave-and-renderer-memory.md) for
 measurement limits and live verification. Existing standalone collectors remain
 available for explicit CDP investigations but are unnecessary for this recorder.
 
@@ -62,13 +69,18 @@ resolving `customSavesDirectory` from the bounded game settings file. It archive
 backlog or replaced files. Console history therefore survives renderer reloads
 and the game's next log rotation within the existing 64 MiB archive budget.
 
-For native output, save and close Subway Builder, then select **Launch game with
-native logs** in the manager. The instance-authenticated
+For native output and precise memory measurements, save and close Subway Builder,
+then select **Launch game with diagnostics** in the manager. The instance-authenticated
 `POST /_control/recorder/launch-game` endpoint launches the installed Windows game
-with `--enable-logging=file`, `--log-file`, `--log-level=1`, and
-`ELECTRON_ENABLE_STACK_DUMPING=1`. It refuses while any `game` process is running;
+with `--enable-logging=file`, `--log-file`, `--log-level=1`,
+`--enable-precise-memory-info`, `--remote-debugging-address=127.0.0.1`,
+`--remote-debugging-port=0`, and `ELECTRON_ENABLE_STACK_DUMPING=1`.
+The helper discovers the fresh ephemeral endpoint from `DevToolsActivePort`;
+the sampler validates the browser session ID and selects the game page on that
+loopback port. No fixed debug port or remote-origin bypass is added.
+It refuses while any `game` process is running;
 it never terminates the game. This starts recording and needs a full game launch,
-not a mod reload. `X-OpenWorld-Native-Logs: native-crash-logs-v1` and the status
+not a mod reload. `X-OpenWorld-Native-Logs: native-crash-logs-v2` and the status
 response's `nativeCapture` object expose availability and capture health.
 
 A single independent helper drains stdout/stderr in 4 KiB chunks into a bounded
@@ -89,8 +101,8 @@ concurrent with truncation can be omitted and rotation is marked in the archive.
 This adds about 32 MiB of rolling history. Disk failures and dropped queue chunks
 are reported without retaining an unlimited backlog or blocking pipe drainage.
 No native logging can promise a trace for a crash that emits none. Crashpad may
-still terminate without a usable stack; no heap dump, debugger, heap-limit change,
-or game-bundle modification is included.
+still terminate without a usable stack. Scalar heap queries use the V8 inspector;
+no heap dump, heap-limit change, or game-bundle modification is included.
 
 ## Development
 

@@ -431,6 +431,7 @@ export function startOpenWorld({
       rendererRecorder = installRendererDebugRecorder({
         baseUrl: tileBase,
         getSnapshot: rendererMemory.snapshot,
+        onHeapMeasurement: rendererMemory.acceptHeapMeasurement,
         getContext: () => {
           const center = latestMap?.getCenter?.();
           return { manifestId: definition.identity.manifestId, cityCode: currentCityCode(),

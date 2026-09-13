@@ -7,7 +7,8 @@ using System.Threading.Channels;
 namespace OpenWorld.TileServer;
 
 public sealed record NativeCaptureStatus(string Version, string Status, int HelperPid = 0,
-    DateTimeOffset? HelperStartedAt = null, string? HelperPath = null, int? GamePid = null, string? Error = null);
+    DateTimeOffset? HelperStartedAt = null, string? HelperPath = null, int? GamePid = null, string? Error = null,
+    bool PreciseMemoryRequested = false, int DebugPort = 0, string? DebugBrowserPath = null);
 internal sealed record NativeLogChunk(DateTimeOffset At, string Source, long Offset, string Text);
 
 /// <summary>A cursor, not a retained file or an unbounded line reader.</summary>
@@ -76,7 +77,7 @@ internal static class GameLogLocation
 /// <summary>Lives independently of the server and manager so their restarts cannot close the game's pipes.</summary>
 public static class NativeLogCapture
 {
-    public const string Version = "native-crash-logs-v1";
+    public const string Version = "native-crash-logs-v2";
     private const long ChromiumLimit = 8 * 1024 * 1024;
     private const string MutexName = "Local\\OpenWorldNativeGameCapture";
     public static string StatePath(string stateRoot) => Path.Combine(stateRoot, "native-game-capture.json");
@@ -90,7 +91,7 @@ public static class NativeLogCapture
             var path = StatePath(stateRoot);
             if (!File.Exists(path) || new FileInfo(path).Length > 8192) return new(Version, "inactive");
             var state = JsonSerializer.Deserialize(File.ReadAllText(path), TileServerJsonContext.Default.NativeCaptureStatus);
-            if (state is null || state.Version != Version) return new(Version, "inactive");
+            if (state is null || state.Version is not (Version or "native-crash-logs-v1")) return new(Version, "inactive");
             if (state.Status is not ("running" or "starting")) return state;
             using var process = Process.GetProcessById(state.HelperPid);
             return !process.HasExited && process.MainModule?.FileName == state.HelperPath &&
@@ -111,7 +112,7 @@ public static class NativeLogCapture
     public static async Task<NativeCaptureStatus> LaunchAsync(string stateRoot, string logRoot)
     {
         if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Native game launch is currently available on Windows.");
-        if (GameIsRunning()) throw new InvalidOperationException("Save and close Subway Builder, then use Launch game with native logs.");
+        if (GameIsRunning()) throw new InvalidOperationException("Save and close Subway Builder, then use Launch game with diagnostics.");
         if (!File.Exists(GamePath)) throw new FileNotFoundException("Subway Builder was not found in its usual installation folder.");
         var state = Snapshot(stateRoot);
         if (state.Status is "running" or "starting") throw new InvalidOperationException("Native log capture is already running.");
@@ -154,6 +155,9 @@ public static class NativeLogCapture
         start.ArgumentList.Add("--enable-logging=file");
         start.ArgumentList.Add("--log-file=" + chromiumPath);
         start.ArgumentList.Add("--log-level=1");
+        start.ArgumentList.Add("--enable-precise-memory-info");
+        start.ArgumentList.Add("--remote-debugging-address=127.0.0.1");
+        start.ArgumentList.Add("--remote-debugging-port=0");
         start.Environment["ELECTRON_ENABLE_STACK_DUMPING"] = "1";
         return start;
     }
@@ -164,7 +168,8 @@ public static class NativeLogCapture
         using var mutex = new Mutex(false, MutexName, out var created);
         if (!created) return 2;
         using var self = Process.GetCurrentProcess();
-        var state = new NativeCaptureStatus(Version, "starting", self.Id, self.StartTime.ToUniversalTime(), Environment.ProcessPath);
+        var state = new NativeCaptureStatus(Version, "starting", self.Id, self.StartTime.ToUniversalTime(), Environment.ProcessPath,
+            PreciseMemoryRequested: true);
         var stateGate = new object();
         Directory.CreateDirectory(stateRoot);
         void Save() { lock (stateGate) SaveState(stateRoot, state); }
@@ -181,7 +186,13 @@ public static class NativeLogCapture
             await CaptureAsync(GameStart(GamePath, chromium), directory, chromium, pid =>
             {
                 Update(previous => previous with { Status = "running", GamePid = pid });
-            }, error => Update(previous => previous with { Error = error }));
+            }, error => Update(previous => previous with { Error = error }), () =>
+            {
+                var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "metro-maker4", "DevToolsActivePort");
+                var endpoint = ReadDebuggerEndpoint(path, state.HelperStartedAt!.Value);
+                if (endpoint is { } ready && (ready.Port != state.DebugPort || ready.BrowserPath != state.DebugBrowserPath))
+                    Update(previous => previous with { DebugPort = ready.Port, DebugBrowserPath = ready.BrowserPath });
+            });
             Update(previous => previous with { Status = "finished" });
             return 0;
         }
@@ -201,7 +212,7 @@ public static class NativeLogCapture
     }
 
     internal static async Task<int> CaptureAsync(ProcessStartInfo start, string directory, string chromium,
-        Action<int> started, Action<string> error)
+        Action<int> started, Action<string> error, Action? tick = null)
     {
         long dropped = 0;
         long nextErrorReport = 0;
@@ -247,6 +258,7 @@ public static class NativeLogCapture
             {
                 try
                 {
+                    tick?.Invoke();
                     cursor.Read((text, offset) => Emit("chromium", text, offset), 128 * 1024);
                     if (PreserveAndTruncate(chromium))
                     {
@@ -283,6 +295,15 @@ public static class NativeLogCapture
             catch (OperationCanceledException) when (drainCancellation.IsCancellationRequested) { }
             catch (IOException ex) { Report(ex.Message); }
         }
+    }
+
+    internal static (int Port, string BrowserPath)? ReadDebuggerEndpoint(string path, DateTimeOffset since)
+    {
+        if (!File.Exists(path) || File.GetLastWriteTimeUtc(path) < since.UtcDateTime || new FileInfo(path).Length > 2048) return null;
+        var lines = File.ReadAllLines(path);
+        if (lines.Length != 2 || !int.TryParse(lines[0], out var port) || port is < 1024 or > 65535 ||
+            !lines[1].StartsWith("/devtools/browser/", StringComparison.Ordinal) || !Guid.TryParse(lines[1][18..], out _)) return null;
+        return (port, lines[1]);
     }
 
     // Chromium opens its Windows log with FILE_APPEND_DATA and FILE_SHARE_WRITE.

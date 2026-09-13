@@ -7,7 +7,8 @@ namespace OpenWorld.TileServer;
 
 public sealed record RecorderSettings(bool Enabled);
 public sealed record RecorderStatus(string Version, bool Enabled, string Status, string Directory,
-    string? File, DateTimeOffset? LastSampleAt, long Records, string? Error, NativeCaptureStatus? NativeCapture = null);
+    string? File, DateTimeOffset? LastSampleAt, long Records, string? Error, NativeCaptureStatus? NativeCapture = null,
+    RendererHeapStatus? Heap = null, AutosaveMemoryStatus? Autosave = null);
 
 /// <summary>Owns a bounded disk record outside the renderer. No game objects or unbounded queues.</summary>
 public sealed class RendererDebugRecorder : IDisposable
@@ -20,6 +21,9 @@ public sealed class RendererDebugRecorder : IDisposable
     private readonly DiagnosticFileLog log;
     private readonly Func<DateTimeOffset> now;
     private readonly GameProcessSampler processes = new();
+    private readonly RendererHeapSampler heapSampler;
+    private readonly AutosaveMemoryWindow autosave = new();
+    private DateTimeOffset? saveSummaryWrittenAt;
     private bool enabled, silenceReported, disposed;
     private string? clientId, captureId, error;
     private DateTimeOffset? lastSampleAt;
@@ -35,6 +39,23 @@ public sealed class RendererDebugRecorder : IDisposable
         this.stateRoot = Path.GetFullPath(stateRoot);
         settingsPath = Path.Combine(Path.GetFullPath(stateRoot), "renderer-debug-recorder.json");
         log = new DiagnosticFileLog(Path.Combine(Path.GetFullPath(logRoot), "renderer-debug"), fileLimit, fileCount);
+        heapSampler = new RendererHeapSampler(this.stateRoot, () => { lock (gate) return enabled && !disposed; }, sample =>
+        {
+            lock (gate)
+            {
+                if (!enabled || disposed) return;
+                autosave.Observe(sample);
+                using var json = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(sample, TileServerJsonContext.Default.RendererHeapStatus));
+                WriteElement("v8-heap", json.RootElement);
+                var save = autosave.Snapshot(this.now());
+                if (save?.EndAt is { } ended && saveSummaryWrittenAt != ended && this.now() - ended >= TimeSpan.FromSeconds(3))
+                {
+                    using var summary = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(save, TileServerJsonContext.Default.AutosaveMemoryStatus));
+                    WriteElement("autosave-memory", summary.RootElement);
+                    saveSummaryWrittenAt = ended;
+                }
+            }
+        });
         try
         {
             if (System.IO.File.Exists(settingsPath))
@@ -54,7 +75,8 @@ public sealed class RendererDebugRecorder : IDisposable
         lock (gate)
             return new(Version, enabled, !enabled ? "off" : error is not null ? "error" :
                 lastSampleAt is null ? "waiting" : now() - lastSampleAt > TimeSpan.FromSeconds(5) ? "unresponsive" : "recording",
-                log.DirectoryPath, log.CurrentFile, lastSampleAt, records, error, NativeLogCapture.Snapshot(stateRoot));
+                log.DirectoryPath, log.CurrentFile, lastSampleAt, records, error,
+                NativeLogCapture.Snapshot(stateRoot) with { DebugPort = 0, DebugBrowserPath = null }, heapSampler.Snapshot(), autosave.Snapshot(now()));
     }
 
     public void SetEnabled(bool value)
@@ -76,6 +98,7 @@ public sealed class RendererDebugRecorder : IDisposable
             enabled = value;
             lastSampleAt = null;
             clientId = captureId = null;
+            autosave.Clear(); saveSummaryWrittenAt = null;
             silenceReported = false;
             error = null;
             if (value) Write("recorder-started", "Recording enabled in manager.");
@@ -112,7 +135,8 @@ public sealed class RendererDebugRecorder : IDisposable
         "id", "at", "monotonicMs", "kind", "source", "available", "usedBytes", "totalBytes", "limitBytes",
         "headroomBytes", "usageRatio", "pressure", "gapMs", "deltaBytes", "activity", "activityId", "activityAgeMs",
         "phase", "status", "tileId", "reason", "durationMs", "rows", "bytes", "manifestId", "cityCode",
-        "zoom", "longitude", "latitude"
+        "zoom", "longitude", "latitude", "measurementMode", "measurementAt", "measurementAgeMs", "targetId",
+        "browserUsedBytes", "backingStorageBytes", "embedderBytes"
     };
 
     private static void ValidateScalars(JsonElement value)
@@ -146,6 +170,11 @@ public sealed class RendererDebugRecorder : IDisposable
             else if (silenceReported) Write("renderer-responsive", "Renderer samples resumed.");
             clientId = nextClient;
             captureId = nextCapture;
+            if (sample.TryGetProperty("activities", out var activities))
+                foreach (var activity in activities.EnumerateArray())
+                    if (activity.ValueKind == JsonValueKind.Object && activity.TryGetProperty("activity", out var label) && label.ValueKind == JsonValueKind.String &&
+                        activity.TryGetProperty("at", out var at) && at.TryGetInt64(out var milliseconds) && milliseconds is > 0 and < 253402300799999)
+                        autosave.Activity(label.GetString()!, DateTimeOffset.FromUnixTimeMilliseconds(milliseconds));
             lastSampleAt = now();
             silenceReported = false;
             WriteElement("renderer-sample", sample);
@@ -154,6 +183,9 @@ public sealed class RendererDebugRecorder : IDisposable
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
+        => await Task.WhenAll(RunProcessSamplerAsync(cancellationToken), heapSampler.RunAsync(cancellationToken));
+
+    private async Task RunProcessSamplerAsync(CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         try { while (await timer.WaitForNextTickAsync(cancellationToken)) Tick(); }
@@ -235,6 +267,7 @@ public sealed class RendererDebugRecorder : IDisposable
             disposed = true;
             log.Dispose();
             processes.Dispose();
+            heapSampler.Dispose();
         }
     }
 }

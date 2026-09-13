@@ -78,7 +78,9 @@ static class NativeLogCaptureTests
         Check(GameLogLocation.Resolve(scratch.Root) == Path.Combine(scratch.Root, "logs", "metro-maker-current.log"), "Custom save-directory log was not located.");
         var executable = Path.Combine(scratch.Root, "game.exe");
         var start = NativeLogCapture.GameStart(executable, Path.Combine(scratch.Root, "chromium.log"));
-        Check(start.ArgumentList.Count == 3 && start.ArgumentList.Contains("--enable-logging=file") && start.ArgumentList.Contains("--log-level=1"),
+        Check(start.ArgumentList.Count == 6 && start.ArgumentList.Contains("--enable-logging=file") && start.ArgumentList.Contains("--log-level=1") &&
+            start.ArgumentList.Contains("--enable-precise-memory-info") && start.ArgumentList.Contains("--remote-debugging-port=0") &&
+            start.ArgumentList.Contains("--remote-debugging-address=127.0.0.1"),
             "Launch flags do not capture native warnings/errors to file.");
         Check(start.Environment["ELECTRON_ENABLE_STACK_DUMPING"] == "1" && start.RedirectStandardError && start.RedirectStandardOutput,
             "Native stack output is not redirected.");

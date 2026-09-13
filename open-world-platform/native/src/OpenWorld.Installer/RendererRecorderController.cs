@@ -6,7 +6,8 @@ using System.Text.Json;
 namespace OpenWorld.Installer;
 
 public sealed record RendererRecorderDisplay(bool Supported, bool Enabled, string Status, long Records = 0,
-    bool NativeSupported = false, string NativeStatus = "inactive", string? NativeError = null)
+    bool NativeSupported = false, string NativeStatus = "inactive", string? NativeError = null,
+    string HeapMessage = "Precise heap measurements require a new game launch here.", string SaveMessage = "No measured autosave yet.")
 {
     public string NativeMessage => NativeStatus switch
     {
@@ -43,15 +44,41 @@ public static class RendererRecorderController
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
             var root = document.RootElement;
             if (root.GetProperty("version").GetString() != Version) return new(false, false, "unavailable");
-            var nativeSupported = Header(response, "X-OpenWorld-Native-Logs") == "native-crash-logs-v1";
+            var nativeSupported = Header(response, "X-OpenWorld-Native-Logs") is "native-crash-logs-v1" or "native-crash-logs-v2";
             var native = root.TryGetProperty("nativeCapture", out var capture) && capture.ValueKind == JsonValueKind.Object ? capture : default;
             return new(true, root.GetProperty("enabled").GetBoolean(), root.GetProperty("status").GetString() ?? "error",
                 root.GetProperty("records").GetInt64(), nativeSupported,
                 native.ValueKind == JsonValueKind.Object ? native.GetProperty("status").GetString() ?? "inactive" : "inactive",
-                native.ValueKind == JsonValueKind.Object && native.TryGetProperty("error", out var error) ? error.GetString() : null);
+                native.ValueKind == JsonValueKind.Object && native.TryGetProperty("error", out var error) ? error.GetString() : null,
+                HeapMessage(root), SaveMessage(root));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or KeyNotFoundException)
         { return new(false, false, "unavailable"); }
+    }
+
+    private static string GiB(JsonElement value, string field) => value.TryGetProperty(field, out var number) &&
+        number.ValueKind == JsonValueKind.Number && number.TryGetDouble(out var bytes) && double.IsFinite(bytes)
+        ? $"{bytes / (1024 * 1024 * 1024):F2} GiB" : "unknown";
+
+    internal static string HeapMessage(JsonElement root)
+    {
+        if (!root.TryGetProperty("heap", out var heap) || heap.ValueKind != JsonValueKind.Object || heap.GetProperty("status").GetString() == "launch-required")
+            return "Precise heap measurements require a new game launch here.";
+        if (heap.GetProperty("status").GetString() != "available" || !heap.TryGetProperty("at", out var at) ||
+            !at.TryGetDateTimeOffset(out var measuredAt) ||
+            (DateTimeOffset.UtcNow - measuredAt).TotalMilliseconds +
+                (heap.TryGetProperty("requestMs", out var request) && request.TryGetDouble(out var milliseconds) ? Math.Max(0, milliseconds) : 0) > 3000)
+            return "V8 sample unavailable — waiting for the game; headroom unknown.";
+        return $"V8 heap: {GiB(heap, "usedBytes")} / {GiB(heap, "limitBytes")} · free {GiB(heap, "headroomBytes")}\n" +
+            $"Sampled peak: {GiB(heap, "peakUsedBytes")} · buffers: {GiB(heap, "backingStorageBytes")}";
+    }
+
+    internal static string SaveMessage(JsonElement root)
+    {
+        if (!root.TryGetProperty("autosave", out var save) || save.ValueKind != JsonValueKind.Object) return "No measured autosave yet.";
+        var gap = save.GetProperty("maxSampleGapMs").GetDouble() / 1000;
+        return $"Autosave: before {GiB(save, "beforeBytes")} → peak {GiB(save, "peakBytes")}\n" +
+            $"After: {GiB(save, "afterBytes")} · longest unsampled gap: {gap:F1}s";
     }
 
     public static async Task SetAsync(int port, string stateRoot, bool enabled, CancellationToken token = default)

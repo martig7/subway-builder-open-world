@@ -92,3 +92,17 @@ test('a fresh diagnostic capture resets an old activity cursor even when its act
   assert.equal(f.cursors.at(-1).afterActivityId, 0);
   f.recorder.dispose();
 });
+
+test('heap updates reach the measurement reader and are invalidated on failure or disposal', async () => {
+  const updates = [];
+  let failed = false;
+  const heap = { version: 'renderer-v8-heap-v1', status: 'available', usedBytes: 42 };
+  const recorder = installRendererDebugRecorder({ root: {}, baseUrl: 'http://127.0.0.1:8799', autoStart: false,
+    onHeapMeasurement: sample => updates.push(sample), fetchImpl: async () => {
+      if (failed) throw Error('offline');
+      return { ok: true, json: async () => ({ version, enabled: false, heap }) };
+    } });
+  await recorder.tick(); assert.equal(updates.at(-1), heap);
+  failed = true; await recorder.tick(); assert.equal(updates.at(-1), null);
+  recorder.dispose(); assert.equal(updates.at(-1), null);
+});

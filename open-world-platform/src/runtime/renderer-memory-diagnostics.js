@@ -1,10 +1,11 @@
-export const RENDERER_MEMORY_DIAGNOSTICS_VERSION = 'renderer-memory-pressure-v1';
+export const RENDERER_MEMORY_DIAGNOSTICS_VERSION = 'renderer-memory-pressure-v2';
 // Keep the key stable across generations so a new bundle can stop the old timer.
 export const RENDERER_MEMORY_DIAGNOSTICS_KEY = '__openWorldRendererMemoryDiagnostics__';
 
 const MiB = 1024 * 1024;
 const DETAIL_FIELDS = ['phase', 'status', 'tileId', 'reason', 'durationMs', 'rows', 'bytes'];
-const INTERPRETATION = 'Browser-reported renderer heap estimates may be quantized or stale; use CDP for timely measurements. '
+const INTERPRETATION = 'V8 inspector samples report JS heap separately from backing storage; samples older than three seconds are unavailable. '
+  + 'Browser-reported memory is recorded separately as an estimate and never supplies headroom. '
   + 'Peaks between samples and complete native/GPU memory are not measured. '
   + 'Headroom is relative to the reported JS heap limit, not a crash prediction. '
   + 'A heap drop is inferred GC, not a GC notification. Sampling gaps may also reflect background throttling.';
@@ -75,6 +76,7 @@ export function installRendererMemoryDiagnostics({
   now = () => root.performance?.now?.() ?? Date.now(),
   wallNow = () => Date.now(),
   readMemory = () => root.performance?.memory,
+  readV8Memory = null,
   setIntervalFn = (callback, milliseconds) => root.setInterval?.(callback, milliseconds),
   clearIntervalFn = timer => root.clearInterval?.(timer),
   intervalMs = 1000,
@@ -94,7 +96,7 @@ export function installRendererMemoryDiagnostics({
   spikeBytes = option(spikeBytes, 32 * MiB, MiB, 1024 * MiB);
   gcDropBytes = option(gcDropBytes, 16 * MiB, MiB, 1024 * MiB);
 
-  let samples, events, activities, summary, previous, latestActivity, highWater;
+  let samples, events, activities, summary, previous, latestActivity, highWater, remoteHeap = null;
   let captureId, captureSequence = 0;
   let timer = null, running = false, disposed = false;
   function clearState() {
@@ -116,19 +118,39 @@ export function installRendererMemoryDiagnostics({
   function collect(source = 'manual') {
     if (!running || disposed) return null;
     const capturedAt = now();
-    const heap = heapNumbers(readMemory);
+    const browser = heapNumbers(readMemory);
+    let remote;
+    try { remote = readV8Memory ? readV8Memory() : remoteHeap; } catch {}
+    const measurementAt = typeof remote?.at === 'string' ? Date.parse(remote.at) : finite(remote?.at);
+    const requestMs = Math.max(0, finite(remote?.requestMs) ?? 0);
+    // Use the query start as the conservative freshness bound, including response delay.
+    const measurementAgeMs = Number.isFinite(measurementAt) ? Math.max(0, wallNow() - measurementAt) + requestMs : null;
+    const precise = remote?.version === 'renderer-v8-heap-v1' && remote.status === 'available'
+      && measurementAgeMs != null && measurementAt - requestMs >= (finite(root.performance?.timeOrigin) ?? 0)
+      && measurementAt <= wallNow() + 1000 && measurementAgeMs <= 3000
+      && finite(remote.usedBytes) != null && remote.usedBytes >= 0 && finite(remote.limitBytes) > 0;
+    const heap = precise ? { usedBytes: remote.usedBytes, totalBytes: finite(remote.totalBytes), limitBytes: remote.limitBytes }
+      : { usedBytes: null, totalBytes: null, limitBytes: null };
     const available = heap.usedBytes != null;
     const headroomBytes = available && heap.limitBytes != null
       ? Math.max(0, heap.limitBytes - heap.usedBytes) : null;
     const usageRatio = available && heap.limitBytes != null ? heap.usedBytes / heap.limitBytes : null;
     const gapMs = previous ? Math.max(0, capturedAt - previous.monotonicMs) : null;
-    const deltaBytes = available && previous?.usedBytes != null ? heap.usedBytes - previous.usedBytes : null;
+    const deltaBytes = available && previous?.usedBytes != null && remote.targetId === previous.targetId
+      ? heap.usedBytes - previous.usedBytes : null;
     const sample = {
       id: ++summary.samples,
       at: wallNow(),
       monotonicMs: capturedAt,
       source: textLabel(source) ?? 'manual',
       available,
+      measurementMode: precise ? 'v8-inspector' : browser.usedBytes != null ? 'estimated' : 'unavailable',
+      measurementAt: precise ? measurementAt : null,
+      measurementAgeMs,
+      targetId: precise ? textLabel(remote.targetId) : null,
+      browserUsedBytes: browser.usedBytes,
+      backingStorageBytes: precise ? finite(remote.backingStorageBytes) : null,
+      embedderBytes: precise ? finite(remote.embedderBytes) : null,
       ...heap,
       headroomBytes,
       usageRatio,
@@ -235,6 +257,7 @@ export function installRendererMemoryDiagnostics({
     if (disposed) return;
     stop();
     disposed = true;
+    remoteHeap = null;
     clearState();
     if (root[RENDERER_MEMORY_DIAGNOSTICS_KEY] === api) delete root[RENDERER_MEMORY_DIAGNOSTICS_KEY];
     for (const [name, callback] of Object.entries(debugApi)) {
@@ -245,6 +268,16 @@ export function installRendererMemoryDiagnostics({
   const api = Object.freeze({
     version: RENDERER_MEMORY_DIAGNOSTICS_VERSION,
     start, stop, reset, snapshot, recordActivity, dispose,
+    acceptHeapMeasurement(value) {
+      if (disposed) return;
+      // Copy only expected scalar fields from the local recorder; retain no response tree.
+      remoteHeap = value?.version === 'renderer-v8-heap-v1' ? {
+        version: value.version, status: textLabel(value.status), at: typeof value.at === 'string' ? textLabel(value.at) : finite(value.at),
+        targetId: textLabel(value.targetId), usedBytes: finite(value.usedBytes), totalBytes: finite(value.totalBytes),
+        limitBytes: finite(value.limitBytes), backingStorageBytes: finite(value.backingStorageBytes), embedderBytes: finite(value.embedderBytes),
+        requestMs: finite(value.requestMs),
+      } : null;
+    },
     sample(source) { const sample = collect(source); return sample ? { ...sample } : null; },
   });
   const debugApi = {

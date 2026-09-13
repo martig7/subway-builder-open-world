@@ -49,6 +49,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("native log cursor handles UTF-8, bursts, truncation and retention", NativeLogCaptureTests.CursorAndRotation),
     ("native logging resolves custom saves and launches with scoped flags", NativeLogCaptureTests.LocationAndLaunch),
     ("native capture drains output even when log and state writes fail", NativeLogCaptureTests.DiskFailureDoesNotBlockGame),
+    ("autosave heap windows recover delayed activities and expose unsampled gaps", RendererHeapTests.SaveWindows),
+    ("heap debugger discovery rejects stale files and unrelated ports", RendererHeapTests.DebuggerIdentity),
+    ("native heap protocol separates buffers, bounds replies and times out blocked requests", RendererHeapTests.NativeHeapProtocol),
 };
 
 var failed = 0;

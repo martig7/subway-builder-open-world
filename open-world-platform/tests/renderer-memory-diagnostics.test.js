@@ -19,6 +19,8 @@ function fixture(options = {}) {
     now: () => time,
     wallNow: () => 100_000 + time,
     readMemory: () => heap,
+    readV8Memory: () => ({ version: 'renderer-v8-heap-v1', status: 'available', targetId: 'renderer-1',
+      at: 100_000 + time, usedBytes: heap?.usedJSHeapSize, totalBytes: heap?.totalJSHeapSize, limitBytes: heap?.jsHeapSizeLimit }),
     setIntervalFn: callback => { const id = nextTimer++; timers.set(id, callback); return id; },
     clearIntervalFn: id => { timers.delete(id); },
   };
@@ -116,7 +118,8 @@ test('missing or invalid heap APIs stay unavailable without invented headroom or
   f.setHeap({ usedJSHeapSize: 900 * MiB, totalJSHeapSize: NaN, jsHeapSizeLimit: 0 });
   f.advance(1000);
   report = f.monitor.snapshot();
-  assert.equal(report.latest.usedBytes, 900 * MiB);
+  assert.equal(report.latest.usedBytes, null);
+  assert.equal(report.latest.browserUsedBytes, 900 * MiB);
   assert.equal(report.latest.totalBytes, null);
   assert.equal(report.latest.headroomBytes, null);
   assert.equal(report.latest.usageRatio, null);
@@ -174,7 +177,7 @@ test('hot reload disposes the previous generation and replaces the global contro
 });
 
 test('a throwing heap getter does not break sampling or the caller operation', () => {
-  const f = fixture({ readMemory: () => { throw new Error('API unavailable'); } });
+  const f = fixture({ readMemory: () => { throw new Error('API unavailable'); }, readV8Memory: () => { throw new Error('offline'); } });
   assert.doesNotThrow(() => f.monitor.recordActivity('native-save.start'));
   f.advance(1000);
   const report = f.monitor.snapshot();
@@ -214,5 +217,61 @@ test('sample callback failures and mutation cannot corrupt history or escape int
   assert.doesNotThrow(() => f.advance(1000, 900));
   assert.deepEqual(observed, [100 * MiB, 900 * MiB]);
   assert.equal(f.monitor.snapshot().latest.usedBytes, 900 * MiB);
+  f.monitor.dispose();
+});
+
+test('the cached 116 MB crash reading is an estimate, never usable headroom', () => {
+  const root = { performance: { memory: {
+    usedJSHeapSize: 116_000_000, totalJSHeapSize: 157_000_000, jsHeapSizeLimit: 3_760_000_000,
+  } } };
+  const monitor = installRendererMemoryDiagnostics({ root, setIntervalFn: () => 1, clearIntervalFn() {} });
+  const sample = monitor.snapshot().latest;
+  assert.equal(sample.pressure, 'unavailable');
+  assert.equal(sample.measurementMode, 'estimated');
+  assert.equal(sample.headroomBytes, null);
+  assert.equal(monitor.snapshot().highWater, null);
+  monitor.dispose();
+});
+
+test('V8 readings exclude buffers and expire instead of becoming safe stale readings', () => {
+  const f = fixture({ readV8Memory: null });
+  f.monitor.acceptHeapMeasurement({ version: 'renderer-v8-heap-v1', status: 'available', targetId: 'game', at: 100_000,
+    usedBytes: 600 * MiB, totalBytes: 700 * MiB, limitBytes: 1000 * MiB, backingStorageBytes: 500 * MiB, embedderBytes: 20 * MiB });
+  f.advance(1000);
+  let sample = f.monitor.snapshot().latest;
+  assert.equal(sample.usedBytes, 600 * MiB);
+  assert.equal(sample.headroomBytes, 400 * MiB);
+  assert.equal(sample.backingStorageBytes, 500 * MiB);
+  assert.equal(sample.measurementAgeMs, 1000);
+  assert.equal(sample.measurementMode, 'v8-inspector');
+  f.advance(3000);
+  sample = f.monitor.snapshot().latest;
+  assert.equal(sample.headroomBytes, null);
+  assert.equal(sample.pressure, 'unavailable');
+  f.monitor.acceptHeapMeasurement({ version: 'renderer-v8-heap-v1', status: 'unresponsive', at: 104_000,
+    usedBytes: 600 * MiB, limitBytes: 1000 * MiB });
+  assert.equal(f.monitor.sample().headroomBytes, null);
+  f.monitor.dispose();
+});
+
+test('a new page rejects a previous renderer reading and replacement clears pressure baselines', () => {
+  const f = fixture({ readV8Memory: null });
+  f.root.performance = { timeOrigin: 99_900 };
+  f.monitor.acceptHeapMeasurement({ version: 'renderer-v8-heap-v1', status: 'available', targetId: 'old', at: 99_000,
+    usedBytes: 900 * MiB, limitBytes: 1000 * MiB });
+  assert.equal(f.monitor.sample().headroomBytes, null);
+  f.monitor.acceptHeapMeasurement({ version: 'renderer-v8-heap-v1', status: 'available', targetId: 'new', at: 100_000,
+    usedBytes: 100 * MiB, limitBytes: 1000 * MiB });
+  assert.equal(f.monitor.sample().deltaBytes, null);
+  f.monitor.dispose();
+});
+
+test('measurement freshness includes time spent waiting for the debugger response', () => {
+  const f = fixture({ readV8Memory: null });
+  f.monitor.acceptHeapMeasurement({ version: 'renderer-v8-heap-v1', status: 'available', targetId: 'game', at: 100_000,
+    requestMs: 2500, usedBytes: 600 * MiB, limitBytes: 1000 * MiB });
+  f.advance(1000);
+  assert.equal(f.monitor.snapshot().latest.measurementAgeMs, 3500);
+  assert.equal(f.monitor.snapshot().latest.headroomBytes, null);
   f.monitor.dispose();
 });

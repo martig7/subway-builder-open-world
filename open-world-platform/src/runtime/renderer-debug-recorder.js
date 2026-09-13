@@ -1,9 +1,11 @@
 export const RENDERER_DEBUG_RECORDER_VERSION = 'renderer-debug-recorder-v1';
+export const RENDERER_DEBUG_RECORDER_GENERATION = 'renderer-debug-recorder-runtime-v2';
 const KEY = '__openWorldRendererDebugRecorder__';
 const FIELDS = ['id', 'at', 'monotonicMs', 'kind', 'source', 'available', 'usedBytes', 'totalBytes',
   'limitBytes', 'headroomBytes', 'usageRatio', 'pressure', 'gapMs', 'deltaBytes', 'activity', 'activityId',
   'activityAgeMs', 'phase', 'status', 'tileId', 'reason', 'durationMs', 'rows', 'bytes',
-  'manifestId', 'cityCode', 'zoom', 'longitude', 'latitude'];
+  'manifestId', 'cityCode', 'zoom', 'longitude', 'latitude', 'measurementMode', 'measurementAt',
+  'measurementAgeMs', 'targetId', 'browserUsedBytes', 'backingStorageBytes', 'embedderBytes'];
 
 function scalars(value) {
   if (!value || typeof value !== 'object') return null;
@@ -27,6 +29,7 @@ export function recorderPayload(snapshot, context, clientId) {
 
 /** One request at a time. The independent tile server owns the switch and disk retention. */
 export function installRendererDebugRecorder({ baseUrl, getSnapshot, getContext = () => ({}), root = globalThis,
+  onHeapMeasurement = () => {},
   fetchImpl = root.fetch?.bind(root), setTimeoutFn = globalThis.setTimeout.bind(globalThis),
   clearTimeoutFn = globalThis.clearTimeout.bind(globalThis), autoStart = true } = {}) {
   root[KEY]?.dispose?.();
@@ -57,6 +60,7 @@ export function installRendererDebugRecorder({ baseUrl, getSnapshot, getContext 
       const result = await response.json();
       if (disposed) return;
       if (result.version !== RENDERER_DEBUG_RECORDER_VERSION) throw Error('Recorder unavailable');
+      try { onHeapMeasurement(result.heap); } catch {}
       enabled = result.enabled === true;
       status = enabled ? 'recording' : 'off';
       if (payload && enabled) {
@@ -67,6 +71,7 @@ export function installRendererDebugRecorder({ baseUrl, getSnapshot, getContext 
       if (!enabled) cursor = {};
       delay = enabled ? 1000 : 5000;
     } catch {
+      try { onHeapMeasurement(null); } catch {}
       if (!disposed) { failures++; enabled = false; status = 'unavailable'; }
     } finally {
       clearTimeoutFn(timeout);
@@ -77,6 +82,7 @@ export function installRendererDebugRecorder({ baseUrl, getSnapshot, getContext 
   }
 
   const api = {
+    generation: RENDERER_DEBUG_RECORDER_GENERATION,
     version: RENDERER_DEBUG_RECORDER_VERSION, tick,
     snapshot: () => ({ version: RENDERER_DEBUG_RECORDER_VERSION, enabled, status, sent, failures, pending: busy }),
     dispose() {
@@ -84,6 +90,7 @@ export function installRendererDebugRecorder({ baseUrl, getSnapshot, getContext 
       clearTimeoutFn(timer);
       abort?.abort();
       cursor = {};
+      try { onHeapMeasurement(null); } catch {}
       if (root[KEY] === api) delete root[KEY];
     },
   };
