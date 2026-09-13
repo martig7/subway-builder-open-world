@@ -1,11 +1,13 @@
 export const RENDERER_DEBUG_RECORDER_VERSION = 'renderer-debug-recorder-v1';
-export const RENDERER_DEBUG_RECORDER_GENERATION = 'renderer-debug-recorder-runtime-v2';
+export const RENDERER_DEBUG_RECORDER_GENERATION = 'renderer-debug-recorder-runtime-v3';
 const KEY = '__openWorldRendererDebugRecorder__';
 const FIELDS = ['id', 'at', 'monotonicMs', 'kind', 'source', 'available', 'usedBytes', 'totalBytes',
   'limitBytes', 'headroomBytes', 'usageRatio', 'pressure', 'gapMs', 'deltaBytes', 'activity', 'activityId',
   'activityAgeMs', 'phase', 'status', 'tileId', 'reason', 'durationMs', 'rows', 'bytes',
   'manifestId', 'cityCode', 'zoom', 'longitude', 'latitude', 'measurementMode', 'measurementAt',
-  'measurementAgeMs', 'targetId', 'browserUsedBytes', 'backingStorageBytes', 'embedderBytes'];
+  'measurementAgeMs', 'targetId', 'browserUsedBytes', 'backingStorageBytes', 'embedderBytes', 'isolateId',
+  'workersAvailable', 'workersAgeMs', 'workerCount', 'workerUsedBytes', 'workerAllocatedBytes', 'workerBackingStorageBytes',
+  'allIsolatesUsedBytes', 'allIsolatesAllocatedBytes'];
 
 function scalars(value) {
   if (!value || typeof value !== 'object') return null;

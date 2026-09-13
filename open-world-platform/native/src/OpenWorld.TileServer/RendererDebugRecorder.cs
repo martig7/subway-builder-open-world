@@ -136,7 +136,9 @@ public sealed class RendererDebugRecorder : IDisposable
         "headroomBytes", "usageRatio", "pressure", "gapMs", "deltaBytes", "activity", "activityId", "activityAgeMs",
         "phase", "status", "tileId", "reason", "durationMs", "rows", "bytes", "manifestId", "cityCode",
         "zoom", "longitude", "latitude", "measurementMode", "measurementAt", "measurementAgeMs", "targetId",
-        "browserUsedBytes", "backingStorageBytes", "embedderBytes"
+        "browserUsedBytes", "backingStorageBytes", "embedderBytes", "isolateId",
+        "workersAvailable", "workersAgeMs", "workerCount", "workerUsedBytes", "workerAllocatedBytes", "workerBackingStorageBytes",
+        "allIsolatesUsedBytes", "allIsolatesAllocatedBytes"
     };
 
     private static void ValidateScalars(JsonElement value)

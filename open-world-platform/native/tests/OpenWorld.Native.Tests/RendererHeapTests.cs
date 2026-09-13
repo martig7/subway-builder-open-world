@@ -31,6 +31,16 @@ static class RendererHeapTests
         window.Activity("native-autosave.complete", at.AddSeconds(110));
         save = window.Snapshot(at.AddSeconds(111))!;
         Check(save.BeforeBytes is null && save.PeakBytes is null && save.MaxSampleGapMs == 10000, "Missing save measurements were invented.");
+        window.Observe(new(RendererHeapSampler.Version, "available", "replacement", at.AddSeconds(111), 50, 100, 1000, 950, IsolateId: "old"));
+        window.Activity("native-autosave.start", at.AddSeconds(112));
+        window.Observe(new(RendererHeapSampler.Version, "available", "replacement", at.AddSeconds(113), 50, 100, 1000, 950, IsolateId: "new"));
+        Check(window.Snapshot(at.AddSeconds(114)) is null, "The reused browser target retained the crashed isolate's save history.");
+        window.Observe(new(RendererHeapSampler.Version, "available", "replacement", at.AddSeconds(115), 200, 300, 1000, 800,
+            IsolateId: "new", Workers: new("worker-v8-heap-v1", "available", at.AddSeconds(115), 1, 100, 500, 10000, 1, [])));
+        window.Activity("native-autosave.start", at.AddSeconds(115));
+        window.Activity("native-autosave.complete", at.AddSeconds(116));
+        save = window.Snapshot(at.AddSeconds(117))!;
+        Check(save.PeakAllIsolatesAllocatedBytes == 800 && save.PeakAllIsolatesUsedBytes == 300, "Save footprint mixed buffers with allocated worker heap.");
         return Task.CompletedTask;
     }
 
@@ -59,7 +69,7 @@ static class RendererHeapTests
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders(); builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, 0));
         await using var app = builder.Build(); app.UseWebSockets();
-        var mode = "normal"; var queries = 0;
+        var mode = "normal"; var queries = 0; var mainIsolate = "main-1";
         const string browserPath = "/devtools/browser/117e75f9-3a29-4888-8f78-861d8cbdb9e6";
         app.MapGet("/json/version", context => context.Response.WriteAsync(JsonSerializer.Serialize(new {
             webSocketDebuggerUrl = app.Urls.Single().Replace("http:", "ws:") + browserPath
@@ -80,10 +90,20 @@ static class RendererHeapTests
                     if (message.MessageType == WebSocketMessageType.Close) break;
                     using var request = JsonDocument.Parse(buffer.AsMemory(0, message.Count));
                     var id = request.RootElement.GetProperty("id").GetInt32();
+                    if (mode == "replace-page") { mode = "normal"; await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "renderer replaced", context.RequestAborted); break; }
                     if (mode == "stall") { await Task.Delay(2000, context.RequestAborted); continue; }
                     var method = request.RootElement.GetProperty("method").GetString();
-                    var result = method == "Runtime.evaluate" ? "{\"result\":{\"value\":4294967296}}" :
-                        $"{{\"usedSize\":{++queries * 1024},\"totalSize\":8192,\"backingStorageSize\":1000000,\"embedderHeapUsedSize\":2000000}}";
+                    var worker = request.RootElement.TryGetProperty("sessionId", out _);
+                    if (method == "Target.setAutoAttach")
+                        foreach (var name in new[] { "worker-1", "worker-2" })
+                            await socket.SendAsync(Encoding.UTF8.GetBytes($"{{\"method\":\"Target.attachedToTarget\",\"params\":{{\"sessionId\":\"{name}\",\"targetInfo\":{{\"targetId\":\"{name}\",\"type\":\"worker\"}}}}}}"), WebSocketMessageType.Text, true, context.RequestAborted);
+                    var result = method switch {
+                        "Runtime.evaluate" => "{\"result\":{\"value\":4294967296}}",
+                        "Runtime.getIsolateId" => $"{{\"id\":\"{(worker ? "shared-worker-isolate" : mainIsolate)}\"}}",
+                        "Target.setAutoAttach" => "{}",
+                        _ when worker => "{\"usedSize\":400,\"totalSize\":500,\"backingStorageSize\":100000}",
+                        _ => $"{{\"usedSize\":{++queries * (mainIsolate == "main-1" ? 1024 : 1)},\"totalSize\":8192,\"backingStorageSize\":1000000,\"embedderHeapUsedSize\":2000000}}"
+                    };
                     var text = mode == "oversize" ? new string('x', BoundedCdpClient.MaximumBytes + 1) : $"{{\"id\":{id},\"result\":{result}}}";
                     await socket.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, context.RequestAborted);
                 }
@@ -113,17 +133,29 @@ static class RendererHeapTests
                 }));
                 using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
                 var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var replaced = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var count = 0;
                 using var sampler = new RendererHeapSampler(stateRoot, () => true, sample => {
                     if (sample.Status == "available" && ++count == 2) completed.TrySetResult();
+                    if (sample.Status == "available" && count >= 3) replaced.TrySetResult();
                 });
                 var running = sampler.RunAsync(stop.Token);
-                await completed.Task.WaitAsync(stop.Token);
-                var reading = sampler.Snapshot();
-                Check(reading.UsedBytes == 3072 && reading.BackingStorageBytes == 1000000 && reading.LimitBytes == 4294967296 &&
-                    reading.HeadroomBytes == 4294967296 - 3072 && reading.PeakUsedBytes == 3072,
-                    "Native discovery/sampling produced incorrect real protocol measurements.");
-                stop.Cancel(); await running;
+                try
+                {
+                    await completed.Task.WaitAsync(stop.Token);
+                    var reading = sampler.Snapshot();
+                    Check(reading.UsedBytes == 3072 && reading.BackingStorageBytes == 1000000 && reading.LimitBytes == 4294967296 &&
+                        reading.HeadroomBytes == 4294967296 - 3072 && reading.PeakUsedBytes == 3072,
+                        "Native discovery/sampling produced incorrect real protocol measurements.");
+                    Check(reading.Workers is { WorkerCount: 2, UsedBytes: 400, TotalBytes: 500, BackingStorageBytes: 100000 } && reading.Workers.Samples.Length == 1,
+                        "Worker heaps were omitted, mixed with backing storage, or counted twice for one isolate.");
+                    mainIsolate = "main-2"; mode = "replace-page";
+                    await replaced.Task.WaitAsync(stop.Token);
+                    reading = sampler.Snapshot();
+                    Check(reading.TargetId == "game" && reading.IsolateId == "main-2" && reading.PeakUsedBytes < 1024,
+                        "A crashed isolate's peak survived reuse of the same browser target.");
+                }
+                finally { stop.Cancel(); await running; }
             }
             finally { File.Delete(NativeLogCapture.StatePath(stateRoot)); Directory.Delete(stateRoot); }
             mode = "oversize";

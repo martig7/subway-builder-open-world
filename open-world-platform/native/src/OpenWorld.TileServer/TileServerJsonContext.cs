@@ -20,6 +20,7 @@ internal sealed record HealthResponse(
 [JsonSerializable(typeof(NativeCaptureStatus))]
 [JsonSerializable(typeof(NativeLogChunk))]
 [JsonSerializable(typeof(RendererHeapStatus))]
+[JsonSerializable(typeof(WorkerHeapStatus))]
 [JsonSerializable(typeof(AutosaveMemoryStatus))]
 [JsonSerializable(typeof(string))]
 internal partial class TileServerJsonContext : JsonSerializerContext;

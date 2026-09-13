@@ -53,8 +53,14 @@ server samples game process memory independently once per second while enabled,
 so process measurements survive a frozen or crashed renderer. A separate sampler
 reads scalar V8 heap usage through CDP after a managed diagnostic launch. It uses
 one request at a time, a three-second deadline, 128 KiB response limit and bounded
-retry delay. V8 usage and backing storage remain separate; stale/unavailable
-readings supply no headroom. The manager shows observed save peaks and sampling
+retry delay. With a two-second minimum interval it also samples up to 64 related worker sessions,
+with workers left running. Isolate identities prevent double counting and reset
+peak/save history after a renderer replacement reuses its browser target ID.
+V8 usage, allocated heap pages and backing storage remain separate; stale/unavailable
+readings supply no main-isolate headroom. The manager distinguishes the main heap
+from worker usage and the sum of measured heap allocations; it does not present
+the main heap's limit margin as renderer-wide free space. It shows observed save
+peaks, including summed allocation peaks, and sampling
 gaps, using at most 600 scalar readings to match delayed save-boundary uploads.
 This does not change the game's heap limit, retain game/save objects, or force
 collection. See [the diagnostics guide](../../docs/autosave-and-renderer-memory.md) for

@@ -69,8 +69,15 @@ public static class RendererRecorderController
             (DateTimeOffset.UtcNow - measuredAt).TotalMilliseconds +
                 (heap.TryGetProperty("requestMs", out var request) && request.TryGetDouble(out var milliseconds) ? Math.Max(0, milliseconds) : 0) > 3000)
             return "V8 sample unavailable — waiting for the game; headroom unknown.";
-        return $"V8 heap: {GiB(heap, "usedBytes")} / {GiB(heap, "limitBytes")} · free {GiB(heap, "headroomBytes")}\n" +
-            $"Sampled peak: {GiB(heap, "peakUsedBytes")} · buffers: {GiB(heap, "backingStorageBytes")}";
+        var main = $"Main V8 heap: {GiB(heap, "usedBytes")} / {GiB(heap, "limitBytes")}\n" +
+            $"Main sampled peak: {GiB(heap, "peakUsedBytes")} · main buffers: {GiB(heap, "backingStorageBytes")}";
+        if (!heap.TryGetProperty("workers", out var workers) || workers.ValueKind != JsonValueKind.Object ||
+            workers.GetProperty("status").GetString() != "available" ||
+            (DateTimeOffset.UtcNow - workers.GetProperty("at").GetDateTimeOffset()).TotalMilliseconds + workers.GetProperty("requestMs").GetDouble() > 3000)
+            return main + "\nWorker measurements incomplete — total footprint unknown.";
+        var allocated = heap.GetProperty("totalBytes").GetDouble() + workers.GetProperty("totalBytes").GetDouble();
+        return main + $"\nWorkers ({workers.GetProperty("workerCount").GetInt32()}): {GiB(workers, "usedBytes")} used · {GiB(workers, "totalBytes")} allocated\n" +
+            $"All measured heaps allocated: {allocated / (1024 * 1024 * 1024):F2} GiB";
     }
 
     internal static string SaveMessage(JsonElement root)
@@ -78,7 +85,8 @@ public static class RendererRecorderController
         if (!root.TryGetProperty("autosave", out var save) || save.ValueKind != JsonValueKind.Object) return "No measured autosave yet.";
         var gap = save.GetProperty("maxSampleGapMs").GetDouble() / 1000;
         return $"Autosave: before {GiB(save, "beforeBytes")} → peak {GiB(save, "peakBytes")}\n" +
-            $"After: {GiB(save, "afterBytes")} · longest unsampled gap: {gap:F1}s";
+            $"After: {GiB(save, "afterBytes")} · longest unsampled gap: {gap:F1}s\n" +
+            $"All-heaps allocated peak: {GiB(save, "peakAllIsolatesAllocatedBytes")}";
     }
 
     public static async Task SetAsync(int port, string stateRoot, bool enabled, CancellationToken token = default)

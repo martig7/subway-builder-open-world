@@ -144,6 +144,58 @@ V8 heap against the service's 57,861,332 bytes 180 ms earlier. Both reported abo
 server and helper private memory were 70.2 and 55.2 MiB in this initial check.
 These menu values verify measurement transport, not a gameplay memory budget.
 
+After loading `JP_TOKYO_MAINLAND`, both runtime generation markers were verified
+through the game, and reset diagnostics started at sample 1. The mod received
+1,265,188,276 bytes of V8 usage with 597,561,515 bytes of separate backing storage,
+3,029,516,876 bytes of reported headroom and a 270 ms conservative sample age.
+An independent query moments later read 1,267,201,048 bytes of V8 usage.
+Loading produced a 21.142-second gap in successful V8 samples while the longest
+process-sampling gap was 1.343 seconds. A delayed mod sample at age 4.455 seconds
+correctly reported unavailable pressure/headroom. The early observed V8 peak
+was 1.57 GiB; these loading samples and gaps do not establish the save reserve.
+Three subsequent autosave windows were captured by this first build: durations
+88.375, 96.395 and 101.368 seconds, with main-heap sampling gaps of 85.752, 93.275
+and 98.042 seconds. Their observed main V8 peaks were approximately 1.61 GB.
+Those peaks are lower bounds; most of each synchronous save was unsampled.
+
+The live session also exposed two `CALL_AND_RETRY_LAST` OOMs at 18:33:19.991 and
+18:36:28.222 EDT. Main-isolate usage was only 1.258 and 1.296 GB in the last samples,
+312 ms and 1,012 ms before the respective failures. Process private memory was
+5.878 and 5.945 GB. A later scoped probe found 31 related workers: together with
+the main page, 2.385 GB of live heap but 4.226 GB of allocated heap pages. The probe
+was after the crashes and does not prove their precise allocation failure.
+[V8 supports shared pointer-compression cages](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/docs/heap/pointer-compression.md);
+the observed worker allocations are a reason to measure the combined footprint
+before choosing a cache reserve. Main-isolate headroom alone cannot establish it.
+Frozen evidence and a reconciliation are in `.analysis/precise-memory/crash-183320`.
+
+The final update adds these worker measurements and isolate replacement handling.
+It passes 891 shared tests, seven Japan tests and 36 native tests, including
+duplicate-isolate counting, separate worker buffers, expiring worker samples,
+allocated save peaks, and replacement under the same target ID. Restoring the old
+target-only identity rule makes the replacement test fail with the stale peak.
+The final Japan build and installed bundle match SHA-256
+`629DC7D744228CF940B268FE45E43E7DD15B13819A55FAD47EEE8CD37BE25018`, timestamp
+`2026-09-13T22:56:34.4081489Z`, and the two generation-3 markers. Installed server
+and manager binaries match their candidates; all 83 archives remain healthy.
+Live server status reported all 31 worker isolates with a 9.2 ms sweep, 3.38 GB of
+combined allocated heap pages, and 79 MiB server private memory. The independent
+native helper used 127.9 MiB at that check. Worker arrays and the 600-sample save
+window remain bounded; these are short observations, not a long-duration leak test.
+
+After the user's final reload, the game reported `renderer-memory-pressure-v3`
+and `renderer-debug-recorder-runtime-v3`; reset sampling started at 1. That sample
+contained 1.567 GB of main V8 usage, 1.094 GB of worker usage, and 3.426 GB of combined
+allocated heap pages, with current worker coverage and a 19.6 ms worker sweep.
+The server's current isolate ID matched the mod's. The live recorder also proved
+that replacement under the same target ID resets the peak: after the 19:03:37.963
+OOM, a different isolate first reported a 99 MB peak rather than its predecessor's
+retained value. That incident's last complete measurement was 8.117 seconds before
+the fatal event, with 3.476 GB of combined allocated heaps and 2.645 GB of live V8
+heap. Process private bytes were 5.006 GB in a sample 274 ms before the fatal event.
+The unobserved interval prevents claiming a precise heap value at the crash.
+Evidence is retained in `.analysis/precise-memory/crash-190337`.
+
 ## Save boundary
 
 The current save reproduced a 62.8-second synchronous Electron context-bridge
@@ -218,7 +270,7 @@ The baseline bound works independently of heap-counter precision.
 
 ## Diagnostics during normal play
 
-`renderer-memory-pressure-v2` automatically records scalar samples every second,
+`renderer-memory-pressure-v3` automatically records scalar samples every second,
 plus save/map activity boundaries. Its fixed rings hold 300 samples, 100 events,
 and 60 activity markers. It records high-water usage, reported headroom, growth
 spikes, inferred GC drops, and gaps between observations. No game objects are
@@ -235,7 +287,7 @@ The browser's `performance.memory` counters are not usable V8 headroom.
 caches its bucketed measurements for twenty minutes; precise mode avoids that
 cache, but both modes add external memory to V8's used-heap counter. The old
 recorder reported 116 MB and normal pressure seconds before two September 13
-promotion-failure OOMs. Version 2 retains that browser value as `browserUsedBytes`
+promotion-failure OOMs. The corrected reader retains that browser value as `browserUsedBytes`
 with `measurementMode: estimated`, and leaves headroom and pressure unavailable.
 
 For verified measurements, enable **Record game diagnostics**, save and fully
@@ -246,8 +298,22 @@ once per second. `usedSize` supplies the V8 heap; `backingStorageSize` and
 `embedderHeapUsedSize` remain separate. A one-time precise heap-limit query supplies
 the budget denominator; a rounded/unverified limit is rejected. Headroom means
 reported heap limit minus V8 used heap, not free physical RAM or guaranteed GC
-promotion space. Worker isolates, complete native/GPU allocations, fragmentation,
-and unsampled peaks are not covered by this number.
+promotion space. Main-isolate headroom and pressure do not describe renderer-wide
+free space. Complete native/GPU allocations, fragmentation, and unsampled peaks
+are not covered by this number.
+
+`worker-v8-heap-v1` samples the current page's related worker targets with a
+two-second minimum interval through unpaused, flattened debugger sessions. Up to 64 sessions and one
+pending command are allowed; a three-second deadline covers the complete tick.
+`Runtime.getIsolateId` prevents duplicate counting and resets history when a crash
+reuses the same browser target for a new isolate. Worker live heap, allocated heap
+pages, and backing storage remain separate. Fresh, complete worker sweeps supply
+`allIsolatesUsedBytes` and `allIsolatesAllocatedBytes` in the mod's scalar upload.
+The manager labels these as all *measured* heaps; missing/stale coverage is unknown.
+These sums are observations of individual isolates at nearby times, not an atomic
+snapshot or an exact map of free addresses in the V8 cage. Shared heap pages and
+code outside the main cage can affect interpretation. No cache thresholds or
+pre-autosave cleanup policy are changed by these added measurements.
 
 The manager and mod reject samples older than three seconds, including query
 response time in that age. The mod also rejects readings from before its current
@@ -258,11 +324,13 @@ debugger request at a time, caps responses at 128 KiB, and waits before retrying
 The mod receives scalar readings through its existing recorder requests; neither
 side retains game objects or forces garbage collection.
 
-The manager shows V8 usage, headroom, observed peak and separate buffers. For each
-autosave, `autosave-memory` reports a baseline within three seconds before the
+The manager shows main V8 usage, observed peak, workers, combined allocations,
+and separate buffers. For each autosave attempt, `autosave-memory` reports a baseline within three seconds before the
 start, the observed peak, the first sample within three seconds after completion,
 minimum observed headroom, and the longest unsampled interval. Missing values stay
-unknown. The server keeps at most 600 scalar readings and matches delayed mod
+unknown. Completion describes the wrapped autosave callback returning/resolving;
+the game can skip a write, so it is not proof that a new save file was persisted.
+Use the native game log to distinguish a skipped attempt. The server keeps at most 600 scalar readings and matches delayed mod
 activity uploads by their original timestamps. Query response timestamps locate
 the samples; request duration records their timing uncertainty. Peaks are observed
 lower bounds, especially when a save blocks the debugger. This capture establishes
@@ -299,8 +367,8 @@ npm test
 node scripts/build-mod.mjs
 ```
 
-Build and installation remain separate. Verify `renderer-memory-pressure-v2` and
-`renderer-debug-recorder-runtime-v2` in the Japan bundle
+Build and installation remain separate. Verify `renderer-memory-pressure-v3` and
+`renderer-debug-recorder-runtime-v3` in the Japan bundle
 and installed `mods/local.japan-open-world/index.js`, verify the shared PMTiles
 health response, and reload the intended mod before measuring behavior.
 

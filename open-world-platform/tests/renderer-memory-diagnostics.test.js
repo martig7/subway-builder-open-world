@@ -275,3 +275,28 @@ test('measurement freshness includes time spent waiting for the debugger respons
   assert.equal(f.monitor.snapshot().latest.headroomBytes, null);
   f.monitor.dispose();
 });
+
+test('worker allocation totals remain separate from main headroom and expire independently', () => {
+  const f = fixture({ readV8Memory: null });
+  const main = { version: 'renderer-v8-heap-v1', status: 'available', targetId: 'game', isolateId: 'main', at: 100_000,
+    usedBytes: 600 * MiB, totalBytes: 700 * MiB, limitBytes: 1000 * MiB };
+  const workers = { version: 'worker-v8-heap-v1', status: 'available', at: 100_000, requestMs: 10,
+    workerCount: 2, usedBytes: 200 * MiB, totalBytes: 250 * MiB, backingStorageBytes: 500 * MiB };
+  f.monitor.acceptHeapMeasurement({ ...main, workers });
+  let sample = f.monitor.sample();
+  assert.equal(sample.allIsolatesUsedBytes, 800 * MiB);
+  assert.equal(sample.allIsolatesAllocatedBytes, 950 * MiB);
+  assert.equal(sample.headroomBytes, 400 * MiB);
+  assert.equal(sample.workerBackingStorageBytes, 500 * MiB);
+  f.advance(3500);
+  f.monitor.acceptHeapMeasurement({ ...main, at: 103_500, workers });
+  sample = f.monitor.sample();
+  assert.equal(sample.available, true);
+  assert.equal(sample.workersAvailable, false);
+  assert.equal(sample.allIsolatesAllocatedBytes, null);
+  f.monitor.acceptHeapMeasurement({ ...main, at: 103_500, isolateId: 'replacement', workers: { ...workers, at: 103_500, status: 'partial' } });
+  sample = f.monitor.sample();
+  assert.equal(sample.deltaBytes, null);
+  assert.equal(sample.allIsolatesAllocatedBytes, null);
+  f.monitor.dispose();
+});

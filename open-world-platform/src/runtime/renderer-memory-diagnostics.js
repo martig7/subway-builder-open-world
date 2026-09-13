@@ -1,4 +1,4 @@
-export const RENDERER_MEMORY_DIAGNOSTICS_VERSION = 'renderer-memory-pressure-v2';
+export const RENDERER_MEMORY_DIAGNOSTICS_VERSION = 'renderer-memory-pressure-v3';
 // Keep the key stable across generations so a new bundle can stop the old timer.
 export const RENDERER_MEMORY_DIAGNOSTICS_KEY = '__openWorldRendererMemoryDiagnostics__';
 
@@ -6,8 +6,9 @@ const MiB = 1024 * 1024;
 const DETAIL_FIELDS = ['phase', 'status', 'tileId', 'reason', 'durationMs', 'rows', 'bytes'];
 const INTERPRETATION = 'V8 inspector samples report JS heap separately from backing storage; samples older than three seconds are unavailable. '
   + 'Browser-reported memory is recorded separately as an estimate and never supplies headroom. '
-  + 'Peaks between samples and complete native/GPU memory are not measured. '
-  + 'Headroom is relative to the reported JS heap limit, not a crash prediction. '
+  + 'Worker heaps are sampled separately; combined allocated bytes sum reported heap pages across distinct isolates. '
+  + 'Headroom and pressure refer only to the main isolate. They are not renderer-wide free space or a crash prediction. '
+  + 'Peaks between samples, shared-page overlap, and complete native/GPU memory are not measured. '
   + 'A heap drop is inferred GC, not a GC notification. Sampling gaps may also reflect background throttling.';
 
 function finite(value) {
@@ -136,8 +137,13 @@ export function installRendererMemoryDiagnostics({
       ? Math.max(0, heap.limitBytes - heap.usedBytes) : null;
     const usageRatio = available && heap.limitBytes != null ? heap.usedBytes / heap.limitBytes : null;
     const gapMs = previous ? Math.max(0, capturedAt - previous.monotonicMs) : null;
-    const deltaBytes = available && previous?.usedBytes != null && remote.targetId === previous.targetId
+    const deltaBytes = available && previous?.usedBytes != null && remote.targetId === previous.targetId && textLabel(remote.isolateId) === previous.isolateId
       ? heap.usedBytes - previous.usedBytes : null;
+    const workerAt = typeof remote?.workersAt === 'string' ? Date.parse(remote.workersAt) : finite(remote?.workersAt);
+    const workersAgeMs = Number.isFinite(workerAt) ? Math.max(0, wallNow() - workerAt) + Math.max(0, remote.workersRequestMs ?? 0) : null;
+    const workersAvailable = precise && remote.workersStatus === 'available' && workersAgeMs != null && workersAgeMs <= 3000
+      && finite(remote.workerUsedBytes) != null && remote.workerUsedBytes >= 0
+      && finite(remote.workerAllocatedBytes) != null && remote.workerAllocatedBytes >= 0;
     const sample = {
       id: ++summary.samples,
       at: wallNow(),
@@ -148,6 +154,15 @@ export function installRendererMemoryDiagnostics({
       measurementAt: precise ? measurementAt : null,
       measurementAgeMs,
       targetId: precise ? textLabel(remote.targetId) : null,
+      isolateId: precise ? textLabel(remote.isolateId) : null,
+      workersAvailable,
+      workersAgeMs,
+      workerCount: precise ? finite(remote.workerCount) : null,
+      workerUsedBytes: workersAvailable ? finite(remote.workerUsedBytes) : null,
+      workerAllocatedBytes: workersAvailable ? finite(remote.workerAllocatedBytes) : null,
+      workerBackingStorageBytes: workersAvailable ? finite(remote.workerBackingStorageBytes) : null,
+      allIsolatesUsedBytes: workersAvailable ? heap.usedBytes + remote.workerUsedBytes : null,
+      allIsolatesAllocatedBytes: workersAvailable && heap.totalBytes != null ? heap.totalBytes + remote.workerAllocatedBytes : null,
       browserUsedBytes: browser.usedBytes,
       backingStorageBytes: precise ? finite(remote.backingStorageBytes) : null,
       embedderBytes: precise ? finite(remote.embedderBytes) : null,
@@ -273,9 +288,14 @@ export function installRendererMemoryDiagnostics({
       // Copy only expected scalar fields from the local recorder; retain no response tree.
       remoteHeap = value?.version === 'renderer-v8-heap-v1' ? {
         version: value.version, status: textLabel(value.status), at: typeof value.at === 'string' ? textLabel(value.at) : finite(value.at),
-        targetId: textLabel(value.targetId), usedBytes: finite(value.usedBytes), totalBytes: finite(value.totalBytes),
+        targetId: textLabel(value.targetId), isolateId: textLabel(value.isolateId), usedBytes: finite(value.usedBytes), totalBytes: finite(value.totalBytes),
         limitBytes: finite(value.limitBytes), backingStorageBytes: finite(value.backingStorageBytes), embedderBytes: finite(value.embedderBytes),
         requestMs: finite(value.requestMs),
+        workersStatus: value.workers?.version === 'worker-v8-heap-v1' ? textLabel(value.workers.status) : null,
+        workersAt: typeof value.workers?.at === 'string' ? textLabel(value.workers.at) : finite(value.workers?.at),
+        workersRequestMs: finite(value.workers?.requestMs), workerCount: finite(value.workers?.workerCount),
+        workerUsedBytes: finite(value.workers?.usedBytes), workerAllocatedBytes: finite(value.workers?.totalBytes),
+        workerBackingStorageBytes: finite(value.workers?.backingStorageBytes),
       } : null;
     },
     sample(source) { const sample = collect(source); return sample ? { ...sample } : null; },
