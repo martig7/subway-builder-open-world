@@ -61,6 +61,7 @@ if (allowedIds is { Count: 0 } || allowedIds?.Any(id => !ArchiveCatalog.IsSafeId
     throw new ArgumentException("--tiles must be a comma-separated list of safe tile IDs.");
 Directory.CreateDirectory(stateRoot);
 var log = new RollingFileLog(Path.Combine(logRoot, "open-world-tile-server.log"));
+using var recorder = new RendererDebugRecorder(stateRoot, logRoot);
 var startedAtUtc = new DateTimeOffset(Process.GetCurrentProcess().StartTime.ToUniversalTime(), TimeSpan.Zero);
 var instanceId = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24));
 await using var catalog = await ArchiveCatalog.OpenAsync(root, allowedIds);
@@ -73,13 +74,14 @@ app.Use(async (context, next) =>
 {
     var requestClock = Stopwatch.StartNew();
     context.Response.Headers.AccessControlAllowOrigin = "*";
-    context.Response.Headers.AccessControlAllowHeaders = $"Range, {controlHeader}";
-    context.Response.Headers.AccessControlAllowMethods = "GET, HEAD, POST";
+    context.Response.Headers.AccessControlAllowHeaders = $"Range, Content-Type, {controlHeader}";
+    context.Response.Headers.AccessControlAllowMethods = "GET, HEAD, POST, OPTIONS";
     context.Response.Headers.AccessControlExposeHeaders = "X-OpenWorld-Route-Archive";
     context.Response.Headers.CacheControl = "public, max-age=3600";
     context.Response.Headers["X-PMTiles-Server-Version"] = serverVersion;
     context.Response.Headers["X-PMTiles-Server-Build"] = buildVersion;
     context.Response.Headers["X-OpenWorld-Route-Archive"] = RouteArchive.Version;
+    context.Response.Headers["X-OpenWorld-Debug-Recorder"] = RendererDebugRecorder.Version;
     context.Response.Headers[instanceHeader] = instanceId;
     try
     {
@@ -130,6 +132,70 @@ app.MapPost("/_control/stop", context =>
     });
     return Task.CompletedTask;
 });
+
+app.MapGet("/_diagnostics/recorder", WriteRecorderStatus);
+app.MapMethods("/_diagnostics/recorder/sample", ["OPTIONS"], context =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    context.Response.StatusCode = StatusCodes.Status204NoContent;
+    return Task.CompletedTask;
+});
+app.MapPost("/_diagnostics/recorder/sample", async context =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var origin = context.Request.Headers.Origin.ToString();
+    if (origin.Length != 0 && origin != "null" && !(Uri.TryCreate(origin, UriKind.Absolute, out var source) && source.Scheme == "app"))
+    { context.Response.StatusCode = 403; return; }
+    if (!recorder.Snapshot().Enabled) { await WriteRecorderStatus(context); return; }
+    try
+    {
+        using var json = await ReadRecorderJson(context, RendererDebugRecorder.MaximumPayloadBytes);
+        if (!recorder.Accept(json.RootElement)) { context.Response.StatusCode = 429; return; }
+        await WriteRecorderStatus(context);
+    }
+    catch (Exception exception) when (exception is InvalidDataException or JsonException or InvalidOperationException)
+    { context.Response.StatusCode = 400; }
+});
+app.MapPost("/_control/recorder", async context =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var supplied = context.Request.Headers[controlHeader].SingleOrDefault();
+    if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+        System.Text.Encoding.ASCII.GetBytes(supplied ?? string.Empty), System.Text.Encoding.ASCII.GetBytes(instanceId)))
+    { context.Response.StatusCode = 403; return; }
+    try
+    {
+        using var json = await ReadRecorderJson(context, 1024);
+        if (json.RootElement.ValueKind != JsonValueKind.Object || !json.RootElement.TryGetProperty("enabled", out var value) || value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw new InvalidDataException("Expected an enabled flag.");
+        recorder.SetEnabled(value.GetBoolean());
+        await WriteRecorderStatus(context);
+    }
+    catch (Exception exception) when (exception is InvalidDataException or JsonException)
+    { context.Response.StatusCode = 400; }
+});
+
+async Task WriteRecorderStatus(HttpContext context)
+{
+    context.Response.Headers.CacheControl = "no-store";
+    context.Response.ContentType = "application/json";
+    await JsonSerializer.SerializeAsync(context.Response.Body, recorder.Snapshot(),
+        TileServerJsonContext.Default.RecorderStatus, context.RequestAborted);
+}
+
+static async Task<JsonDocument> ReadRecorderJson(HttpContext context, int maximum)
+{
+    if (context.Request.ContentLength > maximum) throw new InvalidDataException("Recorder payload too large.");
+    using var bytes = new MemoryStream();
+    var buffer = new byte[4096];
+    int read;
+    while ((read = await context.Request.Body.ReadAsync(buffer, context.RequestAborted)) != 0)
+    {
+        if (bytes.Length + read > maximum) throw new InvalidDataException("Recorder payload too large.");
+        bytes.Write(buffer, 0, read);
+    }
+    return JsonDocument.Parse(bytes.ToArray(), new JsonDocumentOptions { MaxDepth = 6 });
+}
 
 app.MapGet("/{archiveId}/driving-routes/{scope}/{popId}", async context =>
 {
@@ -183,10 +249,12 @@ var state = new ServerState(
 try
 {
     await app.StartAsync();
+    var recorderTask = recorder.RunAsync(app.Lifetime.ApplicationStopping);
     await ServerStateStore.WriteAsync(statePath, state);
     log.Write("INFO", $"Started {serverVersion} build {buildVersion} on 127.0.0.1:{port} with {catalog.Count} archives from {catalog.Root}.");
     Console.WriteLine($"Open World tile server {serverVersion} build {buildVersion} listening on http://127.0.0.1:{port}/ with {catalog.Count} archives.");
     await app.WaitForShutdownAsync();
+    await recorderTask;
     return 0;
 }
 finally

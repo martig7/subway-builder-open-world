@@ -25,6 +25,10 @@ public partial class ManagerWindow : Window
     private bool busy;
     private bool initializingStartup = true;
     private bool allowClose;
+    private bool refreshingRecorder;
+    private bool updatingRecorderCheckBox;
+    private readonly System.Windows.Threading.DispatcherTimer recorderTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private RendererRecorderDisplay recorderStatus = new(false, false, "unavailable");
     private TileServerStatus currentStatus = new(TileServerCondition.Stopped, "Stopped");
 
     internal ManagerWindow(
@@ -63,8 +67,10 @@ public partial class ManagerWindow : Window
                 ExitManager);
         }
         Closing += ManagerWindow_Closing;
+        recorderTimer.Tick += async (_, _) => { if (!busy) await RefreshRecorderAsync(); };
         Closed += (_, _) =>
         {
+            recorderTimer.Stop();
             trayIcon?.Dispose();
             trayIcon = null;
         };
@@ -76,6 +82,7 @@ public partial class ManagerWindow : Window
                 if (this.startServerOnLoad)
                     await TileServerController.StartAndVerifyAsync(manifest, runtime, CancellationToken.None);
                 await RefreshAsync(verifyData: true);
+                if (!isPreview) recorderTimer.Start();
                 initialRefresh.TrySetResult(true);
             }
             catch (Exception exception)
@@ -126,6 +133,44 @@ public partial class ManagerWindow : Window
             PackageStatusText.Text = result.Message;
         }
         UpdateButtonState();
+        await RefreshRecorderAsync();
+    }
+
+    private async Task RefreshRecorderAsync()
+    {
+        if (refreshingRecorder) return;
+        refreshingRecorder = true;
+        try
+        {
+            var next = isPreview ? new RendererRecorderDisplay(true, false, "off") : await RendererRecorderController.GetAsync(manifest.Product.TileServerPort);
+            if (busy) return;
+            recorderStatus = next;
+            updatingRecorderCheckBox = true;
+            try { RecorderCheckBox.IsChecked = recorderStatus.Enabled; }
+            finally { updatingRecorderCheckBox = false; }
+            RecorderStatusText.Text = recorderStatus.Message;
+            UpdateButtonState();
+        }
+        finally { refreshingRecorder = false; }
+    }
+
+    private async void Recorder_Changed(object sender, RoutedEventArgs e)
+    {
+        if (updatingRecorderCheckBox || isPreview || busy || initializingStartup) return;
+        var enabled = RecorderCheckBox.IsChecked == true;
+        await ExecuteAsync(enabled ? "Enabling debug recorder" : "Stopping debug recorder", async token =>
+        {
+            if (currentStatus.Condition == TileServerCondition.Stopped)
+                await TileServerController.StartAndVerifyAsync(manifest, runtime, token);
+            await RendererRecorderController.SetAsync(manifest.Product.TileServerPort, runtime.StateRoot, enabled, token);
+        }, verifyAfter: false);
+    }
+
+    private void Recordings_Click(object sender, RoutedEventArgs e)
+    {
+        var directory = Path.Combine(runtime.LogRoot, "renderer-debug");
+        Directory.CreateDirectory(directory);
+        Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
     }
 
     private async Task<bool> ExecuteAsync(string activity, Func<CancellationToken, Task> action, bool verifyAfter = true)
@@ -156,6 +201,7 @@ public partial class ManagerWindow : Window
             busy = false;
             BusyProgress.Visibility = Visibility.Hidden;
             UpdateButtonState();
+            await RefreshRecorderAsync();
         }
         return succeeded;
     }
@@ -172,6 +218,8 @@ public partial class ManagerWindow : Window
         UpdatesButton.IsEnabled = !busy;
         UninstallButton.IsEnabled = !busy && !isPreview;
         StartupCheckBox.IsEnabled = !busy && !isPreview;
+        RecorderCheckBox.IsEnabled = !busy && !isPreview && (recorderStatus.Supported || currentStatus.Condition == TileServerCondition.Stopped);
+        RecordingsButton.IsEnabled = !busy && !isPreview;
     }
 
     private async void Start_Click(object sender, RoutedEventArgs e) =>

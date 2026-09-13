@@ -25,6 +25,35 @@ The public setup path does not invoke PowerShell. PowerShell is used only by the
 maintainer-side release script to create/reuse a self-signed code-signing
 certificate and sign the produced executables and release manifest.
 
+## Debug recorder
+
+In the Windows manager, select **Record game diagnostics** to retain renderer
+memory and activity samples in the shared tile server. **Open recordings** opens
+`<log-root>/renderer-debug`. The setting is off by default, persists at
+`<state-root>/renderer-debug-recorder.json`, and survives server restarts. Closing
+the manager does not stop recording while the tile server runs. Recordings
+rotate at eight files of 8 MiB each (64 MiB total); disabling preserves the files.
+
+The loopback server exposes `renderer-debug-recorder-v1` through:
+
+- `GET /_diagnostics/recorder`: bounded status, including enabled, last sample,
+  current file, record count, and write error. Responses are never cached.
+- `POST /_diagnostics/recorder/sample`: at most 32 KiB of allowlisted scalar
+  diagnostics. Short event/activity lists are capped at 16 entries. It accepts
+  the game's file/custom-app origin and rejects ordinary website origins.
+- `POST /_control/recorder`: `{"enabled":true}` or `{"enabled":false}`, requiring
+  the current `X-PMTiles-Control-Token`. The manager first verifies the server
+  instance against its managed state file and expected protocol header.
+
+The mod discovers the switch every five seconds while off, then uploads at most
+once per second with one request in flight and a three-second timeout. The
+server samples game process memory independently once per second while enabled,
+so process measurements survive a frozen or crashed renderer. It does not use
+CDP, change the game's heap limit, retain game/save objects, or force collection.
+See [the diagnostics guide](../../docs/autosave-and-renderer-memory.md) for
+measurement limits and live verification. Existing standalone collectors remain
+available for explicit CDP investigations but are unnecessary for this recorder.
+
 ## Development
 
 ```powershell

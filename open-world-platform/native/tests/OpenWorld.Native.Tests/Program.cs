@@ -38,6 +38,11 @@ var tests = new (string Name, Func<Task> Run)[]
     ("world checkboxes select all, clear, and total both downloads", WorldCheckboxes),
     ("manager shutdown targets only catalog-owned executables and excludes setup", ManagerShutdownTargets),
     ("manager uses a world-neutral title and the release-manifest version", ManagerPresentationValidation),
+    ("recorder persists its switch and captures renderer silence and recovery", RendererRecorderTests.Lifecycle),
+    ("recorder rejects arbitrary game objects and oversized histories", RendererRecorderTests.PayloadBounds),
+    ("recorder rotates scoped files and contains disk errors", RendererRecorderTests.DiskBounds),
+    ("process disappearance survives an unavailable exit-code lookup", RendererRecorderTests.ProcessDisappearance),
+    ("manager controls the real tile-server recorder through restart", () => RendererRecorderTests.HttpLifecycle(MinimalPmTiles())),
 };
 
 var failed = 0;

@@ -50,6 +50,7 @@ import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js'
 import { registerIntercityTrains } from './intercity-trains.js';
 import { yieldBrowserPaint } from './frame-budget.js';
 import { installRendererMemoryDiagnostics } from './renderer-memory-diagnostics.js';
+import { installRendererDebugRecorder } from './renderer-debug-recorder.js';
 import { createRendererTileCacheBudget } from './renderer-tile-cache-budget.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
@@ -423,6 +424,22 @@ export function startOpenWorld({
     },
   });
   diagnostics.rendererMemory = rendererMemory.snapshot;
+  let rendererRecorder = null;
+  if (typeof globalThis.window !== 'undefined') {
+    // Diagnostics are optional when a developer overrides the local tile URL.
+    try {
+      rendererRecorder = installRendererDebugRecorder({
+        baseUrl: tileBase,
+        getSnapshot: rendererMemory.snapshot,
+        getContext: () => {
+          const center = latestMap?.getCenter?.();
+          return { manifestId: definition.identity.manifestId, cityCode: currentCityCode(),
+            zoom: latestMap?.getZoom?.(), longitude: center?.lng, latitude: center?.lat };
+        },
+      });
+    } catch { /* An unavailable recorder must not prevent game startup. */ }
+  }
+  diagnostics.rendererRecorder = () => rendererRecorder?.snapshot() ?? { status: 'unavailable' };
   diagnostics.tileCacheBudget = tileCacheBudget.snapshot;
   rendererMemory.recordActivity('runtime.attached', { tileId: currentCityCode() });
   let session = null;
@@ -1656,6 +1673,7 @@ export function startOpenWorld({
       detachAutosaveIdleGuard();
       tileCacheBudget.dispose();
       rendererMemory.dispose();
+      rendererRecorder?.dispose();
       if (latestMap && tileSourceStyleHandler) {
         try { latestMap.off?.('style.load', tileSourceStyleHandler); } catch {}
       }
