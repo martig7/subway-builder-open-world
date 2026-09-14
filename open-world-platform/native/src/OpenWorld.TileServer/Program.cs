@@ -72,12 +72,14 @@ var builder = WebApplication.CreateSlimBuilder();
 builder.Logging.ClearProviders();
 builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, port));
 await using var app = builder.Build();
+using var prototypeSaveWriter = options.Optional("save-prototype-root") is { } saveRoot ? new PrototypeSaveWriter(saveRoot) : null;
+if (prototypeSaveWriter is not null) PrototypeSaveEndpoints.Map(app, prototypeSaveWriter, instanceId);
 
 app.Use(async (context, next) =>
 {
     var requestClock = Stopwatch.StartNew();
     context.Response.Headers.AccessControlAllowOrigin = "*";
-    context.Response.Headers.AccessControlAllowHeaders = $"Range, Content-Type, {controlHeader}";
+    context.Response.Headers.AccessControlAllowHeaders = $"Range, Content-Type, {controlHeader}, X-Save-Chunk-Sha256";
     context.Response.Headers.AccessControlAllowMethods = "GET, HEAD, POST, OPTIONS";
     context.Response.Headers.AccessControlExposeHeaders = "X-OpenWorld-Route-Archive";
     context.Response.Headers.CacheControl = "public, max-age=3600";

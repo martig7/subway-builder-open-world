@@ -42,6 +42,7 @@ import { NativeRevenueAccrual } from './native-revenue-accrual.js';
 import { stageNativeRecovery } from './native-reload-recovery.js';
 import { installNativeSavedReloadGuard } from './native-saved-reload-guard.js';
 import { findNativeAutosaveRef, installNativeAutosaveIdleGuard } from './native-autosave-idle-guard.js';
+import { createPrototypeSaveController } from './prototype-save-controller.js';
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
 import { storedRouteLoader } from './stored-route-paths.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
@@ -345,6 +346,7 @@ export function startOpenWorld({
       isMoving: () => Boolean(latestMap?.isMoving?.()),
       getIdentity: () => ownsCurrentCity() ? `${api.gameState.getGameSessionId?.()}:${currentCityCode()}` : null,
       onActivity: (stage, details) => rendererMemory.recordActivity(stage, details),
+      invoke: native => prototypeSaveWriter.invoke(native),
     });
     autosaveIdleMap = latestMap;
     autosaveIdleMap.on?.('move', noteAutosaveMapMovement);
@@ -665,6 +667,17 @@ export function startOpenWorld({
     },
   });
   diagnostics.cachedSimulation = cachedSimulation.snapshot;
+  const prototypeSaveWriter = createPrototypeSaveController({
+    getState: () => game.callbacks.getState(),
+    isReady: () => ready && isCurrent() && ownsCurrentCity(),
+    isBusy: () => {
+      const workers = nativeCommuteWorkers?.snapshot?.();
+      return !workers?.logicalWorkers || Boolean(workers.busy || workers.queued)
+        || cachedSimulation.snapshot().status === 'calculating';
+    },
+    onActivity: (stage, details) => rendererMemory.recordActivity(stage, details),
+  });
+  diagnostics.prototypeSaveWriter = prototypeSaveWriter;
   function ensureSession() {
     if (session) return session;
     const routePaths = createOpenWorldRoutePaths({
@@ -739,6 +752,7 @@ export function startOpenWorld({
         api,
         controller: geographicContextController,
         simulation: cachedSimulation,
+        saveWriter: prototypeSaveWriter,
         panelId: `${namespace}-render-distance`,
       }));
     }
@@ -1680,6 +1694,7 @@ export function startOpenWorld({
       if (moduleDisposed) return;
       moduleDisposed = true;
       void cachedSimulation.dispose();
+      prototypeSaveWriter.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {
         try { unsubscribe(); } catch {}
       }

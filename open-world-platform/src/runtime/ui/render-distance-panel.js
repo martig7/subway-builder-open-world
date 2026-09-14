@@ -12,13 +12,15 @@ export function renderDistanceLabel(value) {
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
 }
 
-export function RenderDistancePanel({ React, controller, simulation }) {
+export function RenderDistancePanel({ React, controller, simulation, saveWriter }) {
   const h = React.createElement;
   const [settings, setSettings] = React.useState({ distance: controller.getRenderDistance(), shape: controller.getRenderShape?.() ?? 'circle' });
   const { distance, shape } = settings;
   const limits = controller.getRenderDistanceLimits?.() ?? RENDER_DISTANCE;
   const [simulationState, setSimulationState] = React.useState(() => simulation?.snapshot());
   React.useEffect(() => simulation?.subscribe(setSimulationState), [simulation]);
+  const [saveState, setSaveState] = React.useState(() => saveWriter?.snapshot());
+  React.useEffect(() => saveWriter?.subscribe(setSaveState), [saveWriter]);
   React.useEffect(
     () => controller.subscribeRenderDistance((value) => { setSettings({ distance: value, shape: controller.getRenderShape?.() ?? 'circle' }); }),
     [controller],
@@ -67,13 +69,24 @@ export function RenderDistancePanel({ React, controller, simulation }) {
     h('div', { className: 'text-xs', role: 'status', 'aria-live': 'polite' },
       simulationState?.error ?? (simulationState?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'
         : simulationState?.enabled ? `${simulationState.assignedPops.toLocaleString()} pop groups assigned · ${Math.round(simulationState.dailyRidership).toLocaleString()} estimated daily rides`
-          : 'Native simulation'))));
+          : 'Native simulation'))),
+  saveState?.configured && h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
+    h('label', { className: 'flex items-center gap-2 text-sm font-medium' },
+      h('input', { type: 'checkbox', role: 'switch', checked: saveState.enabled,
+        onChange: event => saveWriter.setEnabled(event.target.checked),
+        'aria-label': 'Experimental tile-server autosaves' }), 'Experimental tile-server autosaves'),
+    h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
+      'Pauses simulation and editing while saving. Uses normal game files. Enabled for this session only.'),
+    h('div', { role: 'status', className: 'text-xs', 'aria-live': 'polite' },
+      saveState.error ?? (saveState.status === 'saving' ? 'Saving…' : saveState.last
+        ? `Saved in ${(saveState.last.durationMs / 1000).toFixed(1)} seconds` : 'Ready'))));
 }
 
 export function registerRenderDistanceToolbar({
   api,
   controller,
   simulation,
+  saveWriter,
   panelId = 'open-world-render-distance',
 } = {}) {
   if (typeof api?.ui?.addToolbarPanel !== 'function') return null;
@@ -86,7 +99,7 @@ export function registerRenderDistanceToolbar({
     tooltip: 'Map rendering',
     title: 'Map rendering',
     width: 340,
-    render: () => React.createElement(RenderDistancePanel, { React, controller, simulation }),
+    render: () => React.createElement(RenderDistancePanel, { React, controller, simulation, saveWriter }),
   });
   return { registration, panelId };
 }

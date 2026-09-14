@@ -1,0 +1,86 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createPrototypeSaveController, blockSaveEdits } from '../src/runtime/prototype-save-controller.js';
+
+function fixture({ writeSave, busy = false } = {}) {
+  const state = { cityCode: 'CITY', gameSessionId: 'session', timeConfig: { paused: false, elapsedSeconds: 100 }, money: 500,
+    setTimeConfig(value) { state.timeConfig = { ...state.timeConfig, ...value }; },
+    generateSave(options) {
+      assert.equal(options[Symbol.for('open-world.stream-native-save')], true);
+      return { version: 4, name: options.name, data: { timeConfig: state.timeConfig, money: state.money } };
+    } };
+  let closed = 0, nativeCalls = 0, uploads = 0;
+  const controller = createPrototypeSaveController({ getState: () => state, isBusy: () => busy, yieldTask: async () => {},
+    freezeUi: () => ({ progress() {}, dispose() { closed++; } }),
+    fetchFn: async () => Response.json({ version: 'tile-save-prototype-v1' }),
+    writeSave: async (save, options) => {
+      uploads++; assert.equal(state.timeConfig.paused, true); assert.equal(save.data.timeConfig.paused, false);
+      if (writeSave) return writeSave(save, options, state);
+      options.beforeCommit(); return { bytes: 123, durationMs: 50, path: 'fixture.metro' };
+    },
+  });
+  const configure = async () => { await controller.configure({ origin: 'http://127.0.0.1:8800', token: 'fixture-control-token' }); controller.setEnabled(true); };
+  return { state, controller, configure, native: () => { nativeCalls++; return 'native'; }, counts: () => ({ closed, nativeCalls, uploads }) };
+}
+
+test('prototype is opt-in, saves with a stable pause, and restores playback without retaining the snapshot', async () => {
+  const f = fixture();
+  assert.equal(f.controller.invoke(f.native), 'native');
+  await f.configure();
+  const result = await f.controller.invoke(f.native);
+  assert.equal(result.path, 'fixture.metro'); assert.equal(f.state.timeConfig.paused, false);
+  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 1, uploads: 1 });
+  assert.equal(f.controller.snapshot().last.data, undefined);
+});
+
+test('a failed transfer falls back once, releases the pause, and disables the prototype', async () => {
+  let fail;
+  const failure = new Promise((_, reject) => { fail = reject; });
+  const f = fixture({ writeSave: () => failure }); await f.configure();
+  const first = f.controller.invoke(f.native), second = f.controller.invoke(f.native);
+  assert.equal(first, second);
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  fail(new Error('Disk full'));
+  assert.equal(await first, 'native');
+  assert.equal(f.controller.snapshot().enabled, false); assert.equal(f.state.timeConfig.paused, false);
+  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 1, uploads: 1 });
+});
+
+test('concurrent routing uses native saving before an upload begins', async () => {
+  const f = fixture({ busy: true }); await f.configure();
+  assert.equal(await f.controller.invoke(f.native), 'native');
+  assert.equal(f.counts().uploads, 0); assert.equal(f.state.timeConfig.paused, false);
+});
+
+test('a changing ledger rejects commit and a new session cannot receive the old fallback or playback state', async () => {
+  for (const changeSession of [false, true]) {
+    const f = fixture({ writeSave: async (save, options, state) => {
+      if (changeSession) state.gameSessionId = 'another-save'; else state.money++;
+      options.beforeCommit(); throw new Error('Unexpected accepted mutation');
+    } }); await f.configure();
+    await f.controller.invoke(f.native);
+    assert.equal(f.counts().nativeCalls, changeSession ? 0 : 1);
+    assert.equal(f.state.timeConfig.paused, changeSession);
+    assert.match(f.controller.snapshot().error, /Game state changed/);
+  }
+});
+
+test('disposal aborts its upload without invoking a retired native callback', async () => {
+  const f = fixture({ writeSave: async (save, options) => {
+    f.controller.dispose(); options.signal.throwIfAborted();
+  } }); await f.configure(); await f.controller.invoke(f.native);
+  assert.equal(f.counts().nativeCalls, 0); assert.equal(f.counts().closed, 1); assert.equal(f.state.timeConfig.paused, false);
+});
+
+test('the save overlay captures game shortcuts even when its cancel button has focus', () => {
+  const handlers = new Map(); let focused, cancels = 0;
+  const window = { addEventListener(name, handler, options) { assert.equal(options.capture, true); handlers.set(name, handler); },
+    removeEventListener(name) { handlers.delete(name); } };
+  const document = { body: { append() {} }, createElement: () => ({ style: {}, setAttribute() {}, append() {}, remove() {}, focus() { focused = this; } }) };
+  const ui = blockSaveEdits(() => { cancels++; }, { document, window });
+  let blocked = 0;
+  handlers.get('keydown')({ type: 'keydown', key: 'p', target: focused, preventDefault() { blocked++; }, stopImmediatePropagation() { blocked++; } });
+  assert.equal(blocked, 2); assert.equal(cancels, 0);
+  handlers.get('click')({ type: 'click', target: focused, preventDefault() {}, stopImmediatePropagation() {} });
+  assert.equal(cancels, 1); ui.dispose(); assert.equal(handlers.size, 0);
+});

@@ -1,5 +1,5 @@
 const GUARD = '__openWorldAutosaveIdleGuard__';
-export const NATIVE_AUTOSAVE_IDLE_VERSION = 'native-autosave-idle-v4';
+export const NATIVE_AUTOSAVE_IDLE_VERSION = 'native-autosave-idle-v5';
 
 // The game exposes no autosave scheduling API. Recognize its mounted callback
 // by behavior, without importing a version-specific hashed bundle. If its shape
@@ -40,7 +40,8 @@ export function findNativeAutosaveRef(document = globalThis.document) {
 export function installNativeAutosaveIdleGuard({ ref, isMoving = () => false,
   getIdentity = () => 'current', now = () => performance.now(), quietMs = 1500,
   maxDelayMs = 30000, setTimeoutFn = globalThis.setTimeout?.bind(globalThis),
-  clearTimeoutFn = globalThis.clearTimeout?.bind(globalThis), onActivity = () => {} } = {}) {
+  clearTimeoutFn = globalThis.clearTimeout?.bind(globalThis), onActivity = () => {},
+  invoke = native => native() } = {}) {
   ref?.[GUARD]?.dispose();
   let descriptor = ref && Object.getOwnPropertyDescriptor(ref, 'current');
   if (!descriptor?.configurable || typeof descriptor.value !== 'function') {
@@ -62,7 +63,7 @@ export function installNativeAutosaveIdleGuard({ ref, isMoving = () => false,
     const started = now();
     note('native-autosave.start', started);
     let result;
-    try { result = native.apply(receiver, args); }
+    try { result = invoke(() => native.apply(receiver, args)); }
     catch (error) { note('native-autosave.error', started); throw error; }
     // This is only the callback's first synchronous slice. Later awaited work
     // can still block; the memory sampler records that event-loop gap separately.

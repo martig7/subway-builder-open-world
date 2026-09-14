@@ -68,7 +68,7 @@ test('hot attachment replaces the old property wrapper and disposal cancels only
   await result; assert.equal(f.calls.length, 0);
   assert.notEqual(Object.getOwnPropertyDescriptor(f.ref, 'current').get, oldGetter);
   assert.notEqual(next, f.guard);
-  assert.equal(next.version, 'native-autosave-idle-v4');
+  assert.equal(next.version, 'native-autosave-idle-v5');
   assert.equal(await f.ref.current(), 42);
   next.dispose(); assert.equal(typeof Object.getOwnPropertyDescriptor(f.ref, 'current').value, 'function');
 });
@@ -124,4 +124,15 @@ test('diagnostic errors cannot fail an autosave and native errors retain their i
   ref.current = () => Promise.reject(error);
   await assert.rejects(ref.current(), value => value === error);
   guard.dispose();
+});
+
+test('an optional transport uses the latest React callback for native fallback', async () => {
+  const ref = { current: () => 'old' };
+  let savedNative;
+  const guard = installNativeAutosaveIdleGuard({ ref, invoke: native => { savedNative = native; return 'prototype'; } });
+  assert.equal(ref.current(), 'prototype');
+  ref.current = () => 'latest';
+  assert.equal(savedNative(), 'latest');
+  guard.dispose();
+  assert.equal(ref.current(), 'latest');
 });

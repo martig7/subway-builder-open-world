@@ -23,4 +23,5 @@ internal sealed record HealthResponse(
 [JsonSerializable(typeof(WorkerHeapStatus))]
 [JsonSerializable(typeof(AutosaveMemoryStatus))]
 [JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(PrototypeSaveResult))]
 internal partial class TileServerJsonContext : JsonSerializerContext;

@@ -344,7 +344,7 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v12');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v13');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -363,10 +363,20 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v12');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v13');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);
+});
+
+test('streaming saves skip bridge reference sharing while preserving cached clock rebasing', async () => {
+  const f = fixture(); await f.controller.setEnabled(true);
+  await f.state.handleIncrementGameState();
+  const native = f.state.generateSave();
+  const streamed = f.state.generateSave({ [Symbol.for('open-world.stream-native-save')]: true });
+  assert.deepEqual(streamed, native);
+  assert.equal(streamed.data.elapsedSeconds, f.state.timeConfig.elapsedSeconds);
+  await f.controller.dispose();
 });
 
 test('save stage diagnostics contain timings without retaining payloads and cannot interrupt saving', async () => {
