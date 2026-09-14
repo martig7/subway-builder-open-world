@@ -25,8 +25,8 @@ and route highlights consume native-shaped results from the same calculations.
 Service/fare edits mark commute assignments stale for the next midnight. The
 current assignments continue through the day; expense rates and train billing
 anchors still update at edit time. Multiple edits coalesce into one shared
-midnight batch. Its active-tile worker and cross-network recalculation start
-concurrently, and duplicate day hooks await that same batch. The cached clock
+midnight batch. Its active-tile preparation and cross-network recalculation
+share one routing allocation slot, and duplicate day hooks await that same batch. The cached clock
 stops exactly at midnight, settling old rates to the boundary, and waits for
 both calculations before the next tick. Incomplete work remains queued.
 
@@ -36,11 +36,33 @@ inventory changes, and live train/reference replacements do not independently
 queue demand work in cached mode. Raw store changes can update expense rates and
 billing anchors without widening the shared commute invalidation policy.
 
-Enabling the mode still prepares assignments immediately. A changed save, Tile
+The regular native-demand pass prepares the active Tile View's assignments even
+while cached ticks are disabled. Batches of 128 pops are written to a disposable
+IndexedDB cache, separate from World Records and Native Saves. One committed
+generation replaces the previous generation, with a 256 MiB / 4096-chunk bound.
+The main renderer receives its finance profile without dormant assignments.
+SHA-256 keys include the session, exact compact demand (including departures),
+configured routing network, rules and fares. Moving train anchors do not enter
+this deterministic estimator's key. Cache failures permit bounded recomputation.
+
+Enabling the mode reads valid assignments from disk or prepares them immediately.
+A changed save, Tile
 View, or demand set cannot reuse another context's assignments until midnight.
 A late worker response cannot publish into another save, a disabled mode, or
 over a newer edit. An edit during a running batch remains queued for the next
 midnight. Caches are never allowed to cross a save or demand replacement.
+
+The active prepared profile is excluded from background ledger posting and is
+marked separately from an inactive deterministic profile. Inactive evaluation
+must refresh it when ownership changes. Native and cross-city evaluator workers
+release their heaps after jobs, preserving routing caches only within a job.
+Their routing caches retain at most 8000 source-search labels, 1024 paths and
+4096 catchments. Smaller caches may require more searches, but do not approximate
+journeys. Worker failures do not retry full demand inside the main renderer.
+Fresh diagnostics defer new work at 3.25 GiB of combined allocated heap pages or
+less than 512 MiB of main-isolate limit margin. This is a conservative admission
+policy based on observed crashes, not a V8 limit or a guarantee against OOM.
+Missing/stale measurements use serial execution without inventing headroom.
 
 Caches and the toggle are not persisted as a second save authority. Saving
 preserves the synchronous native save contract, settles the current interval,

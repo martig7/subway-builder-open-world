@@ -306,6 +306,7 @@ export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 
         return previous.router;
       }
       const router = buildGlobalRouter(networkProfiles);
+      router.endpointPathCache = new RoutingLRU(maxPaths);
       router.routingStats.graphBuilds++;
       const nextGeometry = JSON.stringify(router.stations.map(s=>[s.id,s.coords]));
       if (enabled && geometryKey === nextGeometry && previous) {

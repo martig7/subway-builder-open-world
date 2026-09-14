@@ -1,10 +1,24 @@
 import { projectOffTileNativeDemandTransferInput } from './off-tile-native-demand.js';
+import { runRoutingJob } from './routing-job-queue.js';
 
 const DEMAND_JSON_DECODER_VERSION = 1;
 const DEMAND_JSON_DECODER_STATE = '__openWorldDemandJsonDecoder';
-const NATIVE_DEMAND_EVALUATOR_VERSION = 1;
+const NATIVE_DEMAND_EVALUATOR_VERSION = 2;
 const NATIVE_DEMAND_EVALUATOR_STATE = '__openWorldNativeDemandEvaluator';
-const NATIVE_DEMAND_EVALUATOR_WORKER_NAME = 'open-world-native-demand-worker-evaluator-v1';
+const NATIVE_DEMAND_EVALUATOR_WORKER_NAME = 'open-world-native-demand-worker-evaluator-v2';
+
+export function assertNativeDemandMemoryBudget(sample, { cacheMode = null, now = Date.now() } = {}) {
+  // Observed crashes clustered around 4 GiB of combined allocated pages. This
+  // is an admission budget, not a measured V8 limit or guaranteed free space.
+  if (!sample || now - sample.at > 3000 || now < sample.at) return;
+  const budget = 3.25 * 1024 ** 3;
+  if ((sample.workersAvailable && sample.allIsolatesAllocatedBytes >= budget)
+    || (sample.available && sample.headroomBytes != null && sample.headroomBytes < 512 * 1024 ** 2)) {
+    const error = new Error('Demand preparation deferred: renderer memory budget is exhausted. Pause and let memory settle before retrying.');
+    error.name = 'NativeDemandMemoryPressureError';
+    throw error;
+  }
+}
 
 function demandJsonWorkerMain() {
   self.onmessage = async ({ data }) => {
@@ -167,6 +181,7 @@ export function createOffMainThreadNativeDemandEvaluator({
   createObjectURL = globalThis.URL?.createObjectURL?.bind(globalThis.URL),
   revokeObjectURL = globalThis.URL?.revokeObjectURL?.bind(globalThis.URL),
   workerSource = null,
+  readMemory = () => globalThis.__openWorldRendererMemoryDiagnostics__?.sample?.('demand.admission'),
 } = {}) {
   let worker = null;
   let workerUrl = null;
@@ -175,12 +190,16 @@ export function createOffMainThreadNativeDemandEvaluator({
   let resolveWorkerReady = null;
   let nextRequestId = 1;
   const pending = new Map();
+  let tail = Promise.resolve(), generation = 0, queued = 0;
+  let workerFailure = null;
+  const stats = { requests: 0, completed: 0, deferred: 0, workerStarts: 0, workerReleases: 0 };
 
   const rejectPending = (error) => {
     for (const request of pending.values()) request.reject(error);
     pending.clear();
   };
   const releaseWorker = () => {
+    if (worker) stats.workerReleases++;
     worker?.terminate?.();
     worker = null;
     resolveWorkerReady?.(null);
@@ -202,6 +221,7 @@ export function createOffMainThreadNativeDemandEvaluator({
     try {
       workerUrl = createObjectURL(new BlobClass([workerSource], { type: 'text/javascript' }));
       worker = new WorkerClass(workerUrl, { name: NATIVE_DEMAND_EVALUATOR_WORKER_NAME });
+      stats.workerStarts++;
       workerReady = new Promise((resolve) => { resolveWorkerReady = resolve; });
       worker.onmessage = ({ data }) => {
         if (data?.type === 'ready') {
@@ -211,8 +231,14 @@ export function createOffMainThreadNativeDemandEvaluator({
         }
         const request = pending.get(data?.id);
         if (!request) return;
+        if (data.resetAssignments) { request.assignments.length = 0; return; }
+        if (Array.isArray(data.assignments)) {
+          for (const assigned of data.assignments) request.assignments.push(assigned);
+          return;
+        }
         pending.delete(data.id);
-        if (data.ok) request.resolve(data.value);
+        if (data.ok) request.resolve(request.includeAssignments
+          ? { ...data.value, assignments: request.assignments } : data.value);
         else {
           const error = new Error(data?.error?.message ?? 'Native demand evaluator worker failed');
           error.name = data?.error?.name ?? 'Error';
@@ -222,23 +248,31 @@ export function createOffMainThreadNativeDemandEvaluator({
       };
       worker.onerror = (event) => {
         const error = new Error(event?.message ?? 'Native demand evaluator worker crashed');
+        workerFailure = error;
         rejectPending(error);
         releaseWorker();
         workerUnavailable = true;
       };
-    } catch {
+      worker.onmessageerror = () => worker.onerror({ message: 'Native demand worker response could not be decoded' });
+    } catch (error) {
+      workerFailure = error;
       releaseWorker();
       workerUnavailable = true;
     }
     return worker;
   };
 
-  const evaluate = async (bytes, input, { gzip = false } = {}) => {
+  const run = async (bytes, input, { gzip = false, cacheMode = input.includeAssignments ? 'assignments' : null } = {}) => {
+    try { assertNativeDemandMemoryBudget(readMemory(), { cacheMode }); }
+    catch (error) { stats.deferred++; releaseWorker(); throw error; }
+    if (workerFailure) throw workerFailure;
     const candidateWorker = ensureWorker();
+    if (workerFailure) throw workerFailure;
     if (!candidateWorker) return null;
     const activeWorker = await workerReady;
     if (!activeWorker) return null;
-    const sourceBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const payload = typeof bytes === 'function' ? await bytes() : bytes;
+    const sourceBytes = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
     const transferable = sourceBytes.byteOffset === 0
       && sourceBytes.byteLength === sourceBytes.buffer.byteLength
       ? sourceBytes
@@ -246,10 +280,10 @@ export function createOffMainThreadNativeDemandEvaluator({
     const id = nextRequestId++;
     const compactInput = projectOffTileNativeDemandTransferInput(input);
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
+      pending.set(id, { resolve, reject, assignments: [], includeAssignments: cacheMode === 'assignments' });
       try {
         activeWorker.postMessage(
-          { id, bytes: transferable.buffer, gzip, input: compactInput },
+          { id, bytes: transferable.buffer, gzip, input: compactInput, cacheMode },
           [transferable.buffer],
         );
       } catch (error) {
@@ -259,12 +293,44 @@ export function createOffMainThreadNativeDemandEvaluator({
     });
   };
 
+  const evaluate = (bytes, input, options = {}) => {
+    const token = generation;
+    const compactInput = projectOffTileNativeDemandTransferInput(input);
+    queued++; stats.requests++;
+    const job = tail.then(async () => {
+      if (token !== generation) throw new Error('Native demand evaluator was disposed');
+      return runRoutingJob(async () => {
+        if (token !== generation) throw new Error('Native demand evaluator was disposed');
+        const started = performance.now();
+        const activity = (stage, details = {}) => {
+          try { globalThis.__openWorldRendererMemoryDiagnostics__?.recordActivity?.(stage,
+            { tileId: compactInput.tileId, durationMs: performance.now() - started, ...details }); } catch {}
+        };
+        activity('demand.worker.start');
+        try {
+          const value = await run(bytes, compactInput, options);
+          activity('demand.worker.end', { status: value?.diskCache ?? value?.status,
+            rows: value?.profile?.evaluatedPops, bytes: value?.cacheBytes });
+          return value;
+        } catch (error) { activity('demand.worker.error', { reason: error.name }); throw error; }
+        finally { releaseWorker(); }
+      });
+    }).finally(() => {
+      queued--; stats.completed++;
+    });
+    tail = job.catch(() => {});
+    return job;
+  };
+
   const dispose = () => {
+    generation++;
     rejectPending(new Error('Native demand evaluator worker was disposed'));
     releaseWorker();
   };
 
-  return { evaluate, dispose };
+  return { evaluate, dispose, snapshot: () => ({ version: NATIVE_DEMAND_EVALUATOR_WORKER_NAME,
+    ...stats, queued, active: pending.size, workerAlive: worker != null }),
+    releaseIdle() { if (!queued && !pending.size) releaseWorker(); } };
 }
 
 function sharedDemandJsonDecoder() {
@@ -281,7 +347,7 @@ function sharedDemandJsonDecoder() {
   return decoder;
 }
 
-function sharedNativeDemandEvaluator(workerSource = null) {
+export function sharedNativeDemandEvaluator(workerSource = null) {
   const existing = globalThis[NATIVE_DEMAND_EVALUATOR_STATE];
   if (existing?.version === NATIVE_DEMAND_EVALUATOR_VERSION
     && existing?.workerSource === workerSource
@@ -427,7 +493,7 @@ export class EmbeddedTilePackageAdapter {
           }
           return data;
         })
-        .catch((error) => { this.nativeDemand.delete(tileId); throw error; });
+        .finally(() => { this.nativeDemand.delete(tileId); });
       this.nativeDemand.set(tileId, pending);
     }
     return this.nativeDemand.get(tileId);

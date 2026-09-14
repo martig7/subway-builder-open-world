@@ -1,18 +1,22 @@
 import { calculateCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
+import { runRoutingJob } from './routing-job-queue.js';
+import { assertNativeDemandMemoryBudget } from './embedded-tile-package-adapter.js';
 
-/** One session owns one worker; unavailable workers preserve the synchronous calculation. */
+/** One allocation slot per calculation; crashed workers never retry in the main heap. */
 export function createCrossModeShareEvaluator({
   workerSource,
   WorkerClass = globalThis.Worker,
   BlobClass = globalThis.Blob,
   createObjectURL = globalThis.URL?.createObjectURL?.bind(globalThis.URL),
   revokeObjectURL = globalThis.URL?.revokeObjectURL?.bind(globalThis.URL),
+  readMemory = () => globalThis.__openWorldRendererMemoryDiagnostics__?.sample?.('cross-demand.admission'),
 } = {}) {
   let worker = null;
   let objectUrl = null;
   let unavailable = false;
   let disposed = false;
   let sequence = 0;
+  let workerFailure = null;
   const pending = new Map();
   const routingCache = createCrossTileRoutingCache();
   const stats = { version: CROSS_ROUTING_CACHE_VERSION, workerEvaluations: 0, fallbackEvaluations: 0, latestError: null, latestRoutingStats: null };
@@ -23,6 +27,7 @@ export function createCrossModeShareEvaluator({
     objectUrl = null;
   };
   const fail = (error) => {
+    workerFailure = error;
     unavailable = true;
     stats.latestError = error.message;
     release();
@@ -68,9 +73,10 @@ export function createCrossModeShareEvaluator({
     return worker;
   };
 
-  return {
-    async evaluate(input) {
+  const evaluate = async input => {
+      assertNativeDemandMemoryBudget(readMemory());
       if (disposed) throw new Error('Cross-mode share evaluator was disposed');
+      if (workerFailure) throw workerFailure;
       const activeWorker = ensureWorker();
       if (activeWorker) {
         const id = ++sequence;
@@ -93,16 +99,25 @@ export function createCrossModeShareEvaluator({
           stats.latestRoutingStats = value.routingStats;
           return value;
         } catch (error) {
-          if (disposed) throw error;
           stats.latestError = error.message;
+          throw error;
         }
       }
+      if (workerFailure) throw workerFailure;
       if (disposed) throw new Error('Cross-mode share evaluator was disposed');
       stats.fallbackEvaluations++;
       const value = calculateCrossTileModeShares({ ...input, routingCache });
       stats.latestRoutingStats = value.routingStats;
       return value;
-    },
+  };
+  return {
+    evaluate: input => runRoutingJob(async () => {
+      try { return await evaluate(input); }
+      finally {
+        // Return committed pages before handing the allocation slot to another job.
+        if (!pending.size) release();
+      }
+    }),
     diagnostics: () => ({ ...stats, pending: pending.size }),
     dispose() {
       if (disposed) return;

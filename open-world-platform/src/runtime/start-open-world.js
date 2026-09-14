@@ -15,6 +15,7 @@ import { HashCityNavigationAdapter } from './adapters/hash-city-navigation-adapt
 import { registerCrossDemandViewer } from './ui/cross-demand-viewer.js';
 import { registerNetworkProjectionOverlay } from './ui/network-projection-overlay.js';
 import { EmbeddedTilePackageAdapter, resolveRendererDataUrl } from './embedded-tile-package-adapter.js';
+import { createActiveDemandPreparation } from './active-demand-preparation.js';
 import { createOpenWorldCatalog } from './open-world-catalog.js';
 import { createOpenWorldCityRegistration } from './open-world-city-registration.js';
 import { createDailyModeShareInvalidation, registerCrossTileClockHooks, registerModeShareInvalidationHooks } from './mode-share-hook-policy.js';
@@ -315,6 +316,9 @@ export function startOpenWorld({
     resolveDataUrl: (path) => resolveRendererDataUrl(path),
     nativeDemandWorkerSource: workerSources.nativeDemandEvaluator ?? null,
   });
+  const activeDemandPreparation = workerSources.nativeDemandEvaluator ? createActiveDemandPreparation({ game,
+    getState: () => game.callbacks.getState(), workerSource: workerSources.nativeDemandEvaluator }) : null;
+  if (activeDemandPreparation) tilePackages.prepareActiveNativeDemand = activeDemandPreparation.prepare;
   let latestMap = api.utils?.getMap?.() ?? null;
   let autosaveIdleGuard = null, autosaveIdleMap = null;
   const noteAutosaveMapMovement = () => autosaveIdleGuard?.noteMovement?.();
@@ -357,6 +361,7 @@ export function startOpenWorld({
   let tileSourceStyleHandler = null;
   let renderDistanceToolbarRegistered = false;
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
+    activeDemandPreparation: activeDemandPreparation?.snapshot,
     intercityTrains,
     runtimeAuditVersion: RUNTIME_AUDIT_VERSION,
     generation,
@@ -643,11 +648,15 @@ export function startOpenWorld({
   const cachedSimulation = createCachedSimulation({
     game, api, getState: () => game.callbacks.getState(),
     workerSource: workerSources.nativeDemandEvaluator,
+    prepareActiveDemand: activeDemandPreparation?.prepare,
     postingWorkerSource: workerSources.hourlyFinance,
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
     onDay: flushMidnightCommutes,
-    onSavePhase: (stage, details) => rendererMemory.recordActivity(stage, details),
+    onSavePhase: (stage, details) => {
+      if (stage === 'generate.start') activeDemandPreparation?.releaseIdle();
+      rendererMemory.recordActivity(stage, details);
+    },
   });
   diagnostics.cachedSimulation = cachedSimulation.snapshot;
   function ensureSession() {

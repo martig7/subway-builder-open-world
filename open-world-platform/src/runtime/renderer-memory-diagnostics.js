@@ -291,7 +291,7 @@ export function installRendererMemoryDiagnostics({
         targetId: textLabel(value.targetId), isolateId: textLabel(value.isolateId), usedBytes: finite(value.usedBytes), totalBytes: finite(value.totalBytes),
         limitBytes: finite(value.limitBytes), backingStorageBytes: finite(value.backingStorageBytes), embedderBytes: finite(value.embedderBytes),
         requestMs: finite(value.requestMs),
-        workersStatus: value.workers?.version === 'worker-v8-heap-v1' ? textLabel(value.workers.status) : null,
+        workersStatus: ['worker-v8-heap-v1', 'worker-v8-heap-v2'].includes(value.workers?.version) ? textLabel(value.workers.status) : null,
         workersAt: typeof value.workers?.at === 'string' ? textLabel(value.workers.at) : finite(value.workers?.at),
         workersRequestMs: finite(value.workers?.requestMs), workerCount: finite(value.workers?.workerCount),
         workerUsedBytes: finite(value.workers?.usedBytes), workerAllocatedBytes: finite(value.workers?.totalBytes),

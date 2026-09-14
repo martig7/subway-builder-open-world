@@ -1,29 +1,16 @@
-import { evaluateOffTileNativeDemand } from '../runtime/off-tile-native-demand.js';
-import { createCrossTileRoutingCache } from '../runtime/cross-tile-mode-choice.js';
+import { runNativeDemandWorkerJob } from '../runtime/native-demand-worker-job.js';
+import { createActiveDemandDiskStore } from '../runtime/active-demand-disk-cache.js';
 
-const WORKER_MARKER = 'open-world-native-demand-worker-evaluator-v1';
-const routingCache = createCrossTileRoutingCache();
-
-async function decodeDemand(bytes, gzip) {
-  const input = new Uint8Array(bytes);
-  let text;
-  if (gzip) {
-    if (typeof DecompressionStream !== 'function') {
-      throw new Error('This game runtime cannot decompress native demand data');
-    }
-    const stream = new Blob([input]).stream().pipeThrough(new DecompressionStream('gzip'));
-    text = await new Response(stream).text();
-  } else {
-    text = new TextDecoder().decode(input);
-  }
-  return JSON.parse(text);
-}
+const WORKER_MARKER = 'open-world-native-demand-worker-evaluator-v2';
+const store = createActiveDemandDiskStore();
 
 self.onmessage = async ({ data }) => {
-  const { id, bytes, gzip, input } = data ?? {};
+  const { id } = data ?? {};
   try {
-    const demand = await decodeDemand(bytes, gzip);
-    const value = evaluateOffTileNativeDemand({ ...input, demand, routingCache });
+    const value = await runNativeDemandWorkerJob(data, { store,
+      emitAssignments: assignments => self.postMessage({ id, assignments }),
+      resetAssignments: () => self.postMessage({ id, resetAssignments: true }),
+    });
     self.postMessage({ id, ok: true, value });
   } catch (error) {
     self.postMessage({

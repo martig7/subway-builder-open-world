@@ -62,14 +62,19 @@ function hashText(value) {
 }
 
 function demandFingerprint(demand) {
-  let value = `${demand?.points?.length ?? 0}|${demand?.pops?.length ?? 0}`;
+  // Feed short rows into the hash; never build a tile-sized concatenated string.
+  let hash = 2_166_136_261;
+  const append = value => { for (const character of value) {
+    hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16_777_619);
+  } };
+  append(`${demand?.points?.length ?? 0}|${demand?.pops?.length ?? 0}`);
   for (const point of demand?.points ?? []) {
-    value += `|${point?.id}:${point?.location?.[0]},${point?.location?.[1]}:${point?.residents ?? 0}:${point?.jobs ?? 0}`;
+    append(`|${point?.id}:${point?.location?.[0]},${point?.location?.[1]}:${point?.residents ?? 0}:${point?.jobs ?? 0}`);
   }
   for (const pop of demand?.pops ?? []) {
-    value += `|${pop?.id}:${pop?.size}:${pop?.residenceId}:${pop?.jobId}:${pop?.drivingSeconds}:${pop?.drivingDistance}`;
+    append(`|${pop?.id}:${pop?.size}:${pop?.residenceId}:${pop?.jobId}:${pop?.drivingSeconds}:${pop?.drivingDistance}`);
   }
-  return hashText(value);
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
 function scopedFarePolicy(farePolicy, network) {
@@ -86,7 +91,7 @@ function scopedFarePolicy(farePolicy, network) {
   };
 }
 
-function deterministicNetworkProfile(profile) {
+export function deterministicNetworkProfile(profile) {
   return {
     ...profile,
     routes: (profile?.routes ?? []).map((route) => ({
@@ -120,12 +125,14 @@ export function offTileNativeDemandContextKey({
   })));
 }
 
-function normalizeDemand(tileId, demand, preserveDepartures = false) {
-  const pointIndex = new Map();
-  const points = [];
-  for (const point of demand?.points ?? []) {
+function normalizeDemand(tileId, demand, preserveDepartures = false, pointData = null) {
+  const pointIndex = pointData?.pointIndex ?? new Map();
+  const points = pointData?.points ?? [];
+  const locations = pointData?.locations ?? new Map();
+  for (const point of pointData ? [] : demand?.points ?? []) {
     if (!point?.id || !Array.isArray(point.location) || point.location.length < 2) continue;
     pointIndex.set(String(point.id), points.length);
+    locations.set(String(point.id), point.location);
     points.push([
       String(point.id), Number(point.location[0]), Number(point.location[1]), tileId,
       Number(point.residents) || 0, Number(point.jobs) || 0,
@@ -153,7 +160,7 @@ function normalizeDemand(tileId, demand, preserveDepartures = false) {
       Number(pop.drivingSeconds), Number(pop.drivingDistance),
       departures.homeDepartureTime, departures.workDepartureTime,
     ]);
-    sourceById.set(String(pop.id), { ...pop, ...departures });
+    sourceById.set(String(pop.id), departures);
   }
   return {
     demand: {
@@ -166,6 +173,7 @@ function normalizeDemand(tileId, demand, preserveDepartures = false) {
       drivingModel: { provider: 'packaged-native-demand', label: 'build-time road router' },
     },
     sourceById,
+    pointData: { pointIndex, points, locations },
     skippedPops,
   };
 }
@@ -190,48 +198,32 @@ function fareQuoteFor({ stationRoutes, stationById, farePolicy, globalNativeStat
   });
 }
 
-function syntheticNativePops(calculated, sourceById, returnCalculated) {
-  if (returnCalculated) {
-    const outward = new Map(syntheticNativePops(calculated, sourceById).map(pop => [pop.id, pop]));
-    const homeward = new Map(syntheticNativePops(returnCalculated, sourceById).map(pop => [pop.id, pop]));
-    return [...new Set([...outward.keys(), ...homeward.keys()])].map(id => ({
-      id,
-      homeDepartureTime: sourceById.get(id)?.homeDepartureTime,
-      workDepartureTime: sourceById.get(id)?.workDepartureTime,
-      commutes: {
-        homeToWork: outward.get(id)?.commutes.homeToWork ?? {modeChoice:{transit:0}},
-        workToHome: homeward.get(id)?.commutes.workToHome ?? {modeChoice:{transit:0}},
-      },
-    }));
-  }
-  const journeys = [...calculated.transitJourneys.values()].flat();
-  return journeys.map((journey) => {
-    const source = sourceById.get(String(journey.popId)) ?? {};
-    const commute = {
-      modeChoice: calculated.popModeChoices[journey.popId] ?? { transit: journey.transitMass },
+function* syntheticNativePops(calculated, sourceById, returnCalculated) {
+  const commutes = result => {
+    const byId = new Map();
+    for (const journeys of result.transitJourneys.values()) for (const journey of journeys) byId.set(String(journey.popId), {
+      modeChoice: result.popModeChoices[journey.popId] ?? { transit: journey.transitMass },
       transitCost: journey.fare,
       transitTime: journey.totalClockSeconds,
       transitPaths: [{
         fareCost: journey.fare,
         segments: journey.stationRoutes.map(({ routeId, stationIds }) => ({ routeId, stationIds })),
       }],
-    };
-    return {
-      id: journey.popId,
-      homeDepartureTime: source.homeDepartureTime,
-      workDepartureTime: source.workDepartureTime,
-      commutes: {
-        homeToWork: structuredClone(commute),
-        workToHome: structuredClone(commute),
-      },
-      lastCommute: { ...structuredClone(commute), direction: 'workToHome', origin: 'work' },
-    };
-  });
+    });
+    return byId;
+  };
+  const outward = commutes(calculated), homeward = commutes(returnCalculated);
+  for (const id of new Set([...outward.keys(), ...homeward.keys()])) yield {
+    id, ...sourceById.get(id), commutes: {
+      homeToWork: outward.get(id) ?? { modeChoice: { transit: 0 } },
+      workToHome: homeward.get(id) ?? { modeChoice: { transit: 0 } },
+    },
+  };
 }
 
 function ridershipByRoute(calculated) {
   const result = {};
-  for (const journey of [...calculated.transitJourneys.values()].flat()) {
+  for (const journeys of calculated.transitJourneys.values()) for (const journey of journeys) {
     for (const routeId of new Set(journey.stationRoutes.map((entry) => entry.routeId).filter(Boolean))) {
       result[routeId] = (result[routeId] ?? 0) + journey.transitMass;
     }
@@ -243,7 +235,7 @@ function ridershipByRoute(calculated) {
  * Evaluate one installed tile's native demand without adopting that tile into
  * Subway Builder's singleton store. The result is compact and cacheable.
  */
-export function evaluateOffTileNativeDemand({
+function evaluateBatch({
   worldId,
   routingCache = createCrossTileRoutingCache(),
   tileId,
@@ -254,19 +246,21 @@ export function evaluateOffTileNativeDemand({
   financeOwnedRouteIds = [],
   existingProfile = null,
   includeAssignments = false,
+  pointData = null,
+  prepared = null,
 }) {
   if (!tileId) throw new Error('Off-tile native demand requires a tile id');
   if (!Array.isArray(demand?.points) || !Array.isArray(demand?.pops)) {
     throw new Error(`Invalid native demand package: ${tileId}`);
   }
-  const network = deterministicNetworkProfile(networkProfile ?? {
+  const network = prepared?.network ?? deterministicNetworkProfile(networkProfile ?? {
     schemaVersion: 1, tileId, stations: [], routes: [], activeRouteIds: [], pathfindingRules: {},
     structuralSignature: `${tileId}:empty`,
   });
-  const contextKey = offTileNativeDemandContextKey({
+  const contextKey = prepared?.contextKey ?? offTileNativeDemandContextKey({
     tileId, networkProfile: network, farePolicy, financeOwnedRouteIds,
   });
-  const evaluationKey = hashText(JSON.stringify(stableValue({
+  const evaluationKey = prepared?.evaluationKey ?? hashText(JSON.stringify(stableValue({
     contextKey,
     demand: demandFingerprint(demand),
   })));
@@ -275,7 +269,7 @@ export function evaluateOffTileNativeDemand({
     return { status: 'cached', profile: structuredClone(existingProfile) };
   }
 
-  const normalized = normalizeDemand(tileId, demand, includeAssignments);
+  const normalized = normalizeDemand(tileId, demand, includeAssignments, pointData);
   const evaluateDirection = crossDemand => calculateCrossTileModeShares({
     worldId, routingCache,
     includeJourneyDetails: includeAssignments,
@@ -321,14 +315,14 @@ export function evaluateOffTileNativeDemand({
     accountingOwnership: createNativeTopologyFinancePolicy(),
   };
   return { status: 'evaluated', profile,
-    ...(includeAssignments ? { assignments: nativeDemandAssignments(demand, normalized.sourceById, calculated, returnCalculated) } : {}),
+    ...(includeAssignments ? { assignments: nativeDemandAssignments(demand, normalized.sourceById, calculated, returnCalculated,
+      normalized.pointData.locations) } : {}),
   };
 }
 
 // Native demand cards and map highlights consume these fields directly. Keep
 // both directions, including walking/driving-only pops and access/transfer legs.
-function nativeDemandAssignments(demand, sources, outward, homeward) {
-  const points = new Map(demand.points.map(point => [String(point.id), point.location]));
+function nativeDemandAssignments(demand, sources, outward, homeward, points) {
   return demand.pops.map(pop => {
     const source = sources.get(String(pop.id)) ?? pop;
     const commutes = {};
@@ -380,8 +374,78 @@ function nativeDemandAssignments(demand, sources, outward, homeward) {
   });
 }
 
-export function isCurrentOffTileNativeDemandProfile(profile) {
-  return profile?.source === 'off-tile-estimator'
+export const NATIVE_DEMAND_BATCH_VERSION = 'native-demand-batches-v1';
+export const NATIVE_DEMAND_BATCH_SIZE = 128;
+
+// One graph and point index, but only one small batch of direction results,
+// choice inputs and synthetic finance pops. Consumers may persist each batch
+// before requesting the next without retaining all native-shaped assignments.
+export function* nativeDemandEvaluationBatches(input) {
+  const { demand, tileId } = input;
+  if (!Array.isArray(demand?.pops) || !Array.isArray(demand?.points)) throw new Error(`Invalid native demand package: ${tileId}`);
+  const size = Math.max(1, Math.min(4096, Math.floor(input.batchSize ?? NATIVE_DEMAND_BATCH_SIZE)));
+  const pointById = new Map(demand.points.map(point => [String(point.id), point]));
+  const routingCache = input.routingCache ?? createCrossTileRoutingCache();
+  const contextKey = offTileNativeDemandContextKey(input);
+  const evaluationKey = hashText(JSON.stringify(stableValue({ contextKey, demand: demandFingerprint(demand) })));
+  const prepared = { contextKey, evaluationKey,
+    network: input.networkProfile ? deterministicNetworkProfile(input.networkProfile) : null };
+  if (!input.includeAssignments && input.existingProfile?.source === 'off-tile-estimator'
+    && input.existingProfile.evaluationKey === evaluationKey) {
+    yield { status: 'cached', profile: structuredClone(input.existingProfile) };
+    return;
+  }
+  for (let offset = 0; offset < Math.max(1, demand.pops.length); offset += size) {
+    const pops = demand.pops.slice(offset, offset + size);
+    const ids = new Set();
+    for (const pop of pops) { ids.add(String(pop.residenceId)); ids.add(String(pop.jobId)); }
+    const points = [...ids].map(id => pointById.get(id)).filter(Boolean);
+    const result = evaluateBatch({ ...input, existingProfile: null, routingCache, prepared,
+      demand: { points, pops } });
+    result.profile.evaluationKey = evaluationKey;
+    input.onBatch?.(pops.length);
+    yield result;
+  }
+}
+
+export function mergeNativeDemandProfiles(target, profile) {
+  if (!target) return profile;
+  const add = (a, b) => { for (const [key, value] of Object.entries(b ?? {})) a[key] = (a[key] ?? 0) + value; };
+  for (const key of ['transitPopulation', 'dailyRevenue', 'customCrossTileRevenue', 'nativeRevenue',
+    'evaluatedPops', 'skippedPops', 'transitViablePops']) target[key] += profile[key];
+  add(target.modeChoicePopulation, profile.modeChoicePopulation);
+  add(target.ridershipByRoute, profile.ridershipByRoute);
+  const retainedSearchLabels = Math.max(target.routingStats.retainedSearchLabels ?? 0, profile.routingStats.retainedSearchLabels ?? 0);
+  add(target.routingStats, profile.routingStats);
+  target.routingStats.retainedSearchLabels = retainedSearchLabels;
+  for (let i = 0; i < 24; i++) {
+    const a = target.hourly[i], b = profile.hourly[i];
+    a.revenue += b.revenue;
+    add(a.revenueByRoute, b.revenueByRoute);
+    if (b.financeOwnedRevenue != null) a.financeOwnedRevenue = (a.financeOwnedRevenue ?? 0) + b.financeOwnedRevenue;
+    if (b.financeOwnedRevenueByRoute) add(a.financeOwnedRevenueByRoute ??= {}, b.financeOwnedRevenueByRoute);
+    if (b.completedCommutes) {
+      a.completedCommutes ??= [];
+      for (const commute of b.completedCommutes) a.completedCommutes.push(commute);
+    }
+  }
+  return target;
+}
+
+export function evaluateOffTileNativeDemand(input) {
+  let profile = null;
+  const assignments = input.includeAssignments ? [] : null;
+  for (const batch of nativeDemandEvaluationBatches(input)) {
+    profile = mergeNativeDemandProfiles(profile, batch.profile);
+    if (assignments) for (const assigned of batch.assignments) assignments.push(assigned);
+  }
+  const cached = !input.includeAssignments && input.existingProfile?.source === 'off-tile-estimator'
+    && input.existingProfile.evaluationKey === profile.evaluationKey;
+  return { status: cached ? 'cached' : 'evaluated', profile, ...(assignments ? { assignments } : {}) };
+}
+
+export function isCurrentOffTileNativeDemandProfile(profile, { activeTile = false } = {}) {
+  return (profile?.source === 'off-tile-estimator' || (activeTile && profile?.source === 'active-tile-prepared'))
     && profile?.evaluatorSchemaVersion === EVALUATOR_SCHEMA_VERSION
     && profile?.ridershipRecording === NATIVE_RIDERSHIP_RECORDING_VERSION
     && typeof profile?.contextKey === 'string'

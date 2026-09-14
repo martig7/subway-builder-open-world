@@ -9,6 +9,7 @@ import { ModStorageWorldStateAdapter } from '../../../../open-world-platform/src
 import { compactNativeSnapshot, SubwayBuilderGameAdapter } from '../../../../open-world-platform/src/runtime/adapters/subway-builder-game-adapter.js';
 import { NativeRevenueAccrual } from '../../../../open-world-platform/src/runtime/native-revenue-accrual.js';
 import { createGlobalNetwork } from '../../../../open-world-platform/src/runtime/network-projection.js';
+import { evaluateOffTileNativeDemand } from '../../../../open-world-platform/src/runtime/off-tile-native-demand.js';
 import {
   OPEN_WORLD_RUNTIME_METADATA_KEY,
   OPEN_WORLD_RUNTIME_SAVE_NAME,
@@ -71,6 +72,22 @@ test('packaged revenue compilation skips disabled native expense and audit forec
   assert.deepEqual(options, [], 'successful packaged estimates do not calculate the discarded native audit');
   await runtime.inspectNativeRevenue();
   assert.deepEqual(options, [{ includeRevenue: true, includeExpenses: false }]);
+});
+
+test('regular tile evaluation prepares the active cache instead of creating a duplicate package evaluation', async () => {
+  const { runtime } = setupProjectedRuntime({ backgroundNativeExpenses: false });
+  runtime.tilePackages.packages.get('T0').nativeDemand = { points: [], pops: [] };
+  await runtime.boot('prepare-active-demand', 'T0');
+  let prepared = 0;
+  runtime.tilePackages.prepareActiveNativeDemand = async ({ tileId }) => {
+    prepared++;
+    const result = evaluateOffTileNativeDemand({ tileId, demand: { points: [], pops: [] }, includeAssignments: true });
+    return { status: result.status, profile: { ...result.profile, source: 'active-tile-prepared' }, diskCache: 'written' };
+  };
+  runtime.tilePackages.loadNativeDemand = () => { throw new Error('duplicate active demand load'); };
+  await runtime.recalculateCrossTileModeShare({ reason: 'manual', force: true });
+  assert.equal(prepared, 1);
+  assert.equal(runtime.world.backgroundNativeFinance.tileRevenueProfiles.T0.source, 'active-tile-prepared');
 });
 
 test('projection notifications retain their summary view without cloning population details', async () => {
@@ -793,7 +810,7 @@ test('network recalculation accepts compact native-demand evaluations from a pac
   assert.equal(runtime.view().backgroundNativeFinance.tileRevenueProfiles.T1.dailyRevenue, 1_234);
 });
 
-test('network recalculation falls back to parsed demand when package evaluation fails', async () => {
+test('a failed demand worker never retries the full tile in the renderer heap', async () => {
   const tileIds = ['T0', 'T1'];
   const nativeDemand = { points: [], pops: [] };
   const tilePackages = new MemoryTilePackageAdapter(Object.fromEntries(tileIds.map((tileId) => [tileId, {
@@ -832,8 +849,8 @@ test('network recalculation falls back to parsed demand when package evaluation 
   await runtime.recalculateCrossTileModeShare({ reason: 'network-change', force: true });
 
   assert.deepEqual(attempted, tileIds);
-  assert.deepEqual(loaded, tileIds);
-  assert.equal(runtime.view().backgroundNativeFinance.tileRevenueProfiles.T1.source, 'off-tile-estimator');
+  assert.deepEqual(loaded, []);
+  assert.equal(runtime.view().backgroundNativeFinance.tileRevenueProfiles.T1, undefined);
 });
 
 test('cached native demand is not recalculated by startup, save-load, or tile lifecycle events', async () => {

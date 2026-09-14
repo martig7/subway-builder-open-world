@@ -701,6 +701,16 @@ export class WorldTileRuntime {
     if (hasPackagedDemand) {
       for (const candidateTileId of this.tileIds) {
         try {
+          if (candidateTileId === world.activeTileId && this.tilePackages.prepareActiveNativeDemand) {
+            const active = await this.tilePackages.prepareActiveNativeDemand({ tileId: candidateTileId });
+            if (active) {
+              finance.tileRevenueProfiles[candidateTileId] = active.profile;
+              results[active.status]++;
+              this.telemetry({ phase: 'active-tile-demand-preparation', tileId: candidateTileId,
+                status: active.status, evaluatedPops: active.profile.evaluatedPops, diskCache: active.diskCache });
+              continue;
+            }
+          }
           const localized = globalState && tileIdsByRoute
             ? localizedNativeNetworkState(globalState, candidateTileId, tileIdsByRoute)
             : null;
@@ -777,6 +787,9 @@ export class WorldTileRuntime {
             }
           }
           if (!result) {
+            // A worker failure or memory deferral must never trigger a second,
+            // larger attempt inside the already pressured main isolate.
+            if (packageEvaluationError) throw packageEvaluationError;
             const demand = canSeedUnservedProfile
               ? { points: [], pops: [] }
               : await this.tilePackages.loadNativeDemand?.(candidateTileId);
@@ -910,7 +923,8 @@ export class WorldTileRuntime {
     const finance = world.backgroundNativeFinance;
     const rules = this.game.capturePathfindingRules?.();
     const rulesCurrent = rules == null || finance?.routingRulesKey === JSON.stringify(rules);
-    if (!pending && rulesCurrent && finance?.networkHash && this.tileIds.every(id => finance.tileRevenueProfiles?.[id])) {
+    if (!pending && rulesCurrent && finance?.networkHash && this.tileIds.every(id => finance.tileRevenueProfiles?.[id]
+      && (id === world.activeTileId || finance.tileRevenueProfiles[id].source !== 'active-tile-prepared'))) {
       return { status: 'derived-cache', networkHash: finance.networkHash };
     }
     if (pending?.worldId === world.worldId && pending.attemptedHour >= targetHour) {
@@ -932,6 +946,7 @@ export class WorldTileRuntime {
         && this.world.backgroundNativeFinance?.networkHash === (this.world.globalNetwork?.hash ?? null)
         && this.tileIds.every((tileId) => isCurrentOffTileNativeDemandProfile(
           this.world.backgroundNativeFinance?.tileRevenueProfiles?.[tileId],
+          { activeTile: tileId === this.world.activeTileId },
       ));
       if (!force && PASSIVE_RECALCULATION_REASONS.has(reason) && passiveCacheReady) {
         const result = { ...this.world.crossModeShare, status: 'cached', reason, day };

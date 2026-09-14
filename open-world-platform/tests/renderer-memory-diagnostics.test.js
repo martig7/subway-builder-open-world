@@ -280,7 +280,7 @@ test('worker allocation totals remain separate from main headroom and expire ind
   const f = fixture({ readV8Memory: null });
   const main = { version: 'renderer-v8-heap-v1', status: 'available', targetId: 'game', isolateId: 'main', at: 100_000,
     usedBytes: 600 * MiB, totalBytes: 700 * MiB, limitBytes: 1000 * MiB };
-  const workers = { version: 'worker-v8-heap-v1', status: 'available', at: 100_000, requestMs: 10,
+  const workers = { version: 'worker-v8-heap-v2', status: 'available', at: 100_000, requestMs: 10,
     workerCount: 2, usedBytes: 200 * MiB, totalBytes: 250 * MiB, backingStorageBytes: 500 * MiB };
   f.monitor.acceptHeapMeasurement({ ...main, workers });
   let sample = f.monitor.sample();

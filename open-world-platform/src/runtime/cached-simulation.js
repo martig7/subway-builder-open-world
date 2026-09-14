@@ -6,7 +6,7 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v10';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v11';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
@@ -55,7 +55,7 @@ export function publishCachedDemand(state, assignments) {
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
   onHour = async () => {}, onDay = async () => {}, workerSource = null,
-  postingWorkerSource = null, evaluate = null, onSavePhase = null } = {}) {
+  postingWorkerSource = null, evaluate = null, prepareActiveDemand = null, onSavePhase = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
@@ -76,7 +76,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     pendingMidnightRefresh,
     saveReferenceSharing: NATIVE_SAVE_REFERENCE_SHARING_VERSION,
     ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
-    assignedPops: cache?.assignments.length ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
+    assignedPops: cache?.assignedPops ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
     dailyRidership: cache?.profile.hourly.reduce((sum, hour) => sum + (hour.completedCommutes ?? []).reduce((n, c) => n + c.size, 0), 0) ?? 0 });
   const notify = () => { for (const listener of listeners) listener(snapshot()); };
   const dependencyList = state => [state.gameSessionId, state.cityCode, state.routes, state.stations, state.tracks,
@@ -152,13 +152,14 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       observeFrozenTrains(state);
       status = 'calculating'; notify();
       const initial = contextOf(state), begin = performance.now();
-      const demand = { points: values(state.demandData.points), pops: values(state.demandData.popsMap)
+      const demand = prepareActiveDemand ? null : { points: values(state.demandData.points), pops: values(state.demandData.popsMap)
         .map(({ id, size, residenceId, jobId, drivingSeconds, drivingDistance, homeDepartureTime, workDepartureTime }) =>
           ({ id, size, residenceId, jobId, drivingSeconds, drivingDistance, homeDepartureTime, workDepartureTime })) };
       const input = { worldId: state.gameSessionId, tileId: state.cityCode, includeAssignments: true,
         networkProfile: game.captureCrossTileNetworkProfile(state.cityCode),
         farePolicy: { fare: state.transitCost, fareGroups: state.fareGroups }, globalNativeState: state };
-      const result = evaluate ? await evaluate({ ...input, demand })
+      const result = prepareActiveDemand ? await prepareActiveDemand({ assignments: true, tileId: state.cityCode })
+        : evaluate ? await evaluate({ ...input, demand })
         : await worker.evaluate(new TextEncoder().encode(JSON.stringify(demand)), input)
           ?? evaluateOffTileNativeDemand({ ...input, demand, routingCache });
       const live = getState();
@@ -166,10 +167,11 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       // replacements neither invalidate a journey nor queue another midnight.
       const current = contextOf(live);
       if (disposed || !enabled || revision !== token || initial.some((value, i) => value !== current[i])) return false;
-      if (result.assignments?.length !== demand.pops.length) throw new Error('Incomplete cached demand calculation.');
+      if (result.assignments?.length !== state.demandData.popsMap.size) throw new Error('Incomplete cached demand calculation.');
       observeFrozenTrains(live);
       publishCachedDemand(live, result.assignments);
-      cache = { ...result, expenses: game.calculateNativeFinanceProfile(state.cityCode, live,
+      cache = { profile: result.profile, assignedPops: result.assignments.length,
+        expenses: game.calculateNativeFinanceProfile(state.cityCode, live,
         { includeRevenue: false }).expenseProfile };
       cache.pathsByCoordinates = new Map();
       for (const assigned of result.assignments) for (const commute of Object.values(assigned.commutes)) {

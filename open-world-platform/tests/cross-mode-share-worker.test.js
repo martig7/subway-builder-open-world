@@ -60,13 +60,18 @@ test('worker retains native fare totals and exact attribution for flat, route an
   }
 });
 
-test('missing and crashed workers safely preserve the original calculation and native fare callback', async () => {
+test('missing workers retain compatibility, while crashed workers never retry in the main heap', async () => {
   class BrokenWorker extends HarnessWorker { postMessage() { queueMicrotask(() => this.onerror({ message: 'worker crash' })); } }
   for (const WorkerClass of [null, BrokenWorker]) {
     const input = fixture();
     input.journeyFare = () => ({ total: 9.8, revenueByRoute: { r0: 9.8 } });
     const client = evaluator(WorkerClass);
     try {
+      if (WorkerClass) {
+        await assert.rejects(client.evaluate(input), /worker crash/);
+        assert.equal(client.diagnostics().fallbackEvaluations, 0);
+        continue;
+      }
       assert.deepEqual(await client.evaluate(input), calculateCrossTileModeShares(input));
       assert.equal(client.diagnostics().fallbackEvaluations, 1);
     } finally { client.dispose(); }
@@ -134,7 +139,7 @@ test('the production handler evaluates across a real worker boundary with host f
   } finally { client.dispose(); }
 });
 
-test('worker and synchronous fallback retain routing caches across evaluations and isolate Worlds', async () => {
+test('routing workers release each completed heap while compatibility caches isolate Worlds', async () => {
   for (const WorkerClass of [HarnessWorker, null]) {
     const client = evaluator(WorkerClass);
     const input = { ...fixture(), worldId: 'first-world' };
@@ -143,8 +148,8 @@ test('worker and synchronous fallback retain routing caches across evaluations a
       const second = await client.evaluate(structuredClone(input));
       assert.deepEqual(second.popModeChoices, first.popModeChoices);
       assert.deepEqual(second.transitJourneys, first.transitJourneys);
-      assert.equal(second.routingStats.graphBuilds, 0);
-      assert.equal(second.routingStats.searches, 0);
+      assert.equal(second.routingStats.graphBuilds, WorkerClass ? 1 : 0);
+      if (!WorkerClass) assert.equal(second.routingStats.searches, 0);
       const other = await client.evaluate({ ...input, worldId: 'second-world' });
       assert.equal(other.routingStats.graphBuilds, 1);
       assert.ok(other.routingStats.searches > 0);
