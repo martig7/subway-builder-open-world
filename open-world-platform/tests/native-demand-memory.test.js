@@ -47,7 +47,10 @@ function diskFixture() {
   let evaluations = 0, maxChunkPops = 0;
   const store = { read: async key => structuredClone(records.get(key)),
     write: async (key, value) => {
-      if (typeof key === 'number') maxChunkPops = Math.max(maxChunkPops, JSON.parse(new TextDecoder().decode(value)).assignments.length);
+      if (typeof key === 'number') {
+        const decoded = await new Response(new Blob([value]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+        maxChunkPops = Math.max(maxChunkPops, decoded.assignments.length);
+      }
       records.set(key, structuredClone(value));
     }, clear: async () => records.clear() };
   const execute = async (bytes, request, options) => {
@@ -60,6 +63,25 @@ function diskFixture() {
   };
   return { records, store, execute, snapshot: () => ({ evaluations, maxChunkPops }) };
 }
+
+test('disk chunks compress repeated routing data and replay exactly without rerouting', async () => {
+  const { demand, ...request } = input(), records = new Map();
+  const store = { read: async key => records.get(key), write: async (key, value) => records.set(key, value), clear: async () => records.clear() };
+  const bytes = new TextEncoder().encode(JSON.stringify(demand));
+  const prepared = await runNativeDemandWorkerJob({ bytes, input: request, cacheMode: 'prepare' }, { store });
+  assert.equal(prepared.diskCache, 'written');
+  const chunk = records.get(0);
+  assert.deepEqual([...chunk.subarray(0, 2)], [0x1f, 0x8b], 'each bounded chunk must be gzip data');
+  const decoded = new Uint8Array(await new Response(new Blob([chunk]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  assert.ok(chunk.byteLength < decoded.byteLength / 4, 'repeated route and hourly finance data must fit in the disk budget');
+  assert.equal(prepared.cacheBytes, chunk.byteLength);
+  const assignments = [];
+  const replay = await runNativeDemandWorkerJob({ bytes, input: request, cacheMode: 'assignments' }, { store,
+    evaluateBatches: () => { throw Error('A cache hit must not route again'); }, emitAssignments: rows => assignments.push(...rows) });
+  assert.equal(replay.diskCache, 'hit');
+  assert.deepEqual(assignments, evaluateOffTileNativeDemand({ ...request, demand }).assignments);
+  assert.deepEqual(replay.profile, prepared.profile);
+});
 
 test('regular active-tile preparation persists chunks and ultra-speed loads them without a second routing pass', async () => {
   const disk = diskFixture(), request = input();

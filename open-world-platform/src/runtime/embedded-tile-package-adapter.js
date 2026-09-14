@@ -5,7 +5,7 @@ const DEMAND_JSON_DECODER_VERSION = 1;
 const DEMAND_JSON_DECODER_STATE = '__openWorldDemandJsonDecoder';
 const NATIVE_DEMAND_EVALUATOR_VERSION = 2;
 const NATIVE_DEMAND_EVALUATOR_STATE = '__openWorldNativeDemandEvaluator';
-const NATIVE_DEMAND_EVALUATOR_WORKER_NAME = 'open-world-native-demand-worker-evaluator-v2';
+const NATIVE_DEMAND_EVALUATOR_WORKER_NAME = 'open-world-native-demand-worker-evaluator-v3';
 
 export function assertNativeDemandMemoryBudget(sample, { cacheMode = null, now = Date.now() } = {}) {
   // Observed crashes clustered around 4 GiB of combined allocated pages. This

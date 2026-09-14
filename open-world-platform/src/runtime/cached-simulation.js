@@ -6,7 +6,7 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v11';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v12';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];

@@ -1,11 +1,11 @@
 import { sharedNativeDemandEvaluator } from './embedded-tile-package-adapter.js';
 import { deterministicNetworkProfile } from './off-tile-native-demand.js';
 
-export const ACTIVE_DEMAND_PREPARATION_VERSION = 'active-demand-preparation-v1';
+export const ACTIVE_DEMAND_PREPARATION_VERSION = 'active-demand-preparation-v2';
 const values = value => value instanceof Map ? value.values() : value ?? [];
 
 export function createActiveDemandPreparation({ game, getState, workerSource, evaluator = sharedNativeDemandEvaluator(workerSource) }) {
-  const stats = { preparations: 0, loads: 0, hits: 0, calculations: 0, cacheBytes: 0, lastStatus: null };
+  const stats = { preparations: 0, loads: 0, hits: 0, calculations: 0, cacheBytes: 0, lastStatus: null, lastError: null };
   const evaluate = async ({ assignments = false, tileId = getState().cityCode } = {}) => {
     const state = getState();
     if (state.cityCode !== tileId || !state.demandData?.popsMap) return null;
@@ -29,7 +29,7 @@ export function createActiveDemandPreparation({ game, getState, workerSource, ev
     if (!result) throw new Error('The native demand worker is unavailable; reload the mod before preparing demand.');
     stats[assignments ? 'loads' : 'preparations']++;
     stats[result.diskCache === 'hit' ? 'hits' : 'calculations']++;
-    stats.cacheBytes = result.cacheBytes ?? 0; stats.lastStatus = result.diskCache;
+    stats.cacheBytes = result.cacheBytes ?? 0; stats.lastStatus = result.diskCache; stats.lastError = result.cacheError ?? null;
     // An active profile uses the loaded departures/full native network. Mark it
     // separately so switching away requires the inactive tile estimator again.
     return { ...result, profile: { ...result.profile, source: 'active-tile-prepared' } };

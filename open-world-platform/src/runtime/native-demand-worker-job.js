@@ -36,7 +36,8 @@ export async function runNativeDemandWorkerJob({ bytes, gzip = false, input, cac
         for (let index = 0; index < manifest.chunks; index++) {
           const chunk = await store.read(index);
           if (!chunk) throw new Error('Incomplete demand disk cache');
-          const value = JSON.parse(new TextDecoder().decode(chunk));
+          const value = JSON.parse(await new Response(new Blob([chunk]).stream()
+            .pipeThrough(new DecompressionStream('gzip'))).text());
           if (!Array.isArray(value.assignments) || value.profile?.hourly?.length !== 24) throw new Error('Invalid demand cache chunk');
           cachedProfile = mergeNativeDemandProfiles(cachedProfile, value.profile);
           if (cacheMode === 'assignments') emitAssignments(value.assignments);
@@ -55,7 +56,11 @@ export async function runNativeDemandWorkerJob({ bytes, gzip = false, input, cac
       profile = mergeNativeDemandProfiles(profile, batch.profile);
       if (disk) {
         try {
-          const encoded = new TextEncoder().encode(JSON.stringify({ assignments: batch.assignments, profile: batch.profile }));
+          // Route lists repeat heavily across assignments. Compress only this
+          // bounded batch, so a large tile fits on disk without a large buffer.
+          const encoded = new Uint8Array(await new Response(new Blob([
+            JSON.stringify({ assignments: batch.assignments, profile: batch.profile }),
+          ]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
           cacheBytes += encoded.byteLength;
           if (cacheBytes > MAX_DISK_BYTES - 1024 || chunks >= MAX_CHUNKS) throw new Error('Demand disk cache size limit reached');
           await store.write(chunks, encoded);

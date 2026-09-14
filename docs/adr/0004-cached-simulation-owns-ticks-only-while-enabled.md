@@ -77,6 +77,11 @@ game builds pass through. This may reduce native routing throughput, but removes
 the observed 1.5 GiB commitment from 24 idle commute workers. A full game launch
 is required to capture the native pool's initial construction.
 
+Disk chunks use gzip independently. The live Tokyo profile exceeded the 256 MiB
+cap with repeated uncompressed route lists; chunk compression keeps temporary
+allocations bounded and the limit applies to bytes actually stored. Cache
+generation changes clear the previous records in the same database.
+
 Caches and the toggle are not persisted as a second save authority. Saving
 preserves the synchronous native save contract, settles the current interval,
 and shifts frozen train timing anchors in the saved copy. Disabling shifts the

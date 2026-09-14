@@ -1,7 +1,7 @@
 import { runNativeDemandWorkerJob } from '../runtime/native-demand-worker-job.js';
 import { createActiveDemandDiskStore } from '../runtime/active-demand-disk-cache.js';
 
-const WORKER_MARKER = 'open-world-native-demand-worker-evaluator-v2';
+const WORKER_MARKER = 'open-world-native-demand-worker-evaluator-v3';
 const store = createActiveDemandDiskStore();
 
 self.onmessage = async ({ data }) => {
