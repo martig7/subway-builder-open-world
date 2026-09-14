@@ -64,6 +64,19 @@ less than 512 MiB of main-isolate limit margin. This is a conservative admission
 policy based on observed crashes, not a V8 limit or a guarantee against OOM.
 Missing/stale measurements use serial execution without inventing headroom.
 
+Subway Builder 1.7's native commute pool otherwise creates one worker per logical
+CPU and retains a separate routing network in each. For the verified
+`popCommuteWorker.worker-CI81Zuw7.js` protocol, an early constructor adapter keeps
+the game's logical workers and executes their unchanged batches through at most
+six physical workers. Fresh combined allocation above 3 GiB lowers concurrency
+to two, and above 3.25 GiB to one. In-flight batches finish before downsizing;
+five seconds without work retires the physical heaps. Shared network versions
+are cloned once for queued requests, restored when a physical worker is reused,
+and never substituted across logical requests. Other worker scripts and unknown
+game builds pass through. This may reduce native routing throughput, but removes
+the observed 1.5 GiB commitment from 24 idle commute workers. A full game launch
+is required to capture the native pool's initial construction.
+
 Caches and the toggle are not persisted as a second save authority. Saving
 preserves the synchronous native save contract, settles the current interval,
 and shifts frozen train timing anchors in the saved copy. Disabling shifts the

@@ -53,6 +53,7 @@ import { yieldBrowserPaint } from './frame-budget.js';
 import { installRendererMemoryDiagnostics } from './renderer-memory-diagnostics.js';
 import { installRendererDebugRecorder } from './renderer-debug-recorder.js';
 import { createRendererTileCacheBudget } from './renderer-tile-cache-budget.js';
+import { installNativeCommuteWorkerBudget } from './native-commute-worker-budget.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
 
@@ -77,6 +78,9 @@ export function startOpenWorld({
   if (!artifacts?.commuteCatalog || !artifacts?.crossDemandGzipBase64) {
     throw new Error('startOpenWorld requires embedded world demand artifacts');
   }
+  // Capture native pool creation during save load, including when this World
+  // is still dormant in the menu. Existing logical workers survive mod reload.
+  const nativeCommuteWorkers = installNativeCommuteWorkerBudget();
   const namespace = definition.runtime.diagnosticNamespace;
   const logLabel = `[${definition.identity.name}]`;
   const PENDING_NAVIGATION_KEY = `${namespace}:pending-navigation`;
@@ -362,6 +366,7 @@ export function startOpenWorld({
   let renderDistanceToolbarRegistered = false;
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
     activeDemandPreparation: activeDemandPreparation?.snapshot,
+    nativeCommuteWorkers: nativeCommuteWorkers?.snapshot,
     intercityTrains,
     runtimeAuditVersion: RUNTIME_AUDIT_VERSION,
     generation,
@@ -410,6 +415,7 @@ export function startOpenWorld({
   let lastMemoryLogAt = -Infinity, lastMemoryPressure = null;
   const rendererMemory = installRendererMemoryDiagnostics({
     onSample: sample => {
+      nativeCommuteWorkers?.updateMemory(sample);
       tileCacheBudget.updatePressure(sample.pressure);
       const pressureChanged = sample.pressure !== lastMemoryPressure;
       lastMemoryPressure = sample.pressure;
