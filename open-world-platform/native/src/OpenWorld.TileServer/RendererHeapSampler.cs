@@ -12,7 +12,7 @@ public sealed record RendererHeapStatus(string Version, string Status, string? T
     string? IsolateId = null, WorkerHeapStatus? Workers = null);
 
 public sealed record WorkerHeapReading(string TargetId, string IsolateId, double UsedBytes, double TotalBytes,
-    double? BackingStorageBytes, double? EmbedderBytes);
+    double? BackingStorageBytes, double? EmbedderBytes, string? Url = null, string? Title = null);
 public sealed record WorkerHeapStatus(string Version, string Status, DateTimeOffset At, int WorkerCount,
     double UsedBytes, double TotalBytes, double BackingStorageBytes, double RequestMs, WorkerHeapReading[] Samples);
 
@@ -30,6 +30,7 @@ internal sealed class RendererHeapSampler(string stateRoot, Func<bool> enabled, 
     private DateTimeOffset? lastAt;
     private readonly Dictionary<string, string> workerSessions = new();
     private readonly Dictionary<string, string> workerIsolates = new();
+    private readonly Dictionary<string, (string? Url, string? Title)> workerMetadata = new();
     private WorkerHeapStatus? workers;
     public RendererHeapStatus Snapshot() { lock (gate) return state; }
 
@@ -129,19 +130,37 @@ internal sealed class RendererHeapSampler(string stateRoot, Func<bool> enabled, 
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(session) || id.Length > 128 || session.Length > 128 || workerSessions.Count >= 64)
                 throw new InvalidDataException("Worker debugger session limit exceeded.");
             workerSessions[id] = session;
+            RememberWorkerMetadata(info);
         }
         else if (method.GetString() == "Target.detachedFromTarget")
         {
             var session = message.GetProperty("params").GetProperty("sessionId").GetString();
             foreach (var pair in workerSessions.Where(pair => pair.Value == session).ToArray())
-            { workerSessions.Remove(pair.Key); workerIsolates.Remove(pair.Key); }
+            { workerSessions.Remove(pair.Key); workerIsolates.Remove(pair.Key); workerMetadata.Remove(pair.Key); }
         }
+        else if (method.GetString() == "Target.targetInfoChanged")
+            RememberWorkerMetadata(message.GetProperty("params").GetProperty("targetInfo"));
+    }
+
+    private void RememberWorkerMetadata(JsonElement info)
+    {
+        var id = info.GetProperty("targetId").GetString();
+        if (id is null || !workerSessions.ContainsKey(id)) return;
+        static string? Text(JsonElement value, string key, int maximum) =>
+            value.TryGetProperty(key, out var text) && text.ValueKind == JsonValueKind.String && text.GetString() is { Length: > 0 } result
+                ? result[..Math.Min(maximum, result.Length)] : null;
+        workerMetadata.TryGetValue(id, out var previous);
+        workerMetadata[id] = (Text(info, "url", 2048) ?? previous.Url, Text(info, "title", 256) ?? previous.Title);
     }
 
     private async Task ReadWorkersAsync(CancellationToken token)
     {
         if (workers is not null && DateTimeOffset.UtcNow - workers.At < TimeSpan.FromSeconds(2)) return;
         var began = DateTimeOffset.UtcNow;
+        // Chromium can attach a worker before its URL/title is ready. Refresh browser-owned
+        // metadata without executing worker JavaScript, including while that worker is busy.
+        var targets = await client!.CallAsync("Target.getTargets", "{}", token);
+        foreach (var info in targets.GetProperty("targetInfos").EnumerateArray()) RememberWorkerMetadata(info);
         var readings = new List<WorkerHeapReading>();
         var seen = new HashSet<string>(StringComparer.Ordinal) { isolateId! };
         var sessions = workerSessions.ToArray();
@@ -156,15 +175,16 @@ internal sealed class RendererHeapSampler(string stateRoot, Func<bool> enabled, 
             }
             if (!seen.Add(workerIsolate)) continue;
             var value = await client!.CallAsync("Runtime.getHeapUsage", "{}", token, session);
+            workerMetadata.TryGetValue(id, out var metadata);
             readings.Add(new(id, workerIsolate,
                 Number(value, "usedSize") ?? throw new InvalidDataException("Missing worker heap usage."),
                 Number(value, "totalSize") ?? throw new InvalidDataException("Missing worker allocated heap."),
-                Number(value, "backingStorageSize"), Number(value, "embedderHeapUsedSize")));
+                Number(value, "backingStorageSize"), Number(value, "embedderHeapUsedSize"), metadata.Url, metadata.Title));
         }
         var at = DateTimeOffset.UtcNow;
         // Worker creation, replacement or termination during a sweep makes its coverage partial.
         var complete = sessions.Length == workerSessions.Count && sessions.All(pair => workerSessions.TryGetValue(pair.Key, out var session) && session == pair.Value);
-        workers = new("worker-v8-heap-v1", complete ? "available" : "partial", at,
+        workers = new("worker-v8-heap-v2", complete ? "available" : "partial", at,
             workerSessions.Count, readings.Sum(r => r.UsedBytes), readings.Sum(r => r.TotalBytes),
             readings.Sum(r => r.BackingStorageBytes ?? 0), (at - began).TotalMilliseconds, readings.ToArray());
     }
@@ -213,7 +233,7 @@ internal sealed class RendererHeapSampler(string stateRoot, Func<bool> enabled, 
     internal static double? Number(JsonElement value, string name) => value.TryGetProperty(name, out var item) &&
         item.TryGetDouble(out var number) && double.IsFinite(number) && number >= 0 ? number : null;
     private void Disconnect()
-    { client?.Dispose(); client = null; limit = null; workerSessions.Clear(); workerIsolates.Clear(); workers = null; }
+    { client?.Dispose(); client = null; limit = null; workerSessions.Clear(); workerIsolates.Clear(); workerMetadata.Clear(); workers = null; }
     public void Dispose() => Disconnect();
 }
 

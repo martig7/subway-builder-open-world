@@ -56,6 +56,12 @@ one request at a time, a three-second deadline, 128 KiB response limit and bound
 retry delay. With a two-second minimum interval it also samples up to 64 related worker sessions,
 with workers left running. Isolate identities prevent double counting and reset
 peak/save history after a renderer replacement reuses its browser target ID.
+Worker readings use `worker-v8-heap-v2` and include a bounded script URL and
+Chromium target title beside each isolate ID. One browser metadata query per
+worker sweep fills identities that were empty when the worker first attached;
+it does not execute worker code or pause a busy worker. Only targets already
+attached to the selected game page are retained. These identities survive a
+crash in the same rotating JSONL recording as their heap measurements.
 V8 usage, allocated heap pages and backing storage remain separate; stale/unavailable
 readings supply no main-isolate headroom. The manager distinguishes the main heap
 from worker usage and the sum of measured heap allocations; it does not present

@@ -101,6 +101,11 @@ static class RendererHeapTests
                         "Runtime.evaluate" => "{\"result\":{\"value\":4294967296}}",
                         "Runtime.getIsolateId" => $"{{\"id\":\"{(worker ? "shared-worker-isolate" : mainIsolate)}\"}}",
                         "Target.setAutoAttach" => "{}",
+                        // New targets can attach before their script URL/title is populated.
+                        "Target.getTargets" => JsonSerializer.Serialize(new { targetInfos = new[] {
+                            new { targetId = "worker-1", type = "worker", title = mainIsolate + " simulation worker", url = "file:///game/simEngine.worker.js" },
+                            new { targetId = "unrelated", type = "worker", title = "not owned by this page", url = "file:///other.js" }
+                        } }),
                         _ when worker => "{\"usedSize\":400,\"totalSize\":500,\"backingStorageSize\":100000}",
                         _ => $"{{\"usedSize\":{++queries * (mainIsolate == "main-1" ? 1024 : 1)},\"totalSize\":8192,\"backingStorageSize\":1000000,\"embedderHeapUsedSize\":2000000}}"
                     };
@@ -149,11 +154,13 @@ static class RendererHeapTests
                         "Native discovery/sampling produced incorrect real protocol measurements.");
                     Check(reading.Workers is { WorkerCount: 2, UsedBytes: 400, TotalBytes: 500, BackingStorageBytes: 100000 } && reading.Workers.Samples.Length == 1,
                         "Worker heaps were omitted, mixed with backing storage, or counted twice for one isolate.");
+                    CheckWorkerIdentity(reading, "main-1 simulation worker");
                     mainIsolate = "main-2"; mode = "replace-page";
                     await replaced.Task.WaitAsync(stop.Token);
                     reading = sampler.Snapshot();
                     Check(reading.TargetId == "game" && reading.IsolateId == "main-2" && reading.PeakUsedBytes < 1024,
                         "A crashed isolate's peak survived reuse of the same browser target.");
+                    CheckWorkerIdentity(reading, "main-2 simulation worker");
                 }
                 finally { stop.Cancel(); await running; }
             }
@@ -184,4 +191,12 @@ static class RendererHeapTests
     }
 
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+
+    private static void CheckWorkerIdentity(RendererHeapStatus reading, string title)
+    {
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(reading.Workers!.Samples.Single()));
+        Check(json.RootElement.TryGetProperty("Url", out var url) && url.GetString() == "file:///game/simEngine.worker.js" &&
+            json.RootElement.TryGetProperty("Title", out var name) && name.GetString() == title,
+            "Worker script identity was lost after an initially unnamed attachment or renderer replacement.");
+    }
 }
