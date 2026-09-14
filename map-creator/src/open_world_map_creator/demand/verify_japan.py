@@ -132,7 +132,7 @@ def verify(world_root: Path, demand_root: Path) -> dict[str, Any]:
     report = read_json(demand_root / 'reports' / 'japan-national-demand.json')
     if native_mass + cross_mass - one_way_mass != report['acceptedMass']:
         raise ValueError('National commute mass differs from accepted source controls')
-    if report.get('compilerVersion') in ('estat-japan-national-package-v6-boundary-first','estat-japan-national-package-v7-land-anchored','estat-japan-national-package-v8-road-voronoi'):
+    if report.get('compilerVersion') in ('estat-japan-national-package-v6-boundary-first','estat-japan-national-package-v7-land-anchored','estat-japan-national-package-v8-road-voronoi','estat-japan-national-package-v9-independent-endpoints'):
         if cross_outside:
             raise ValueError(f'{cross_outside} cross-demand points are outside ownership boundaries')
         if report.get('ownershipBoundary', {}).get('sha256') != sha256(ownership_boundary(world_root)):

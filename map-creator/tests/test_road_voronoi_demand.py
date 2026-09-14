@@ -103,5 +103,54 @@ class RoadVoronoiDemandTests(unittest.TestCase):
                 {'27':{'home':[dict(longitude=135.5,latitude=34.5,commuters=100)]}}, {},
                 {'sitePlacement':'road-frontage-v1'},lambda *_:None)
 
+    def test_native_endpoint_floor_does_not_move_the_other_endpoint_type(self):
+        bounds={'27':box(135,34,135.04,34.02)}
+        sites=[Site(name,x,34.005,1,1,'27','27') for name,x in [('a',135.005),('b',135.010),('c',135.015)]]
+        for reverse in (False,True):
+            with self.subTest(reverse=reverse):
+                ledger=OwnedDemandLedger(bounds,road_estimate)
+                pairs=[(sites[0],sites[0],2),(sites[0],sites[2],198),
+                       (sites[1],sites[2],200),(sites[2],sites[2],200)]
+                for i,(home,work,mass) in enumerate(pairs):
+                    if reverse:home,work=work,home
+                    ledger.add(CrossRecord(str(i),mass,home,work,'27','27'))
+                native,_,cross=ledger.finish()
+                result,_,report=merge_owned_demand(native,cross,bounds,progress=lambda *_:None)
+                points=result['27']['points']
+                preserved='jobs' if reverse else 'residents'
+                merged='residents' if reverse else 'jobs'
+                self.assertEqual(sorted(p[preserved] for p in points if p[preserved]),[200,200,200])
+                self.assertEqual([p[merged] for p in points if p[merged]],[600])
+                self.assertEqual([(p['id'],p['size']) for p in result['27']['pops']],
+                                 [(p['id'],p['size']) for p in native['27']['pops']])
+                self.assertGreaterEqual(report['measuredMinimumSpacingM'],275)
+
+    def test_cross_endpoint_floor_does_not_move_the_other_endpoint_type(self):
+        bounds={'27':box(135,34,135.04,34.02),'28':box(136,34,136.02,34.02)}
+        sites=[Site(name,x,34.005,1,1,'27','27') for name,x in [('a',135.005),('b',135.010),('c',135.015)]]
+        other=Site('d',136.005,34.005,1,1,'28','28')
+        for reverse in (False,True):
+            with self.subTest(reverse=reverse):
+                ledger=OwnedDemandLedger(bounds,road_estimate)
+                for site in sites+[other]:
+                    ledger.add(CrossRecord(f'local-{site.id}',100,site,site,site.owner_pref,site.owner_pref))
+                pairs=[(site,other,200) for site in sites]+[(other,sites[0],2),(other,sites[2],198)]
+                for i,(home,work,mass) in enumerate(pairs):
+                    if reverse:home,work=work,home
+                    ledger.add(CrossRecord(f'cross-{i}',mass,home,work,home.owner_pref,work.owner_pref))
+                native,_,cross=ledger.finish()
+                result,remapped,report=merge_owned_demand(native,cross,bounds,progress=lambda *_:None)
+                weights={}
+                for record in remapped:
+                    endpoint=record.work if reverse else record.home
+                    if endpoint.owner_pref=='27':weights[endpoint.id]=weights.get(endpoint.id,0)+record.mass
+                self.assertEqual(sorted(weights.values()),[200,200,200])
+                tiny_endpoints={getattr(r,'home' if reverse else 'work').id for r in remapped
+                                if getattr(r,'home' if reverse else 'work').owner_pref=='27'}
+                self.assertEqual(len(tiny_endpoints),1)
+                self.assertEqual(len(result['27']['points']),3)
+                self.assertEqual(sum(r.mass for r in remapped),800)
+                self.assertGreaterEqual(report['measuredMinimumSpacingM'],275)
+
 
 if __name__=='__main__':unittest.main()

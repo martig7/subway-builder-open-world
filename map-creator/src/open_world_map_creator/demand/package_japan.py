@@ -29,7 +29,7 @@ from .owned_ledger import OwnedDemandLedger
 from .estat_japan_prefecture import load_prefecture_boundary
 
 
-COMPILER_VERSION = "estat-japan-national-package-v8-road-voronoi"
+COMPILER_VERSION = "estat-japan-national-package-v9-independent-endpoints"
 SPECIAL_TILE_IDS = {"13": "JP_TOKYO_MAINLAND", "14": "JP_KANAGAWA_MAINLAND"}
 
 
