@@ -1,4 +1,4 @@
-import { TILE_SAVE_PROTOTYPE_VERSION, writePrototypeNativeSave } from './prototype-tile-save-client.js';
+import { TILE_SAVE_PROTOTYPE_VERSION, slimExperimentalSaveDemand, writePrototypeNativeSave } from './prototype-tile-save-client.js';
 
 const STREAM_SAVE = Symbol.for('open-world.stream-native-save');
 const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
@@ -50,6 +50,11 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       let save = await stable.generateSave({ name: `[Auto] Tile server ${new Date().toISOString().replaceAll(':', '-')}`, [STREAM_SAVE]: true });
       const generateMs = performance.now() - generated;
       if (save.version !== 4) throw new Error('Prototype supports native save schema 4 only');
+      // Prototype uploads omit native journey-history rows: the demand model,
+      // topology and trains stream untouched, and the live game is never
+      // modified. Native saves keep the full history.
+      const slimmed = slimExperimentalSaveDemand(save);
+      save = slimmed.save;
       const settled = getState();
       const clock = settled.timeConfig.elapsedSeconds, money = settled.money;
       const roots = ['tracks', 'trains', 'routes', 'stations', 'financialHistory', 'bonds', 'demandData', 'completedCommutes'];
@@ -82,7 +87,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
         save = null;
       }
       status = { ...status, status: 'saved', transport: 'prototype', progress: result.bytes,
-        last: { ...result, generateMs, settleMs: settleWaitMs, stabilitySummary } };
+        last: { ...result, generateMs, settleMs: settleWaitMs, omittedJourneyRows: slimmed.omittedJourneyRows, stabilitySummary } };
       activity('complete', { durationMs: result.durationMs, bytes: result.bytes, generateMs }); notify();
       return result;
     } catch (error) {

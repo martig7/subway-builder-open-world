@@ -2,6 +2,24 @@
 // upload completes. No native save API, catalog or existing file is replaced.
 export const TILE_SAVE_PROTOTYPE_VERSION = 'tile-save-prototype-v1';
 
+/**
+ * Prototype uploads omit the native journey-history rows (`c`) from the
+ * demand blob. The game's loader treats a missing `c` as an empty history
+ * and its save schema marks the blob optional, while the demand model (`p`),
+ * rail topology and train inventory stream untouched. History (fare stats and
+ * journey origins) resets on the copy the server publishes; the live game and
+ * native saves are never modified.
+ */
+export function slimExperimentalSaveDemand(save) {
+  const blob = save?.data?.compressedDemandData;
+  if (!blob || typeof blob !== 'object' || !Array.isArray(blob.c) || blob.c.length === 0)
+    return { save, omittedJourneyRows: 0 };
+  return {
+    save: { ...save, data: { ...save.data, compressedDemandData: { ...blob, c: [] } } },
+    omittedJourneyRows: blob.c.length,
+  };
+}
+
 const jsonValue = (value, key) => value && typeof value.toJSON === 'function' ? value.toJSON(key) : value;
 function* jsonTokens(value, ancestors = new Set()) {
   if (value === null || typeof value !== 'object') {

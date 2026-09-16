@@ -61,6 +61,12 @@ cached midnight calculation. Native `generateSave` still generates and validates
 the complete save. Cached-mode clock and train rebasing remain in that wrapper;
 only the reference-sharing pass intended for Electron's bridge is skipped.
 
+Prototype uploads omit the native journey-history rows (`compressedDemandData.c`,
+about a third of a large save); the demand model, rail topology and train
+inventory stream untouched. The game's loader treats a missing history as empty
+and its schema marks the blob optional, while ordinary native saves keep the
+full history. The live game is never modified.
+
 JSON encoding yields between roughly 128 Ki-character chunks. One authenticated
 request is outstanding at a time, with sequence numbers and SHA-256 checksums.
 The server validates JSON incrementally, writes gzip directly to a temporary file,

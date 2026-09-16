@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nativeSaveJsonChunks, writePrototypeNativeSave } from '../src/runtime/prototype-tile-save-client.js';
+import { nativeSaveJsonChunks, slimExperimentalSaveDemand, writePrototypeNativeSave } from '../src/runtime/prototype-tile-save-client.js';
+
+test('demand slimming drops journey-history rows while keeping topology, trains and the demand model', () => {
+  const save = { id: 'slim', name: 'slim', cityCode: 'C', gameSessionId: 's', timestamp: 1, version: 4,
+    data: { tracks: [{ id: 't' }], trains: [{ id: 'tr' }], routes: [], money: 5,
+      compressedDemandData: { v: 2, p: [['pop', 1]], d: [['d', 2]], c: [{ p: 'pop', s: 3 }], m: { x: 1 } } } };
+  const { save: slimmed, omittedJourneyRows } = slimExperimentalSaveDemand(save);
+  assert.equal(omittedJourneyRows, 1);
+  assert.deepEqual(slimmed.data.compressedDemandData, { v: 2, p: [['pop', 1]], d: [['d', 2]], c: [], m: { x: 1 } });
+  assert.equal(slimmed.data.tracks, save.data.tracks, 'topology must stay shared, not cloned');
+  assert.equal(slimmed.data.trains, save.data.trains, 'train inventory must stay shared, not cloned');
+  assert.equal(save.data.compressedDemandData.c.length, 1, 'the native snapshot must not be mutated');
+});
+
+test('demand slimming is a no-op without a history array', () => {
+  for (const data of [{}, { compressedDemandData: null }, { compressedDemandData: { v: 2, p: [] } }]) {
+    const save = { data };
+    assert.deepEqual(slimExperimentalSaveDemand(save), { save, omittedJourneyRows: 0 });
+  }
+});
 
 test('chunked native JSON preserves values, duplicate references, Unicode and omitted properties', async () => {
   const shared = { route: '東京🚆', coords: [[1, 2], [3, 4]] };

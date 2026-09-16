@@ -7,7 +7,9 @@ function fixture({ writeSave, busy = false } = {}, controllerOptions = {}) {
     setTimeConfig(value) { state.timeConfig = { ...state.timeConfig, ...value }; },
     generateSave(options) {
       assert.equal(options[Symbol.for('open-world.stream-native-save')], true);
-      return { version: 4, name: options.name, data: { timeConfig: state.timeConfig, money: state.money } };
+      return { version: 4, name: options.name,
+        data: { timeConfig: state.timeConfig, money: state.money,
+          compressedDemandData: { v: 2, p: [['pop', 1]], d: [], c: [{ p: 'pop', s: 1 }, { p: 'pop', s: 2 }] } } };
     } };
   let closed = 0, nativeCalls = 0, uploads = 0;
   const controller = createPrototypeSaveController({ getState: () => state, isBusy: () => busy, yieldTask: async () => {},
@@ -147,6 +149,20 @@ test('a completed save records settle timing and the prototype transport', async
   const last = f.controller.snapshot().last;
   assert.ok(typeof last.settleMs === 'number' && last.settleMs >= 0, 'settle wait must be timed');
   assert.equal(f.controller.snapshot().transport, 'prototype');
+});
+
+test('a prototype upload streams the save without journey-history rows', async () => {
+  let uploaded = null;
+  const f = fixture({ writeSave: async (save, options) => {
+    uploaded = save; options.beforeCommit(); return { bytes: 456, durationMs: 60, path: 'slim.metro' };
+  } });
+  await f.configure();
+  const result = await f.controller.invoke(f.native);
+  assert.equal(result.path, 'slim.metro');
+  assert.deepEqual(uploaded.data.compressedDemandData.c, []);
+  assert.deepEqual(uploaded.data.compressedDemandData.p, [['pop', 1]], 'the demand model must stream untouched');
+  assert.equal(f.state.money, 500, 'slimming must not touch the live game');
+  assert.equal(f.controller.snapshot().last.omittedJourneyRows, 2);
 });
 
 test('a gate rejection records the native-fallback transport while staying armed', async () => {
