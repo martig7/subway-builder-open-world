@@ -17,6 +17,8 @@ if (args.Length == 2 && args[0] == "--native-capture-fixture")
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("prototype save writer preserves native bytes and never publishes interrupted uploads", PrototypeSaveWriterTests.Run),
+    ("save writer trusts game origins and keeps browser tokens", SaveWriterAccessTests.GameOrigin),
+    ("save writer resolves the configured game save folder", SaveWriterAccessTests.SaveLocation),
     ("release manifest validates and resolves scoped install targets", ManifestValidation),
     ("release catalog selects independently installable worlds", ReleaseCatalogValidation),
     ("release manifest accepts an allowlisted multi-tile map part", MapPartManifestValidation),

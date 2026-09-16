@@ -13,7 +13,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
   settleMs = 30000 } = {}) {
   let configuration = null, enabled = false, pending = null, automatic = null, abort = null, disposed = false;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v3', configured: false, enabled: false, status: 'off', last: null, error: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v4', configured: false, enabled: false, status: 'off', last: null, error: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
@@ -107,6 +107,27 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
     setEnabled(value) {
       if (value && (!configuration || disposed)) throw new Error('Configure the prototype writer first');
       enabled = Boolean(value); notify(); return snapshot();
+    },
+    async configureAutomatic({ origins = [], fetchFn = fetch, timeoutMs = 3000 } = {}) {
+      // Background reconnect: never throws, so a startup retry timer can call
+      // it freely. Game-origin requests carry no token and survive restarts.
+      if (pending || disposed || configuration) return snapshot();
+      for (const origin of origins) {
+        let base;
+        try {
+          base = new URL(origin);
+          if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1') continue;
+        } catch { continue; }
+        try {
+          const response = await fetchFn(new URL('/_prototype/save/status', base),
+            { method: 'POST', signal: AbortSignal.timeout(timeoutMs) });
+          if (!response.ok) continue;
+          if ((await response.json())?.version !== TILE_SAVE_PROTOTYPE_VERSION) continue;
+          configuration = { origin: base.origin, token: null };
+          status = { ...status, status: 'ready', error: null }; notify(); return snapshot();
+        } catch { continue; }
+      }
+      return snapshot();
     },
     run,
     invoke(native) {

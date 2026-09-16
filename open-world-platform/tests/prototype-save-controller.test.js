@@ -94,6 +94,38 @@ test('disposal aborts its upload without invoking a retired native callback', as
   assert.equal(f.counts().nativeCalls, 0); assert.equal(f.counts().closed, 1); assert.equal(f.state.timeConfig.paused, false);
 });
 
+test('automatic configuration connects without a token and survives the manual pairing step', async () => {
+  const seen = [];
+  const f = fixture();
+  const fetchFn = async (url, options) => {
+    seen.push({ url: String(url), token: options?.headers?.['X-PMTiles-Control-Token'] });
+    if (String(url).includes('8800')) throw new Error('prototype host down');
+    return Response.json({ version: 'tile-save-prototype-v1' });
+  };
+  const before = await f.controller.configureAutomatic({ origins: ['https://example.com/', 'http://127.0.0.1:8800', 'http://127.0.0.1:8799'], fetchFn });
+  assert.equal(before.configured, true);
+  assert.equal(seen.length, 2, 'remote origins are skipped and the first live writer wins');
+  assert.equal(seen[0].token, undefined, 'game-origin discovery carries no per-boot token');
+  assert.equal(f.controller.snapshot().status, 'ready');
+  // A later retry is a no-op once configured.
+  await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:9999'], fetchFn });
+  assert.equal(seen.length, 2);
+});
+
+test('automatic configuration stays quiet when no writer answers', async () => {
+  const f = fixture();
+  const fetchFn = async () => { throw new Error('no server'); };
+  const snapshot = await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8800'], fetchFn });
+  assert.equal(snapshot.configured, false);
+  assert.equal(f.controller.invoke(f.native), 'native');
+});
+
+test('automatic configuration ignores version mismatches', async () => {
+  const f = fixture();
+  const fetchFn = async () => Response.json({ version: 'tile-save-prototype-v0' });
+  assert.equal((await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8800'], fetchFn })).configured, false);
+});
+
 test('the save overlay captures game shortcuts even when its cancel button has focus', () => {
   const handlers = new Map(); let focused, cancels = 0;
   const window = { addEventListener(name, handler, options) { assert.equal(options.capture, true); handlers.set(name, handler); },

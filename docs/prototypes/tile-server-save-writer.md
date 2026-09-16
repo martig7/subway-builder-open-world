@@ -103,17 +103,24 @@ $env:DOTNET_GCHeapHardLimit = '0x10000000'
 & '.\open-world-platform\native\src\OpenWorld.TileServer\bin\Release\net8.0\open-world-tile-server.exe' serve --root "$env:APPDATA\metro-maker4\cities\data" --tiles JP_TOKYO_MAINLAND --port 8800 --state-root '.analysis/save-writer/state' --save-prototype-root 'D:\SubwayBuilder'
 ```
 
-Once that service is healthy, enable the experiment in the loaded mod:
+The save root defaults to the game's configured save folder
+(`customSavesDirectory` from settings); `--save-prototype-root` still
+overrides it. The loaded mod connects on its own: it probes the World's tile
+server first, then port 8800, and retries while unconfigured, so no `--enable`
+pairing step is needed and server restarts cannot strand the toggle. Game
+requests ride without the per-boot instance token; other origins keep
+requiring it, so the diagnostic launcher below remains available for explicit
+control sessions:
 
 ```powershell
 node --max-old-space-size=128 open-world-platform/scripts/prototype-tile-save.mjs --world japan --port 8800 --server-state .analysis/save-writer/state --enable
 ```
 
-The Map rendering panel then exposes **Experimental tile-server autosaves**.
+The Map rendering panel always exposes **Experimental tile-server autosaves**.
 Unchecking it immediately returns future autosaves to the native path. This
-prototype does not persist activation or add a manager checkbox. It requires
-the trusted local diagnostic launcher once per session; authentication tokens
-are never printed or saved in the mod bundle.
+prototype does not persist activation or add a manager checkbox; checking the
+box stays opt-in per session, and authentication tokens are never printed or
+saved in the mod bundle.
 
 The same script without an action reports compact status. `--save` invokes the
 mounted autosave callback once for measurement; `--disable` restores future native

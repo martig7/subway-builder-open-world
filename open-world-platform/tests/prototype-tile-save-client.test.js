@@ -46,6 +46,20 @@ test('a lost commit response recovers the completed receipt without aborting', a
   assert.equal(result.path, 'fixture.metro'); assert.equal(paths.includes('abort'), false);
 });
 
+test('a token-less upload rides the game-origin path without a control header', async () => {
+  const headers = [];
+  const fetchFn = async (url, options) => {
+    headers.push(options.headers?.['X-PMTiles-Control-Token']);
+    const action = url.pathname.split('/').at(-1);
+    if (action === 'begin') return Response.json({ id: 'test' });
+    if (action === 'commit') return Response.json({ bytes: 2, chunks: 1, path: 'fixture.metro' });
+    return Response.json({ accepted: true });
+  };
+  const result = await writePrototypeNativeSave({ name: 'test', data: { a: 1 } }, { origin: 'http://127.0.0.1:8800', token: null, fetchFn });
+  assert.equal(result.path, 'fixture.metro');
+  assert.ok(headers.length > 0 && headers.every(header => header === undefined));
+});
+
 test('a rejected stable-state check discards the upload before publishing', async () => {
   const paths = [];
   const fetchFn = async url => { paths.push(url.pathname); return Response.json({ id: 'test' }); };

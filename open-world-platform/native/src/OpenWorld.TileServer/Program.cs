@@ -54,7 +54,7 @@ if (command is "status" or "check")
 
 if (command != "serve")
 {
-    Console.Error.WriteLine("Usage: open-world-tile-server [serve [--root PATH] [--port 8799] [--state-root PATH] [--log-root PATH] [--tiles ID,ID]] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
+    Console.Error.WriteLine("Usage: open-world-tile-server [serve [--root PATH] [--port 8799] [--state-root PATH] [--log-root PATH] [--tiles ID,ID] [--save-prototype-root PATH]] | status [--port 8799] | stop [--port 8799] [--state-root PATH] | check [--port 8799] | version");
     return 2;
 }
 
@@ -72,7 +72,22 @@ var builder = WebApplication.CreateSlimBuilder();
 builder.Logging.ClearProviders();
 builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, port));
 await using var app = builder.Build();
-using var prototypeSaveWriter = options.Optional("save-prototype-root") is { } saveRoot ? new PrototypeSaveWriter(saveRoot) : null;
+PrototypeSaveWriter? saveWriter = null;
+var savePrototypeRoot = options.Optional("save-prototype-root")
+    ?? GameSaveLocation.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+if (savePrototypeRoot is not null)
+{
+    try
+    {
+        saveWriter = new PrototypeSaveWriter(savePrototypeRoot);
+        log.Write("INFO", $"Prototype save writer targeting {savePrototypeRoot}.");
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+    {
+        log.Write("WARN", $"Prototype save writer disabled: {exception.Message}");
+    }
+}
+using var prototypeSaveWriter = saveWriter;
 if (prototypeSaveWriter is not null) PrototypeSaveEndpoints.Map(app, prototypeSaveWriter, instanceId);
 
 app.Use(async (context, next) =>

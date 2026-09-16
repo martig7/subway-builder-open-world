@@ -58,7 +58,9 @@ export async function writePrototypeNativeSave(save, { origin, token, fetchFn = 
   onProgress = () => {}, beforeCommit = () => {}, yieldTask } = {}) {
   const base = new URL('/_prototype/save/', origin);
   if (base.hostname !== '127.0.0.1' || base.protocol !== 'http:') throw new Error('Save writer must be on loopback');
-  const headers = { 'X-PMTiles-Control-Token': token };
+  // A null token rides the server's game-origin path, which survives server
+  // restarts. Explicit tokens keep working for diagnostic control sessions.
+  const headers = token ? { 'X-PMTiles-Control-Token': token } : {};
   const stats = { version: TILE_SAVE_PROTOTYPE_VERSION, chunks: 0, bytes: 0, maxEncodeSliceMs: 0, encodeMs: 0, transferMs: 0, startedAt: Date.now() };
   async function request(path, body, extra = {}) {
     const started = performance.now();

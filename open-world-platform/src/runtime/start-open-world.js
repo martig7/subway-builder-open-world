@@ -678,6 +678,25 @@ export function startOpenWorld({
     onActivity: (stage, details) => rendererMemory.recordActivity(stage, details),
   });
   diagnostics.prototypeSaveWriter = prototypeSaveWriter;
+  // The experimental writer is a native part of the mod: connect without the
+  // manual per-session pairing step. The world's tile server comes first so a
+  // future official writer wins; the standalone prototype port stays as a
+  // fallback. Game-origin requests carry no per-boot token, so server
+  // restarts cannot strand the toggle. Retry while unconfigured in case the
+  // server starts after the mod loads.
+  const saveWriterOrigins = [...new Set(
+    [definition.runtime.tileServerPort, 8800].filter(Boolean).map(port => `http://127.0.0.1:${port}`))];
+  let saveWriterRetry = null;
+  const reconnectSaveWriter = () => {
+    if (prototypeSaveWriter.snapshot().configured) {
+      if (saveWriterRetry !== null) { clearInterval(saveWriterRetry); saveWriterRetry = null; }
+      return;
+    }
+    void prototypeSaveWriter.configureAutomatic({ origins: saveWriterOrigins }).catch(() => {});
+  };
+  reconnectSaveWriter();
+  saveWriterRetry = setInterval(reconnectSaveWriter, 10000);
+  if (typeof saveWriterRetry?.unref === 'function') saveWriterRetry.unref();
   function ensureSession() {
     if (session) return session;
     const routePaths = createOpenWorldRoutePaths({
@@ -1694,6 +1713,7 @@ export function startOpenWorld({
       if (moduleDisposed) return;
       moduleDisposed = true;
       void cachedSimulation.dispose();
+      if (saveWriterRetry !== null) { clearInterval(saveWriterRetry); saveWriterRetry = null; }
       prototypeSaveWriter.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {
         try { unsubscribe(); } catch {}

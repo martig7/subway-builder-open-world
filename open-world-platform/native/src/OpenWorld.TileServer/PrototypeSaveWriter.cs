@@ -274,6 +274,21 @@ public sealed class PrototypeSaveWriter : IDisposable
 
 public sealed record PrototypeSaveResult(string Version, string Path, long Bytes, long FileBytes, int Chunks, string Sha256);
 
+/// <summary>Game-origin requests ride without the per-boot instance token so a
+/// server restart cannot strand the in-game toggle. The game renderer fetches
+/// from an app:// page (or with an empty/null Origin, like the recorder's game
+/// samples). Browsers always stamp cross-origin loopback requests with their
+/// own origin, so those keep requiring the token. This mirrors the recorder's
+/// game-origin rule; sandboxed-web callers stay on the token path.</summary>
+internal static class SaveWriterAccess
+{
+    public static bool IsGameOrigin(string? origin)
+    {
+        if (string.IsNullOrEmpty(origin) || origin == "null") return true;
+        return Uri.TryCreate(origin, UriKind.Absolute, out var source) && source.Scheme == "app";
+    }
+}
+
 internal static class PrototypeSaveEndpoints
 {
     public static void Map(WebApplication app, PrototypeSaveWriter writer, string token)
@@ -282,8 +297,9 @@ internal static class PrototypeSaveEndpoints
         app.MapPost("/_prototype/save/{**rest}", async context =>
         {
             context.Response.Headers.CacheControl = "no-store";
+            var gameOrigin = SaveWriterAccess.IsGameOrigin(context.Request.Headers.Origin.ToString());
             var supplied = context.Request.Headers["X-PMTiles-Control-Token"].ToString();
-            if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(token)))
+            if (!gameOrigin && !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(token)))
             { context.Response.StatusCode = 403; return; }
             try
             {
