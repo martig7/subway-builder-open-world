@@ -82,8 +82,10 @@ saves directory. Five completed prototype files are retained per native session
 and city; existing ordinary saves are untouched. Failed uploads remain unpublished,
 aborts delete their temporary files, and old abandoned prototype uploads are
 cleaned on startup or the next save. A missing commit response can recover a small
-completed receipt. Errors disable the experiment and invoke the current native
-autosave callback. Disposed runtimes or changed sessions cannot invoke an old
+completed receipt. Pre-snapshot gate rejections (busy routing, changed tile) and
+per-save user cancels keep the experiment armed for the next save and invoke
+the current native autosave callback. Only post-snapshot transfer failures
+disable the experiment. Disposed runtimes or changed sessions cannot invoke an old
 fallback callback.
 
 ## Run it

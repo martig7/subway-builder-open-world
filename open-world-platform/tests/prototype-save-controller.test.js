@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPrototypeSaveController, blockSaveEdits } from '../src/runtime/prototype-save-controller.js';
 
-function fixture({ writeSave, busy = false } = {}) {
+function fixture({ writeSave, busy = false } = {}, controllerOptions = {}) {
   const state = { cityCode: 'CITY', gameSessionId: 'session', timeConfig: { paused: false, elapsedSeconds: 100 }, money: 500,
     setTimeConfig(value) { state.timeConfig = { ...state.timeConfig, ...value }; },
     generateSave(options) {
@@ -11,6 +11,7 @@ function fixture({ writeSave, busy = false } = {}) {
     } };
   let closed = 0, nativeCalls = 0, uploads = 0;
   const controller = createPrototypeSaveController({ getState: () => state, isBusy: () => busy, yieldTask: async () => {},
+    settleMs: 0, ...controllerOptions,
     freezeUi: () => ({ progress() {}, dispose() { closed++; } }),
     fetchFn: async () => Response.json({ version: 'tile-save-prototype-v1' }),
     writeSave: async (save, options) => {
@@ -50,6 +51,27 @@ test('concurrent routing uses native saving before an upload begins', async () =
   const f = fixture({ busy: true }); await f.configure();
   assert.equal(await f.controller.invoke(f.native), 'native');
   assert.equal(f.counts().uploads, 0); assert.equal(f.state.timeConfig.paused, false);
+});
+
+test('a busy session keeps the prototype armed and falls back to native', async () => {
+  const f = fixture({ busy: true }); await f.configure();
+  assert.equal(await f.controller.invoke(f.native), 'native');
+  assert.equal(f.controller.snapshot().enabled, true, 'gate rejections must not uncheck the session toggle');
+  assert.match(f.controller.snapshot().error, /still changing/);
+  assert.equal(f.state.timeConfig.paused, false);
+  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 1, uploads: 0 });
+});
+
+test('a settling session waits briefly, then uploads once routing drains', async () => {
+  let busy = true, yields = 0;
+  const f = fixture({}, { settleMs: 1000, isBusy: () => busy,
+    yieldTask: async () => { yields++; if (yields >= 4) busy = false; } });
+  await f.configure();
+  const result = await f.controller.invoke(f.native);
+  assert.equal(result.path, 'fixture.metro');
+  assert.ok(yields >= 4, 'capture must wait for the quiet moment instead of failing on the first busy sample');
+  assert.equal(f.controller.snapshot().enabled, true);
+  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 0, uploads: 1 });
 });
 
 test('a changing ledger rejects commit and a new session cannot receive the old fallback or playback state', async () => {

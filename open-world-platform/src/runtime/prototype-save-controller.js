@@ -5,20 +5,23 @@ const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 
 // Experimental, session-local transport. Native generation/validation, cached
 // clock rebasing and the ordinary native load UI remain authoritative.
+const SAVE_GATE = 'prototype-save-gate';
+const gateError = message => Object.assign(new Error(message), { code: SAVE_GATE });
 export function createPrototypeSaveController({ getState, isReady = () => true,
   isBusy = () => false, freezeUi = blockSaveEdits, yieldTask = nextFrame,
-  writeSave = writePrototypeNativeSave, onActivity = () => {}, fetchFn = fetch } = {}) {
+  writeSave = writePrototypeNativeSave, onActivity = () => {}, fetchFn = fetch,
+  settleMs = 30000 } = {}) {
   let configuration = null, enabled = false, pending = null, automatic = null, abort = null, disposed = false;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v2', configured: false, enabled: false, status: 'off', last: null, error: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v3', configured: false, enabled: false, status: 'off', last: null, error: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
 
   async function capture() {
-    if (disposed || !configuration || !isReady()) throw new Error('Tile save prototype is not ready');
+    if (disposed || !configuration || !isReady()) throw gateError('Tile save prototype is not ready');
     const state = getState(), session = state.gameSessionId, city = state.cityCode;
-    if (typeof state.setTimeConfig !== 'function' || !session || !city) throw new Error('Unsupported game state');
+    if (typeof state.setTimeConfig !== 'function' || !session || !city) throw gateError('Unsupported game state');
     const originallyPaused = state.timeConfig.paused;
     const localAbort = abort = new AbortController();
     const ui = freezeUi(() => localAbort.abort(new Error('Normal save requested')));
@@ -29,7 +32,14 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       // Let the current native tick and UI updates settle before taking the
       // snapshot. Active routing/midnight work keeps the native save path.
       await yieldTask(); await yieldTask();
-      if (!sameContext() || !isReady() || isBusy()) throw new Error('Game work is still changing the save');
+      // High-speed sessions recalculate almost continuously, so a single busy
+      // sample would fail every save. Wait briefly for a quiet moment instead;
+      // the game is already paused, so in-flight work drains without new input.
+      const settleBy = Date.now() + Math.max(0, settleMs);
+      while (sameContext() && isReady() && isBusy() && Date.now() < settleBy) await yieldTask();
+      if (!sameContext()) throw gateError('Tile changed while saving; partial save discarded');
+      if (!isReady()) throw gateError('World not ready while saving; partial save discarded');
+      if (isBusy()) throw gateError('Game work is still changing the save');
       const stable = getState();
       const generated = performance.now();
       let save = await stable.generateSave({ name: `[Auto] Tile server ${new Date().toISOString().replaceAll(':', '-')}`, [STREAM_SAVE]: true });
@@ -104,7 +114,13 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       if (automatic) return automatic;
       const session = getState().gameSessionId, city = getState().cityCode;
       automatic = run().catch(error => {
-        enabled = false; notify(); activity('native-fallback', { error: String(error.message) });
+        // Pre-snapshot gate rejections and per-save user cancels keep the
+        // prototype armed: the checkbox stays checked until the user unchecks
+        // it. Only a post-snapshot transfer failure disarms it, since retrying
+        // those would repeat a full snapshot capture on every save.
+        const gate = error?.code === SAVE_GATE || error?.name === 'AbortError';
+        if (!gate) { enabled = false; notify(); }
+        activity('native-fallback', { error: String(error.message) });
         if (!disposed && isReady() && getState().gameSessionId === session && getState().cityCode === city) return native();
       }).finally(() => { automatic = null; });
       return automatic;
