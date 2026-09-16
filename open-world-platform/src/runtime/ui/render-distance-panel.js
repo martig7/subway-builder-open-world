@@ -70,16 +70,18 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
       simulationState?.error ?? (simulationState?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'
         : simulationState?.enabled ? `${simulationState.assignedPops.toLocaleString()} pop groups assigned · ${Math.round(simulationState.dailyRidership).toLocaleString()} estimated daily rides`
           : 'Native simulation'))),
-  saveState?.configured && h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
+  h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
     h('label', { className: 'flex items-center gap-2 text-sm font-medium' },
-      h('input', { type: 'checkbox', role: 'switch', checked: saveState.enabled,
-        onChange: event => saveWriter.setEnabled(event.target.checked),
+      h('input', { type: 'checkbox', role: 'switch', checked: saveState?.enabled ?? false,
+        disabled: !saveState?.configured,
+        onChange: event => saveWriter?.setEnabled(event.target.checked),
         'aria-label': 'Experimental tile-server autosaves' }), 'Experimental tile-server autosaves'),
     h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
       'Pauses simulation and editing while saving. Uses normal game files. Enabled for this session only.'),
     h('div', { role: 'status', className: 'text-xs', 'aria-live': 'polite' },
-      saveState.error ?? (saveState.status === 'saving' ? 'Saving…' : saveState.last
-        ? `Saved in ${(saveState.last.durationMs / 1000).toFixed(1)} seconds` : 'Ready'))));
+      saveState?.error ?? (!saveState?.configured ? 'Save writer unavailable. Start or reconnect the local tile server.'
+        : saveState.status === 'saving' ? 'Saving…' : saveState.last
+          ? `Saved in ${(saveState.last.durationMs / 1000).toFixed(1)} seconds` : 'Ready'))));
 }
 
 export function registerRenderDistanceToolbar({

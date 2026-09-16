@@ -79,3 +79,42 @@ test('map rendering exposes the cached simulation toggle and its calculation sta
   assert.equal(requested, false);
   assert.match(JSON.stringify(panel), /Calculating journeys/);
 });
+
+test('map rendering always exposes the experimental save toggle, disabled until the writer is configured', () => {
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: value => [typeof value === 'function' ? value() : value, () => {}],
+    useEffect: effect => effect(),
+  };
+  const saveWriter = { snapshot: () => ({ configured: false, enabled: false, status: 'off', last: null, error: null }),
+    subscribe: () => () => {}, setEnabled: () => { throw new Error('unconfigured writer must stay disabled'); } };
+  const panel = RenderDistancePanel({ React, saveWriter,
+    controller: { getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
+  const nodes = function* (node) { if (!node || typeof node !== 'object') return; yield node; for (const child of node.children ?? []) yield* nodes(child); };
+  const toggle = [...nodes(panel)].find(node => node.props?.['aria-label'] === 'Experimental tile-server autosaves');
+  assert.ok(toggle, 'experimental save toggle must always be present');
+  assert.equal(toggle.props.checked, false);
+  assert.equal(toggle.props.disabled, true);
+  assert.match(JSON.stringify(panel), /Save writer unavailable/);
+});
+
+test('configured save writer enables the experimental save toggle', () => {
+  let requested;
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: value => [typeof value === 'function' ? value() : value, () => {}],
+    useEffect: effect => effect(),
+  };
+  const saveWriter = { snapshot: () => ({ configured: true, enabled: false, status: 'ready', last: null, error: null }),
+    subscribe: () => () => {}, setEnabled: value => { requested = value; } };
+  const panel = RenderDistancePanel({ React, saveWriter,
+    controller: { getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
+  const nodes = function* (node) { if (!node || typeof node !== 'object') return; yield node; for (const child of node.children ?? []) yield* nodes(child); };
+  const toggle = [...nodes(panel)].find(node => node.props?.['aria-label'] === 'Experimental tile-server autosaves');
+  assert.ok(toggle, 'configured experimental save toggle must be present');
+  assert.equal(toggle.props.disabled, false);
+  toggle.props.onChange({ target: { checked: true } });
+  assert.equal(requested, true);
+});
