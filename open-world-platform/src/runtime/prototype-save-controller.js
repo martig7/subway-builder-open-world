@@ -32,15 +32,22 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       if (!sameContext() || !isReady() || isBusy()) throw new Error('Game work is still changing the save');
       const stable = getState();
       const generated = performance.now();
-      const save = await stable.generateSave({ name: `[Auto] Tile server ${new Date().toISOString().replaceAll(':', '-')}`, [STREAM_SAVE]: true });
+      let save = await stable.generateSave({ name: `[Auto] Tile server ${new Date().toISOString().replaceAll(':', '-')}`, [STREAM_SAVE]: true });
       const generateMs = performance.now() - generated;
       if (save.version !== 4) throw new Error('Prototype supports native save schema 4 only');
       const settled = getState();
       const clock = settled.timeConfig.elapsedSeconds, money = settled.money;
       const roots = ['tracks', 'trains', 'routes', 'stations', 'financialHistory', 'bonds', 'demandData', 'completedCommutes'];
-      const references = roots.map(key => settled[key]);
+      // Eight pointers pin the pre-save arrays while the transfer runs. They
+      // are released in the finally below as soon as the writer settles so a
+      // large snapshot cannot outlive its upload.
+      let references = roots.map(key => settled[key]);
+      const stabilitySummary = { clock, money,
+        session, city, sizes: Object.fromEntries(roots.map((key, index) =>
+          [key, Array.isArray(references[index]) ? references[index].length : references[index] === undefined ? 0 : 1])) };
       const assertStable = () => {
         localAbort.signal.throwIfAborted();
+        if (!references) throw new Error('Save stability snapshot was released; partial save discarded');
         const current = getState();
         if (!sameContext() || !current.timeConfig.paused || current.timeConfig.elapsedSeconds !== clock
           || current.money !== money || roots.some((key, index) => current[key] !== references[index]) || isBusy())
@@ -49,11 +56,17 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       assertStable();
       // The temporary UI pause is not a change to the player's saved settings.
       save.data = { ...save.data, timeConfig: { ...save.data.timeConfig, paused: originallyPaused } };
-      const result = await writeSave(save, { ...configuration, fetchFn, signal: localAbort.signal,
-        beforeCommit: assertStable,
-        onProgress: progress => { assertStable(); ui.progress(progress); status.progress = progress.bytes; notify(); },
-      });
-      status = { ...status, status: 'saved', progress: result.bytes, last: { ...result, generateMs } };
+      let result;
+      try {
+        result = await writeSave(save, { ...configuration, fetchFn, signal: localAbort.signal,
+          beforeCommit: assertStable,
+          onProgress: progress => { assertStable(); ui.progress(progress); status.progress = progress.bytes; notify(); },
+        });
+      } finally {
+        references = null;
+        save = null;
+      }
+      status = { ...status, status: 'saved', progress: result.bytes, last: { ...result, generateMs, stabilitySummary } };
       activity('complete', { durationMs: result.durationMs, bytes: result.bytes, generateMs }); notify();
       return result;
     } catch (error) {

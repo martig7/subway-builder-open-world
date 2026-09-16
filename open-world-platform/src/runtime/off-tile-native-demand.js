@@ -1,4 +1,5 @@
 import { calculateCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
+import { aggregateCompletedCommutes } from './completed-commute-aggregation.js';
 import { fareSegmentsFromStationRoutes, quoteJourneyFare } from './journey-fare.js';
 import {
   calculateNativeRevenueProfile,
@@ -427,6 +428,14 @@ export function mergeNativeDemandProfiles(target, profile) {
     if (b.completedCommutes) {
       a.completedCommutes ??= [];
       for (const commute of b.completedCommutes) a.completedCommutes.push(commute);
+    }
+  }
+  // Batches arrive pre-aggregated but share group keys across batch
+  // boundaries; re-summarize so the merged profile stays bounded.
+  for (let i = 0; i < 24; i++) {
+    const bucket = target.hourly[i];
+    if (Array.isArray(bucket?.completedCommutes) && bucket.completedCommutes.length > 1) {
+      bucket.completedCommutes = aggregateCompletedCommutes(bucket.completedCommutes);
     }
   }
   return target;

@@ -35,6 +35,7 @@ test('saving already shared commute paths does not allocate another copy of ever
 });
 
 test('sharing is copy on write and a second preparation reuses the complete outgoing graph', () => {
+
   const segment = { routeId: 'r', stationIds: ['a', 'b'] };
   const other = { routeId: 's', stationIds: ['b', 'c'] };
   const first = { sr: [segment], p: 'first' };
@@ -48,4 +49,15 @@ test('sharing is copy on write and a second preparation reuses the complete outg
   assert.equal(result.data.compressedDemandData.c[2].sr, first.sr);
   assert.equal(shareNativeSaveReferences(result), result);
   assert.deepEqual(result, save);
+});
+
+test('interning caps bound synchronous save work without changing any value', () => {
+  const rows = Array.from({ length: 10 }, (_, i) => ({ p: `pop-${i}`,
+    sr: [{ routeId: `r${i}`, stationIds: [`s${i}`] }] }));
+  const save = { data: { completedCommutes: rows.map(row => ({ popId: row.p, stationRoutes: row.sr })) } };
+  const before = structuredClone(save);
+  const result = shareNativeSaveReferences(save, { maxSharedRows: 3, maxSharedPaths: 2, maxSharedSegments: 4 });
+  assert.deepEqual(result, before);
+  assert.deepEqual(save, before);
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), JSON.parse(JSON.stringify(save)));
 });

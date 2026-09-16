@@ -1,4 +1,5 @@
 import { wholePeople, wholePeopleDistribution } from './whole-people.js';
+import { appendCompletedCommute } from './completed-commute-aggregation.js';
 
 const DEFAULT_GATEWAY_CAPACITY_PER_HOUR = 10_000;
 const MORNING_DEPARTURE_HOUR = 7;
@@ -399,7 +400,10 @@ function creditFareRevenue(world, entry, dispatchedMass, direction, hour) {
         (pending.revenueByRoute[routeId] ?? 0) + routeRevenue,
       );
     }
-    pending.completedCommutes.push({
+    // The pending ledger is drained as summaries, not per-journey rows: append
+    // through the bounded helper so a long dispatch run cannot grow it without
+    // limit before the next settlement.
+    appendCompletedCommute(pending, {
       popId: `${journey.popId}:${direction}:${hour}`,
       size,
       fareRevenue: journeyFareRevenue,

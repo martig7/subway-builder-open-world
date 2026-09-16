@@ -6,12 +6,17 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v13';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v14';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
 
 export function rebaseCachedTrain(train, delta, elapsedSeconds, billingDelta = delta) {
+  // Paused saves advance no clock. Returning the identical object avoids
+  // cloning every timing array per save and preserves reference identity for
+  // the outgoing sharing pass. Only exact zero is safe: NaN deltas still
+  // change arithmetic downstream.
+  if (delta === 0 && billingDelta === 0) return train;
   const shift = value => Number.isFinite(value) ? value + delta : value;
   return { ...train,
     ...(train.timings ? { timings: train.timings.map(timing => ({ ...timing,
@@ -313,6 +318,10 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
             const rebaseSave = save => {
               if (!cachedActive || !enabled || disposed || !save?.data || getState().gameSessionId !== sessionId) return save;
               const elapsed = save.data.elapsedSeconds;
+              // No clock movement since the cached interval started: rebasing
+              // would only clone the fleet. Skip it so paused saves keep
+              // identical train references for the sharing pass.
+              if (Number.isFinite(elapsed) && elapsed === startedAt) return save;
               return { ...save, data: { ...save.data,
                 ...(Number.isFinite(save.data.lastInfrastructureChargeTime) ? {
                   lastInfrastructureChargeTime: save.data.lastInfrastructureChargeTime + elapsed - startedAt,

@@ -344,7 +344,7 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v13');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v14');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -363,7 +363,7 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v13');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v14');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);
@@ -462,6 +462,16 @@ test('return to native mode rebases all observed absolute train anchors and pres
   assert.equal(next.stuckDetection.lastMovementTime, 110);
   assert.deepEqual(next.operationalTime, { totalSeconds: 8, lastChargedAt: 105 });
   assert.equal(train.operationalTime.lastChargedAt, 5);
+});
+
+test('paused saves return identical train objects so the sharing pass can hit', () => {
+  const train = { timings: [{ arrivalTime: 1, futureCycleArrivalTimes: [2] }],
+    operationalTime: { totalSeconds: 8, lastChargedAt: 5 } };
+  assert.equal(rebaseCachedTrain(train, 0, 100), train);
+  const moved = rebaseCachedTrain(train, 100, 200);
+  assert.notEqual(moved, train);
+  assert.equal(moved.timings[0].arrivalTime, 101);
+  assert.equal(train.timings[0].arrivalTime, 1);
 });
 
 test('failed calculation pauses the clock and never falls through to native simulation', async () => {

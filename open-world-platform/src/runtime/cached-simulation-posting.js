@@ -1,4 +1,5 @@
 import { wholePeopleInInterval } from './whole-people.js';
+import { aggregateCompletedCommutes } from './completed-commute-aggregation.js';
 
 /** Integrate cached hourly rates over exactly the interval owned by this mode. */
 export function* cachedSimulationPostingSteps({ profile, expenses, from, to, sessionId }) {
@@ -39,6 +40,12 @@ export function* cachedSimulationPostingSteps({ profile, expenses, from, to, ses
     }
     yield;
     start = end;
+  }
+  // Post one summary record per (origin, interval, route set). Interval-scoped
+  // pop IDs already force a fresh native identity per posting; without this
+  // the ledger grows by the full per-pop row count on every settled interval.
+  if (result.completedCommutes.length > 1) {
+    result.completedCommutes = aggregateCompletedCommutes(result.completedCommutes);
   }
   return result;
 }

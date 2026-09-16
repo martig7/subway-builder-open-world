@@ -1,5 +1,6 @@
 import { quoteJourneyFare } from './journey-fare.js';
 import { wholePeople, wholePeopleDistribution } from './whole-people.js';
+import { aggregateCompletedCommutes } from './completed-commute-aggregation.js';
 
 const HOURS_PER_DAY = 24;
 const NATIVE_ANNUALIZATION = 365;
@@ -431,6 +432,14 @@ export function calculateNativeRevenueProfile(pops = [], {
     }
     transitPopulation += popTransitPopulation;
   }
+  // The ledger keeps one summary record per (origin, hour, route set) instead
+  // of one row per pop. Sizes and fares are summed exactly; per-pop detail
+  // stays in the worker that computed it and never enters the save graph.
+  for (const hour of hourly) {
+    if (Array.isArray(hour.completedCommutes) && hour.completedCommutes.length > 1) {
+      hour.completedCommutes = aggregateCompletedCommutes(hour.completedCommutes);
+    }
+  }
   const customCrossTileRevenue = hourly.reduce(
     (sum, value) => sum + Math.max(0, finite(value.financeOwnedRevenue, 0)),
     0,
@@ -552,7 +561,10 @@ export function backgroundFinanceForHour({
     const active = tileId === activeTileId;
     if (!active) {
       const dayStart = Math.floor(hour / HOURS_PER_DAY) * 86400;
-      for (const commute of value.completedCommutes ?? []) completedCommutes.push({
+      // Older sidecars may still carry per-pop rows; summarize before cloning
+      // so one posting cannot materialize tens of thousands of journeys.
+      const settled = aggregateCompletedCommutes(value.completedCommutes ?? []);
+      for (const commute of settled) completedCommutes.push({
         ...structuredClone(commute),
         popId: `off-tile-native:${encodeURIComponent(tileId)}:${encodeURIComponent(commute.popId)}:${commute.origin}:${hour}`,
         journeyStart: dayStart + commute.journeyStart,

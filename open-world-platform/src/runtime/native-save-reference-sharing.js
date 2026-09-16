@@ -1,16 +1,28 @@
 import { shareNativeSaveValueReferences } from './native-save-value-sharing.js';
 
-export const NATIVE_SAVE_REFERENCE_SHARING_VERSION = 'native-save-reference-sharing-v2';
+export const NATIVE_SAVE_REFERENCE_SHARING_VERSION = 'native-save-reference-sharing-v3';
+// Sharing only replaces duplicate objects with shared references; values never
+// change. These caps bound the synchronous save-path work when a ledger holds
+// hundreds of thousands of unique identities: beyond the cap further rows are
+// left unshared instead of growing the lookup tables without limit.
+const MAX_SHARED_PATHS = 32768;
+const MAX_SHARED_SEGMENTS = 32768;
+const MAX_SHARED_ROWS = 65536;
 
 /** Share identical values only in the outgoing save graph.
  * Native JSON values, IDs, record counts and route order remain unchanged. */
-export function shareNativeSaveReferences(save) {
+export function shareNativeSaveReferences(save, {
+  maxSharedPaths = MAX_SHARED_PATHS,
+  maxSharedSegments = MAX_SHARED_SEGMENTS,
+  maxSharedRows = MAX_SHARED_ROWS,
+} = {}) {
   if (!save?.data) return save;
   const paths = new Map(), routes = new Map(), seen = new WeakMap();
   let segmentSequence = 0;
   const share = path => {
     if (!Array.isArray(path)) return path;
     if (seen.has(path)) return seen.get(path);
+    if (segmentSequence >= maxSharedSegments || paths.size >= maxSharedPaths) return path;
     if (!path.every(s => s && Object.keys(s).length === 2 && typeof s.routeId === 'string'
       && Array.isArray(s.stationIds) && s.stationIds.every(id => typeof id === 'string'))) return path;
     let shared = path;
@@ -36,7 +48,8 @@ export function shareNativeSaveReferences(save) {
   };
   const records = (rows, field) => {
     let result = rows;
-    for (let index = 0; index < rows.length; index++) {
+    const limit = Math.min(rows.length, Math.max(0, maxSharedRows));
+    for (let index = 0; index < limit; index++) {
       const row = rows[index];
       if (!row || typeof row !== 'object') continue;
       const path = share(row[field]);
