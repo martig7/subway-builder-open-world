@@ -126,6 +126,27 @@ test('automatic configuration ignores version mismatches', async () => {
   assert.equal((await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8800'], fetchFn })).configured, false);
 });
 
+test('reconnect reuses remembered origins and throttles failed probes', async () => {
+  const f = fixture();
+  let calls = 0;
+  const fetchFn = async () => { calls++; throw new Error('no server'); };
+  await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8800', 'http://127.0.0.1:8799'], fetchFn });
+  assert.equal(calls, 2);
+  await f.controller.reconnect({ fetchFn });
+  assert.equal(calls, 4, 'a later panel open re-probes the remembered origins');
+  await f.controller.reconnect({ fetchFn });
+  assert.equal(calls, 4, 'immediate repeats stay quiet');
+});
+
+test('reconnect is a no-op once configured', async () => {
+  const f = fixture();
+  let calls = 0;
+  const fetchFn = async () => { calls++; return Response.json({ version: 'tile-save-prototype-v1' }); };
+  await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8800'], fetchFn });
+  await f.controller.reconnect({ fetchFn });
+  assert.equal(calls, 1);
+});
+
 test('the save overlay captures game shortcuts even when its cancel button has focus', () => {
   const handlers = new Map(); let focused, cancels = 0;
   const window = { addEventListener(name, handler, options) { assert.equal(options.capture, true); handlers.set(name, handler); },

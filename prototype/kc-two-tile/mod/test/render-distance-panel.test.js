@@ -99,6 +99,21 @@ test('map rendering always exposes the experimental save toggle, disabled until 
   assert.match(JSON.stringify(panel), /Save writer unavailable/);
 });
 
+test('opening the panel re-probes an unconfigured save writer', () => {
+  let reconnects = 0;
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: value => [typeof value === 'function' ? value() : value, () => {}],
+    useEffect: effect => effect(),
+  };
+  const saveWriter = { snapshot: () => ({ configured: false, enabled: false, status: 'off', last: null, error: null }),
+    subscribe: () => () => {}, reconnect: () => { reconnects++; return Promise.resolve(); } };
+  RenderDistancePanel({ React, saveWriter,
+    controller: { getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
+  assert.equal(reconnects, 1);
+});
+
 test('configured save writer enables the experimental save toggle', () => {
   let requested;
   const React = {

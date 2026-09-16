@@ -105,9 +105,11 @@ $env:DOTNET_GCHeapHardLimit = '0x10000000'
 
 The save root defaults to the game's configured save folder
 (`customSavesDirectory` from settings); `--save-prototype-root` still
-overrides it. The loaded mod connects on its own: it probes the World's tile
-server first, then port 8800, and retries while unconfigured, so no `--enable`
-pairing step is needed and server restarts cannot strand the toggle. Game
+overrides it. The loaded mod connects on its own: it probes port 8800 first, then the
+World's tile server, once at startup and again whenever the Map rendering
+panel opens while unconfigured (re-probes are throttled to one per minute, so
+a stopped writer cannot spam the console), so no `--enable` pairing step is
+needed and server restarts cannot strand the toggle. Game
 requests ride without the per-boot instance token; other origins keep
 requiring it, so the diagnostic launcher below remains available for explicit
 control sessions:

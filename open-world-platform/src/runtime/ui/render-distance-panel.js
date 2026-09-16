@@ -21,6 +21,12 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
   React.useEffect(() => simulation?.subscribe(setSimulationState), [simulation]);
   const [saveState, setSaveState] = React.useState(() => saveWriter?.snapshot());
   React.useEffect(() => saveWriter?.subscribe(setSaveState), [saveWriter]);
+  React.useEffect(() => {
+    // Re-probe when the panel opens while unconfigured (e.g. the writer
+    // started after the mod loaded). The controller throttles attempts so
+    // repeated opens stay quiet when no writer answers.
+    void saveWriter?.reconnect?.().catch(() => {});
+  }, [saveWriter]);
   React.useEffect(
     () => controller.subscribeRenderDistance((value) => { setSettings({ distance: value, shape: controller.getRenderShape?.() ?? 'circle' }); }),
     [controller],

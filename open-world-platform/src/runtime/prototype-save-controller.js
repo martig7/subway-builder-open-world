@@ -12,6 +12,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
   writeSave = writePrototypeNativeSave, onActivity = () => {}, fetchFn = fetch,
   settleMs = 30000 } = {}) {
   let configuration = null, enabled = false, pending = null, automatic = null, abort = null, disposed = false;
+  let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
   let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v4', configured: false, enabled: false, status: 'off', last: null, error: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
@@ -91,6 +92,29 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
     pending = capture().finally(() => { pending = null; });
     return pending;
   };
+  async function configureAutomatic({ origins = [], fetchFn = fetch, timeoutMs = 3000 } = {}) {
+    // Background discovery: never throws, so startup and panel-open probes
+    // can call it freely. Game-origin requests carry no token and survive
+    // restarts. Remembers its origins for reconnect().
+    if (origins.length) reconnectOrigins = origins;
+    if (pending || disposed || configuration) return snapshot();
+    for (const origin of origins) {
+      let base;
+      try {
+        base = new URL(origin);
+        if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1') continue;
+      } catch { continue; }
+      try {
+        const response = await fetchFn(new URL('/_prototype/save/status', base),
+          { method: 'POST', signal: AbortSignal.timeout(timeoutMs) });
+        if (!response.ok) continue;
+        if ((await response.json())?.version !== TILE_SAVE_PROTOTYPE_VERSION) continue;
+        configuration = { origin: base.origin, token: null };
+        status = { ...status, status: 'ready', error: null }; notify(); return snapshot();
+      } catch { continue; }
+    }
+    return snapshot();
+  }
   return {
     snapshot,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
@@ -102,33 +126,21 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       const response = await fetchFn(new URL('/_prototype/save/status', base), { method: 'POST',
         headers: { 'X-PMTiles-Control-Token': token }, signal: AbortSignal.timeout(3000) });
       if (!response.ok || (await response.json()).version !== TILE_SAVE_PROTOTYPE_VERSION) throw new Error('Prototype writer is unavailable');
-      configuration = { origin: base.origin, token }; status.status = 'ready'; notify(); return snapshot();
+      configuration = { origin: base.origin, token }; status.status = 'ready'; notify();       return snapshot();
+    },
+    reconnect({ fetchFn = fetch, timeoutMs = 3000 } = {}) {
+      // Panel-open re-probe for a writer that started after the mod loaded.
+      // Throttled: failed loopback probes log console errors. Never throws.
+      if (pending || disposed || configuration || !reconnectOrigins.length) return Promise.resolve(snapshot());
+      if (Date.now() - reconnectAt < 60000) return Promise.resolve(snapshot());
+      reconnectAt = Date.now();
+      return configureAutomatic({ origins: reconnectOrigins, fetchFn, timeoutMs });
     },
     setEnabled(value) {
       if (value && (!configuration || disposed)) throw new Error('Configure the prototype writer first');
       enabled = Boolean(value); notify(); return snapshot();
     },
-    async configureAutomatic({ origins = [], fetchFn = fetch, timeoutMs = 3000 } = {}) {
-      // Background reconnect: never throws, so a startup retry timer can call
-      // it freely. Game-origin requests carry no token and survive restarts.
-      if (pending || disposed || configuration) return snapshot();
-      for (const origin of origins) {
-        let base;
-        try {
-          base = new URL(origin);
-          if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1') continue;
-        } catch { continue; }
-        try {
-          const response = await fetchFn(new URL('/_prototype/save/status', base),
-            { method: 'POST', signal: AbortSignal.timeout(timeoutMs) });
-          if (!response.ok) continue;
-          if ((await response.json())?.version !== TILE_SAVE_PROTOTYPE_VERSION) continue;
-          configuration = { origin: base.origin, token: null };
-          status = { ...status, status: 'ready', error: null }; notify(); return snapshot();
-        } catch { continue; }
-      }
-      return snapshot();
-    },
+    configureAutomatic,
     run,
     invoke(native) {
       if (!enabled || disposed) return native();

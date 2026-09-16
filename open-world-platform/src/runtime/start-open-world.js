@@ -679,24 +679,16 @@ export function startOpenWorld({
   });
   diagnostics.prototypeSaveWriter = prototypeSaveWriter;
   // The experimental writer is a native part of the mod: connect without the
-  // manual per-session pairing step. The world's tile server comes first so a
-  // future official writer wins; the standalone prototype port stays as a
-  // fallback. Game-origin requests carry no per-boot token, so server
-  // restarts cannot strand the toggle. Retry while unconfigured in case the
-  // server starts after the mod loads.
+  // manual per-session pairing step. The standalone prototype port comes first
+  // so the happy path is a single silent success; the world's tile server
+  // stays as a fallback for a future official writer. Game-origin requests
+  // carry no per-boot token, so server restarts cannot strand the toggle.
+  // Probe once here; the Map rendering panel re-probes whenever it opens
+  // while unconfigured. No retry timer: failed loopback probes log console
+  // errors, and the toggle can only be armed from the panel anyway.
   const saveWriterOrigins = [...new Set(
-    [definition.runtime.tileServerPort, 8800].filter(Boolean).map(port => `http://127.0.0.1:${port}`))];
-  let saveWriterRetry = null;
-  const reconnectSaveWriter = () => {
-    if (prototypeSaveWriter.snapshot().configured) {
-      if (saveWriterRetry !== null) { clearInterval(saveWriterRetry); saveWriterRetry = null; }
-      return;
-    }
-    void prototypeSaveWriter.configureAutomatic({ origins: saveWriterOrigins }).catch(() => {});
-  };
-  reconnectSaveWriter();
-  saveWriterRetry = setInterval(reconnectSaveWriter, 10000);
-  if (typeof saveWriterRetry?.unref === 'function') saveWriterRetry.unref();
+    [8800, definition.runtime.tileServerPort].filter(Boolean).map(port => `http://127.0.0.1:${port}`))];
+  void prototypeSaveWriter.configureAutomatic({ origins: saveWriterOrigins }).catch(() => {});
   function ensureSession() {
     if (session) return session;
     const routePaths = createOpenWorldRoutePaths({
@@ -1713,7 +1705,6 @@ export function startOpenWorld({
       if (moduleDisposed) return;
       moduleDisposed = true;
       void cachedSimulation.dispose();
-      if (saveWriterRetry !== null) { clearInterval(saveWriterRetry); saveWriterRetry = null; }
       prototypeSaveWriter.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {
         try { unsubscribe(); } catch {}
