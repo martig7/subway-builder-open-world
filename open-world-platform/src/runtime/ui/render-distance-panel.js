@@ -12,6 +12,9 @@ export function renderDistanceLabel(value) {
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
 }
 
+const mebibytes = bytes => `${(bytes / 1048576).toFixed(1)} MiB`;
+const seconds = ms => `${(ms / 1000).toFixed(1)} s`;
+
 export function RenderDistancePanel({ React, controller, simulation, saveWriter }) {
   const h = React.createElement;
   const [settings, setSettings] = React.useState({ distance: controller.getRenderDistance(), shape: controller.getRenderShape?.() ?? 'circle' });
@@ -32,6 +35,12 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
     [controller],
   );
   const update = (event) => controller.setRenderDistance(limits.min + Number(event?.target?.value) / 1000 * (limits.max - limits.min));
+  const phases = !saveState?.configured || !saveState.last ? [] : [
+    saveState.last.generateMs != null && `generate ${seconds(saveState.last.generateMs)}`,
+    saveState.last.settleMs != null && `settle ${seconds(saveState.last.settleMs)}`,
+    saveState.last.encodeMs != null && `encode ${seconds(saveState.last.encodeMs)}`,
+    saveState.last.transferMs != null && `transfer ${seconds(saveState.last.transferMs)}`,
+  ].filter(Boolean);
   return h('div', {
     className: 'flex flex-col gap-3 p-3',
     'data-version': RENDER_DISTANCE_CONTROL_VERSION,
@@ -86,8 +95,13 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
       'Pauses simulation and editing while saving. Uses normal game files. Enabled for this session only.'),
     h('div', { role: 'status', className: 'text-xs', 'aria-live': 'polite' },
       saveState?.error ?? (!saveState?.configured ? 'Save writer unavailable. Start or reconnect the local tile server.'
-        : saveState.status === 'saving' ? 'Saving…' : saveState.last
-          ? `Saved in ${(saveState.last.durationMs / 1000).toFixed(1)} seconds` : 'Ready'))));
+        : saveState.status === 'saving'
+          ? (saveState.progress != null ? `Saving… ${mebibytes(saveState.progress)}` : 'Saving…')
+          : saveState.last
+            ? `Saved ${mebibytes(saveState.last.bytes)} in ${seconds(saveState.last.durationMs)}` : 'Ready')),
+    phases.length > 0 && h('div', { className: 'text-xs text-muted-foreground' }, phases.join(' · ')),
+    saveState?.configured && saveState.transport === 'native-fallback'
+      && h('div', { className: 'text-xs text-muted-foreground' }, 'Latest attempt used the native save path.')));
 }
 
 export function registerRenderDistanceToolbar({

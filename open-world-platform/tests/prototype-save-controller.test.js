@@ -138,6 +138,24 @@ test('reconnect reuses remembered origins and throttles failed probes', async ()
   assert.equal(calls, 4, 'immediate repeats stay quiet');
 });
 
+test('a completed save records settle timing and the prototype transport', async () => {
+  let busy = true, yields = 0;
+  const f = fixture({}, { settleMs: 60000, isBusy: () => busy,
+    yieldTask: async () => { yields++; if (yields >= 2) busy = false; } });
+  await f.configure();
+  await f.controller.invoke(f.native);
+  const last = f.controller.snapshot().last;
+  assert.ok(typeof last.settleMs === 'number' && last.settleMs >= 0, 'settle wait must be timed');
+  assert.equal(f.controller.snapshot().transport, 'prototype');
+});
+
+test('a gate rejection records the native-fallback transport while staying armed', async () => {
+  const f = fixture({ busy: true }); await f.configure();
+  assert.equal(await f.controller.invoke(f.native), 'native');
+  assert.equal(f.controller.snapshot().transport, 'native-fallback');
+  assert.equal(f.controller.snapshot().enabled, true);
+});
+
 test('reconnect is a no-op once configured', async () => {
   const f = fixture();
   let calls = 0;

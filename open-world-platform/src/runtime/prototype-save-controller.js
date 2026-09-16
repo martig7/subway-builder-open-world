@@ -14,7 +14,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
   let configuration = null, enabled = false, pending = null, automatic = null, abort = null, disposed = false;
   let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v4', configured: false, enabled: false, status: 'off', last: null, error: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v5', configured: false, enabled: false, status: 'off', last: null, error: null, transport: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
@@ -36,8 +36,12 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       // High-speed sessions recalculate almost continuously, so a single busy
       // sample would fail every save. Wait briefly for a quiet moment instead;
       // the game is already paused, so in-flight work drains without new input.
-      const settleBy = Date.now() + Math.max(0, settleMs);
+      // The wait is timed into the last-save breakdown so a slow session can
+      // be told apart from a slow upload.
+      const settleStarted = Date.now();
+      const settleBy = settleStarted + Math.max(0, settleMs);
       while (sameContext() && isReady() && isBusy() && Date.now() < settleBy) await yieldTask();
+      const settleWaitMs = Date.now() - settleStarted;
       if (!sameContext()) throw gateError('Tile changed while saving; partial save discarded');
       if (!isReady()) throw gateError('World not ready while saving; partial save discarded');
       if (isBusy()) throw gateError('Game work is still changing the save');
@@ -77,7 +81,8 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
         references = null;
         save = null;
       }
-      status = { ...status, status: 'saved', progress: result.bytes, last: { ...result, generateMs, stabilitySummary } };
+      status = { ...status, status: 'saved', transport: 'prototype', progress: result.bytes,
+        last: { ...result, generateMs, settleMs: settleWaitMs, stabilitySummary } };
       activity('complete', { durationMs: result.durationMs, bytes: result.bytes, generateMs }); notify();
       return result;
     } catch (error) {
@@ -151,8 +156,11 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
         // prototype armed: the checkbox stays checked until the user unchecks
         // it. Only a post-snapshot transfer failure disarms it, since retrying
         // those would repeat a full snapshot capture on every save.
+        // Either way the attempt ran natively, so record the transport: a
+        // 100-second "experimental" save is really a native fallback.
         const gate = error?.code === SAVE_GATE || error?.name === 'AbortError';
-        if (!gate) { enabled = false; notify(); }
+        status = { ...status, transport: 'native-fallback' };
+        if (!gate) { enabled = false; notify(); } else notify();
         activity('native-fallback', { error: String(error.message) });
         if (!disposed && isReady() && getState().gameSessionId === session && getState().cityCode === city) return native();
       }).finally(() => { automatic = null; });

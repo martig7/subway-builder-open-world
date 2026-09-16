@@ -114,6 +114,55 @@ test('opening the panel re-probes an unconfigured save writer', () => {
   assert.equal(reconnects, 1);
 });
 
+test('an in-progress experimental save shows the current uploaded size', () => {
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: value => [typeof value === 'function' ? value() : value, () => {}],
+    useEffect: effect => effect(),
+  };
+  const saveWriter = { snapshot: () => ({ configured: true, enabled: true, status: 'saving',
+      progress: 5 * 1048576, last: null, error: null }),
+    subscribe: () => () => {}, reconnect: () => Promise.resolve() };
+  const panel = RenderDistancePanel({ React, saveWriter,
+    controller: { getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
+  assert.match(JSON.stringify(panel), /5\.0 MiB/);
+});
+
+test('a completed experimental save shows its size and phase timings', () => {
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: value => [typeof value === 'function' ? value() : value, () => {}],
+    useEffect: effect => effect(),
+  };
+  const saveWriter = { snapshot: () => ({ configured: true, enabled: true, status: 'saved', transport: 'prototype',
+      last: { bytes: 30 * 1048576, durationMs: 19000, generateMs: 2000, encodeMs: 3000, transferMs: 12000, settleMs: 500 }, error: null }),
+    subscribe: () => () => {}, reconnect: () => Promise.resolve() };
+  const panel = RenderDistancePanel({ React, saveWriter,
+    controller: { getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
+  const text = JSON.stringify(panel);
+  assert.match(text, /30\.0 MiB/);
+  assert.match(text, /19\.0 s/);
+  assert.match(text, /encode 3\.0 s/);
+  assert.match(text, /transfer 12\.0 s/);
+});
+
+test('a native-fallback attempt says so instead of looking like a fast save', () => {
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: value => [typeof value === 'function' ? value() : value, () => {}],
+    useEffect: effect => effect(),
+  };
+  const saveWriter = { snapshot: () => ({ configured: true, enabled: true, status: 'failed', transport: 'native-fallback',
+      last: null, error: 'Game work is still changing the save' }),
+    subscribe: () => () => {}, reconnect: () => Promise.resolve() };
+  const panel = RenderDistancePanel({ React, saveWriter,
+    controller: { getRenderDistance: () => 3,
+    getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
+  assert.match(JSON.stringify(panel), /native save path/);
+});
+
 test('configured save writer enables the experimental save toggle', () => {
   let requested;
   const React = {
