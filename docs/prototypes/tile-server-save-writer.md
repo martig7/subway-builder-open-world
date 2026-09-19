@@ -12,6 +12,44 @@ alternative; an announcement alone is not a performance result.
 
 ## Measured results
 
+### September 19 follow-up: save readiness without a native worker pool
+
+After the fallback removal, an in-game capture reported: "Cannot verify that
+journey calculations have finished." The old gate used `logicalWorkers > 0`
+as proof of readiness. That counter records intercepted worker construction;
+it is not a count of unfinished work. A ready cached session can have no native
+workers at all, and a pool created before the mod starts can be invisible to
+the constructor monitor. Waiting 30 seconds cannot change either condition.
+The verified worker filename was also bypassed when loaded through `app://`
+instead of `file://`; the monitor now accepts both local game protocols while
+still requiring the exact known worker script and module type.
+
+`prototype-save-work-readiness-v1` checks unfinished simulation actions instead
+of requiring historical worker construction. The cached simulation wrapper
+(`open-world-cached-simulation-v15`) tracks the original native tick, commute,
+and pathfinding promises through completion, including network preparation
+before worker dispatch and native state publication after worker completion.
+It also reports unfinished cached ticks, refreshes and shutdown settlement.
+Observed idle actions allow saving with zero native workers. Busy or queued
+worker batches still block saving, and missing/replaced action wrappers fail
+explicitly rather than being treated as idle. Pending native work survives
+replacement of the tracking wrappers. Automatic native fallback remains disabled.
+
+The cached-session save regression reproduced the exact reported failure before
+the fix and now reaches the experimental writer. Additional checks cover native
+actions with pre-existing pools, cached ticks waiting on hourly work, rejected
+actions, missing wrappers, hot reload, and the `app://` worker protocol. All 958
+platform tests and seven Japan tests passed. Live verification of this follow-up
+still requires reloading the Japan mod; the configured game diagnostic endpoint
+refused its connection during diagnosis.
+
+The Japan consumer (`prototype/japan/mod`, manifest `local.japan-open-world`)
+was rebuilt and installed. Built and installed bundles matched at SHA-256
+`bf2d3429a13703b0d9b9224d456c96568df21347f195ac13898d43185082b353`
+and timestamp 2026-09-19 23:40:23 UTC, with all three new version markers present.
+The configured PMTiles service returned HTTP 200 and its expected version.
+Local verification is recorded under `.analysis/save-worker-readiness/`.
+
 ### September 19: buffered encoding and batched uploads
 
 The `codex/streaming-save-progress` change removes automatic native fallback and

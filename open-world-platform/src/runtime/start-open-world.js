@@ -43,6 +43,7 @@ import { stageNativeRecovery } from './native-reload-recovery.js';
 import { installNativeSavedReloadGuard } from './native-saved-reload-guard.js';
 import { findNativeAutosaveRef, installNativeAutosaveIdleGuard } from './native-autosave-idle-guard.js';
 import { createPrototypeSaveController } from './prototype-save-controller.js';
+import { PROTOTYPE_SAVE_READINESS_VERSION, prototypeSaveBusyReason } from './prototype-save-readiness.js';
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
 import { storedRouteLoader } from './stored-route-paths.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
@@ -369,6 +370,7 @@ export function startOpenWorld({
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
     activeDemandPreparation: activeDemandPreparation?.snapshot,
     nativeCommuteWorkers: nativeCommuteWorkers?.snapshot,
+    prototypeSaveReadinessVersion: PROTOTYPE_SAVE_READINESS_VERSION,
     intercityTrains,
     runtimeAuditVersion: RUNTIME_AUDIT_VERSION,
     generation,
@@ -670,13 +672,7 @@ export function startOpenWorld({
   const prototypeSaveWriter = createPrototypeSaveController({
     getState: () => game.callbacks.getState(),
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
-    isBusy: () => {
-      const workers = nativeCommuteWorkers?.snapshot?.();
-      if (!workers?.logicalWorkers) return 'Cannot verify that journey calculations have finished';
-      if (workers.busy || workers.queued) return `Waiting for journey calculations (${workers.busy} running, ${workers.queued} queued)`;
-      if (cachedSimulation.snapshot().status === 'calculating') return 'Waiting for cached journey calculations';
-      return false;
-    },
+    isBusy: () => prototypeSaveBusyReason({ nativeWorkers: nativeCommuteWorkers?.snapshot?.(), simulation: cachedSimulation.snapshot() }),
     onActivity: (stage, details) => {
       rendererMemory.recordActivity(stage, details);
       if (stage === 'tile-save.error' || stage === 'tile-save.cancelled')

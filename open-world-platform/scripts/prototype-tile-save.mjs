@@ -49,6 +49,7 @@ try {
     return {writer:writer.snapshot(),probe:globalThis.__owPrototypeAutosaveProbe??null,
       paused:state?.timeConfig?.paused,clock:state?.timeConfig?.elapsedSeconds,money:state?.money,session:state?.gameSessionId,
       nativeWorkers:diagnostics.nativeCommuteWorkers?.(),cachedStatus:diagnostics.cachedSimulation?.().status,
+      saveReadinessVersion:diagnostics.prototypeSaveReadinessVersion,saveWork:diagnostics.cachedSimulation?.().saveWork,
       cachedVersion:diagnostics.cachedSimulation?.().version,autosaveGuard:diagnostics.nativeAutosaveIdle?.snapshot?.()};`;
   if (configuration) action = `await writer.configure(${JSON.stringify(configuration)});writer.setEnabled(true);return writer.snapshot();`;
   if (options.has('--disable')) action = 'writer.setEnabled(false);return writer.snapshot();';

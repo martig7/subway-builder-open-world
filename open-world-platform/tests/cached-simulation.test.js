@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createPrototypeSaveController } from '../src/runtime/prototype-save-controller.js';
+import { prototypeSaveBusyReason } from '../src/runtime/prototype-save-readiness.js';
 import { createCachedSimulation, cachedSimulationPosting, publishCachedDemand, rebaseCachedTrain } from '../src/runtime/cached-simulation.js';
 import { evaluateOffTileNativeDemand } from '../src/runtime/off-tile-native-demand.js';
 import { createNetworkProfile } from '../src/runtime/cross-tile-mode-choice.js';
@@ -82,6 +84,7 @@ function fixture(evaluate = async () => calculated(), isReady = () => true, opti
     setTimeConfig(update) { this.timeConfig = { ...this.timeConfig, ...update }; },
     setTrains(trains) { this.trains = trains; }, setDemandData(value) { this.demandData = value; },
     setCompletedCommutes(value) { this.completedCommutes = value; },
+    ...options.nativeActions,
   };
   const game = { captureCrossTileNetworkProfile: network, calculateNativeFinanceProfile: () => ({ expenseProfile: {} }),
     postBackgroundNativeFinanceNow: posting => { postings.push(posting); return { applied: true }; } };
@@ -100,6 +103,85 @@ test('tick-suppression status follows the wrapper readiness dispatch condition',
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1, 'an unready cache delegates to native simulation');
   await f.controller.dispose();
+});
+
+test('a ready cached session can save before any native commute worker was created', async () => {
+  const f = fixture();
+  await f.controller.setEnabled(true);
+  const generate = f.state.generateSave;
+  f.state.generateSave = function (...args) { return { ...generate.apply(this, args), version: 4 }; };
+  let writes = 0, nativeSaves = 0;
+  const writer = createPrototypeSaveController({ getState: () => f.state,
+    isBusy: () => prototypeSaveBusyReason({ nativeWorkers: { logicalWorkers: 0, busy: 0, queued: 0 }, simulation: f.controller.snapshot() }),
+    settleMs: 0, yieldTask: async () => {}, freezeUi: () => ({ progress() {}, dispose() {} }),
+    fetchFn: async () => Response.json({ version: 'tile-save-prototype-v1' }),
+    writeSave: async (_save, options) => { options.beforeCommit(); writes++; return { bytes: 100, path: 'fixture.metro' }; },
+  });
+  try {
+    await writer.configure({ origin: 'http://127.0.0.1:8800', token: 'fixture-control-token' });
+    writer.setEnabled(true);
+    const result = await writer.invoke(() => { nativeSaves++; });
+    assert.equal(result.path, 'fixture.metro', writer.snapshot().error);
+    assert.equal(writes, 1);
+    assert.equal(nativeSaves, 0);
+  } finally { writer.dispose(); await f.controller.dispose(); }
+});
+
+test('save readiness follows native async actions even when their worker pool predates the mod', async () => {
+  for (const action of ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths']) {
+    let finish;
+    const pending = new Promise(resolve => { finish = resolve; });
+    const f = fixture(undefined, undefined, { nativeActions: { [action]: () => pending } });
+    const reason = () => prototypeSaveBusyReason({ simulation: f.controller.snapshot() });
+    const result = f.state[action]();
+    assert.equal(result, pending, 'tracking must preserve the native promise identity');
+    assert.match(reason(), /native simulation/);
+    finish(); await result;
+    assert.equal(reason(), false);
+    await f.controller.dispose();
+  }
+});
+
+test('save readiness waits for a cached tick after routing has finished', async () => {
+  let finish, entered;
+  const arrived = new Promise(resolve => { entered = resolve; });
+  const f = fixture(undefined, undefined, { onHour: () => new Promise(resolve => { finish = resolve; entered(); }) });
+  await f.controller.setEnabled(true);
+  f.state.setTimeConfig({ paused: false, elapsedSeconds: 28790 });
+  const tick = f.state.handleIncrementGameState();
+  await arrived;
+  f.state.setTimeConfig({ paused: true });
+  const reason = () => prototypeSaveBusyReason({ nativeWorkers: { logicalWorkers: 24, busy: 0, queued: 0 }, simulation: f.controller.snapshot() });
+  assert.equal(f.controller.snapshot().status, 'ready');
+  assert.match(reason(), /cached simulation/);
+  finish(); await tick;
+  assert.equal(reason(), false);
+  await f.controller.dispose();
+});
+
+test('failed native actions release save readiness and replaced actions cannot masquerade as observed', async () => {
+  const f = fixture(undefined, undefined, { nativeActions: { simulateCommutes: async () => { throw new Error('Native routing failed'); } } });
+  await assert.rejects(f.state.simulateCommutes(), /Native routing failed/);
+  assert.equal(prototypeSaveBusyReason({ simulation: f.controller.snapshot() }), false);
+  f.state.calculatePaths = () => {};
+  assert.match(prototypeSaveBusyReason({ simulation: f.controller.snapshot() }), /Cannot observe simulation work/);
+  f.controller.attach();
+  assert.equal(prototypeSaveBusyReason({ simulation: f.controller.snapshot() }), false);
+  await f.controller.dispose();
+});
+
+test('replacing the cached wrapper retains pending native work until its original promise settles', async () => {
+  let finish;
+  const pending = new Promise(resolve => { finish = resolve; });
+  const f = fixture(undefined, undefined, { nativeActions: { simulateCommutes: () => pending } });
+  const originalWrapper = f.state.simulateCommutes;
+  const action = f.state.simulateCommutes();
+  const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
+  assert.notEqual(f.state.simulateCommutes, originalWrapper);
+  assert.equal(current.snapshot().saveWork.native, 1);
+  finish(); await action;
+  assert.equal(current.snapshot().saveWork.native, 0);
+  await f.controller.dispose(); await current.dispose();
 });
 
 test('cached ticks bypass all native simulation, reuse assignments, honor pause and restore physical fleet', async () => {
@@ -338,13 +420,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v11', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v14', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v14');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v15');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -357,13 +439,13 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const original = f.state.generateSave[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v11', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v14', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v14');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v15');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);

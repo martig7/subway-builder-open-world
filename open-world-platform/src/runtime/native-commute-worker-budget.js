@@ -1,4 +1,4 @@
-export const NATIVE_COMMUTE_WORKER_BUDGET_VERSION = 'native-commute-worker-budget-v1';
+export const NATIVE_COMMUTE_WORKER_BUDGET_VERSION = 'native-commute-worker-budget-v2';
 const KEY = '__openWorldNativeCommuteWorkerBudget__';
 // Protocol verified against Subway Builder 1.7. Unknown builds pass through.
 const SCRIPT = 'popCommuteWorker.worker-CI81Zuw7.js';
@@ -122,7 +122,7 @@ export function installNativeCommuteWorkerBudget({ root = globalThis, now = () =
   const wrapper = new Proxy(Original, { construct(target, args, newTarget) {
     let url;
     try { url = new URL(String(args[0]), root.location?.href); } catch {}
-    if (url?.protocol !== 'file:' || url.pathname.split('/').at(-1) !== SCRIPT || args[1]?.type !== 'module'
+    if (!['file:', 'app:'].includes(url?.protocol) || url.pathname.split('/').at(-1) !== SCRIPT || args[1]?.type !== 'module'
       || (scriptUrl != null && scriptUrl !== url.href)) return Reflect.construct(target, args, newTarget);
     scriptUrl = url.href;
     return new LogicalWorker(args[0], args[1]);

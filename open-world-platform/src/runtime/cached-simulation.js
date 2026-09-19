@@ -6,8 +6,9 @@ import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v14';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v15';
 const OWNER = Symbol.for('open-world.cached-simulation');
+const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
 const values = collection => collection instanceof Map ? [...collection.values()] : Array.isArray(collection) ? collection : [];
 
@@ -64,6 +65,19 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
+  // Track whole native actions, including async network preparation before a
+  // worker exists and state publication after its response. Reuse this set on
+  // hot reload so replacing wrappers cannot hide work already in flight.
+  const nativeWork = NATIVE_ACTIONS.map(name => getState()[name]?.[OWNER]?.nativeWork)
+    .find(value => value instanceof Set) ?? new Set();
+  const invokeNative = (original, receiver, args) => {
+    const result = original.apply(receiver, args);
+    if (typeof result?.then === 'function') {
+      nativeWork.add(result);
+      Promise.resolve(result).then(() => nativeWork.delete(result), () => nativeWork.delete(result));
+    }
+    return result;
+  };
   let enabled = false, disposed = false, busy = null, refreshPromise = null, stopping = null;
   let modeRequest = 0;
   let revision = 0, cache = null, dependencies = null, settledAt = null, startedAt = null;
@@ -79,6 +93,8 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     prepareNative: (posting, budget) => game.prepareBackgroundNativeFinance?.(posting, { includeFinancialHistory: false }, budget) });
   const snapshot = () => ({ version: CACHED_SIMULATION_VERSION, enabled, status, error,
     pendingMidnightRefresh,
+    saveWork: { observed: !disposed && NATIVE_ACTIONS.every(name => getState()[name]?.[OWNER]?.controller === controller),
+      native: nativeWork.size, cached: Boolean(busy || refreshPromise || stopping) },
     saveReferenceSharing: NATIVE_SAVE_REFERENCE_SHARING_VERSION,
     ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
     assignedPops: cache?.assignedPops ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
@@ -347,7 +363,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
               savePhase('generate.error', started); throw error;
             }) : prepareSave(save);
           }
-          if (!cachedActive) return original.apply(this, args);
+          if (!cachedActive) return invokeNative(original, this, args);
           if (name === 'handleIncrementGameState') return tick();
           if (name === 'simulateCommutes') { counters.suppressedCommutes++; return Promise.resolve(); }
           counters.suppressedPathSearches++;
@@ -355,7 +371,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           return Promise.resolve({ paths: cache?.pathsByCoordinates.get(JSON.stringify([query?.origin?.coords, query?.destination?.coords])) ?? [],
             query, searchTime: 0, timings: { total: 0 }, cached: true });
         };
-        Object.defineProperty(wrapper, OWNER, { value: { version: CACHED_SIMULATION_VERSION, original, controller } });
+        Object.defineProperty(wrapper, OWNER, { value: { version: CACHED_SIMULATION_VERSION, original, controller, nativeWork } });
         state[name] = wrapper; wrappers.set(name, { original, wrapper });
       }
       state.setTimeConfig?.({});

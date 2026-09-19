@@ -49,6 +49,19 @@ test('24 native logical workers share six physical workers and one cloned networ
   assert.deepEqual([...f.timers.keys()], idleTimer, 'periodic samples must not postpone idle heap release');
 });
 
+test('the game app protocol reports native routing activity to the save gate', async () => {
+  const f = harness();
+  const face = new f.root.Worker('app://./assets/popCommuteWorker.worker-CI81Zuw7.js', { type: 'module' });
+  face.postMessage({ setNetwork: { version: 1, network: {} } });
+  face.postMessage({ popCommutes: [] });
+  await f.step();
+  assert.equal(f.budget.snapshot().logicalWorkers, 1, 'native workers served by the game app protocol must be observed');
+  assert.equal(f.budget.snapshot().busy, 1);
+  f.workers[0].finish({ processedPops: [] });
+  await f.step();
+  assert.equal(f.budget.snapshot().busy, 0);
+});
+
 test('pressure reduces concurrency without terminating in-flight work, and idle workers can be recreated with their network', async () => {
   const f = harness(), faces = Array.from({ length: 8 }, () => new f.root.Worker(url, { type: 'module' }));
   for (const face of faces) { face.postMessage({ setNetwork: { version: 1, network: { name: 'first' } } }); face.postMessage({ popCommutes: [] }); }
@@ -79,7 +92,7 @@ test('other workers pass through unchanged and hot reload restores the previous 
   assert.equal(other, f.workers[0]);
   const prior = f.root.Worker;
   assert.equal(installNativeCommuteWorkerBudget({ root: f.root }), f.budget);
-  f.root.__openWorldNativeCommuteWorkerBudget__.version = 'native-commute-worker-budget-v0';
+  f.root.__openWorldNativeCommuteWorkerBudget__.version = 'native-commute-worker-budget-v1';
   const next = installNativeCommuteWorkerBudget({ root: f.root });
   assert.notEqual(f.root.Worker, prior);
   assert.notEqual(next, f.budget);

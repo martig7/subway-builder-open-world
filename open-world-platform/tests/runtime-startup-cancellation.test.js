@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { startOpenWorld } from '../src/runtime/start-open-world.js';
+import { prototypeSaveBusyReason } from '../src/runtime/prototype-save-readiness.js';
 import { WorldTileRuntime } from '../src/runtime/world-tile-runtime.js';
 import { WorldIdentityResolver } from '../src/runtime/world-identity.js';
 import { createSubwayBuilderHostState } from '../testkit/subway-builder-host.js';
@@ -132,6 +133,15 @@ test('native save notifications do not materialize the full World view to read i
     await hooks.get('onGameSaved')('manual-save');
     assert.equal(controller.diagnostics.latestAutosave.status, 'observed');
     assert.equal(viewReads, 0, 'save diagnostics must not clone commute and finance payloads');
+  });
+});
+
+test('runtime startup observes simulation actions for saving without requiring a native worker pool', async () => {
+  await harness(async ({ controller }) => {
+    assert.equal(controller.diagnostics.prototypeSaveReadinessVersion, 'prototype-save-work-readiness-v1');
+    const simulation = controller.cachedSimulation.snapshot();
+    assert.equal(simulation.saveWork.observed, true);
+    assert.equal(prototypeSaveBusyReason({ nativeWorkers: controller.diagnostics.nativeCommuteWorkers?.(), simulation }), false);
   });
 });
 
