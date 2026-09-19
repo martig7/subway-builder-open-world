@@ -1,4 +1,5 @@
 import { RENDER_DISTANCE } from './renderer-virtualization.js';
+import { prototypeSaveProgressText } from '../prototype-save-progress.js';
 
 export const RENDER_DISTANCE_CONTROL_VERSION = 'open-world-render-distance-km-v4';
 
@@ -92,17 +93,21 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
         onChange: event => saveWriter?.setEnabled(event.target.checked),
         'aria-label': 'Experimental tile-server autosaves' }), 'Experimental tile-server autosaves'),
     h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
-      'Pauses simulation and editing while saving. Uses normal game files. Enabled for this session only.'),
+      'Pauses simulation and editing while saving. Uses normal game files. Failures are reported without switching to native autosaves. Enabled for this session only.'),
     h('div', { role: 'status', className: 'text-xs', 'aria-live': 'polite' },
       saveState?.error ?? (!saveState?.configured ? 'Save writer unavailable. Start or reconnect the local tile server.'
+        : saveState.transport === 'native' ? 'Native autosave selected: experimental autosaves are disabled.'
         : saveState.status === 'saving'
-          ? (saveState.progress != null ? `Saving… ${mebibytes(saveState.progress)}` : 'Saving…')
+          ? prototypeSaveProgressText(saveState)
           : saveState.last
             ? `Saved ${mebibytes(saveState.last.bytes)} in ${seconds(saveState.last.durationMs)}` : 'Ready')),
     phases.length > 0 && h('div', { className: 'text-xs text-muted-foreground' },
       `${saveState.status === 'saved' ? '' : 'Last completed save: '}${phases.join(' · ')}`),
-    saveState?.configured && saveState.transport === 'native-fallback'
-      && h('div', { className: 'text-xs text-muted-foreground' }, 'Latest attempt used the native save path.')));
+    !saveState?.configured && saveState?.transport === 'native'
+      && h('div', { className: 'text-xs text-muted-foreground' }, 'Native autosave selected: experimental autosaves are disabled.'),
+    saveState?.configured && saveState.enabled && ['failed', 'cancelled'].includes(saveState.status)
+      && h('button', { type: 'button', className: 'rounded-md border px-2 py-1 text-xs',
+        onClick: () => { void saveWriter.run().catch(() => {}); } }, 'Retry experimental save')));
 }
 
 export function registerRenderDistanceToolbar({

@@ -672,10 +672,16 @@ export function startOpenWorld({
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     isBusy: () => {
       const workers = nativeCommuteWorkers?.snapshot?.();
-      return !workers?.logicalWorkers || Boolean(workers.busy || workers.queued)
-        || cachedSimulation.snapshot().status === 'calculating';
+      if (!workers?.logicalWorkers) return 'Cannot verify that journey calculations have finished';
+      if (workers.busy || workers.queued) return `Waiting for journey calculations (${workers.busy} running, ${workers.queued} queued)`;
+      if (cachedSimulation.snapshot().status === 'calculating') return 'Waiting for cached journey calculations';
+      return false;
     },
-    onActivity: (stage, details) => rendererMemory.recordActivity(stage, details),
+    onActivity: (stage, details) => {
+      rendererMemory.recordActivity(stage, details);
+      if (stage === 'tile-save.error' || stage === 'tile-save.cancelled')
+        api.ui?.showNotification?.(details.error, stage === 'tile-save.error' ? 'error' : 'info', 'Autosave');
+    },
   });
   diagnostics.prototypeSaveWriter = prototypeSaveWriter;
   // The experimental writer is a native part of the mod: connect without the

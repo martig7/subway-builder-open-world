@@ -1,4 +1,5 @@
 import { TILE_SAVE_PROTOTYPE_VERSION, slimExperimentalSaveDemand, writePrototypeNativeSave } from './prototype-tile-save-client.js';
+import { prototypeSaveProgressText } from './prototype-save-progress.js';
 
 const STREAM_SAVE = Symbol.for('open-world.stream-native-save');
 const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
@@ -14,25 +15,48 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
   let configuration = null, enabled = false, pending = null, automatic = null, abort = null, disposed = false;
   let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v6', configured: false, enabled: false, status: 'off', last: null, error: null, transport: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v7', configured: false, enabled: false, status: 'off', last: null, error: null, transport: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
 
   async function capture() {
-    status = { ...status, progress: 0, transport: null, error: null };
-    if (disposed || !configuration || !isReady()) throw gateError('Tile save prototype is not ready');
-    const state = getState(), session = state.gameSessionId, city = state.cityCode;
-    if (typeof state.setTimeConfig !== 'function' || !session || !city) throw gateError('Unsupported game state');
-    const originallyPaused = state.timeConfig.paused;
+    const startedAt = Date.now();
+    status = { ...status, status: 'saving', phase: 'checking', startedAt, elapsedMs: 0,
+      progress: 0, transport: 'prototype', error: null, waitingFor: null, failedPhase: null };
     const localAbort = abort = new AbortController();
-    const ui = freezeUi(() => localAbort.abort(new Error('Normal save requested')));
-    status = { ...status, status: 'saving', error: null }; notify(); activity('start');
-    const sameContext = () => getState().gameSessionId === session && getState().cityCode === city;
+    let ui = null, state, session, city, originallyPaused, pausedBySave = false, lastNotifiedAt = 0;
+    const sameContext = () => session != null && getState().gameSessionId === session && getState().cityCode === city;
+    const progress = (value = {}) => {
+      const phaseChanged = value.phase && value.phase !== status.phase;
+      const now = Date.now();
+      status = { ...status, ...value, elapsedMs: now - startedAt };
+      if (phaseChanged || now - lastNotifiedAt >= 100) { ui?.progress(status); notify(); lastNotifiedAt = now; }
+      if (phaseChanged) activity('phase', { phase: status.phase, elapsedMs: status.elapsedMs, bytes: status.progress });
+    };
+    const heartbeat = setInterval(() => progress(), 250);
+    notify(); activity('start');
     try {
+      if (disposed || !configuration || !isReady()) throw gateError('Tile save prototype is not ready');
+      // A stopped writer must fail before freezing the game or generating a
+      // large snapshot. Keep configuration so a restarted service can recover.
+      const response = await fetchFn(new URL('/_prototype/save/status', configuration.origin), {
+        method: 'POST', headers: configuration.token ? { 'X-PMTiles-Control-Token': configuration.token } : {},
+        signal: AbortSignal.any([localAbort.signal, AbortSignal.timeout(3000)]),
+      });
+      if (!response.ok || (await response.json()).version !== TILE_SAVE_PROTOTYPE_VERSION)
+        throw new Error('Save writer is unavailable');
+      localAbort.signal.throwIfAborted();
+      if (disposed || !isReady()) throw gateError('World changed while checking the save writer');
+      state = getState(); session = state.gameSessionId; city = state.cityCode;
+      if (typeof state.setTimeConfig !== 'function' || !session || !city) throw gateError('Unsupported game state');
+      originallyPaused = state.timeConfig.paused;
+      ui = freezeUi(() => localAbort.abort());
+      progress({ phase: 'settling' });
       state.setTimeConfig({ paused: true });
+      pausedBySave = true;
       // Let the current native tick and UI updates settle before taking the
-      // snapshot. Active routing/midnight work keeps the native save path.
+      // snapshot. Active routing/midnight work must settle for a stable upload.
       await yieldTask(); await yieldTask();
       // High-speed sessions recalculate almost continuously, so a single busy
       // sample would fail every save. Wait briefly for a quiet moment instead;
@@ -41,11 +65,23 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       // be told apart from a slow upload.
       const settleStarted = Date.now();
       const settleBy = settleStarted + Math.max(0, settleMs);
-      while (sameContext() && isReady() && isBusy() && Date.now() < settleBy) await yieldTask();
+      let busy;
+      while (sameContext() && isReady() && (busy = isBusy()) && Date.now() < settleBy) {
+        localAbort.signal.throwIfAborted();
+        const waitingFor = typeof busy === 'string' ? busy : null;
+        if (waitingFor !== status.waitingFor) progress({ waitingFor });
+        await yieldTask();
+      }
+      localAbort.signal.throwIfAborted();
       const settleWaitMs = Date.now() - settleStarted;
       if (!sameContext()) throw gateError('Tile changed while saving; partial save discarded');
       if (!isReady()) throw gateError('World not ready while saving; partial save discarded');
-      if (isBusy()) throw gateError('Game work is still changing the save');
+      if ((busy = isBusy())) throw gateError(typeof busy === 'string' ? busy : 'Game work is still changing the save');
+      progress({ phase: 'generating', waitingFor: null });
+      // Paint the phase before the native synchronous generator can block.
+      await yieldTask(); await yieldTask();
+      localAbort.signal.throwIfAborted();
+      if (!sameContext() || !isReady() || isBusy()) throw gateError('Game state changed before snapshot generation');
       const stable = getState();
       const generated = performance.now();
       let save = await stable.generateSave({ name: `[Auto] Tile server ${new Date().toISOString().replaceAll(':', '-')}`, [STREAM_SAVE]: true });
@@ -54,8 +90,8 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       // Prototype uploads omit native journey-history rows: the demand model,
       // topology and trains stream untouched, and the live game is never
       // modified. Native saves keep the full history.
-      const slimmed = slimExperimentalSaveDemand(save);
-      save = slimmed.save;
+      const { save: slimmedSave, omittedJourneyRows } = slimExperimentalSaveDemand(save);
+      save = slimmedSave;
       const settled = getState();
       const clock = settled.timeConfig.elapsedSeconds, money = settled.money;
       const roots = ['tracks', 'trains', 'routes', 'stations', 'financialHistory', 'bonds', 'demandData', 'completedCommutes'];
@@ -81,21 +117,30 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       try {
         result = await writeSave(save, { ...configuration, fetchFn, signal: localAbort.signal,
           beforeCommit: assertStable,
-          onProgress: progress => { assertStable(); ui.progress(progress); status.progress = progress.bytes; notify(); },
+          onProgress: value => { assertStable(); progress({ phase: value.phase ?? 'uploading', progress: value.bytes ?? status.progress }); },
         });
       } finally {
         references = null;
         save = null;
       }
-      status = { ...status, status: 'saved', transport: 'prototype', progress: result.bytes,
-        last: { ...result, generateMs, settleMs: settleWaitMs, omittedJourneyRows: slimmed.omittedJourneyRows, stabilitySummary } };
-      activity('complete', { durationMs: result.durationMs, bytes: result.bytes, generateMs }); notify();
+      const durationMs = Date.now() - startedAt;
+      status = { ...status, status: 'saved', phase: 'complete', transport: 'prototype', progress: result.bytes, elapsedMs: durationMs,
+        last: { ...result, durationMs, transferDurationMs: result.durationMs, generateMs, settleMs: settleWaitMs, omittedJourneyRows, stabilitySummary } };
+      activity('complete', { durationMs, bytes: result.bytes, generateMs }); notify();
       return result;
     } catch (error) {
-      status = { ...status, status: 'failed', error: String(error.message) }; notify(); activity('error'); throw error;
+      const cancelled = localAbort.signal.aborted;
+      const unconfirmed = error.saveOutcome === 'unknown';
+      status = { ...status, status: unconfirmed ? 'unconfirmed' : cancelled ? 'cancelled' : 'failed', failedPhase: status.phase,
+        elapsedMs: Date.now() - startedAt, error: unconfirmed ? 'Save completion could not be confirmed. Check the save list before retrying. Native fallback is disabled.'
+          : cancelled ? 'Autosave cancelled. No new save was written.'
+          : `Autosave was not saved: ${error.message}. Native fallback is disabled.` };
+      notify();
+      if (!disposed) activity(cancelled && !unconfirmed ? 'cancelled' : 'error', { error: status.error, phase: status.phase, elapsedMs: status.elapsedMs });
+      throw error;
     } finally {
-      ui.dispose(); abort = null;
-      if (sameContext() && !originallyPaused) getState().setTimeConfig({ paused: false });
+      clearInterval(heartbeat); ui?.dispose(); abort = null;
+      if (pausedBySave && sameContext() && !originallyPaused) getState().setTimeConfig({ paused: false });
     }
   }
   const run = () => {
@@ -149,28 +194,24 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
     },
     setEnabled(value) {
       if (value && (!configuration || disposed)) throw new Error('Configure the prototype writer first');
-      enabled = Boolean(value); notify(); return snapshot();
+      enabled = Boolean(value);
+      if (enabled && !pending && status.transport === 'native') status = { ...status, status: 'ready', transport: null };
+      notify(); return snapshot();
     },
     configureAutomatic,
     run,
     invoke(native) {
-      if (!enabled || disposed) return native();
+      if (disposed) return Promise.resolve({ status: 'cancelled', saved: false });
+      if (!enabled) {
+        status = { ...status, status: 'native', transport: 'native', error: null }; notify();
+        activity('native', { reason: 'Experimental autosaves are disabled' });
+        return native();
+      }
       if (automatic) return automatic;
-      const session = getState().gameSessionId, city = getState().cityCode;
-      automatic = run().catch(error => {
-        // Pre-snapshot gate rejections and per-save user cancels keep the
-        // prototype armed: the checkbox stays checked until the user unchecks
-        // it. Only a post-snapshot transfer failure disarms it, since retrying
-        // those would repeat a full snapshot capture on every save.
-        const gate = error?.code === SAVE_GATE || error?.name === 'AbortError';
-        if (!gate) enabled = false;
-        if (!disposed && isReady() && getState().gameSessionId === session && getState().cityCode === city) {
-          status = { ...status, transport: 'native-fallback' }; notify();
-          activity('native-fallback', { error: String(error.message) });
-          return native();
-        }
-        notify();
-      }).finally(() => { automatic = null; });
+      // Failure is visible and leaves the transport armed for the next attempt.
+      // Never start a second, native save or silently change future autosaves.
+      automatic = run().catch(() => ({ status: status.status, saved: false, error: status.error }))
+        .finally(() => { automatic = null; });
       return automatic;
     },
     dispose() { disposed = true; enabled = false; configuration = null; abort?.abort(); listeners.clear(); },
@@ -185,7 +226,7 @@ export function blockSaveEdits(cancel, { document = globalThis.document, window 
   const message = document.createElement('div'); message.textContent = 'Writing experimental autosave…';
   const detail = document.createElement('div'); detail.textContent = 'Simulation and editing resume when the save completes.';
   detail.style.fontSize = '14px';
-  const button = document.createElement('button'); button.textContent = 'Use normal save';
+  const button = document.createElement('button'); button.textContent = 'Cancel save';
   panel.append(message, detail, button);
   const previousFocus = document.activeElement;
   document.body.append(panel); button.focus();
@@ -199,7 +240,7 @@ export function blockSaveEdits(cancel, { document = globalThis.document, window 
   const events = ['keydown', 'keyup', 'pointerdown', 'pointerup', 'click', 'dblclick', 'wheel', 'contextmenu'];
   for (const event of events) window.addEventListener(event, block, { capture: true, passive: false });
   return {
-    progress: value => { message.textContent = `Writing experimental autosave — ${(value.bytes / 1048576).toFixed(1)} MiB`; },
+    progress: value => { message.textContent = prototypeSaveProgressText(value); },
     dispose() { for (const event of events) window.removeEventListener(event, block, true); panel.remove(); if (previousFocus?.isConnected) previousFocus.focus?.(); },
   };
 }

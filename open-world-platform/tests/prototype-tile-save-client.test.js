@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { nativeSaveJsonChunks, slimExperimentalSaveDemand, writePrototypeNativeSave } from '../src/runtime/prototype-tile-save-client.js';
 
 test('demand slimming drops journey-history rows while keeping topology, trains and the demand model', () => {
@@ -85,4 +86,46 @@ test('a rejected stable-state check discards the upload before publishing', asyn
   await assert.rejects(writePrototypeNativeSave({ data: [1] }, { origin: 'http://127.0.0.1:8800', token: 'fixture', fetchFn,
     beforeCommit() { throw new Error('State changed'); } }), /State changed/);
   assert.equal(paths.some(path => path.endsWith('commit')), false); assert.ok(paths.at(-1).endsWith('abort'));
+});
+
+test('batched uploads preserve native JSON and checksums with frequent encoding yields', async () => {
+  const save = { name: 'batch', data: Array.from({ length: 45000 }, (_, id) => ({ id, name: '東京🚆', values: [id, null, id / 3] })) };
+  const uploaded = [], phases = []; let yields = 0, active = 0, peak = 0;
+  const fetchFn = async (url, options) => {
+    peak = Math.max(peak, ++active); await Promise.resolve(); active--;
+    const action = url.pathname.split('/').at(-1);
+    if (action === 'begin') { assert.equal(phases.at(-1), 'connecting'); return Response.json({ id: 'batch' }); }
+    if (action === 'commit') {
+      assert.equal(phases.at(-1), 'finalizing');
+      return Response.json({ ...JSON.parse(options.body), path: 'batch.metro' });
+    }
+    assert.equal(Number(action), uploaded.length);
+    assert.equal(options.headers['X-Save-Chunk-Sha256'], createHash('sha256').update(options.body).digest('hex'));
+    assert.ok(options.body.length <= 4 * 1024 * 1024);
+    uploaded.push(options.body);
+    return Response.json({ accepted: true });
+  };
+  const result = await writePrototypeNativeSave(save, { origin: 'http://127.0.0.1:8800', fetchFn,
+    yieldTask: async () => { yields++; }, onProgress: value => phases.push(value.phase) });
+  const expected = JSON.stringify(save);
+  assert.equal(Buffer.concat(uploaded).toString(), expected);
+  assert.equal(result.bytes, Buffer.byteLength(expected));
+  assert.equal(result.chunks, uploaded.length);
+  assert.ok(uploaded.length > 1);
+  assert.ok(yields > uploaded.length * 2, 'encoding must keep yielding while requests are batched');
+  assert.equal(peak, 1);
+});
+
+test('unreadable commit receipts report an unknown outcome instead of claiming no save exists', async () => {
+  for (const receipt of [new Response('missing', { status: 404 }), new Response('{'), Response.json(null), Response.json({ chunks: 99, bytes: 99 })]) {
+    const fetchFn = async url => {
+      const action = url.pathname.split('/').at(-1);
+      if (action === 'begin') return Response.json({ id: 'test' });
+      if (action === 'commit') throw new Error('Commit response lost');
+      if (action === 'result') return receipt;
+      return Response.json({ accepted: true });
+    };
+    await assert.rejects(writePrototypeNativeSave({ data: [1] }, { origin: 'http://127.0.0.1:8800', fetchFn }),
+      error => error.saveOutcome === 'unknown' && error.message === 'Commit response lost');
+  }
 });

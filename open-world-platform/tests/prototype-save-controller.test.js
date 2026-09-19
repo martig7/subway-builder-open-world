@@ -14,8 +14,8 @@ function fixture({ writeSave, busy = false } = {}, controllerOptions = {}) {
   let closed = 0, nativeCalls = 0, uploads = 0;
   const controller = createPrototypeSaveController({ getState: () => state, isBusy: () => busy, yieldTask: async () => {},
     settleMs: 0, ...controllerOptions,
-    freezeUi: () => ({ progress() {}, dispose() { closed++; } }),
-    fetchFn: async () => Response.json({ version: 'tile-save-prototype-v1' }),
+    freezeUi: cancel => { const ui = controllerOptions.freezeUi?.(cancel); return { progress: value => ui?.progress?.(value), dispose() { closed++; ui?.dispose?.(); } }; },
+    fetchFn: controllerOptions.fetchFn ?? (async () => Response.json({ version: 'tile-save-prototype-v1' })),
     writeSave: async (save, options) => {
       uploads++; assert.equal(state.timeConfig.paused, true); assert.equal(save.data.timeConfig.paused, false);
       if (writeSave) return writeSave(save, options, state);
@@ -30,13 +30,41 @@ test('prototype is opt-in, saves with a stable pause, and restores playback with
   const f = fixture();
   assert.equal(f.controller.invoke(f.native), 'native');
   await f.configure();
+  assert.equal(f.controller.snapshot().transport, null, 'enabling must clear the previous native selection');
   const result = await f.controller.invoke(f.native);
   assert.equal(result.path, 'fixture.metro'); assert.equal(f.state.timeConfig.paused, false);
   assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 1, uploads: 1 });
   assert.equal(f.controller.snapshot().last.data, undefined);
 });
 
-test('a failed transfer falls back once, releases the pause, and disables the prototype', async () => {
+test('an enabled writer never invokes native saving after a gate rejection or transfer failure', async () => {
+  for (const options of [{ busy: true }, { writeSave: async () => { throw new Error('Writer unavailable'); } }]) {
+    const f = fixture(options);
+    await f.configure();
+    await f.controller.invoke(f.native);
+    assert.equal(f.counts().nativeCalls, 0, 'experimental failures must not start a long native save');
+    assert.equal(f.controller.snapshot().enabled, true, 'future autosaves must not silently become native');
+    assert.equal(f.state.timeConfig.paused, false);
+    assert.equal(f.controller.snapshot().status, 'failed');
+  }
+});
+
+test('pre-upload progress identifies settling and snapshot generation before work begins', async () => {
+  const phases = [];
+  const f = fixture();
+  await f.configure();
+  f.controller.subscribe(value => { if (value.phase) phases.push(value.phase); });
+  const generate = f.state.generateSave;
+  f.state.generateSave = options => {
+    assert.equal(f.controller.snapshot().phase, 'generating');
+    return generate(options);
+  };
+  await f.controller.invoke(f.native);
+  assert.ok(phases.includes('settling'));
+  assert.ok(phases.includes('generating'));
+});
+
+test('a failed transfer releases the pause, reports no save, and stays armed', async () => {
   let fail;
   const failure = new Promise((_, reject) => { fail = reject; });
   const f = fixture({ writeSave: () => failure }); await f.configure();
@@ -44,24 +72,36 @@ test('a failed transfer falls back once, releases the pause, and disables the pr
   assert.equal(first, second);
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   fail(new Error('Disk full'));
-  assert.equal(await first, 'native');
-  assert.equal(f.controller.snapshot().enabled, false); assert.equal(f.state.timeConfig.paused, false);
-  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 1, uploads: 1 });
+  assert.equal((await first).saved, false);
+  assert.equal(f.controller.snapshot().enabled, true); assert.equal(f.state.timeConfig.paused, false);
+  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 0, uploads: 1 });
 });
 
-test('concurrent routing uses native saving before an upload begins', async () => {
+test('concurrent routing prevents an unstable upload without starting a native save', async () => {
   const f = fixture({ busy: true }); await f.configure();
-  assert.equal(await f.controller.invoke(f.native), 'native');
+  assert.equal((await f.controller.invoke(f.native)).saved, false);
   assert.equal(f.counts().uploads, 0); assert.equal(f.state.timeConfig.paused, false);
 });
 
-test('a busy session keeps the prototype armed and falls back to native', async () => {
+test('an uncertain commit remains explicit and never triggers a second native save', async () => {
+  const f = fixture({ writeSave: async () => { throw Object.assign(new Error('Lost commit receipt'), { saveOutcome: 'unknown' }); } });
+  await f.configure();
+  const result = await f.controller.invoke(f.native);
+  assert.equal(result.status, 'unconfirmed');
+  assert.match(result.error, /Check the save list before retrying/);
+  assert.doesNotMatch(result.error, /No new save was written|Autosave was not saved/);
+  assert.equal(f.counts().nativeCalls, 0);
+  assert.equal(f.state.timeConfig.paused, false);
+  assert.equal(f.controller.snapshot().enabled, true);
+});
+
+test('a busy session reports that no save was written and keeps the prototype armed', async () => {
   const f = fixture({ busy: true }); await f.configure();
-  assert.equal(await f.controller.invoke(f.native), 'native');
+  assert.equal((await f.controller.invoke(f.native)).saved, false);
   assert.equal(f.controller.snapshot().enabled, true, 'gate rejections must not uncheck the session toggle');
   assert.match(f.controller.snapshot().error, /still changing/);
   assert.equal(f.state.timeConfig.paused, false);
-  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 1, uploads: 0 });
+  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 0, uploads: 0 });
 });
 
 test('a settling session waits briefly, then uploads once routing drains', async () => {
@@ -83,14 +123,14 @@ test('a changing ledger rejects commit and a new session cannot receive the old 
       options.beforeCommit(); throw new Error('Unexpected accepted mutation');
     } }); await f.configure();
     await f.controller.invoke(f.native);
-    assert.equal(f.counts().nativeCalls, changeSession ? 0 : 1);
-    assert.equal(f.controller.snapshot().transport, changeSession ? null : 'native-fallback');
+    assert.equal(f.counts().nativeCalls, 0);
+    assert.equal(f.controller.snapshot().transport, 'prototype');
     assert.equal(f.state.timeConfig.paused, changeSession);
     assert.match(f.controller.snapshot().error, /Game state changed/);
   }
 });
 
-test('each new attempt resets uploaded bytes and the previous fallback transport', async () => {
+test('each new attempt resets uploaded bytes and the previous failure', async () => {
   let busy = false;
   const f = fixture({}, { isBusy: () => busy });
   await f.configure();
@@ -98,14 +138,14 @@ test('each new attempt resets uploaded bytes and the previous fallback transport
   assert.equal(f.controller.snapshot().progress, 123);
   busy = true;
   await f.controller.invoke(f.native);
-  assert.equal(f.controller.snapshot().transport, 'native-fallback');
+  assert.equal(f.controller.snapshot().status, 'failed');
   busy = false;
   const starts = [];
   f.controller.subscribe(value => { if (value.status === 'saving') starts.push(value); });
   await f.controller.invoke(f.native);
-  assert.equal(starts.length, 1);
+  assert.ok(starts.length >= 1);
   assert.equal(starts[0].progress, 0, 'settling/generating must not show bytes from the previous upload');
-  assert.equal(starts[0].transport, null, 'the new attempt has not used native fallback');
+  assert.equal(starts[0].transport, 'prototype', 'the new attempt has not used native fallback');
   assert.equal(starts[0].error, null);
 });
 
@@ -185,11 +225,46 @@ test('a prototype upload streams the save without journey-history rows', async (
   assert.equal(f.controller.snapshot().last.omittedJourneyRows, 2);
 });
 
-test('a gate rejection records the native-fallback transport while staying armed', async () => {
+test('a gate rejection reports its failed phase while staying armed', async () => {
   const f = fixture({ busy: true }); await f.configure();
-  assert.equal(await f.controller.invoke(f.native), 'native');
-  assert.equal(f.controller.snapshot().transport, 'native-fallback');
+  assert.equal((await f.controller.invoke(f.native)).saved, false);
+  assert.equal(f.controller.snapshot().transport, 'prototype');
+  assert.equal(f.controller.snapshot().failedPhase, 'settling');
   assert.equal(f.controller.snapshot().enabled, true);
+});
+
+test('an unavailable writer fails before freezing, generating, or starting native saving', async () => {
+  let available = true;
+  const events = [];
+  const f = fixture({}, { fetchFn: async () => {
+    if (!available) throw new Error('Writer stopped');
+    return Response.json({ version: 'tile-save-prototype-v1' });
+  }, onActivity: (stage, details) => events.push({ stage, details }) });
+  await f.configure(); available = false;
+  f.state.generateSave = () => { throw new Error('Must not generate'); };
+  const result = await f.controller.invoke(f.native);
+  assert.equal(result.saved, false);
+  assert.equal(f.controller.snapshot().failedPhase, 'checking');
+  assert.equal(f.controller.snapshot().enabled, true);
+  assert.equal(f.state.timeConfig.paused, false);
+  assert.deepEqual(f.counts(), { closed: 0, nativeCalls: 0, uploads: 0 });
+  assert.match(events.find(e => e.stage === 'tile-save.error').details.error, /Writer stopped/);
+});
+
+test('cancel during settling is immediate, leaves the writer enabled, and never generates', async () => {
+  let cancel, yields = 0;
+  const f = fixture({ busy: true }, { settleMs: 30000,
+    freezeUi: value => { cancel = value; },
+    yieldTask: async () => { if (++yields === 3) cancel(); },
+  });
+  await f.configure();
+  f.state.generateSave = () => { throw new Error('Must not generate'); };
+  const result = await f.controller.invoke(f.native);
+  assert.equal(result.status, 'cancelled');
+  assert.equal(result.saved, false);
+  assert.equal(f.controller.snapshot().enabled, true);
+  assert.equal(f.state.timeConfig.paused, false);
+  assert.deepEqual(f.counts(), { closed: 1, nativeCalls: 0, uploads: 0 });
 });
 
 test('reconnect is a no-op once configured', async () => {

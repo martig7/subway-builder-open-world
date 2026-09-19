@@ -121,12 +121,14 @@ test('an in-progress experimental save shows the current uploaded size', () => {
     useEffect: effect => effect(),
   };
   const saveWriter = { snapshot: () => ({ configured: true, enabled: true, status: 'saving',
-      progress: 5 * 1048576, last: { bytes: 30 * 1048576, durationMs: 19000, encodeMs: 3000 }, error: null }),
+      phase: 'uploading', elapsedMs: 12300, progress: 5 * 1048576, last: { bytes: 30 * 1048576, durationMs: 19000, encodeMs: 3000 }, error: null }),
     subscribe: () => () => {}, reconnect: () => Promise.resolve() };
   const panel = RenderDistancePanel({ React, saveWriter,
     controller: { getRenderDistance: () => 3,
     getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
   assert.match(JSON.stringify(panel), /5\.0 MiB/);
+  assert.match(JSON.stringify(panel), /Encoding and uploading/);
+  assert.match(JSON.stringify(panel), /12\.3 s/);
   assert.match(JSON.stringify(panel), /Last completed save: encode 3\.0 s/);
 });
 
@@ -149,19 +151,24 @@ test('a completed experimental save shows its size and phase timings', () => {
   assert.match(text, /transfer 12\.0 s/);
 });
 
-test('a native-fallback attempt says so instead of looking like a fast save', () => {
+test('a failed experimental attempt reports no save and offers an experimental retry', () => {
+  let retries = 0;
   const React = {
     createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
     useState: value => [typeof value === 'function' ? value() : value, () => {}],
     useEffect: effect => effect(),
   };
-  const saveWriter = { snapshot: () => ({ configured: true, enabled: true, status: 'failed', transport: 'native-fallback',
-      last: null, error: 'Game work is still changing the save' }),
-    subscribe: () => () => {}, reconnect: () => Promise.resolve() };
+  const saveWriter = { snapshot: () => ({ configured: true, enabled: true, status: 'failed', transport: 'prototype',
+      last: null, error: 'Autosave was not saved: Game work is still changing the save. Native fallback is disabled.' }),
+    subscribe: () => () => {}, reconnect: () => Promise.resolve(), run: async () => { retries++; } };
   const panel = RenderDistancePanel({ React, saveWriter,
     controller: { getRenderDistance: () => 3,
     getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
-  assert.match(JSON.stringify(panel), /native save path/);
+  assert.match(JSON.stringify(panel), /Autosave was not saved/);
+  assert.match(JSON.stringify(panel), /Retry experimental save/);
+  const nodes = function* (node) { if (!node || typeof node !== 'object') return; yield node; for (const child of node.children ?? []) yield* nodes(child); };
+  [...nodes(panel)].find(node => node.type === 'button' && node.children.includes('Retry experimental save')).props.onClick();
+  assert.equal(retries, 1);
 });
 
 test('configured save writer enables the experimental save toggle', () => {

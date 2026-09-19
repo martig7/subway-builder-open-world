@@ -59,7 +59,7 @@ try {
     const ref=(${findNativeAutosaveRef.toString()})();if(!ref)throw Error('Native autosave callback not recognized');
     const probe=globalThis.__owPrototypeAutosaveProbe={status:'running',startedAt:Date.now(),maxHeartbeatGapMs:0};
     let previous=performance.now();const heartbeat=setInterval(()=>{const now=performance.now();probe.maxHeartbeatGapMs=Math.max(probe.maxHeartbeatGapMs,now-previous);previous=now;},50);
-    Promise.resolve().then(()=>ref.current()).then(()=>{probe.status='complete';},error=>{probe.status='failed';probe.error=String(error.message);}).finally(()=>{clearInterval(heartbeat);probe.finishedAt=Date.now();});
+    Promise.resolve().then(()=>ref.current()).then(result=>{probe.status=result?.saved===false?result.status:'complete';if(result?.error)probe.error=result.error;},error=>{probe.status='failed';probe.error=String(error.message);}).finally(()=>{clearInterval(heartbeat);probe.finishedAt=Date.now();});
     return {status:probe.status};`;
   const expression = `(async()=>{const writer=${selected};if(!writer)throw Error('Reload the updated ${world} mod first');${action}})()`;
   const result = await client.call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, silent: true, timeout: 3000 });
