@@ -121,12 +121,13 @@ test('an in-progress experimental save shows the current uploaded size', () => {
     useEffect: effect => effect(),
   };
   const saveWriter = { snapshot: () => ({ configured: true, enabled: true, status: 'saving',
-      progress: 5 * 1048576, last: null, error: null }),
+      progress: 5 * 1048576, last: { bytes: 30 * 1048576, durationMs: 19000, encodeMs: 3000 }, error: null }),
     subscribe: () => () => {}, reconnect: () => Promise.resolve() };
   const panel = RenderDistancePanel({ React, saveWriter,
     controller: { getRenderDistance: () => 3,
     getRenderDistanceLimits: () => ({ min: 1, max: 11 }), subscribeRenderDistance: () => () => {} } });
   assert.match(JSON.stringify(panel), /5\.0 MiB/);
+  assert.match(JSON.stringify(panel), /Last completed save: encode 3\.0 s/);
 });
 
 test('a completed experimental save shows its size and phase timings', () => {

@@ -84,9 +84,29 @@ test('a changing ledger rejects commit and a new session cannot receive the old 
     } }); await f.configure();
     await f.controller.invoke(f.native);
     assert.equal(f.counts().nativeCalls, changeSession ? 0 : 1);
+    assert.equal(f.controller.snapshot().transport, changeSession ? null : 'native-fallback');
     assert.equal(f.state.timeConfig.paused, changeSession);
     assert.match(f.controller.snapshot().error, /Game state changed/);
   }
+});
+
+test('each new attempt resets uploaded bytes and the previous fallback transport', async () => {
+  let busy = false;
+  const f = fixture({}, { isBusy: () => busy });
+  await f.configure();
+  await f.controller.invoke(f.native);
+  assert.equal(f.controller.snapshot().progress, 123);
+  busy = true;
+  await f.controller.invoke(f.native);
+  assert.equal(f.controller.snapshot().transport, 'native-fallback');
+  busy = false;
+  const starts = [];
+  f.controller.subscribe(value => { if (value.status === 'saving') starts.push(value); });
+  await f.controller.invoke(f.native);
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].progress, 0, 'settling/generating must not show bytes from the previous upload');
+  assert.equal(starts[0].transport, null, 'the new attempt has not used native fallback');
+  assert.equal(starts[0].error, null);
 });
 
 test('disposal aborts its upload without invoking a retired native callback', async () => {

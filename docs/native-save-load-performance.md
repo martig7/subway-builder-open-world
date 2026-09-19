@@ -100,3 +100,42 @@ Git-ignored `.analysis/japan-save-startup` directory. Regression tests cover the
 transfer boundary, optional values, native fallbacks, identity-only reads,
 concurrency and errors, archive member preservation, rollback, and refusal to
 overwrite an updated host.
+
+## Load Game menu and preview check, September 19, 2026
+
+The current 1.7.0 installation still has the `native-save-read-json-v1` preload
+patch. Its renderer entry is `dist/renderer/public/index-CM0DI1Ho.js`, SHA-256
+`99fd5ed94f0c77636f32fe1f21c6165bc6649ea528beb03bee7ad87d4b8bd67d`.
+
+Resume uses `electron.loadAndSetPendingSave(path, autosaveId)`, which stages the
+save in the main process and returns a small result. The Load Game menu's
+`handleLoadSave` instead calls `loadGame(path, autosaveId)` and then
+`electron.setPendingSave(fullSave)`. Those two extra full-object transfers are
+outside the existing pending-save read patch. Replaying the installed handlers
+with instrumented native API fixtures confirms two full-save transfers before
+navigation for Load Game and zero for Resume. This is a reproducible path
+difference, not a new measurement of Electron transfer time. A menu improvement
+should preserve the selected path and autosave ID while using the same native
+staging operation as Resume.
+
+The native `generateSave` also skips `generateRouteThumbnail` above 100 routes.
+The save card renders the stored `thumbnail` or `routeThumbnail`; it does not
+reconstruct the network from the save's tracks. The recent native and experimental
+Japan saves inspected both contained 1,275 stations, 251 routes, 8,174 tracks,
+and 1,046 trains, with no thumbnail. This explains a missing preview independently
+of the experimental writer's journey-history omission. A preview improvement
+needs to generate and publish the existing native thumbnail field for larger
+networks, with a bounded drawing cost; it must not trim saved topology.
+
+Read-only checks verified native container offsets, gzip decoding, and CRC32
+for the retained native fixture and an available older experimental save. The
+experimental save's empty journey-history array remains separate from its demand
+model and network fields. The recent experimental file was removed from the
+live save directory while native autosaves continued, after its initial read;
+that initial compact inspection is retained separately from later checks.
+
+Local evidence and runnable handler replay are Git-ignored under
+`.analysis/save-loading-compatibility`. The running game had no active diagnostic
+endpoint, and Computer Use did not receive approval to inspect its window.
+Consequently this check did not perform a live menu load, measure its duration,
+or verify the on-screen preview. These game-side compatibility gaps remain open.

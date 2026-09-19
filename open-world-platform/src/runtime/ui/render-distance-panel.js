@@ -99,7 +99,8 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
           ? (saveState.progress != null ? `Saving… ${mebibytes(saveState.progress)}` : 'Saving…')
           : saveState.last
             ? `Saved ${mebibytes(saveState.last.bytes)} in ${seconds(saveState.last.durationMs)}` : 'Ready')),
-    phases.length > 0 && h('div', { className: 'text-xs text-muted-foreground' }, phases.join(' · ')),
+    phases.length > 0 && h('div', { className: 'text-xs text-muted-foreground' },
+      `${saveState.status === 'saved' ? '' : 'Last completed save: '}${phases.join(' · ')}`),
     saveState?.configured && saveState.transport === 'native-fallback'
       && h('div', { className: 'text-xs text-muted-foreground' }, 'Latest attempt used the native save path.')));
 }

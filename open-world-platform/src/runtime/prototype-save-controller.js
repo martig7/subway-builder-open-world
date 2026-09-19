@@ -14,12 +14,13 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
   let configuration = null, enabled = false, pending = null, automatic = null, abort = null, disposed = false;
   let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v5', configured: false, enabled: false, status: 'off', last: null, error: null, transport: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v6', configured: false, enabled: false, status: 'off', last: null, error: null, transport: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
 
   async function capture() {
+    status = { ...status, progress: 0, transport: null, error: null };
     if (disposed || !configuration || !isReady()) throw gateError('Tile save prototype is not ready');
     const state = getState(), session = state.gameSessionId, city = state.cityCode;
     if (typeof state.setTimeConfig !== 'function' || !session || !city) throw gateError('Unsupported game state');
@@ -161,13 +162,14 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
         // prototype armed: the checkbox stays checked until the user unchecks
         // it. Only a post-snapshot transfer failure disarms it, since retrying
         // those would repeat a full snapshot capture on every save.
-        // Either way the attempt ran natively, so record the transport: a
-        // 100-second "experimental" save is really a native fallback.
         const gate = error?.code === SAVE_GATE || error?.name === 'AbortError';
-        status = { ...status, transport: 'native-fallback' };
-        if (!gate) { enabled = false; notify(); } else notify();
-        activity('native-fallback', { error: String(error.message) });
-        if (!disposed && isReady() && getState().gameSessionId === session && getState().cityCode === city) return native();
+        if (!gate) enabled = false;
+        if (!disposed && isReady() && getState().gameSessionId === session && getState().cityCode === city) {
+          status = { ...status, transport: 'native-fallback' }; notify();
+          activity('native-fallback', { error: String(error.message) });
+          return native();
+        }
+        notify();
       }).finally(() => { automatic = null; });
       return automatic;
     },
