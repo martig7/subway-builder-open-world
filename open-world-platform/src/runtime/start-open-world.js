@@ -49,6 +49,7 @@ import { storedRouteLoader } from './stored-route-paths.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
 import { createCachedSimulation } from './cached-simulation.js';
+import { createTileSimulationHandoff, TILE_SIMULATION_HANDOFF_VERSION } from './tile-simulation-handoff.js';
 import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js';
 import { registerIntercityTrains } from './intercity-trains.js';
 import { yieldBrowserPaint } from './frame-budget.js';
@@ -532,12 +533,16 @@ export function startOpenWorld({
             throw error;
           }
           return {
+            nativeHandoff: stages[0]?.nativeHandoff,
             async rollback() {
               for (const stage of stages.reverse()) await stage?.rollback?.();
             },
           };
         },
       });
+      // A save load or game end can replace the owner while staging awaits
+      // native/storage work. Its late result cannot change the new readiness.
+      if (options.isCurrent?.() === false) return result;
       if (result?.status === 'reload-required') {
         // Native city teardown begins after this promise resolves and emits
         // route/schedule hooks before onCityLoad. Treat that whole interval as
@@ -566,25 +571,34 @@ export function startOpenWorld({
   let loadedSaveName = null;
   let requestedSessionReload = null;
   let sessionReloadPromise = null;
+  let loadEpoch = 0;
   const ownsCurrentCity = (cityCode = currentCityCode()) => registration.cities.includes(cityCode);
   const roadLabelSourceGuard = createNativeRoadLabelSourceGuard({
     isEnabled: () => isCurrent() && ownsCurrentCity(),
     onReport: report => { diagnostics.nativeRoadLabelSource = report; },
   });
   const ownsSession = owner => owner != null && session === owner && isCurrent();
-  async function recalculateCrossModeShare(reason, day = null, force = false, owner = session) {
-    if (!ready || !ownsSession(owner)) return null;
+  async function recalculateCrossModeShare(reason, day = null, force = false, owner = session, isValid = () => true) {
+    const epoch = loadEpoch;
+    const nativeSessionId = api.gameState.getGameSessionId?.();
+    const contextTileId = currentCityCode();
+    const current = () => ownsSession(owner) && loadEpoch === epoch && isValid()
+      && api.gameState.getGameSessionId?.() === nativeSessionId && currentCityCode() === contextTileId;
+    if (!ready || !current()) return null;
     const loadedCity = currentCityCode();
     if (!registration.cities.includes(loadedCity) || runtime.getActiveTileId() !== loadedCity) return null;
     const startedAt = performance.now();
     try {
-      const result = await runtime.recalculateCrossTileModeShare({ reason, day, force,
+      const result = await runtime.recalculateCrossTileModeShare({ reason, day, force, isCurrent: current,
         evaluateCrossModeShares: input => {
-          if (!ownsSession(owner)) throw new Error('Open World session ended before demand evaluation');
-          return owner.crossModeShares.evaluate(input);
+          if (!current()) throw new Error('Open World session ended before demand evaluation');
+          return owner.crossModeShares.evaluate(input).then(result => {
+            if (!current()) throw new Error('Open World session ended during demand evaluation');
+            return result;
+          });
         },
       });
-      if (!ownsSession(owner)) return null;
+      if (!current()) return null;
       diagnostics.latestCrossModeShare = { reason, milliseconds: performance.now() - startedAt, ...result };
       console.info(`${logLabel} cross-mode-share performance`, diagnostics.latestCrossModeShare);
       return result;
@@ -595,25 +609,43 @@ export function startOpenWorld({
     }
   }
 
+  function scheduleSimulationPreparation(run) {
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      globalThis.requestIdleCallback(run, { timeout: 1_000 });
+    } else {
+      globalThis.setTimeout(run, 0);
+    }
+  }
+
+  function trackSimulationPreparation(promise) {
+    startupModeSharePromise = promise;
+    void promise.finally(() => {
+      if (startupModeSharePromise === promise) startupModeSharePromise = null;
+    });
+    return promise;
+  }
+
   function deferStartupModeShare(reason, day, owner = session) {
+    const epoch = loadEpoch;
     let resolveScheduled;
     const scheduled = new Promise((resolve) => { resolveScheduled = resolve; });
     const run = () => {
-      if (!ownsSession(owner)) { resolveScheduled(null); return; }
+      if (!ownsSession(owner) || loadEpoch !== epoch) { resolveScheduled(null); return; }
       void recalculateCrossModeShare(reason, day, false, owner).then((result) => {
-        if (ownsSession(owner)) settlementReady = result != null;
+        if (ownsSession(owner) && loadEpoch === epoch) {
+          settlementReady = result != null && !['pending', 'error', 'cancelled'].includes(result.status)
+            && !result.nativeFinanceProfile?.failed?.length && !result.nativeFinanceProfile?.unavailable?.length;
+          if (settlementReady) recordAuthoritativeLoad({ phase: 'authoritative-load',
+            segment: 'startup-simulation-ready', version: TILE_SIMULATION_HANDOFF_VERSION,
+            reason, simulationReadyAt: Date.now() });
+        }
         resolveScheduled(result);
       }).catch((error) => {
         console.warn(`${logLabel} deferred startup mode-share failed`, error);
         resolveScheduled(null);
       });
     };
-    if (typeof globalThis.requestIdleCallback === 'function') {
-      globalThis.requestIdleCallback(run, { timeout: 1_000 });
-    } else {
-      if (typeof globalThis.setTimeout === 'function') globalThis.setTimeout(run, 0);
-      else run();
-    }
+    scheduleSimulationPreparation(run);
     return scheduled;
   }
 
@@ -669,6 +701,35 @@ export function startOpenWorld({
     },
   });
   diagnostics.cachedSimulation = cachedSimulation.snapshot;
+  const tileSimulationHandoff = createTileSimulationHandoff({
+    simulation: cachedSimulation,
+    schedule: scheduleSimulationPreparation,
+    onChange: value => {
+      diagnostics.tileSimulationHandoff = value;
+      if (value?.status === 'ready') {
+        settlementReady = true;
+        recordAuthoritativeLoad({ phase: 'authoritative-load', segment: 'tile-simulation-ready', ...value });
+        if (diagnostics.latest?.transitionId === value.transitionId && diagnostics.latest?.toTileId === value.toTileId) {
+          diagnostics.latest.simulationReadyAt = value.simulationReadyAt;
+          diagnostics.latest.simulationPreparationMilliseconds = value.simulationReadyAt - value.mapReadyAt;
+          diagnostics.latest.totalSimulationMilliseconds = value.simulationReadyAt - value.startedAt;
+        }
+        rendererMemory.recordActivity('tile.handoff.simulation-ready', {
+          tileId: value.toTileId, transitionId: value.transitionId,
+          durationMs: value.simulationReadyAt - value.startedAt,
+          preparationMs: value.simulationReadyAt - value.mapReadyAt,
+        });
+      } else if (value?.status === 'error') {
+        api.ui?.showNotification?.(value.error, 'error', definition.identity.name);
+      }
+    },
+  });
+  diagnostics.retryTileSimulation = tileSimulationHandoff.retry;
+  if (activeDemandPreparation) tilePackages.prepareActiveNativeDemand = args => {
+    const profile = cachedSimulation.preparedNativeProfile(args.tileId);
+    return profile ? { profile, status: 'cached', diskCache: 'live-profile' }
+      : activeDemandPreparation.prepare(args);
+  };
   const prototypeSaveWriter = createPrototypeSaveController({
     getState: () => game.callbacks.getState(),
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
@@ -764,7 +825,7 @@ export function startOpenWorld({
       renderDistanceToolbarRegistered = Boolean(registerRenderDistanceToolbar({
         api,
         controller: geographicContextController,
-        simulation: cachedSimulation,
+        simulation: tileSimulationHandoff.mode,
         saveWriter: prototypeSaveWriter,
         panelId: `${namespace}-render-distance`,
       }));
@@ -795,13 +856,16 @@ export function startOpenWorld({
     // transition behind that work or allow a retained grid to navigate while
     // its session is loading, ending, or completing another tile transition.
     if (!isCurrent() || !ready || !ownsSession(owner) || !ownsCurrentCity()
-      || startupModeSharePromise || sessionReloadPromise || navigation.pending()) {
+      || startupModeSharePromise || sessionReloadPromise || navigation.pending() || tileSimulationHandoff.isPending()) {
       diagnostics.latestGridNavigation = { status: 'initializing', tileId, guard: 'startup-navigation-v1' };
       api.ui?.showNotification?.('Open World is still initializing. Please try again when loading finishes.', 'info', 'Open World');
       return diagnostics.latestGridNavigation;
     }
     if (runtimeTileId() === tileId) return { status: 'already-active', tileId };
     if (gridTileSwitchingId) return { status: 'already-switching', tileId: gridTileSwitchingId };
+    const fromTileId = runtimeTileId();
+    const sourceSessionId = api.gameState.getGameSessionId?.();
+    const epoch = loadEpoch;
     gridTileSwitchingId = tileId;
     try {
       api.ui?.showNotification?.(`Switching to ${tile.name}…`, 'info', 'Open World');
@@ -816,8 +880,27 @@ export function startOpenWorld({
       // The lean navigation snapshot copies live trains without generateSave's
       // cached-time rebase. Finish settlement/rebasing before capturing it;
       // onGameEnd runs after capture and cannot repair the retained handoff.
-      await cachedSimulation.setEnabled(false);
-      const transition = await runtime.stageNavigationTransition(tileId);
+      const began = await tileSimulationHandoff.begin({
+        fromTileId, toTileId: tileId, nativeSessionId: sourceSessionId,
+        sourcePaused: game.callbacks.getState().timeConfig.paused,
+        // Native city initialization temporarily changes the session UUID. The
+        // explicit navigation token owns that interval until restore finishes.
+        isCurrent: () => ownsSession(owner) && loadEpoch === epoch
+          && [fromTileId, tileId].includes(currentCityCode())
+          && (!navigation.pending() || tileSimulationHandoff.matches(navigation.pending())),
+      });
+      if (!began) return { status: 'cancelled', tileId };
+      const handoffStartedAt = tileSimulationHandoff.snapshot().startedAt;
+      const isStageCurrent = () => ownsSession(owner) && loadEpoch === epoch
+        && api.gameState.getGameSessionId?.() === sourceSessionId && currentCityCode() === fromTileId
+        && tileSimulationHandoff.isPending() && tileSimulationHandoff.snapshot()?.startedAt === handoffStartedAt;
+      const transition = await runtime.stageNavigationTransition(tileId, { isCurrent: isStageCurrent });
+      if (!isStageCurrent()) {
+        runtime.abandonStagedTransition({ transitionId: transition?.transitionId });
+        if (tileSimulationHandoff.snapshot()?.startedAt === handoffStartedAt) await tileSimulationHandoff.cancel();
+        return { status: 'cancelled', tileId };
+      }
+      tileSimulationHandoff.bind(transition);
       const retirement = game.prepareTileRenderingRetirement(tileId, {
         onReport: report => { diagnostics.tileRenderingRetirement = report; },
       });
@@ -829,6 +912,14 @@ export function startOpenWorld({
       }
       return transition;
     } catch (error) {
+      const pending = navigation.pending();
+      if (tileSimulationHandoff.matches(pending)) navigation.complete(pending);
+      runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
+      game.cancelNativeTileHandoff();
+      const sourceCurrent = ownsSession(owner) && loadEpoch === epoch && currentCityCode() === fromTileId
+        && api.gameState.getGameSessionId?.() === sourceSessionId;
+      if (sourceCurrent) { ready = true; settlementReady = true; }
+      await tileSimulationHandoff.cancel({ restore: sourceCurrent });
       api.ui?.showNotification?.(`Tile switch failed: ${error.message}`, 'error', 'Open World');
       throw error;
     } finally {
@@ -1098,14 +1189,7 @@ export function startOpenWorld({
         if (!ownsSession(startingSession)) return;
         ready = true;
         settlementReady = false;
-        const initialDemand = deferStartupModeShare('startup', api.gameState.getCurrentDay?.() ?? null, startingSession);
-        startupModeSharePromise = initialDemand;
-        void initialDemand.finally(() => {
-          if (startupModeSharePromise === initialDemand) startupModeSharePromise = null;
-        });
-        finishStage('crossModeShare');
         if (!ownsSession(startingSession)) return;
-        if (pending) navigation.complete(pending);
         geographicContextController = registerGeographicContextOverlay({
           runtime,
           tileCatalog,
@@ -1128,14 +1212,20 @@ export function startOpenWorld({
           ? null : registerNetworkProjectionOverlay({ api, runtime });
         await reconcileLiveMap('startup');
         if (!ownsSession(startingSession)) return;
+        if (pending) navigation.complete(pending);
         diagnostics.startupMapRefresh = refreshCityScopedMapArtifacts({
           map: latestMap,
           controller: geographicContextController,
         });
         ensurePanel();
         finishStage('uiSetup');
+        const mapReadyAt = Date.now();
+        recordAuthoritativeLoad({ phase: 'authoritative-load', loadTraceId,
+          segment: 'startup-map-ready', version: TILE_SIMULATION_HANDOFF_VERSION, mapReadyAt });
+        trackSimulationPreparation(deferStartupModeShare('startup', api.gameState.getCurrentDay?.() ?? null, startingSession));
         diagnostics.startup = {
           tileId: loadedCityCode,
+          mapReadyAt,
           milliseconds: Date.now() - startedAt,
           heapBytes: heapBytes(),
           stages,
@@ -1166,8 +1256,6 @@ export function startOpenWorld({
 
   async function handleGameLoaded(saveName) {
     const bootstrapLoad = !ready;
-    await cachedSimulation.setEnabled(false);
-    if (!ownsCurrentCity()) return;
     loadTrace('hook.game-loaded', {
       saveName,
       current: isCurrent(),
@@ -1181,10 +1269,21 @@ export function startOpenWorld({
       loadTrace('hook.game-loaded.ignored', { reason: 'stale-generation', saveName });
       return;
     }
+    let pending = navigation.pending();
+    const invalidHandoff = pending && game.nativeTileHandoffStatus()?.state === 'invalid';
+    if (invalidHandoff) {
+      // A pending router token does not authorize a different manual Save.
+      // The observer classifies the actual loadSave payload before its native
+      // lifecycle callback, including callbacks made inside loadSave itself.
+      navigation.complete(pending);
+      runtime.abandonStagedTransition({ transitionId: pending.transitionId });
+      game.cancelNativeTileHandoff();
+      pending = null;
+      currentCityCode(readLiveSubwayBuilderCityCode({ api }));
+    }
     const loadedCityCode = currentCityCode();
-    const pending = navigation.pending();
     const nativeSessionId = api.gameState.getGameSessionId();
-    const loadKind = nativeSaveLifecycle.classifyLoad(saveName, {
+    const loadKind = invalidHandoff ? 'save-load' : nativeSaveLifecycle.classifyLoad(saveName, {
       nativeSessionId,
       pendingNavigation: Boolean(pending),
     });
@@ -1223,6 +1322,13 @@ export function startOpenWorld({
       });
       return;
     }
+    if (loadKind !== 'tile-navigation') {
+      loadEpoch++;
+      runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
+      await tileSimulationHandoff.cancel();
+      await cachedSimulation.setEnabled(false);
+      game.cancelNativeTileHandoff();
+    }
     // Do not let onMapReady boot against the previous native Zustand state.
     nativeReloadRecovery.resetForLoad?.({ bootstrap: bootstrapLoad });
     // New-game creation resets gameSessionId during the native load; this hook
@@ -1234,7 +1340,7 @@ export function startOpenWorld({
       loadTrace('hook.game-loaded.route', { route: 'startup', loadKind, loadedCityCode, loadedSaveName });
       return start(loadedCityCode, loadedSaveName);
     }
-    if (!ready || loadKind === 'tile-navigation') {
+    if ((!ready && !invalidHandoff) || loadKind === 'tile-navigation') {
       loadTrace('hook.game-loaded.ignored', {
         reason: !ready ? 'runtime-not-ready' : 'tile-navigation-owned-by-city-load',
         loadKind,
@@ -1266,6 +1372,11 @@ export function startOpenWorld({
       });
       return;
     }
+    loadEpoch++;
+    runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
+    await tileSimulationHandoff.cancel();
+    await cachedSimulation.setEnabled(false);
+    game.cancelNativeTileHandoff();
     const nativeSessionId = api.gameState.getGameSessionId?.() ?? null;
     if (!nativeSessionId) throw new Error('The new game did not provide a native session ID');
     const initializingSession = ensureSession();
@@ -1346,7 +1457,7 @@ export function startOpenWorld({
     });
   }
 
-  async function handleCityLoad(loadedCityCode, { authoritative = false } = {}) {
+  async function handleCityLoad(loadedCityCode, { authoritative = false, restoredTransition = null } = {}) {
     if (!isCurrent()) return;
     const liveCityCode = readLiveSubwayBuilderCityCode({ api });
     const currentRuntimeTileId = runtimeTileId();
@@ -1396,11 +1507,13 @@ export function startOpenWorld({
     if (!gameLoadObserved) return;
     if (!started) return start(loadedCityCode, api.gameState.getSaveName?.() ?? loadedSaveName);
     const cityLoadSession = session;
+    const cityLoadEpoch = loadEpoch;
+    const ownsCityLoad = () => ownsSession(cityLoadSession) && loadEpoch === cityLoadEpoch;
     // onMapReady/onGameLoaded can start boot before onCityLoad arrives. Do not
     // race a second transition completion against that same boot: boot owns the
     // persisted handoff and clears the navigation token when it succeeds.
     if (!ready && startPromise) await startPromise;
-    if (!ownsSession(cityLoadSession)) return;
+    if (!ownsCityLoad()) return;
     const pending = pendingForLoadedCity;
     if (!ready && !pending) return;
     if (!pending) {
@@ -1417,7 +1530,11 @@ export function startOpenWorld({
       return;
     }
     const cityLoadStartedAt = Date.now();
-    const nativeSessionId = api.gameState.getGameSessionId();
+    let nativeSessionId = api.gameState.getGameSessionId();
+    const ownsPendingNavigation = () => {
+      const current = navigation.pendingFor(loadedCityCode);
+      return ownsCityLoad() && current?.transitionId === pending.transitionId && current?.worldId === pending.worldId;
+    };
     const loadTraceId = createAuthoritativeLoadTraceId(
       'tile-transition',
       loadedCityCode,
@@ -1431,14 +1548,33 @@ export function startOpenWorld({
       nativeSessionId,
       pending,
     });
+    let nativeRestored = restoredTransition != null && restoredTransition === pending.transitionId;
     try {
       // Restoring the canonical network emits native route/schedule hooks. It
       // is a view change, not a player service edit, so keep those hooks from
       // scheduling a spurious midnight mode-share rebuild.
       ready = false;
       settlementReady = false;
+      if (!nativeRestored) {
+        // StoreInitializer emits city-load before it reads/applies the staged
+        // Native Save. Yield outside the runtime queue so that first native
+        // loader can finish before verification consumes its one-use proof.
+        const waitStartedAt = Date.now();
+        const nativeLoad = await game.awaitNativeTileHandoff({ isCurrent: ownsPendingNavigation });
+        if (!ownsPendingNavigation() || nativeLoad.state === 'cancelled') return;
+        diagnostics.nativeHandoffLoadWait = { tileId: loadedCityCode, transitionId: pending.transitionId,
+          state: nativeLoad.state, reason: nativeLoad.reason, waitVersion: nativeLoad.waitVersion,
+          milliseconds: Date.now() - waitStartedAt };
+        rendererMemory.recordActivity('tile.handoff.native-load-wait', diagnostics.nativeHandoffLoadWait);
+        if (nativeLoad.state === 'timeout') {
+          throw new Error('The native Tile View save is still loading. Preparation can be retried when it finishes.');
+        }
+        // loadInitialData creates a temporary UUID; the first loadSave restores
+        // the authoritative one. Never bind the temporary city session here.
+        nativeSessionId = api.gameState.getGameSessionId();
+      }
       const identityBound = await identities.bind(nativeSessionId, pending.worldId, { force: true });
-      if (!ownsSession(cityLoadSession)) return;
+      if (!ownsPendingNavigation()) return;
       recordAuthoritativeLoad({
         phase: 'authoritative-load',
         loadTraceId,
@@ -1447,13 +1583,28 @@ export function startOpenWorld({
         pendingWorldId: pending.worldId,
         identityBound,
       });
-      await runtime.completeStagedTransition(loadedCityCode, {
-        loadTraceId,
-        navigationTransition: pending,
-      });
-      if (!ownsSession(cityLoadSession)) return;
+      if (!nativeRestored) {
+        const completion = await runtime.completeStagedTransition(loadedCityCode, {
+          loadTraceId,
+          navigationTransition: pending,
+          deferNativeCommutes: tileSimulationHandoff.accepts(pending) && tileSimulationHandoff.requested(),
+          isCurrent: ownsPendingNavigation,
+        });
+        if (!ownsPendingNavigation() || completion?.status === 'cancelled') return;
+        nativeRestored = true;
+        // Native loadSave resets paused=true. Restore the source choice once,
+        // after the verified native identity returns and while the independent
+        // handoff hold still prevents either clock from advancing.
+        const intent = tileSimulationHandoff.snapshot();
+        if (ownsCityLoad() && tileSimulationHandoff.accepts(pending)
+          && intent.nativeSessionId === api.gameState.getGameSessionId?.()
+          && typeof intent.sourcePaused === 'boolean') {
+          game.callbacks.getState().setTimeConfig({ paused: intent.sourcePaused });
+        }
+      }
+      if (!ownsCityLoad()) return;
       await stampWorldIdentity(pending.worldId, loadTraceId);
-      if (!ownsSession(cityLoadSession)) return;
+      if (!ownsCityLoad()) return;
       recordWorldIdentity({ nativeSessionId, worldId: pending.worldId }, {
         saveName: api.gameState.getSaveName?.() ?? loadedSaveName,
         cityCode: loadedCityCode,
@@ -1465,13 +1616,10 @@ export function startOpenWorld({
         runtimeView: runtime.diagnosticView(),
       });
       ready = true;
-      const modeShare = await recalculateCrossModeShare('tile-transition', api.gameState.getCurrentDay?.() ?? null, false, cityLoadSession);
-      if (!ownsSession(cityLoadSession)) return;
-      settlementReady = modeShare != null;
       // A replacement native map can become available without another
       // onMapReady notification. Reacquire and attach before refreshing it.
       await reconcileLiveMap('tile-navigation-complete');
-      if (!ownsSession(cityLoadSession)) return;
+      if (!ownsCityLoad()) return;
       navigation.complete(pending);
       diagnostics.transitionMapRefresh = refreshCityScopedMapArtifacts({
         map: latestMap,
@@ -1483,6 +1631,7 @@ export function startOpenWorld({
       const measured = readPendingPerformance();
       globalThis.sessionStorage?.removeItem(PENDING_PERFORMANCE_KEY);
       const sample = {
+        version: TILE_SIMULATION_HANDOFF_VERSION,
         transitionId: pending.transitionId ?? measured?.transitionId ?? null,
         fromTileId: measured?.fromTileId ?? null,
         toTileId: loadedCityCode,
@@ -1493,10 +1642,30 @@ export function startOpenWorld({
         startHeapBytes: measured?.startHeapBytes ?? null,
         endHeapBytes: heapBytes(),
         completedAt: finishedAt,
+        mapReadyAt: finishedAt,
+        simulationReadyAt: null,
       };
       if (sample.startHeapBytes && sample.endHeapBytes) sample.heapDeltaBytes = sample.endHeapBytes - sample.startHeapBytes;
+      recordAuthoritativeLoad({ phase: 'authoritative-load', loadTraceId, segment: 'tile-map-ready', ...sample });
+      rendererMemory.recordActivity('tile.handoff.map-ready', {
+        tileId: loadedCityCode, transitionId: sample.transitionId,
+        durationMs: sample.totalMilliseconds, completionMs: sample.completionMilliseconds,
+      });
+      const sourceSessionId = tileSimulationHandoff.snapshot()?.nativeSessionId;
+      const destinationCurrent = () => ownsCityLoad() && ready
+        && currentCityCode() === loadedCityCode && api.gameState.getGameSessionId?.() === sourceSessionId;
+      const preparation = tileSimulationHandoff.mapReady({
+        transition: pending,
+        isCurrent: destinationCurrent,
+        prepareFinance: () => recalculateCrossModeShare('tile-transition', api.gameState.getCurrentDay?.() ?? null,
+          false, cityLoadSession, destinationCurrent),
+      });
+      if (preparation) trackSimulationPreparation(preparation);
+      else if (!tileSimulationHandoff.isPending()) {
+        trackSimulationPreparation(deferStartupModeShare('tile-transition', api.gameState.getCurrentDay?.() ?? null, cityLoadSession));
+      }
       await persistPerformance(sample);
-      if (!ownsSession(cityLoadSession)) return;
+      if (!ownsCityLoad()) return;
       console.info(`${logLabel} tile transition performance`, sample);
       const tileName = tileById.get(loadedCityCode)?.name ?? loadedCityCode;
       const seconds = sample.totalMilliseconds == null ? null : (sample.totalMilliseconds / 1000).toFixed(2);
@@ -1506,7 +1675,12 @@ export function startOpenWorld({
         definition.identity.name,
       );
     } catch (error) {
-      if (!ownsSession(cityLoadSession)) return;
+      if (!ownsCityLoad()) return;
+      if (tileSimulationHandoff.accepts(pending)) {
+        tileSimulationHandoff.fail(error, () => ownsCityLoad()
+          ? handleCityLoad(loadedCityCode, { authoritative: true,
+            restoredTransition: nativeRestored ? pending.transitionId : null }) : null);
+      }
       recordAuthoritativeLoad({
         phase: 'authoritative-load',
         loadTraceId,
@@ -1648,7 +1822,6 @@ export function startOpenWorld({
     detachAutosaveIdleGuard();
     tileCacheBudget.attach(null);
     rendererMemory.recordActivity('game.end', { tileId: currentCityCode() });
-    void cachedSimulation.setEnabled(false);
     const pending = navigation.pending();
     if (pending) {
       // Route navigation briefly presents as a native game end/init pair.
@@ -1663,6 +1836,11 @@ export function startOpenWorld({
       });
       return;
     }
+    loadEpoch++;
+    runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
+    void tileSimulationHandoff.cancel();
+    void cachedSimulation.setEnabled(false);
+    game.cancelNativeTileHandoff();
     session?.dispose();
     navigationCamera = null;
     renderDistanceToolbarRegistered = false;
@@ -1705,6 +1883,10 @@ export function startOpenWorld({
     }),
     dispose() {
       if (moduleDisposed) return;
+      loadEpoch++;
+      runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
+      void tileSimulationHandoff.cancel();
+      game.cancelNativeTileHandoff();
       moduleDisposed = true;
       void cachedSimulation.dispose();
       prototypeSaveWriter.dispose();

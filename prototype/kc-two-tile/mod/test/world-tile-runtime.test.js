@@ -44,6 +44,155 @@ function setupProjectedRuntime(runtimeOptions = {}) {
   return { game, storage, runtime };
 }
 
+test('same-renderer navigation reuses a verified native handoff instead of loading the save twice', async () => {
+  const { runtime, game } = setup();
+  await runtime.boot('verified-native-handoff');
+  let armed = 0;
+  game.armNativeTileHandoff = () => { armed++; };
+  game.tryReuseStagedNativeHandoff = ({ snapshot, transitionId, destinationCityCode }) => {
+    assert.equal(snapshot, runtime.world.pendingTransition.nativeSnapshot);
+    assert.equal(transitionId, runtime.world.pendingTransition.transitionId);
+    assert.equal(destinationCityCode, 'KCE');
+    return { reused: true, reason: 'verified-staged-native-load' };
+  };
+  await runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async () => ({ nativeHandoff: { recoveryId: 'handoff-test' } }),
+  });
+  game.native = structuredClone(runtime.world.pendingTransition.nativeSnapshot);
+  game.log.length = 0;
+  await runtime.completeStagedTransition('KCE');
+  assert.equal(armed, 1);
+  assert.equal(game.log.includes('restoreSnapshot'), false,
+    'the native destination loader already applied the verified staged authority');
+  assert.equal(runtime.world.activeTileId, 'KCE');
+  assert.equal(runtime.world.pendingTransition, null);
+});
+
+test('verified canonical handoff still rebuilds destination presentation without recapturing or restoring topology', async () => {
+  const tileIds = ['T0', 'T1'];
+  const tilePackages = new MemoryTilePackageAdapter(Object.fromEntries(tileIds.map(tileId => [tileId, {
+    manifest: { tileId, cityCode: tileId, schemaVersion: 1, dataFiles: {} }, demand: [],
+    commuteCatalog: { buildHash: 'reuse-projection', buckets: [], gateways: [] },
+  }])));
+  const { runtime, game } = setupProjectedRuntime({ tilePackages,
+    tileCatalog: { tiles: tileIds.map((id, column) => ({ id, column, row: 0, bounds: [column, 0, column + 1, 1] })) } });
+  await runtime.boot('reuse-canonical-projection', 'T0');
+  assert.equal(runtime.world.activeProjection.presentationVersion, 'canonical-network-presentation-v1',
+    'canonical adoption builds only presentation metadata');
+  game.native.tracks = [{ id: 'global-track', coords: [[0.5, 0.5], [1.5, 0.5]] }];
+  await runtime.stageNavigationTransition('T1');
+  const staged = runtime.world.pendingTransition.nativeSnapshot;
+  game.tryReuseStagedNativeHandoff = ({ snapshot, nativeNetwork }) => {
+    assert.equal(snapshot, staged);
+    assert.deepEqual(nativeNetwork.tracks, staged.tracks);
+    return { reused: true, reason: 'verified-staged-native-load' };
+  };
+  game.native = structuredClone(staged);
+  game.captureSnapshot = () => { throw new Error('verified topology recaptured'); };
+  game.log.length = 0;
+  const result = await runtime.completeStagedTransition('T1');
+  assert.equal(result.status, 'committed');
+  assert.equal(runtime.world.activeProjection.activeTileId, 'T1');
+  assert.equal(runtime.world.activeProjection.presentationOnly, true, 'destination restore uses the compact presentation path');
+  assert.equal(runtime.world.activeProjection.structuralHash, null);
+  assert.ok(runtime.world.activeProjection.baselineState.tracks.every(track => Object.keys(track).length === 1));
+  assert.deepEqual(game.native.tracks, staged.tracks);
+  assert.deepEqual(runtime.world.tiles.T1.snapshot.tracks, []);
+  assert.equal(game.log.includes('restoreSnapshot'), false);
+});
+
+test('unverified destination handoffs retain the full restore path and report their reason', async () => {
+  const { runtime, game } = setup();
+  await runtime.boot('unverified-native-handoff');
+  const events = [];
+  runtime.telemetry = event => events.push(event);
+  game.tryReuseStagedNativeHandoff = () => ({ reused: false, reason: 'native-state-mismatch:routes[0].trainSchedule.lowDemand' });
+  await runtime.stageNavigationTransition('KCE');
+  game.log.length = 0;
+  await runtime.completeStagedTransition('KCE');
+  assert.equal(game.log.filter(value => value === 'restoreSnapshot').length, 1);
+  assert.equal(events.find(event => event.phase === 'native-handoff-verification').reason,
+    'native-state-mismatch:routes[0].trainSchedule.lowDemand');
+});
+
+test('destination completion passes explicit cached ownership to the native commute seam', async () => {
+  const { runtime, game } = setup();
+  await runtime.boot('deferred-native-commutes');
+  await runtime.stageNavigationTransition('KCE');
+  const calls = [];
+  game.refreshNativeCommutes = async options => { calls.push(options); return { status: 'deferred-to-cached-simulation' }; };
+  await runtime.completeStagedTransition('KCE', { deferNativeCommutes: true });
+  assert.deepEqual(calls, [{ deferToCachedSimulation: true }]);
+});
+
+for (const phase of ['package', 'adopt', 'capture', 'validate']) {
+  test(`abandoning destination completion during ${phase} never restores over a replacement native save`, async () => {
+    const { runtime, game } = setup();
+    await runtime.boot(`cancel-destination-${phase}`);
+    const staged = await runtime.stageNavigationTransition('KCE');
+    let entered, release;
+    const atGate = new Promise(resolve => { entered = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    const target = phase === 'package' ? runtime.tilePackages : game;
+    const method = { package: 'prepare', adopt: 'adoptStaticPackage', capture: 'captureSnapshot', validate: 'validateSnapshot' }[phase];
+    const original = target[method].bind(target);
+    target[method] = async (...args) => {
+      const result = await original(...args);
+      entered(); await gate; return result;
+    };
+    const completing = runtime.completeStagedTransition('KCE');
+    await atGate;
+    game.native = { wallet: 987654, clock: 24680, routes: [{ id: 'manual-save-route' }] };
+    game.paused = true;
+    const manualSave = structuredClone(game.native);
+    game.log.length = 0;
+    assert.equal(runtime.abandonStagedTransition({ transitionId: staged.transitionId }), true);
+    assert.equal(runtime.world.pendingTransition, null);
+    assert.equal(runtime.world.activeTileId, 'KCW');
+    release();
+    assert.equal((await completing).status, 'cancelled');
+    assert.deepEqual(game.native, manualSave);
+    assert.equal(game.paused, true);
+    assert.equal(game.log.includes('restoreSnapshot'), false);
+    assert.equal(game.log.includes('setAuthoritativeGlobals'), false);
+    assert.equal(game.log.includes('resume'), false);
+  });
+}
+
+test('destination completion rejects a replaced World and explicit cancellation without native writes', async () => {
+  for (const cancel of ['world', 'callback']) {
+    const { runtime, game } = setup();
+    await runtime.boot(`cancel-destination-${cancel}`);
+    await runtime.stageNavigationTransition('KCE');
+    let entered, release, current = true;
+    const atGate = new Promise(resolve => { entered = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    const original = game.adoptStaticPackage.bind(game);
+    game.adoptStaticPackage = async (...args) => { await original(...args); entered(); await gate; };
+    const completing = runtime.completeStagedTransition('KCE', { isCurrent: () => current });
+    await atGate;
+    if (cancel === 'world') runtime.world = structuredClone(runtime.world);
+    else current = false;
+    game.log.length = 0;
+    release();
+    assert.equal((await completing).status, 'cancelled');
+    assert.deepEqual(game.log, []);
+  }
+});
+
+test('abandonment only clears the matching transition and is safe before boot', async () => {
+  const { runtime, game } = setup();
+  assert.equal(runtime.abandonStagedTransition(), false);
+  await runtime.boot('matching-abandon');
+  const staged = await runtime.stageNavigationTransition('KCE');
+  const pending = runtime.world.pendingTransition;
+  game.log.length = 0;
+  assert.equal(runtime.abandonStagedTransition({ transitionId: 'unrelated' }), false);
+  assert.equal(runtime.world.pendingTransition, pending);
+  assert.equal(runtime.abandonStagedTransition({ transitionId: staged.transitionId }), true);
+  assert.deepEqual(game.log, []);
+});
+
 test('reads the active tile without constructing a full runtime view', async () => {
   const { game, runtime } = setup();
   assert.throws(() => runtime.getActiveTileId(), /boot must complete first/);
@@ -5391,6 +5540,56 @@ test('production adapter recalculates stale zero-network commutes after a networ
     { popId: 'stale-pop', direction: 'workToHome' },
   ], false]);
   assert.equal(adapter.nativeCommuteHealth().transitPopulation, 6);
+});
+
+for (const phase of ['validation', 'internal-operation', 'native-load']) {
+  test(`production snapshot restore stops after cancellation during ${phase}`, async () => {
+    const fixture = realSeamFixture();
+    const adapter = new SubwayBuilderGameAdapter(fixture);
+    const snapshot = await adapter.captureSnapshot();
+    let entered, release, current = true;
+    const atGate = new Promise(resolve => { entered = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    if (phase === 'validation') {
+      const validate = adapter.validateSnapshot.bind(adapter);
+      adapter.validateSnapshot = async save => { await validate(save); entered(); await gate; };
+    } else if (phase === 'internal-operation') {
+      adapter.nativeSaveLifecycle = { runInternalOperation: async (_operation, action) => { entered(); await gate; return action(); } };
+    } else {
+      fixture.state.loadSave = async () => { fixture.calls.push(['load']); entered(); await gate; };
+    }
+    const restoring = adapter.restoreSnapshot(snapshot, { isCurrent: () => current });
+    await atGate;
+    current = false;
+    fixture.state.money = 123456;
+    fixture.state.timeConfig.elapsedSeconds = 987;
+    fixture.calls.length = 0;
+    release();
+    await restoring;
+    assert.deepEqual(fixture.calls, [], 'no native load, deferred route, demand or clock mutations after cancellation');
+    assert.equal(fixture.state.money, 123456);
+    assert.equal(fixture.state.timeConfig.elapsedSeconds, 987);
+  });
+}
+
+test('cached destination ownership preserves cohort rules without scanning native journeys or making requests', async () => {
+  const fixture = realSeamFixture();
+  const rules = { MIN_TRANSIT_CHOICE: 10 };
+  fixture.api.utils.getPathfindingRules = () => rules;
+  fixture.api.modifyPathfindingRules = patch => Object.assign(rules, patch);
+  const pop = { id: 'small', size: 1, get lastCommute() { throw new Error('native journey scanned'); } };
+  fixture.state.demandData = { popsMap: new Map([[pop.id, pop]]) };
+  fixture.state.stations = [{ id: 'station' }]; fixture.state.routes = [{ id: 'route' }]; fixture.state.trains = [{ id: 'train' }];
+  fixture.state.popMovementsMap = { [Symbol.iterator]() { throw new Error('movements scanned'); } };
+  fixture.state.simulateCommutes = () => { throw new Error('native commute requests constructed'); };
+  const adapter = new SubwayBuilderGameAdapter(fixture);
+  adapter.nativeCommuteHealth = () => { throw new Error('native health scanned'); };
+  assert.deepEqual(await adapter.refreshNativeCommutes({ deferToCachedSimulation: true }),
+    { status: 'deferred-to-cached-simulation', popCount: 1 });
+  assert.equal(rules.MIN_TRANSIT_CHOICE, 1);
+  pop.size = 50;
+  await adapter.refreshNativeCommutes({ deferToCachedSimulation: true });
+  assert.equal(rules.MIN_TRANSIT_CHOICE, 10, 'aggregated cohorts retain the normal native rule');
 });
 
 test('hydrated clipped service invalidates cached native no-path results without visible trains', async () => {

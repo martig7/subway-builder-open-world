@@ -1,6 +1,60 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NetworkProjection, classifyCrossTileRouteIds, createGlobalNetwork, createNativeNetworkSnapshot, stripNetworkFromSnapshot } from '../../../../open-world-platform/src/runtime/network-projection.js';
+import { CANONICAL_NATIVE_NETWORK_MODE, SHARED_TRANSIT_STATE_KEYS } from '../../../../open-world-platform/src/runtime/shared-transit-network.js';
+import { SubwayBuilderGameAdapter } from '../../../../open-world-platform/src/runtime/adapters/subway-builder-game-adapter.js';
+
+test('tile bookmarks discard topology before cloning but isolate retained fields and the save header', () => {
+  let historyReads = 0;
+  const localHistory = [{ revenue: 42 }];
+  const discarded = { get path() { throw new Error('discarded topology was traversed'); } };
+  const snapshot = { metadata: { label: 'source' }, data: {
+    tracks: [discarded], trains: [discarded], routes: [discarded],
+    routeFinancials: { discarded }, ownedTrainCount: 12,
+    get financialHistory() { historyReads++; return localHistory; },
+    completedCommutes: [{ popId: 'paid', fareRevenue: 3 }],
+  } };
+  const stripped = stripNetworkFromSnapshot(snapshot);
+  assert.equal(historyReads, 1);
+  assert.deepEqual(stripped.data.tracks, []);
+  assert.deepEqual(stripped.data.trains, []);
+  assert.deepEqual(stripped.data.routes, []);
+  assert.deepEqual(stripped.data.routeFinancials, {});
+  assert.equal(Object.hasOwn(stripped.data, 'ownedTrainCount'), false);
+  stripped.data.financialHistory[0].revenue = 99;
+  stripped.data.completedCommutes[0].fareRevenue = 99;
+  stripped.metadata.label = 'destination';
+  assert.equal(localHistory[0].revenue, 42);
+  assert.equal(snapshot.data.completedCommutes[0].fareRevenue, 3);
+  assert.equal(snapshot.metadata.label, 'source');
+});
+
+test('stripping preserves the legacy bookmark values and separate header/data clone ownership', () => {
+  const legacyStrip = snapshot => {
+    const state = structuredClone(snapshot?.data ?? snapshot ?? {});
+    for (const key of SHARED_TRANSIT_STATE_KEYS) {
+      if (Array.isArray(state[key])) state[key] = [];
+      else if (state[key] && typeof state[key] === 'object') state[key] = {};
+      else delete state[key];
+    }
+    if (!snapshot?.data) return state;
+    const { data, ...header } = snapshot;
+    return { ...structuredClone(header), data: state };
+  };
+  const shared = { label: 'shared' };
+  const data = Object.fromEntries(SHARED_TRANSIT_STATE_KEYS.map((key, index) => [key,
+    [null, undefined, 0, false, [], { nested: [{ retainedOnlyInSource: true }] }][index % 6]]));
+  Object.defineProperty(data, '__proto__', { enumerable: true, value: { userData: true } });
+  data.local = shared;
+  const wrapped = { metadata: shared, data };
+  for (const snapshot of [wrapped, data, null, { data: {} }, { data: [] }, { data: 7 }]) {
+    assert.deepEqual(stripNetworkFromSnapshot(snapshot), legacyStrip(snapshot));
+  }
+  const stripped = stripNetworkFromSnapshot(wrapped);
+  assert.notEqual(stripped.metadata, stripped.data.local, 'header and local payload retain independent clone ownership');
+  assert.notEqual(stripped.metadata, shared);
+  assert.notEqual(stripped.data.local, shared);
+});
 
 test('native snapshot composition copies retained history once and never copies discarded topology', () => {
   let historyReads = 0, discardedReads = 0;
@@ -64,6 +118,101 @@ function fixtureState() {
     ownedTrainCount: 2, ownedCarsByType: { metro: 8 },
   };
 }
+
+function assertPresentationParity(legacy, presentation) {
+  for (const key of Object.keys(legacy.manifest)) {
+    if (['baselineState', 'projectionHash', 'structuralHash'].includes(key)) continue;
+    assert.deepEqual(presentation.manifest[key], legacy.manifest[key], `manifest.${key}`);
+  }
+  assert.deepEqual(presentation.overlay, legacy.overlay);
+  for (const key of ['routes', 'tracks', 'stations', 'trains']) {
+    assert.deepEqual(presentation.manifest.baselineState[key].map(item => item.id),
+      legacy.manifest.baselineState[key].map(item => item.id), `visible ${key}`);
+  }
+  for (const [key, value] of Object.entries(legacy.diagnostics)) assert.deepEqual(presentation.diagnostics[key], value, key);
+  assert.equal(presentation.manifest.presentationOnly, true);
+  assert.equal(presentation.manifest.structuralHash, null, 'a reduced baseline cannot authorize native-state reuse');
+}
+
+test('canonical presentation preserves classifications, ownership and overlay across bounded and unbounded views', () => {
+  const network = createGlobalNetwork(fixtureState());
+  for (const guardBandMeters of [0, 60_000]) {
+    const projection = new NetworkProjection({ guardBandMeters });
+    for (const activeTileId of ['T0', 'T1', 'T3']) {
+      const options = { network, activeTileId, catalog };
+      assertPresentationParity(projection.build(options), projection.build({ ...options, presentationOnly: true }));
+    }
+    const options = { network, activeTileId: 'unknown', catalog: {} };
+    assertPresentationParity(projection.build(options), projection.build({ ...options, presentationOnly: true }));
+  }
+});
+
+test('canonical presentation never traverses native history or train windows, and cannot take structural reuse', () => {
+  const source = fixtureState();
+  for (const train of source.trains) Object.defineProperty(train, 'windows', { enumerable: true,
+    get() { throw new Error('authoritative train windows traversed'); } });
+  Object.defineProperty(source, 'routeFinancials', { enumerable: true,
+    get() { throw new Error('authoritative ledger traversed'); } });
+  const baseSnapshot = { data: { get financialHistory() { throw new Error('native history traversed'); } } };
+  const network = { schemaVersion: 1, revision: 1, hash: 'unchanged-authority', nativeState: source };
+  const projection = new NetworkProjection({ guardBandMeters: 0 });
+  assert.throws(() => projection.build({ network, activeTileId: 'T1', catalog, baseSnapshot }), /native history traversed/);
+  assert.throws(() => projection.build({ network, activeTileId: 'T1', catalog }), /train windows traversed/);
+  for (const activeTileId of ['T1', 'unbounded']) {
+    const result = projection.build({ network, activeTileId, catalog, baseSnapshot, presentationOnly: true });
+    assert.equal(result.manifest.presentationVersion, 'canonical-network-presentation-v1');
+    assert.equal(projection.isSnapshotStructurallyCurrent({ network, baseline: result.manifest, nativeSnapshot: source }), false);
+    assert.deepEqual(result.manifest.baselineState.routeFinancials, {});
+    assert.ok(result.manifest.baselineState.trains.every(train => Object.keys(train).every(key => ['id', 'routeId'].includes(key))));
+    result.manifest.baselineState.routes[0].id = 'changed-presentation-only';
+    assert.equal(source.routes[0].id, 'local-route');
+  }
+});
+
+test('canonical accounting ownership is unchanged by the reduced presentation baseline', () => {
+  const network = createGlobalNetwork(fixtureState());
+  const projection = new NetworkProjection({ guardBandMeters: 0 });
+  const options = { network, activeTileId: 'T1', catalog };
+  const oldAdapter = new SubwayBuilderGameAdapter({ api: {}, callbacks: {} });
+  const nextAdapter = new SubwayBuilderGameAdapter({ api: {}, callbacks: {} });
+  oldAdapter.nativeNetworkMode = nextAdapter.nativeNetworkMode = CANONICAL_NATIVE_NETWORK_MODE;
+  const oldOwnership = oldAdapter.configureGlobalFinanceOwnership(projection.build(options).manifest);
+  const nextOwnership = nextAdapter.configureGlobalFinanceOwnership(projection.build({ ...options, presentationOnly: true }).manifest);
+  assert.deepEqual(nextOwnership, oldOwnership);
+  for (const key of ['nativeFinanceAccountingRouteIds', 'nativeFinanceAuditRouteIds', 'financeOwnedRouteIds',
+    'financeOwnedTrackIds', 'financeOwnedInfrastructureHourlyByCategory']) assert.deepEqual(nextAdapter[key], oldAdapter[key], key);
+  assert.equal(nextAdapter.financeOwnedInfrastructureHourlyByCategory.size, 0, 'canonical expenses remain wholly native-owned');
+});
+
+test('678-station 78-route presentation remains exact without retaining authoritative train or route objects', () => {
+  const template = fixtureState();
+  const entityKeys = ['tracks', 'stations', 'routes', 'trains', 'trackGroups', 'signals', 'stNodes', 'stationGroups'];
+  const originalIds = new Set(entityKeys.flatMap(key => template[key].map(entity => entity.id)));
+  for (const station of template.stations) for (const id of station.stNodeIds) originalIds.add(id);
+  const source = Object.fromEntries(entityKeys.map(key => [key, []]));
+  for (let unit = 0; unit < 39; unit++) {
+    const scope = value => Array.isArray(value) ? value.map(scope)
+      : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, scope(item)]))
+        : originalIds.has(value) ? `${unit}:${value}` : value;
+    for (const key of entityKeys) source[key].push(...scope(template[key]));
+  }
+  while (source.stations.length < 678) source.stations.push({ id: `remote-${source.stations.length}`, coords: [3.8, 0.9], stNodeIds: [], routeIds: [] });
+  Object.assign(source, { fareGroups: [], routeFinancials: {}, ownedTrainCount: 78, ownedCarsByType: { metro: 312 } });
+  for (const train of source.trains) train.windows = { train: { tracks: Array.from({ length: 32 }, (_, i) => ({ trackId: `${i}:inside-track`, elapsed: i })) } };
+  const network = createGlobalNetwork(source);
+  const projection = new NetworkProjection({ guardBandMeters: 0 });
+  const options = { network, activeTileId: 'T1', catalog };
+  const legacy = projection.build(options);
+  const result = projection.build({ ...options, presentationOnly: true });
+  assert.equal(source.stations.length, 678); assert.equal(source.routes.length, 78);
+  assertPresentationParity(legacy, result);
+  const sourceEntities = new Set(entityKeys.flatMap(key => network.nativeState[key]));
+  for (const key of entityKeys) for (const entity of result.manifest.baselineState[key]) {
+    assert.equal(sourceEntities.has(entity), false, `${key} must not retain an authoritative object`);
+    assert.ok(Object.keys(entity).every(field => ['id', 'routeId'].includes(field)));
+  }
+  assert.ok(JSON.stringify(result.manifest).length < JSON.stringify(legacy.manifest).length / 5);
+});
 
 test('global-network creation unwraps a clipped facade and recovers its deferred trains', () => {
   const canonicalRoute = {

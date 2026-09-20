@@ -1,4 +1,5 @@
 import { shareNativeSaveReferences } from './native-save-reference-sharing.js';
+import { nativeHandoffEvidence } from './native-handoff-verification.js';
 
 const RECOVERY_METADATA_KEY = 'openWorldNativeRecovery';
 const RELOAD_GUARD_KEY = '__openWorldNativeReloadRecoveryGuard__';
@@ -126,6 +127,7 @@ export async function stageNativeRecovery({
     reason,
     sourceCityCode,
     destinationCityCode,
+    nativeHandoff: nativeHandoffEvidence(handoff, recoveryMarker(handoff)),
     async rollback() {
       if (typeof electron.clearPendingSave !== 'function') return false;
       const pending = await readPendingSave(electron);

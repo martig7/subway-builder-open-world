@@ -1,5 +1,6 @@
 import { runFrameBudgeted } from '../frame-budget.js';
 import { shareNativeSaveReferences } from '../native-save-reference-sharing.js';
+import { observeNativeTileHandoff } from '../native-handoff-verification.js';
 import { armTileRenderingRetirement } from '../tile-rendering-retirement.js';
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
 import { NativeCommuteIndex } from '../native-commute-index.js';
@@ -3717,12 +3718,43 @@ export class SubwayBuilderGameAdapter {
     this.loadedCityCode = cityCode;
   }
 
+  armNativeTileHandoff(evidence, snapshot) {
+    this.cancelNativeTileHandoff();
+    this.nativeTileHandoffObserver = observeNativeTileHandoff({
+      getState: () => this.#state(), evidence, snapshot,
+    });
+  }
+
+  cancelNativeTileHandoff() {
+    this.nativeTileHandoffObserver?.dispose();
+    this.nativeTileHandoffObserver = null;
+  }
+
+  tryReuseStagedNativeHandoff(context) {
+    const observer = this.nativeTileHandoffObserver;
+    this.nativeTileHandoffObserver = null;
+    return observer?.consume(context) ?? { reused: false, reason: 'no-staged-native-handoff' };
+  }
+
+  nativeTileHandoffStatus() {
+    return this.nativeTileHandoffObserver?.status() ?? null;
+  }
+
+  awaitNativeTileHandoff(options) {
+    return this.nativeTileHandoffObserver?.waitForLoad(options)
+      ?? Promise.resolve({ state: 'unavailable', reason: 'no-staged-native-handoff' });
+  }
+
   async restoreSnapshot(snapshot, {
     preserveNativeFinance = false,
     authoritativeFinanceSnapshot = null,
+    isCurrent = () => true,
   } = {}) {
+    if (!isCurrent()) return;
     await this.assertSupported();
+    if (!isCurrent()) return;
     await this.validateSnapshot(snapshot);
+    if (!isCurrent()) return;
     const expectedCity = this.currentPackage?.manifest?.cityCode ?? this.currentPackage?.manifest?.tileId ?? this.loadedCityCode;
     const stateBefore = this.#state();
     const expectedCityUid = stateBefore.cityCode === expectedCity
@@ -3752,7 +3784,9 @@ export class SubwayBuilderGameAdapter {
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
     const provenance = openWorldRuntimeSnapshotProvenance(destinationSnapshot);
     const restore = async () => {
+      if (!isCurrent()) return;
       await this.#state().loadSave(nativeSnapshot);
+      if (!isCurrent()) return;
       restoreDeferredRouteDefinitions(
         this.#state(),
         destinationSnapshot.data.routes,
@@ -3767,6 +3801,7 @@ export class SubwayBuilderGameAdapter {
         metadataMarked: provenance.marker != null,
       }, restore);
     } else await restore();
+    if (!isCurrent()) return;
     stabilizeMapLayerMoves(this.api?.utils?.getMap?.());
     const stateAfter = this.#state();
     const infrastructureChargeCursor = destinationSnapshot.data.lastInfrastructureChargeTime;
@@ -3921,11 +3956,12 @@ export class SubwayBuilderGameAdapter {
    * Repair commute results calculated by StoreInitializer before a compact
    * tile snapshot restores that tile's stations, routes, and trains.
    */
-  async refreshNativeCommutes() {
+  async refreshNativeCommutes({ deferToCachedSimulation = false } = {}) {
     await this.assertSupported();
     const state = this.#state();
-    const pops = Array.from(state.demandData?.popsMap?.values?.() ?? []);
-    if (pops.length === 0) return { status: 'no-demand', popCount: 0 };
+    const popsMap = state.demandData?.popsMap;
+    const popCount = popsMap?.size ?? 0;
+    if (popCount === 0) return { status: 'no-demand', popCount: 0 };
     const hasClippedService = (state.routes ?? []).some((route) => (
       route?.openWorldProjectionDormant
       && (route.openWorldNativeCommuteRoute?.stNodes?.length ?? 0) > 1
@@ -3934,15 +3970,15 @@ export class SubwayBuilderGameAdapter {
     ));
     if (!(state.stations?.length > 0 && state.routes?.length > 0
       && (state.trains?.length > 0 || hasClippedService))) {
-      return { status: 'no-network', popCount: pops.length };
+      return { status: 'no-network', popCount };
     }
     if (typeof state.simulateCommutes !== 'function') {
-      return { status: 'unavailable', popCount: pops.length };
+      return { status: 'unavailable', popCount };
     }
 
-    const before = this.nativeCommuteHealth();
-    const smallCohortCount = pops.reduce((count, pop) => count + ((pop.size ?? 0) < 10 ? 1 : 0), 0);
-    const lodesSizedDemand = smallCohortCount / pops.length >= 0.5;
+    let smallCohortCount = 0;
+    for (const pop of popsMap.values()) if ((pop.size ?? 0) < 10) smallCohortCount++;
+    const lodesSizedDemand = smallCohortCount / popCount >= 0.5;
     const rules = this.api?.utils?.getPathfindingRules?.();
     const currentFloor = rules?.MIN_TRANSIT_CHOICE;
     if (lodesSizedDemand && Number.isFinite(currentFloor) && typeof this.api?.modifyPathfindingRules === 'function') {
@@ -3955,6 +3991,9 @@ export class SubwayBuilderGameAdapter {
       this.api.modifyPathfindingRules({ MIN_TRANSIT_CHOICE: SUBWAY_BUILDER_1_6_MIN_TRANSIT_CHOICE });
       this.lodesTransitFloorActive = false;
     }
+    if (deferToCachedSimulation) return { status: 'deferred-to-cached-simulation', popCount };
+    const pops = Array.from(popsMap.values());
+    const before = this.nativeCommuteHealth();
     const forceClippedRouteRefresh = this.clippedRouteCommuteRefreshPending === true;
     if (!forceClippedRouteRefresh
       && (before.popsWithTransitPaths > 0 || before.transitPopulation > 0)

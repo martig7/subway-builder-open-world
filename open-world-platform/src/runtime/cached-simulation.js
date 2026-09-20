@@ -6,7 +6,7 @@ import { createBoundedCrossTileRoutingCache } from './cross-tile-mode-choice.js'
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v16';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v17';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -79,6 +79,11 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     return result;
   };
   let enabled = false, disposed = false, busy = null, refreshPromise = null, stopping = null;
+  let suspension = null;
+  const isSuspended = () => {
+    if (disposed || !suspension) return false;
+    try { return suspension.isCurrent(); } catch { return false; }
+  };
   let modeRequest = 0;
   let revision = 0, cache = null, dependencies = null, settledAt = null, startedAt = null;
   let cacheContext = null, pendingMidnightRefresh = false;
@@ -92,9 +97,10 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   const preparation = createHourlyPostingPreparation({ workerSource: postingWorkerSource,
     prepareNative: (posting, budget) => game.prepareBackgroundNativeFinance?.(posting, { includeFinancialHistory: false }, budget) });
   const snapshot = () => ({ version: CACHED_SIMULATION_VERSION, enabled, status, error,
+    suspended: isSuspended(),
     pendingMidnightRefresh,
     saveWork: { observed: !disposed && NATIVE_ACTIONS.every(name => getState()[name]?.[OWNER]?.controller === controller),
-      native: nativeWork.size, cached: Boolean(busy || refreshPromise || stopping) },
+      native: nativeWork.size, cached: Boolean(busy || refreshPromise || stopping || isSuspended()) },
     saveReferenceSharing: NATIVE_SAVE_REFERENCE_SHARING_VERSION,
     ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
     assignedPops: cache?.assignedPops ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
@@ -179,10 +185,17 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       const input = { worldId: state.gameSessionId, tileId: state.cityCode, includeAssignments: true,
         networkProfile: game.captureCrossTileNetworkProfile(state.cityCode),
         farePolicy: { fare: state.transitCost, fareGroups: state.fareGroups }, globalNativeState: state };
-      const result = prepareActiveDemand ? await prepareActiveDemand({ assignments: true, tileId: state.cityCode })
-        : evaluate ? await evaluate({ ...input, demand })
-        : await worker.evaluate(new TextEncoder().encode(JSON.stringify(demand)), input)
-          ?? evaluateOffTileNativeDemand({ ...input, demand, routingCache });
+      let result;
+      try {
+        result = prepareActiveDemand ? await prepareActiveDemand({ assignments: true, tileId: state.cityCode })
+          : evaluate ? await evaluate({ ...input, demand })
+          : await worker.evaluate(new TextEncoder().encode(JSON.stringify(demand)), input)
+            ?? evaluateOffTileNativeDemand({ ...input, demand, routingCache });
+      } catch (failure) {
+        const current = contextOf(getState());
+        if (disposed || !enabled || revision !== token || initial.some((value, i) => value !== current[i])) return false;
+        throw failure;
+      }
       const live = getState();
       // Shared service/fare notifications advance revision. Cosmetic/reference
       // replacements neither invalidate a journey nor queue another midnight.
@@ -215,10 +228,23 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   };
   const fail = failure => {
     error = String(failure?.message ?? failure); status = 'error';
-    getState().setTimeConfig({ paused: true }); notify();
+    if (!isSuspended()) getState().setTimeConfig({ paused: true });
+    notify();
+  };
+  const prepareEnabled = async request => {
+    const target = getState();
+    const targetSession = target.gameSessionId, targetTile = target.cityCode;
+    // A map-ready player can edit service during the first destination job.
+    // Invalidation coalesces another refresh; join that work before reporting
+    // enabled readiness, while never following it into another save or tile.
+    while (enabled && !disposed && request === modeRequest) {
+      if (await refresh()) return;
+      const state = getState();
+      if (!isReady() || state.gameSessionId !== targetSession || state.cityCode !== targetTile) return;
+    }
   };
   const tick = async () => {
-    if (!enabled || disposed || !isReady() || getState().timeConfig.paused) return;
+    if (!enabled || disposed || isSuspended() || !isReady() || getState().timeConfig.paused) return;
     if (busy) return busy;
     busy = (async () => {
       if (!unchanged(getState())) {
@@ -228,7 +254,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         else if (!await refresh()) return;
       }
       const state = getState();
-      if (!enabled || disposed || state.timeConfig.paused) return;
+      if (!enabled || disposed || isSuspended() || state.timeConfig.paused) return;
       const from = state.timeConfig.elapsedSeconds;
       const step = tickStep(state);
       // Settle the old rates exactly to midnight before either worker replaces
@@ -250,8 +276,26 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   };
   const controller = {
     snapshot,
+    preparedNativeProfile(tileId) {
+      const state = getState();
+      return enabled && !disposed && status === 'ready' && !pendingMidnightRefresh
+        && state.cityCode === tileId && canReuseAssignments(state) && unchanged(state)
+        ? cache.profile : null;
+    },
+    // Navigation owns the lease predicate and lifetime. This gate is separate
+    // from enabled/readiness so an unfinished destination cannot run a native
+    // tick, and cached-mode handoffs need not build native journeys first.
+    setSuspended(value, { suppressCommutes = false, isCurrent = () => true } = {}) {
+      if (disposed) return snapshot();
+      suspension = value ? { suppressCommutes, isCurrent } : null;
+      notify();
+      return snapshot();
+    },
+    async drainNativeWork() {
+      while (nativeWork.size) await Promise.allSettled([...nativeWork]);
+    },
     isTickSuppressionActive() {
-      return stopping != null || (enabled && !disposed && isReady());
+      return isSuspended() || stopping != null || (enabled && !disposed && isReady());
     },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     invalidate() {
@@ -287,13 +331,20 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       const request = ++modeRequest;
       if (disposed) return;
       if (stopping) { await stopping; if (request !== modeRequest || disposed) return snapshot(); }
-      if (Boolean(value) === enabled) return snapshot();
+      if (Boolean(value) === enabled) {
+        // Memory admission may defer a destination. Retrying its enable must
+        // finish preparation without toggling/rebasing the same interval twice.
+        if (value && status !== 'ready') {
+          try { await prepareEnabled(request); } catch (failure) { fail(failure); }
+        }
+        return snapshot();
+      }
       if (value) {
         enabled = true; revision++; status = 'calculating';
         startedAt = getState().timeConfig.elapsedSeconds; sessionId = getState().gameSessionId;
         settledAt = startedAt; cache = null; dependencies = null; cacheContext = null; pendingMidnightRefresh = false;
         frozenTrains.clear(); notify();
-        try { await refresh(); } catch (failure) { fail(failure); }
+        try { await prepareEnabled(request); } catch (failure) { fail(failure); }
       } else {
         enabled = false; revision++;
         stopping = (async () => {
@@ -311,6 +362,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         }
         preparation.invalidate();
         cache = null; dependencies = null; cacheContext = null; pendingMidnightRefresh = false;
+        frozenTrains.clear();
         status = 'off'; error = null; notify();
         })();
         try { await stopping; } finally { stopping = null; }
@@ -326,6 +378,17 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         const wrapper = function (...args) {
           if (stopping && name === 'handleIncrementGameState') return stopping;
           if (disposed) return original.apply(this, args);
+          if (isSuspended()) {
+            if (name === 'handleIncrementGameState') return Promise.resolve();
+            if (suspension.suppressCommutes && name === 'simulateCommutes') {
+              counters.suppressedCommutes++; return Promise.resolve();
+            }
+            if (suspension.suppressCommutes && name === 'calculatePaths') {
+              counters.suppressedPathSearches++;
+              return Promise.resolve({ paths: [], query: args[0]?.query, searchTime: 0,
+                timings: { total: 0 }, cached: true });
+            }
+          }
           const cachedActive = enabled && isReady();
           if (name === 'generateSave') {
             const started = performance.now();
@@ -378,7 +441,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     },
     async dispose() {
       await controller.setEnabled(false);
-      disposed = true; revision++;
+      disposed = true; suspension = null; revision++;
       const state = getState();
       for (const [name, { original, wrapper }] of wrappers) if (state[name] === wrapper) state[name] = original;
       preparation.dispose(); worker.dispose(); routingCache.clear(); listeners.clear(); state.setTimeConfig?.({});

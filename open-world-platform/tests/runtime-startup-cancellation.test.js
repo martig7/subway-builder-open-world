@@ -8,6 +8,9 @@ import { WorldIdentityResolver } from '../src/runtime/world-identity.js';
 import { createSubwayBuilderHostState } from '../testkit/subway-builder-host.js';
 import { GeographicContextOverlayController } from '../src/runtime/ui/geographic-context-overlay.js';
 import { HashCityNavigationAdapter } from '../src/runtime/adapters/hash-city-navigation-adapter.js';
+import { SubwayBuilderGameAdapter } from '../src/runtime/adapters/subway-builder-game-adapter.js';
+import { nativeHandoffEvidence } from '../src/runtime/native-handoff-verification.js';
+import { SHARED_TRANSIT_STATE_KEYS } from '../src/runtime/shared-transit-network.js';
 import definition from '../../worlds/tokyo-kanagawa/world.json' with { type: 'json' };
 import catalogSource from '../../worlds/tokyo-kanagawa/geography/tile-views.json' with { type: 'json' };
 
@@ -222,6 +225,53 @@ for (const endDuringPaint of [false, true]) test(`grid switching notification pa
   });
 });
 
+for (const replacement of ['game-end', 'manual-save', 'native-session']) test(`a tile switch cannot navigate after ${replacement} while staging`, async t => {
+  const staging = deferred(); const entered = deferred();
+  let grid; let navigated = 0; let retired = 0; const abandoned = [];
+  const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
+  t.mock.method(GeographicContextOverlayController.prototype, 'readRuntimeActiveTileId', function () {
+    grid = this; return readActive.call(this);
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  t.mock.method(WorldTileRuntime.prototype, 'stageNavigationTransition', async tileId => {
+    entered.resolve(); await staging.promise;
+    return { status: 'reload-required', worldId: 'session-A', from: 'JP_TOKYO_MAINLAND',
+      tileId, transitionId: 'late-staging' };
+  });
+  const abandon = WorldTileRuntime.prototype.abandonStagedTransition;
+  t.mock.method(WorldTileRuntime.prototype, 'abandonStagedTransition', function (options) {
+    abandoned.push(options); return abandon.call(this, options);
+  });
+  t.mock.method(SubwayBuilderGameAdapter.prototype, 'prepareTileRenderingRetirement', () => {
+    retired++; return { retireBeforeNavigation() {}, cancel() {} };
+  });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'navigateTo', () => { navigated++; });
+  await harness(async ({ controller, state, hooks, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    const switching = grid.onTileSelect('JP_KANAGAWA_MAINLAND');
+    await entered.promise;
+    if (replacement === 'game-end') hooks.get('onGameEnd')();
+    else {
+      state.gameSessionId = 'session-B';
+      if (replacement === 'manual-save') {
+        state.saveName = 'save-B';
+        await controller.lifecycle.gameLoaded('save-B');
+      }
+    }
+    staging.resolve();
+    const result = await switching;
+    assert.equal(result.status, 'cancelled');
+    assert.equal(navigated, 0, 'a stale staged result must never reach the router');
+    assert.equal(retired, 0, 'a stale click must not retire the replacement renderer');
+    assert.ok(abandoned.some(item => item.transitionId === 'late-staging'), 'release the exact late staged transition');
+    if (replacement === 'manual-save') {
+      assert.equal((await grid.onTileSelect('JP_TOKYO_MAINLAND')).status, 'already-active',
+        'late staging must not mark the replacement save unready');
+    }
+  });
+});
+
 for (const paused of [true, false]) test(`grid tile switch excludes cached operating time from the native handoff (paused=${paused})`, async t => {
   let grid; let captured; let navigated = false;
   const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
@@ -261,6 +311,247 @@ for (const paused of [true, false]) test(`grid tile switch excludes cached opera
     assert.equal(captured.data.trains[0].timings[0].arrivalTime, elapsed);
     assert.equal(controller.cachedSimulation.snapshot().enabled, false);
     assert.equal(state.timeConfig.paused, paused);
+  });
+});
+
+for (const { paused, failMapOnce = false } of [{ paused: true }, { paused: false }, { paused: false, failMapOnce: true }]) test(`explicit tile handoff shows the map before preparation and resumes cached mode (paused=${paused}, retryMap=${failMapOnce})`, async t => {
+  let grid; let activeTile = 'JP_TOKYO_MAINLAND'; let pending = null; let crossCalls = 0;
+  let failNextMap = false; let nativeRestores = 0;
+  const finance = deferred(); const financeEntered = deferred();
+  const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
+  t.mock.method(GeographicContextOverlayController.prototype, 'readRuntimeActiveTileId', function () {
+    grid = this; return readActive.call(this);
+  });
+  t.mock.method(GeographicContextOverlayController.prototype, 'attachMap', function (map) {
+    if (failNextMap) { failNextMap = false; throw new Error('Map attachment temporarily unavailable'); }
+    this.map = map;
+  });
+  t.mock.method(GeographicContextOverlayController.prototype, 'refresh', () => {});
+  t.mock.method(WorldTileRuntime.prototype, 'getActiveTileId', () => activeTile);
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async options => {
+    crossCalls++;
+    if (options.reason !== 'tile-transition') return { status: 'cached' };
+    financeEntered.resolve(); return finance.promise;
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'stageNavigationTransition', async tileId => ({
+    status: 'reload-required', worldId: 'session-A', from: activeTile, tileId, transitionId: 'resume-cached',
+  }));
+  t.mock.method(HashCityNavigationAdapter.prototype, 'pending', () => pending);
+  t.mock.method(HashCityNavigationAdapter.prototype, 'navigateTo', transition => { pending = transition; });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'complete', () => { pending = null; });
+  await harness(async ({ controller, api, state, hooks, idle, errors }) => {
+    const map = { on() {}, off() {}, getSource: () => null, getLayer: () => null, isStyleLoaded: () => true };
+    api.utils.getMap = () => map;
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    state.setTimeConfig({ paused, timeSpeed: 'ultrafast', elapsedSeconds: 25000 });
+    await controller.cachedSimulation.setEnabled(true);
+    assert.equal(controller.cachedSimulation.snapshot().calculations, 1);
+    t.mock.method(WorldTileRuntime.prototype, 'completeStagedTransition', async (tile, options) => {
+      nativeRestores++;
+      assert.equal(options.deferNativeCommutes, true, 'cached destination preparation owns routing');
+      activeTile = tile;
+      state.gameSessionId = 'session-A';
+      state.setTimeConfig({ paused: true }); // Native loadSave always starts paused.
+    });
+    await grid.onTileSelect('JP_KANAGAWA_MAINLAND');
+    hooks.get('onGameEnd')();
+    state.cityCode = 'JP_KANAGAWA_MAINLAND';
+    state.gameSessionId = 'temporary-native-city-session';
+    await controller.lifecycle.gameInit();
+    const elapsed = state.timeConfig.elapsedSeconds;
+    await state.handleIncrementGameState();
+    assert.equal(state.timeConfig.elapsedSeconds, elapsed, 'native initializer cannot advance time during the temporary session');
+    failNextMap = failMapOnce;
+    await controller.lifecycle.cityLoad(state.cityCode, { authoritative: true });
+    let retry;
+    if (failMapOnce) {
+      assert.equal(controller.diagnostics.tileSimulationHandoff.status, 'error');
+      assert.notEqual(pending, null, 'a failed map attachment retains its explicit navigation token');
+      await state.handleIncrementGameState();
+      assert.equal(state.timeConfig.elapsedSeconds, elapsed);
+      retry = controller.diagnostics.retryTileSimulation();
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(nativeRestores, 1, 'map recovery must not repeat a completed native restore');
+    }
+    assert.equal(pending, null, 'navigation is complete before finance starts');
+    assert.equal(controller.diagnostics.latestGridNavigation.status, 'completed');
+    assert.equal(controller.diagnostics.tileSimulationHandoff.status, 'queued');
+    assert.equal(crossCalls, 1, 'destination work is deferred until the map-ready callback returns');
+    assert.equal(controller.cachedSimulation.snapshot().enabled, false);
+    await state.handleIncrementGameState();
+    assert.equal(state.timeConfig.elapsedSeconds, elapsed, 'map readiness does not release the clock');
+    assert.equal((await grid.onTileSelect('JP_TOKYO_MAINLAND')).status, 'initializing');
+    idle.shift()(); await financeEntered.promise;
+    assert.equal(controller.cachedSimulation.snapshot().calculations, 2, 'destination assignments are prepared first, exactly once');
+    assert.equal(controller.cachedSimulation.snapshot().enabled, true);
+    await state.handleIncrementGameState();
+    assert.equal(state.timeConfig.elapsedSeconds, elapsed, 'ready assignments alone cannot release the clock');
+    finance.resolve({ status: 'cached' });
+    await retry;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(controller.diagnostics.tileSimulationHandoff.status, 'ready');
+    assert.equal(state.timeConfig.paused, paused, 'player pause state survives both readiness boundaries');
+    await controller.cachedSimulation.setEnabled(true);
+    assert.equal(controller.cachedSimulation.snapshot().calculations, 2, 'enabling the restored mode does not recalculate');
+    await state.handleIncrementGameState();
+    assert.equal(state.timeConfig.elapsedSeconds > elapsed, !paused);
+    assert.equal(errors.length, failMapOnce ? 1 : 0);
+  });
+});
+
+test('an unrelated native save invalidates a pending tile handoff and keeps cached mode off', async t => {
+  let grid; let pending = null; let invalid = false; let runtime; const reloads = [];
+  const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
+  t.mock.method(GeographicContextOverlayController.prototype, 'readRuntimeActiveTileId', function () {
+    grid = this; return readActive.call(this);
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  t.mock.method(WorldTileRuntime.prototype, 'stageNavigationTransition', async function (tileId) {
+    runtime = this;
+    this.world.pendingTransition = { transitionId: 'abandoned', from: 'JP_TOKYO_MAINLAND', to: tileId,
+      nativeSnapshot: { data: { retainedOldSave: true } } };
+    this.world.activeTileId = tileId;
+    return { status: 'reload-required', worldId: 'session-A', from: 'JP_TOKYO_MAINLAND', tileId, transitionId: 'abandoned' };
+  });
+  const reloadFromSave = WorldTileRuntime.prototype.reloadFromSave;
+  t.mock.method(WorldTileRuntime.prototype, 'reloadFromSave', async function (...args) {
+    reloads.push(args); return reloadFromSave.apply(this, args);
+  });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'pending', () => pending);
+  t.mock.method(HashCityNavigationAdapter.prototype, 'navigateTo', transition => { pending = transition; });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'complete', () => { pending = null; });
+  t.mock.method(SubwayBuilderGameAdapter.prototype, 'nativeTileHandoffStatus', () => invalid
+    ? { state: 'invalid', transitionId: 'abandoned' } : null);
+  await harness(async ({ controller, state, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    await controller.cachedSimulation.setEnabled(true);
+    await grid.onTileSelect('JP_KANAGAWA_MAINLAND');
+    assert.notEqual(pending, null);
+    invalid = true; state.gameSessionId = 'manual-session'; state.saveName = 'manual-save';
+    state.cityCode = 'JP_TOKYO_MAINLAND';
+    await controller.lifecycle.gameLoaded('manual-save');
+    assert.equal(pending, null, 'the unrelated load must not inherit the old navigation token');
+    assert.equal(controller.diagnostics.tileSimulationHandoff.status, 'cancelled');
+    assert.equal(controller.cachedSimulation.snapshot().enabled, false);
+    assert.equal(reloads.length, 1, 'the manual save is adopted even while the abandoned transition was not ready');
+    assert.equal(reloads[0][1], 'JP_TOKYO_MAINLAND');
+    assert.equal(reloads[0][2], 'manual-save');
+    assert.equal(reloads[0][3].nativeSessionId, 'manual-session');
+    assert.equal(runtime.getActiveTileId(), 'JP_TOKYO_MAINLAND', 'the real runtime must adopt the manual save');
+    assert.equal(runtime.world.pendingTransition, null, 'no staged source snapshot may remain rooted');
+  });
+});
+
+for (const { timeoutFirst = false, manualInstead = false } of [{}, { timeoutFirst: true }, { manualInstead: true }]) test(`city-load waits for the primary native handoff before consuming proof (timeoutFirst=${timeoutFirst}, manualInstead=${manualInstead})`, async t => {
+  let grid; let pending = null; let activeTile = 'JP_TOKYO_MAINLAND';
+  let snapshot; let handoff; let completed = 0; let nativeLoads = 0;
+  const readActive = GeographicContextOverlayController.prototype.readRuntimeActiveTileId;
+  t.mock.method(GeographicContextOverlayController.prototype, 'readRuntimeActiveTileId', function () {
+    grid = this; return readActive.call(this);
+  });
+  t.mock.method(GeographicContextOverlayController.prototype, 'attachMap', function (map) { this.map = map; });
+  t.mock.method(GeographicContextOverlayController.prototype, 'refresh', () => {});
+  t.mock.method(WorldTileRuntime.prototype, 'getActiveTileId', () => activeTile);
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  t.mock.method(HashCityNavigationAdapter.prototype, 'pending', () => pending);
+  t.mock.method(HashCityNavigationAdapter.prototype, 'navigateTo', transition => { pending = transition; });
+  t.mock.method(HashCityNavigationAdapter.prototype, 'complete', () => { pending = null; });
+  const waitForLoad = SubwayBuilderGameAdapter.prototype.awaitNativeTileHandoff;
+  let waits = 0;
+  t.mock.method(SubwayBuilderGameAdapter.prototype, 'awaitNativeTileHandoff', function (options) {
+    waits++;
+    return timeoutFirst && waits === 1 ? Promise.resolve({ state: 'timeout', reason: 'test-pending-read-timeout' })
+      : waitForLoad.call(this, options);
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'stageNavigationTransition', async function (tileId) {
+    const state = this.game.callbacks.getState();
+    snapshot = { id: 'delayed-native-save', gameSessionId: state.gameSessionId, cityCode: state.cityCode,
+      data: { ...Object.fromEntries(SHARED_TRANSIT_STATE_KEYS.map(key => [key, structuredClone(state[key])])),
+        money: state.money, timeConfig: structuredClone(state.timeConfig) } };
+    const marker = { schemaVersion: 1, reason: 'tile-navigation', recoveryId: 'delayed-read',
+      transitionId: 'delayed-native', sourceCityCode: state.cityCode, destinationCityCode: tileId };
+    handoff = { ...structuredClone(snapshot), cityCode: tileId, name: 'primary-native-handoff',
+      metadata: { openWorldNativeRecovery: marker } };
+    this.game.armNativeTileHandoff(nativeHandoffEvidence(snapshot, marker), snapshot);
+    return { status: 'reload-required', worldId: 'session-A', from: activeTile, tileId, transitionId: marker.transitionId };
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'completeStagedTransition', async function (tileId, options) {
+    completed++;
+    const proof = this.game.tryReuseStagedNativeHandoff({ transitionId: options.navigationTransition.transitionId,
+      destinationCityCode: tileId, sourceCityCode: 'JP_TOKYO_MAINLAND', snapshot, nativeNetwork: snapshot.data });
+    assert.equal(proof.reused, true, JSON.stringify(proof));
+    activeTile = tileId;
+  });
+  await harness(async ({ controller, api, state, hooks, idle, errors }) => {
+    const map = { on() {}, off() {}, getSource: () => null, getLayer: () => null, isStyleLoaded: () => true };
+    api.utils.getMap = () => map;
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(resolve => setImmediate(resolve));
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    state.setTimeConfig({ elapsedSeconds: 25000, paused: false });
+    await controller.cachedSimulation.setEnabled(true);
+    let loadedHook;
+    state.loadSave = save => {
+      nativeLoads++;
+      Object.assign(state, structuredClone(save.data), { cityCode: save.cityCode, gameSessionId: save.gameSessionId });
+      state.setTimeConfig({ paused: true });
+      // Native hook callbacks are synchronous notifications; the original
+      // loadSave completes before any returned mod promise is awaited.
+      loadedHook = controller.lifecycle.gameLoaded(save.name);
+    };
+    await grid.onTileSelect('JP_KANAGAWA_MAINLAND');
+    const primaryLoadSave = state.loadSave;
+    hooks.get('onGameEnd')();
+    state.cityCode = 'JP_KANAGAWA_MAINLAND'; state.gameSessionId = 'temporary-city-init';
+    await controller.lifecycle.gameInit();
+    let cityLoad = controller.lifecycle.cityLoad(state.cityCode, { authoritative: true });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(completed, 0, 'city-load must not consume armed proof before the pending save is read');
+    assert.equal(nativeLoads, 0);
+    assert.equal(state.timeConfig.elapsedSeconds, 25000);
+    if (timeoutFirst) {
+      await cityLoad;
+      assert.equal(controller.diagnostics.tileSimulationHandoff.status, 'error');
+      await state.handleIncrementGameState();
+      assert.equal(state.timeConfig.elapsedSeconds, 25000, 'timeout retains the tick hold');
+      cityLoad = controller.diagnostics.retryTileSimulation();
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    primaryLoadSave(manualInstead ? { ...handoff, id: 'manual-save', gameSessionId: 'manual-session', metadata: {} } : handoff);
+    await loadedHook;
+    if (manualInstead) {
+      await cityLoad;
+      assert.equal(completed, 0, 'an unrelated primary load must cancel the waiting old transition');
+      assert.equal(nativeLoads, 1);
+      assert.equal(pending, null);
+      assert.equal(controller.cachedSimulation.snapshot().enabled, false);
+      assert.equal(controller.diagnostics.tileSimulationHandoff.status, 'cancelled');
+      assert.equal(state.gameSessionId, 'manual-session');
+      return;
+    }
+    // A pre-map retry waits for deferred finance too; allow that separate phase.
+    if (timeoutFirst) {
+      while (!idle.length) await new Promise(resolve => setImmediate(resolve));
+      idle.shift()();
+    }
+    await cityLoad;
+    assert.equal(completed, 1);
+    assert.equal(nativeLoads, 1, 'the exact primary native load is reused');
+    assert.equal(pending, null);
+    assert.equal(state.gameSessionId, 'session-A');
+    assert.equal(state.timeConfig.paused, false, 'source pause choice is restored after the native load');
+    assert.equal(controller.diagnostics.currentWorld.nativeSessionId, 'session-A', 'identity binding uses the restored UUID');
+    if (!timeoutFirst) idle.shift()();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(controller.diagnostics.tileSimulationHandoff.status, 'ready');
+    assert.equal(errors.length, timeoutFirst ? 1 : 0);
   });
 });
 

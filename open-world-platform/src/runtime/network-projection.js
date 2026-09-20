@@ -6,6 +6,7 @@ import {
 import { projectRouteTimings } from './route-timing-integrity.js';
 
 const SCHEMA_VERSION = 1;
+export const CANONICAL_NETWORK_PRESENTATION_VERSION = 'canonical-network-presentation-v1';
 const ENTITY_KEYS = Object.freeze(['tracks', 'trains', 'routes', 'trackGroups', 'signals', 'stNodes', 'stations', 'stationGroups']);
 const STRUCTURAL_STATE_KEYS = Object.freeze([
   'tracks',
@@ -398,7 +399,20 @@ export function inspectNativeNetworkSnapshot(snapshot) {
 }
 
 export function stripNetworkFromSnapshot(snapshot) {
-  const state = clone(snapshotState(snapshot));
+  const source = snapshotState(snapshot);
+  // Tile bookmarks discard native topology. Remove those references before
+  // cloning so staging never allocates another full network just to empty it.
+  // Keep the historical fallback for non-record inputs to this public helper.
+  const plainRecord = source && (Object.getPrototypeOf(source) === Object.prototype
+    || Object.getPrototypeOf(source) === null);
+  const retained = plainRecord ? Object.fromEntries(Object.keys(source).flatMap((key) => {
+    const value = source[key];
+    if (!SHARED_TRANSIT_STATE_KEYS.includes(key)) return [[key, value]];
+    if (Array.isArray(value)) return [[key, []]];
+    if (value && typeof value === 'object') return [[key, {}]];
+    return [];
+  })) : source;
+  const state = clone(retained);
   for (const key of SHARED_TRANSIT_STATE_KEYS) {
     if (Array.isArray(state[key])) state[key] = [];
     else if (state[key] && typeof state[key] === 'object') state[key] = {};
@@ -499,6 +513,28 @@ export function routeTileIdsById(nativeState, catalog, { guardBandMeters = 0 } =
 
 function featureForLine(coordinates, properties) {
   return { type: 'Feature', geometry: { type: 'LineString', coordinates }, properties };
+}
+
+function presentationBuildResult({ network, activeTileId, state, manifest, overlay, diagnostics }) {
+  // Canonical mode never restores or reconciles this presentation. Its finance
+  // and fare-group readers need visible IDs, not native train windows, complete
+  // route paths or ledger history. Do not retain borrowed authority references.
+  const baselineState = Object.fromEntries(ENTITY_KEYS.map(key => [key, array(state[key]).map(entity =>
+    key === 'trains' ? { id: entity.id, routeId: entity.routeId } : { id: entity.id })]));
+  Object.assign(baselineState, { fareGroups: [], routeFinancials: {}, ownedTrainCount: 0, ownedCarsByType: {} });
+  const presentation = {
+    schemaVersion: SCHEMA_VERSION, activeTileId, networkRevision: network.revision,
+    networkHash: network.hash, ...manifest,
+    presentationOnly: true, presentationVersion: CANONICAL_NETWORK_PRESENTATION_VERSION,
+    baselineState,
+    // This identity describes presentation, not an exact native-state diff.
+    // A reduced baseline must never qualify for native structural reuse.
+    projectionHash: stableHash({ version: CANONICAL_NETWORK_PRESENTATION_VERSION,
+      networkHash: network.hash, activeTileId, ...manifest }),
+    structuralHash: null,
+  };
+  return { snapshot: baselineState, state: baselineState, manifest: presentation, overlay,
+    diagnostics: { ...diagnostics, presentationOnly: true, version: CANONICAL_NETWORK_PRESENTATION_VERSION } };
 }
 
 function filterGroup(group, retainedStationIds, retainedTrackIds) {
@@ -997,12 +1033,18 @@ export class NetworkProjection {
     );
   }
 
-  build({ network, activeTileId, catalog, baseSnapshot = null }) {
+  build({ network, activeTileId, catalog, baseSnapshot = null, presentationOnly = false }) {
     if (network?.schemaVersion !== SCHEMA_VERSION) throw new Error('Unsupported global network schema');
     const window = catalogWindow(catalog, activeTileId, this.guardBandMeters);
-    const baseState = clone(snapshotState(baseSnapshot));
-    const repairedGlobal = repairStationTrackGroups(network.nativeState);
+    const baseState = presentationOnly ? {} : clone(snapshotState(baseSnapshot));
+    // Group repair creates a native restore payload. Canonical presentation
+    // only reads route/station/track geometry and must not clone that payload.
+    const repairedGlobal = presentationOnly ? network.nativeState : repairStationTrackGroups(network.nativeState);
     if (!window) {
+      if (presentationOnly) return presentationBuildResult({ network, activeTileId, state: repairedGlobal,
+        manifest: { unbounded: true, visibleTileIds: array(catalog?.tiles).map(tile => tile.id),
+          partialRouteIds: [], protectedStationIds: [], sourceIds: {} },
+        overlay: { type: 'FeatureCollection', features: [] }, diagnostics: { unbounded: true } });
       const state = { ...baseState, ...repairedGlobal };
       const manifest = {
         schemaVersion: SCHEMA_VERSION, activeTileId, networkRevision: network.revision,
@@ -1027,7 +1069,7 @@ export class NetworkProjection {
     for (const station of stationById.values()) {
       const coords = coordinateOf(station);
       if (!coords || !pointInAny(coords, window.renderBounds)) continue;
-      stations.push(clone(station));
+      stations.push(presentationOnly ? station : clone(station));
       if (!pointInAny(coords, window.editableBounds)) protectedStationIds.add(String(station.id));
     }
     const retainedStationIds = new Set(stations.map((station) => String(station.id)));
@@ -1050,7 +1092,7 @@ export class NetworkProjection {
       // Its short platform tracks may straddle the render edge even though
       // the station point is inside; preserve those tracks whole so the
       // station group and max-car calculation remain valid.
-      if (nativeEligible) nativeTracks.push(clone(track));
+      if (nativeEligible) nativeTracks.push(presentationOnly ? track : clone(track));
       else fragments.forEach((fragment, index) => overlayFeatures.push(featureForLine(fragment, {
         kind: 'track-fragment', sourceTrackId: trackId, fragmentIndex: index,
         color: '#747b85', width: 3,
@@ -1077,6 +1119,11 @@ export class NetworkProjection {
         continue;
       }
       if (fullyContained) {
+        if (presentationOnly) {
+          nativeRoutes.push({ id: route.id });
+          routeClassification[routeId] = 'contained';
+          continue;
+        }
         // A route can remain spatially contained while carrying stale
         // terminus-alternate paths from a previously split/rebuilt station.
         // Native loadSave resolves those optional paths eagerly and throws if
@@ -1102,23 +1149,26 @@ export class NetworkProjection {
       // continue to describe the world-wide service. Geometry is still bounded:
       // crossing tracks remain clipped overlay features and out-of-window
       // stations/tracks are not admitted to the native renderer.
-      const nativeRoute = routeForNativeProjection(
-        route,
-        retainedTrackIds,
-        retainedStationIds,
-        retainedStationNodeIds,
-      );
-      if (financeOwnedRouteIds.has(routeId)) nativeRoute.openWorldFinanceOwned = true;
-      // RAPTOR needs every station referenced by the authoritative stop list,
-      // including the remote end of a clipped run. The adapter exposes these
-      // records only while native pathfinding snapshots its inputs, so they do
-      // not leak into the bounded native renderer or station simulation.
-      nativeRoute.openWorldNativeCommuteStations = [...stationIds]
-        .map((stationId) => stationById.get(stationId))
-        .filter(Boolean)
-        .map(clone);
-      nativeRoute.openWorldNativeCommuteRoute = clone(route);
-      nativeRoutes.push(nativeRoute);
+      if (presentationOnly) nativeRoutes.push({ id: route.id });
+      else {
+        const nativeRoute = routeForNativeProjection(
+          route,
+          retainedTrackIds,
+          retainedStationIds,
+          retainedStationNodeIds,
+        );
+        if (financeOwnedRouteIds.has(routeId)) nativeRoute.openWorldFinanceOwned = true;
+        // RAPTOR needs every station referenced by the authoritative stop list,
+        // including the remote end of a clipped run. The adapter exposes these
+        // records only while native pathfinding snapshots its inputs, so they do
+        // not leak into the bounded native renderer or station simulation.
+        nativeRoute.openWorldNativeCommuteStations = [...stationIds]
+          .map((stationId) => stationById.get(stationId))
+          .filter(Boolean)
+          .map(clone);
+        nativeRoute.openWorldNativeCommuteRoute = clone(route);
+        nativeRoutes.push(nativeRoute);
+      }
       for (const trackId of visibleTracks) {
         const projection = trackProjection.get(trackId);
         projection.fragments.forEach((fragment, index) => overlayFeatures.push(featureForLine(fragment, {
@@ -1134,6 +1184,32 @@ export class NetworkProjection {
       const parentId = globalRouteById.get(id)?.tempParentId;
       return partialRouteIds.has(id) || (parentId != null && partialRouteIds.has(String(parentId)));
     };
+    if (presentationOnly) {
+      const deferredTrainIds = [], trains = [];
+      for (const train of array(global.trains)) {
+        if (!retainedRouteIds.has(String(train.routeId))) continue;
+        if (isPartialTrainRoute(train.routeId)) {
+          if (idOf(train)) deferredTrainIds.push(String(train.id));
+        } else trains.push({ id: train.id, routeId: train.routeId });
+      }
+      return presentationBuildResult({ network, activeTileId,
+        state: { tracks: nativeTracks, routes: nativeRoutes, stations, trains },
+        manifest: {
+          visibleTileIds: window.tileIds, editableBounds: window.editableBounds, renderBounds: window.renderBounds,
+          partialRouteIds: [...partialRouteIds].sort(), financeOwnedRouteIds: [...financeOwnedRouteIds].sort(),
+          financeOwnedTrackIds: [...financeOwnedTrackIds].sort(), deferredTrainIds: deferredTrainIds.sort(),
+          protectedStationIds: [...protectedStationIds].sort(), routeClassification,
+          sourceIds: Object.fromEntries([...trackProjection].map(([id, projection]) => [id,
+            projection.unchanged ? [id] : projection.fragments.map((_, index) => `${id}:projection:${index}`)])),
+        },
+        overlay: { type: 'FeatureCollection', features: overlayFeatures },
+        diagnostics: { globalStations: array(global.stations).length, projectedStations: stations.length,
+          globalTracks: array(global.tracks).length, nativeTracks: nativeTracks.length,
+          clippedTrackFragments: overlayFeatures.filter(feature => feature.properties.kind === 'track-fragment').length,
+          globalRoutes: array(global.routes).length, nativeRoutes: nativeRoutes.length,
+          partialRoutes: partialRouteIds.size, deferredTrains: deferredTrainIds.length },
+      });
+    }
     // A partial route's presentation path is shorter than its authoritative
     // path, while persisted train progress/windows are measured against the
     // authoritative geometry. Feeding those trains to the native simulation

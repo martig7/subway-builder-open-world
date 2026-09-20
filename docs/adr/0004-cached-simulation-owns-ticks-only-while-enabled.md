@@ -94,4 +94,18 @@ Capacity, congestion caused by trains, missed connections, signal delays and
 reliability are not simulated. Infrastructure expenses use the shared estimate
 and native train-type prices, including constructed grade crossings. Native
 simulation returns when the toggle is disabled; loading/reloading starts with
-the toggle off.
+the toggle off. An explicit Tile View navigation in the same live World carries
+the player's enabled intent through a temporary handoff hold. The source first
+settles and rebases once, drains observed native actions, and drops its cached
+assignments. The destination prepares its own assignments while the clock is
+held; it does not borrow the source Tile View's journeys. Native commute work
+is suppressed during this hold only when cached mode was requested. Ordinary
+native-mode navigation still repairs native journeys.
+
+Map readiness and simulation readiness are separate. Destination demand and
+off-tile finance preparation continue after map attachment, with heavy work
+serialized. The clock remains held until both owners are ready, and another
+tile navigation cannot overtake that preparation. A failed preparation is
+retryable and leaves time stopped. Loading an unrelated Native Save, ending the
+session, or disposing the runtime cancels the handoff intent; it cannot enable
+cached mode or publish a late result into the replacement session.

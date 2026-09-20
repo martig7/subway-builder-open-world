@@ -105,6 +105,150 @@ test('tick-suppression status follows the wrapper readiness dispatch condition',
   await f.controller.dispose();
 });
 
+test('tile handoff holds the clock across readiness changes and allows native routing when not requested', async () => {
+  let ready = false;
+  const f = fixture(undefined, () => ready);
+  f.state.setTimeConfig({ paused: false });
+  f.controller.setSuspended(true);
+  assert.equal(f.controller.snapshot().suspended, true);
+  assert.equal(f.controller.isTickSuppressionActive(), true);
+  await f.state.handleIncrementGameState();
+  await f.state.simulateCommutes();
+  await f.state.calculatePaths({ query: {} });
+  assert.deepEqual(f.native(), { nativeTicks: 0, nativeCommutes: 1, nativePaths: 1 });
+  ready = true;
+  await f.state.handleIncrementGameState();
+  assert.equal(f.state.timeConfig.elapsedSeconds, 25000);
+  assert.equal(f.state.timeConfig.paused, false, 'a hold must preserve user pause intent');
+  f.controller.setSuspended(false);
+  await f.state.handleIncrementGameState();
+  assert.equal(f.native().nativeTicks, 1);
+  await f.controller.dispose();
+});
+
+test('cached tile handoff suppresses native routing, prepares once under the hold, and resumes at the same clock', async () => {
+  let calls = 0, ready = true;
+  const f = fixture(async () => { calls++; return calculated(); }, () => ready);
+  await f.controller.setEnabled(true);
+  f.controller.setSuspended(true, { suppressCommutes: true });
+  await f.controller.setEnabled(false);
+  ready = false;
+  f.state.cityCode = 'B';
+  f.state.demandData = { points: new Map(demand.points.map(p => [p.id, p])), popsMap: new Map(demand.pops.map(p => [p.id, p])) };
+  f.state.setTimeConfig({ paused: false });
+  await f.state.handleIncrementGameState();
+  await f.state.simulateCommutes();
+  const result = await f.state.calculatePaths({ query: { origin: { coords: [0, 0] } } });
+  assert.deepEqual(result.paths, []);
+  assert.deepEqual(f.native(), { nativeTicks: 0, nativeCommutes: 0, nativePaths: 0 });
+  ready = true;
+  await f.controller.setEnabled(true);
+  await f.controller.setEnabled(true);
+  assert.equal(calls, 2, 'one preparation per tile, with no repeated enable calculation');
+  await f.state.handleIncrementGameState();
+  assert.equal(f.state.timeConfig.elapsedSeconds, 25000, 'finance is still preparing');
+  f.controller.setSuspended(false);
+  await f.state.handleIncrementGameState();
+  assert.equal(f.state.timeConfig.elapsedSeconds, 25240);
+  assert.equal(f.controller.snapshot().assignedPops, 1);
+  await f.controller.dispose();
+});
+
+test('tile handoff drains observed native work and an expired hold cannot intercept another session', async () => {
+  let finish;
+  const pending = new Promise(resolve => { finish = resolve; });
+  let current = true;
+  const f = fixture(undefined, undefined, { nativeActions: { simulateCommutes: () => pending } });
+  const nativeJob = f.state.simulateCommutes();
+  f.controller.setSuspended(true, { suppressCommutes: true, isCurrent: () => current });
+  let drained = false;
+  const drain = f.controller.drainNativeWork().then(() => { drained = true; });
+  await Promise.resolve();
+  assert.equal(drained, false);
+  finish(); await nativeJob; await drain;
+  assert.equal(drained, true);
+  current = false;
+  f.state.gameSessionId = 'unrelated-save';
+  assert.equal(f.controller.snapshot().suspended, false);
+  assert.equal(f.controller.isTickSuppressionActive(), false);
+  await f.state.handleIncrementGameState();
+  assert.equal(f.native().nativeTicks, 1);
+  await f.controller.dispose();
+});
+
+test('failed destination preparation can retry while the handoff clock remains held', async () => {
+  let calls = 0;
+  const f = fixture(async () => {
+    if (++calls === 1) throw new Error('memory admission deferred');
+    return calculated();
+  });
+  f.state.setTimeConfig({ paused: false });
+  f.controller.setSuspended(true, { suppressCommutes: true });
+  const failed = await f.controller.setEnabled(true);
+  assert.equal(failed.status, 'error');
+  assert.equal(failed.suspended, true);
+  assert.equal(f.state.timeConfig.paused, false, 'the hold already stops time without changing pause intent');
+  const recovered = await f.controller.setEnabled(true);
+  assert.equal(recovered.status, 'ready');
+  assert.equal(calls, 2);
+  assert.equal(f.state.timeConfig.elapsedSeconds, 25000);
+  f.controller.setSuspended(false);
+  await f.state.handleIncrementGameState();
+  assert.equal(f.state.timeConfig.elapsedSeconds, 25240, 'the previously running session resumes after retry');
+  await f.controller.dispose();
+});
+
+test('failed work from a cancelled handoff cannot pause an unrelated save', async () => {
+  let reject;
+  const f = fixture(() => new Promise((_resolve, fail) => { reject = fail; }));
+  let current = true;
+  f.controller.setSuspended(true, { suppressCommutes: true, isCurrent: () => current });
+  const pending = f.controller.setEnabled(true);
+  while (!reject) await Promise.resolve();
+  current = false;
+  f.state.gameSessionId = 'another-save';
+  f.state.setTimeConfig({ paused: false });
+  reject(new Error('old worker failed'));
+  await pending;
+  assert.equal(f.state.timeConfig.paused, false);
+  await f.controller.dispose();
+});
+
+test('destination enabling awaits replacement work when a service edit invalidates its first calculation', async () => {
+  const pending = [];
+  const f = fixture(() => new Promise(resolve => { pending.push(resolve); }));
+  f.controller.setSuspended(true, { suppressCommutes: true });
+  let finished = false;
+  const enabling = f.controller.setEnabled(true).then(result => { finished = true; return result; });
+  while (pending.length < 1) await Promise.resolve();
+  f.controller.invalidate();
+  pending[0](calculated());
+  while (pending.length < 2) await Promise.resolve();
+  assert.equal(finished, false, 'enabling waits for the coalesced replacement calculation');
+  pending[1](calculated());
+  assert.equal((await enabling).status, 'ready');
+  assert.equal(pending.length, 2, 'one stale calculation and one replacement, without another job');
+  f.controller.setSuspended(false);
+  await f.controller.dispose();
+});
+
+test('prepared finance profile can be reused only for the unchanged active destination', async () => {
+  const f = fixture();
+  assert.equal(f.controller.preparedNativeProfile('A'), null);
+  await f.controller.setEnabled(true);
+  const profile = f.controller.preparedNativeProfile('A');
+  assert.ok(profile?.hourly?.length);
+  assert.equal(profile.assignments, undefined);
+  assert.equal(f.controller.preparedNativeProfile('B'), null);
+  f.controller.invalidate();
+  assert.equal(f.controller.preparedNativeProfile('A'), null, 'queued service edits cannot expose an old profile as current');
+  await f.controller.refreshAtMidnight(1);
+  assert.ok(f.controller.preparedNativeProfile('A'));
+  f.state.gameSessionId = 'new-save';
+  assert.equal(f.controller.preparedNativeProfile('A'), null);
+  await f.controller.dispose();
+});
+
 test('a ready cached session can save before any native commute worker was created', async () => {
   const f = fixture();
   await f.controller.setEnabled(true);
@@ -420,13 +564,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v15', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v16', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v16');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v17');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -439,13 +583,13 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const original = f.state.generateSave[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v15', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v16', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v16');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v17');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);
