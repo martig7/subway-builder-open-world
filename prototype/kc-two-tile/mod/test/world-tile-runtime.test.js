@@ -817,6 +817,126 @@ test('rolls back a staged native recovery handoff when the World commit fails', 
   assert.equal(rollbacks, 1);
 });
 
+test('abandonment rolls back only the matching staged native recovery exactly once', async () => {
+  const { runtime } = setup();
+  await runtime.boot('abandon-owned-native-recovery');
+  let rollbacks = 0;
+  const staged = await runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async () => ({ rollback: async () => { rollbacks++; } }),
+  });
+  assert.equal(runtime.abandonStagedTransition({ transitionId: 'another-transition' }), false);
+  assert.equal(rollbacks, 0);
+  assert.equal(runtime.abandonStagedTransition({ transitionId: staged.transitionId }), true);
+  runtime.abandonStagedTransition({ transitionId: staged.transitionId });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(rollbacks, 1);
+  assert.equal(runtime.world.activeTileId, 'KCW');
+  assert.equal(runtime.world.pendingTransition, null);
+});
+
+test('late recovery cleanup cannot release a newer staged owner', async () => {
+  const { runtime } = setup();
+  await runtime.boot('preserve-newer-native-recovery');
+  let release, oldRollbacks = 0, newRollbacks = 0;
+  const gate = new Promise(resolve => { release = resolve; });
+  const first = await runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async () => ({ rollback: async () => { oldRollbacks++; await gate; } }),
+  });
+  runtime.abandonStagedTransition({ transitionId: first.transitionId });
+  const second = await runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async () => ({ rollback: async () => { newRollbacks++; } }),
+  });
+  const newOwner = runtime.stagedNativeRecovery;
+  assert.notEqual(first.transitionId, second.transitionId);
+  release();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(runtime.stagedNativeRecovery, newOwner);
+  assert.equal(runtime.abandonStagedTransition({ transitionId: first.transitionId }), false);
+  assert.equal(newRollbacks, 0);
+  runtime.abandonStagedTransition({ transitionId: second.transitionId });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(oldRollbacks, 1);
+  assert.equal(newRollbacks, 1);
+});
+
+for (const phase of ['package', 'capture', 'recovery', 'commit']) {
+  test(`staging cancelled during ${phase} cannot republish the previous World or native recovery`, async () => {
+    const { runtime, game, storage } = setup();
+    await runtime.boot(`cancel-stage-${phase}`);
+    let entered, release, rollbacks = 0, recoveryCalls = 0, commits = 0;
+    const atGate = new Promise(resolve => { entered = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    const block = async () => { entered(); await gate; };
+    if (phase === 'package' || phase === 'capture') {
+      const target = phase === 'package' ? runtime.tilePackages : game;
+      const method = phase === 'package' ? 'prepare' : 'captureSnapshot';
+      const original = target[method].bind(target);
+      target[method] = async (...args) => { const result = await original(...args); await block(); return result; };
+    }
+    const commit = storage.commit.bind(storage);
+    storage.commit = async (...args) => { commits++; if (phase === 'commit') await block(); return commit(...args); };
+    const staging = runtime.stageNavigationTransition('KCE', {
+      stageNativeRecovery: async () => {
+        recoveryCalls++;
+        if (phase === 'recovery') await block();
+        return { rollback: async () => { rollbacks++; } };
+      },
+    });
+    await atGate;
+    runtime.abandonStagedTransition();
+    const replacementWorld = structuredClone(runtime.world);
+    replacementWorld.worldId = 'manually-loaded-world';
+    runtime.world = replacementWorld;
+    game.native = { wallet: 7654, clock: 123, routes: [{ id: 'manual-route' }] };
+    game.paused = true;
+    const replacementNative = structuredClone(game.native);
+    game.log.length = 0;
+    release();
+    assert.equal((await staging).status, 'cancelled');
+    assert.equal(runtime.world, replacementWorld);
+    assert.equal(runtime.world.pendingTransition, null);
+    assert.deepEqual(game.native, replacementNative);
+    assert.equal(game.paused, true);
+    assert.equal(game.log.includes('resume'), false);
+    assert.equal(recoveryCalls, ['recovery', 'commit'].includes(phase) ? 1 : 0);
+    assert.equal(rollbacks, recoveryCalls);
+    assert.equal(commits, phase === 'commit' ? 1 : 0);
+  });
+}
+
+test('completed native recovery releases its snapshot and rollback before demand allocations', async () => {
+  const { runtime, game } = setup();
+  await runtime.boot('release-completed-native-recovery');
+  let rollbacks = 0;
+  await runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async () => ({ rollback: async () => { rollbacks++; } }),
+  });
+  const pending = runtime.world.pendingTransition;
+  game.refreshNativeCommutes = async () => {
+    assert.equal(pending.nativeSnapshot, undefined);
+    assert.equal(runtime.stagedNativeRecovery, null);
+  };
+  await runtime.completeStagedTransition('KCE');
+  runtime.abandonStagedTransition();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(rollbacks, 0, 'consumed native recovery must never be rolled back');
+});
+
+test('staging isolates the verifier expectation from an adapter capture that borrows live native arrays', async () => {
+  const { runtime, game } = setup();
+  await runtime.boot('borrowed-native-capture');
+  game.native.tracks = [{ id: 'track', coords: [[0, 0], [1, 1]] }];
+  game.captureSnapshot = async () => ({ ...game.native });
+  let handedToNative;
+  await runtime.stageNavigationTransition('KCE', {
+    stageNativeRecovery: async snapshot => { handedToNative = structuredClone(snapshot); },
+  });
+  const expected = runtime.world.pendingTransition.nativeSnapshot;
+  handedToNative.tracks[0].coords[0][0] = 100;
+  game.native.tracks[0].coords[0][0] = 200;
+  assert.equal(expected.tracks[0].coords[0][0], 0);
+});
+
 test('completes a staged switch after the destination city loads through its route', async () => {
   const { runtime, game, storage } = setup();
   await runtime.boot('route-world');

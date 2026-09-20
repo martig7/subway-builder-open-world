@@ -16,7 +16,7 @@ not trim completed commutes or financial history, change the save format, or
 disable Electron context isolation.
 
 The host also exposes a compact pending-save identity read. The shared runtime's
-`native-saved-reload-v6` guard uses it for ownership checks and cleanup, retaining
+`native-saved-reload-v7` guard uses it for ownership checks and cleanup, retaining
 its original fallback on unpatched hosts. Explicitly selected saves and tile
 navigation handoffs keep their existing ownership rules.
 
@@ -26,6 +26,40 @@ Electron's [contextBridge API](https://github.com/electron/electron/blob/main/do
 to retain the existing API and its permission checks. No IPC channel is added.
 An upstream host implementation of this transport and compact metadata API
 would eliminate the need for this local compatibility patch.
+
+## Renderer-local tile handoffs
+
+Host bridge `native-save-read-json-v2` also supplies
+`renderer-local-native-handoff-v1`. For a same-session tile switch, the runtime
+stages one destination-bound Native Save in the renderer. The existing native
+initializer still loads the destination geography and calls `getPendingSave`,
+but that read consumes the local payload without a main-process round trip.
+The loader and exact native-handoff verifier are unchanged.
+
+Before navigation is permitted, the host acknowledges a full recovery copy in
+the main process. The renderer sends it through a
+[structured-clone message channel](https://www.electronjs.org/docs/latest/tutorial/message-ports)
+to the isolated preload, which invokes the existing native pending-save API.
+Neither direction sends the full tile handoff through `contextBridge`.
+Shared references remain shared; the save is not expanded into JSON for this
+path. Context isolation stays enabled, and no native IPC channel or filesystem
+permission is added. This removes the slow save round trip, not all copying or
+the need for a native snapshot.
+
+The local payload has one owner: recovery ID, transition, native session,
+source and destination. Consumption releases the bridge's graph reference.
+Abandonment and superseded navigation cancel only that owner. Native save
+selection invalidates the local stage before it starts asynchronous work;
+queued native mutations and stage epochs prevent a delayed backup from
+replacing a newer selection. Unsupported hosts keep the previous transport.
+A failed or uncertain fast stage aborts rather than retrying through the slow
+bridge. Normal native removal clears the recovery copy after consumption.
+
+The runtime keeps the independent snapshot needed to verify native loading,
+then releases it before destination simulation preparation. Diagnostics expose
+only counts, identities and timing through
+`electron.__openWorldLocalHandoffStats()` and the tile-map-ready sample's
+`nativeSaveTransport` and `nativeSaveStageMilliseconds` fields.
 
 ## Install and restore
 
@@ -43,8 +77,12 @@ The preparer accepts only the inspected Subway Builder 1.7.0 preload checksum.
 It creates a reviewable archive and checksum plan. The installer checks the
 current archive against the plan, retains the exact original at
 `resources/app.asar.before-open-world-save-read`, and records a receipt beside
-it. Only the preload entry and its ASAR header/integrity metadata change; every
-other member retains its original bytes. Restoration verifies both current and
+it. Preparing an installed patch verifies its receipt and the original backup,
+then stages an upgrade from that verified original. Applying the upgrade keeps
+the original backup and retains the previous installation until the replacement
+receipt is published. Stale plans, changed receipts and interrupted transaction
+files are rejected. Only the preload entry and its ASAR header/integrity metadata
+change; every other member retains its original bytes. Restoration verifies both current and
 backup checksums before restoring the original archive.
 
 Game updates may replace the patch. The installer and restorer refuse to
@@ -52,15 +90,18 @@ overwrite a changed game build. Review an updated preload before extending the
 supported checksum; never update that allowlist just to bypass a mismatch.
 
 Build and install the active consumer as usual to deliver the compact identity
-read in the runtime. Verify `native-saved-reload-v6` in both its built and
-installed bundle. In game, verify:
+read in the runtime. Verify `renderer-local-native-handoff-v1` in both its built
+and installed bundle. In game, verify:
 
 ```js
 electron.__openWorldNativeSaveReadVersion
 electron.__openWorldNativeSaveReadStats()
+electron.__openWorldLocalHandoffVersion
+electron.__openWorldLocalHandoffStats()
 ```
 
-The version is `native-save-read-json-v1`. An ordinary JSON-backed Native Save
+The read version is `native-save-read-json-v2`; the local handoff version is
+`renderer-local-native-handoff-v1`. An ordinary JSON-backed Native Save
 should report a JSON read and no native fallback. Diagnostics return counts and
 encoding time, never the save payload.
 

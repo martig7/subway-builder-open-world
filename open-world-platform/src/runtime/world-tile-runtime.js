@@ -216,6 +216,7 @@ export class WorldTileRuntime {
     this.derivedNetworkInvalidations = new Set();
     this.nativeRevenueCompilation = null;
     this.lastNativeRevenuePosting = null;
+    this.stagedNativeRecovery = null;
   }
   async boot(worldId, loadedTileId = null, {
     saveName = null,
@@ -1374,40 +1375,67 @@ export class WorldTileRuntime {
       return this.view();
     });
   }
-  async stageNavigationTransition(tileId, { stageNativeRecovery = null } = {}) {
+  async stageNavigationTransition(tileId, { stageNativeRecovery = null, isCurrent = () => true } = {}) {
     this.#requireBooted();
     if (!this.tileIds.includes(tileId)) throw new Error(`Unknown tile: ${tileId}`);
     if (tileId === this.world.activeTileId) return { status: 'already-active', worldId: this.world.worldId, tileId };
+    const requestedWorld = this.world;
+    const requestedGeneration = this.stagedTransitionGeneration ?? 0;
     return this.#enqueue(async () => {
-      const sourceId = this.world.activeTileId;
-      const transitionId = `${this.world.worldId}:${this.world.revision}:${sourceId}->${tileId}`;
+      let ownedWorld = requestedWorld;
+      const current = () => this.world === ownedWorld
+        && (this.stagedTransitionGeneration ?? 0) === requestedGeneration && isCurrent();
+      const cancelled = () => ({ status: 'cancelled', reason: 'superseded-native-load', tileId });
+      if (!current()) return cancelled();
+      const superseded = new Error('Tile staging was superseded by another native load');
+      const requireCurrent = () => { if (!current()) throw superseded; };
+      const sourceId = requestedWorld.activeTileId;
+      const transitionId = `${requestedWorld.worldId}:${requestedWorld.revision}:${sourceId}->${tileId}`;
       const checkpoint = createFrameBudget();
-      await this.tilePackages.prepare(tileId); // fail before pausing or persisting
-      const draft = deepCopy(this.world);
-      await checkpoint();
-      await this.#registerCommuteCatalog(draft, tileId);
-      let lease = false;
-      let recoveryStage = null;
-      this.game.cancelNativeTileHandoff?.();
-      const wasPaused = await this.#pausePreservingUserState();
+      let draft = null, lease = false, paused = false, wasPaused = false, recoveryOwner = null;
       try {
+        await this.tilePackages.prepare(tileId); // fail before pausing or persisting
+        requireCurrent();
+        draft = deepCopy(requestedWorld);
+        await checkpoint();
+        requireCurrent();
+        await this.#registerCommuteCatalog(draft, tileId);
+        requireCurrent();
+        await this.#releaseStagedNativeRecovery(this.stagedNativeRecovery, { rollback: true });
+        requireCurrent();
+        this.game.cancelNativeTileHandoff?.();
+        wasPaused = await this.#pausePreservingUserState(current);
+        paused = true;
+        requireCurrent();
         lease = await this.worldState.acquireLease(draft.worldId, transitionId);
+        requireCurrent();
         if (!lease) throw new Error('Another transition currently holds the world lease');
         await this.#captureAuthoritativeGlobals(draft);
+        requireCurrent();
         const sourceSnapshot = await this.game.captureSnapshot(draft.tiles[sourceId].snapshot);
+        requireCurrent();
         await this.game.validateSnapshot(sourceSnapshot);
+        requireCurrent();
         await checkpoint();
+        requireCurrent();
         if (this.networkProjection) {
           await this.#adoptProjectionSnapshot(draft, sourceId, sourceSnapshot, { restore: false });
+          requireCurrent();
         }
         else draft.tiles[sourceId].snapshot = sourceSnapshot;
         await checkpoint();
+        requireCurrent();
         const sourceProfile = await this.#captureNetworkProfile(draft, sourceId);
+        requireCurrent();
         if (sourceProfile) draft.tiles[sourceId].networkProfile = sourceProfile;
-        this.#applyActivity(draft, await this.game.reconcileActiveResults());
+        const activity = await this.game.reconcileActiveResults();
+        requireCurrent();
+        this.#applyActivity(draft, activity);
         this.#advanceDraft(draft, Math.floor(draft.elapsedSeconds / 3600));
         await this.#syncCrossTileFinance(draft);
+        requireCurrent();
         await this.#syncBackgroundNativeFinance(draft, Math.floor(draft.elapsedSeconds / 3600));
+        requireCurrent();
         draft.activeTileId = tileId;
         draft.revision++;
         draft.tiles[sourceId].revision++;
@@ -1419,49 +1447,85 @@ export class WorldTileRuntime {
           mode: 'route-navigation',
           // This handoff exists only in the live renderer. The storage adapter
           // strips it so the native save remains the only durable topology.
+          // captureSnapshot's first native generateSave path can borrow live
+          // arrays. Keep the verifier independent of native loader mutations.
           nativeSnapshot: deepCopy(sourceSnapshot),
         };
         assertWorld(draft, this.tileIds);
         await checkpoint();
+        requireCurrent();
         if (stageNativeRecovery != null) {
           if (typeof stageNativeRecovery !== 'function') {
             throw new TypeError('stageNativeRecovery must be a function');
           }
-          recoveryStage = await stageNativeRecovery(sourceSnapshot, {
+          const recoveryStage = await stageNativeRecovery(sourceSnapshot, {
             transitionId,
             worldId: draft.worldId,
             from: sourceId,
             to: tileId,
           });
+          recoveryOwner = {
+            transitionId,
+            rollback: typeof recoveryStage?.rollback === 'function'
+              ? recoveryStage.rollback.bind(recoveryStage) : null,
+          };
+          // An abandoned stage can resolve after a manual save was loaded.
+          // Retain its cleanup locally before checking whether it still owns
+          // the live World; never publish that late result as the current one.
+          requireCurrent();
+          this.stagedNativeRecovery = recoveryOwner;
           if (recoveryStage?.nativeHandoff) {
             this.game.armNativeTileHandoff?.(recoveryStage.nativeHandoff, draft.pendingTransition.nativeSnapshot);
           }
         }
+        requireCurrent();
         await this.worldState.commit(draft, transitionId);
+        requireCurrent();
         this.world = draft;
+        ownedWorld = draft;
         this.derivedNetworkInvalidations.clear();
         return { status: 'reload-required', transitionId, worldId: draft.worldId, tileId, from: sourceId };
       } catch (error) {
-        this.game.cancelNativeTileHandoff?.();
-        try { await recoveryStage?.rollback?.(); } catch (rollbackError) {
-          error.recoveryRollbackError = rollbackError;
+        if (current() || this.game.nativeTileHandoffStatus?.()?.transitionId === transitionId) {
+          this.game.cancelNativeTileHandoff?.();
         }
+        try { await this.#releaseStagedNativeRecovery(recoveryOwner, { rollback: true }); } catch (rollbackError) {
+          error.recoveryRollbackError = rollbackError;
+          this.telemetry({ phase: 'native-handoff-rollback-failed', transitionId,
+            error: String(rollbackError?.message ?? rollbackError) });
+        }
+        if (error === superseded || !current()) return cancelled();
         throw error;
       } finally {
-        await this.#restoreUserPauseState(wasPaused);
+        if (paused && current()) await this.#restoreUserPauseState(wasPaused);
         if (lease) await this.worldState.releaseLease(draft.worldId, transitionId);
       }
     });
   }
+  async #releaseStagedNativeRecovery(owner, { rollback = false } = {}) {
+    if (!owner) return;
+    if (this.stagedNativeRecovery === owner) this.stagedNativeRecovery = null;
+    const cleanup = owner.rollback;
+    owner.rollback = null;
+    if (rollback) await cleanup?.();
+  }
   abandonStagedTransition({ transitionId = null } = {}) {
     const pending = this.world?.pendingTransition;
     if (pending && transitionId != null && pending.transitionId !== transitionId) return false;
+    const owner = this.stagedNativeRecovery;
+    if (!pending && owner && transitionId != null && owner.transitionId !== transitionId) return false;
     this.stagedTransitionGeneration = (this.stagedTransitionGeneration ?? 0) + 1;
     if (pending) {
       if (this.tileIds.includes(pending.from)) this.world.activeTileId = pending.from;
       this.world.pendingTransition = null;
     }
     this.game.cancelNativeTileHandoff?.();
+    if (owner && (transitionId == null || owner.transitionId === transitionId)) {
+      void this.#releaseStagedNativeRecovery(owner, { rollback: true }).catch(error => {
+        this.telemetry({ phase: 'native-handoff-rollback-failed', transitionId: owner.transitionId,
+          error: String(error?.message ?? error) });
+      });
+    }
     return Boolean(pending);
   }
 
@@ -1638,6 +1702,14 @@ export class WorldTileRuntime {
         const destination = this.world.tiles[loadedTileId];
         await this.#restoreDestinationNetwork(this.world, loadedTileId, pending?.from ?? null, trace, current);
         if (!current()) return cancelled();
+        // Native authority has been restored/verified. Profile and demand work
+        // must not retain a second complete native snapshot or a rollback that
+        // could later clear the successfully consumed native recovery slot.
+        if (pending) delete pending.nativeSnapshot;
+        if (this.stagedNativeRecovery && this.stagedNativeRecovery.transitionId === pending?.transitionId) {
+          await this.#releaseStagedNativeRecovery(this.stagedNativeRecovery);
+          if (!current()) return cancelled();
+        }
         if (!this.revenueAccrual) {
           await this.game.setAuthoritativeGlobals(this.world);
           if (!current()) return cancelled();

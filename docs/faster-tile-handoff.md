@@ -9,6 +9,23 @@ See [the captured sequence](routing-result-retention.md).
 
 ## Implementation
 
+The fourth optimization, `renderer-local-native-handoff-v1`, removes the full
+save round trip through Electron's object bridge. The destination's existing
+native loader consumes a one-use renderer-local snapshot. A structured-clone
+channel stages one recovery copy through the existing native pending-save API
+before navigation starts. This preserves recovery while avoiding the costly
+full graph transfer through `contextBridge` in either direction. See
+[the host bridge and installation procedure](native-save-load-performance.md#renderer-local-tile-handoffs).
+
+Explicit native save selection supersedes local staging. Exact owner IDs,
+serialized native mutations and cancellation guards prevent abandoned or late
+handoffs from overwriting a newer selection. Consuming or cancelling the slot
+releases its graph reference. The runtime also drops its separate verification
+snapshot before destination profile and commute preparation. The first capture
+can borrow live native arrays, so that verification snapshot remains an
+independent clone. Unsupported hosts retain the previous transport; uncertain
+fast-stage failures abort without retrying a potentially stale save.
+
 `native-handoff-exact-reuse-v4` observes the native loader for one explicitly
 staged navigation. The recovery marker, transition, source/destination, save
 identity and session must match. It compares the staged authority with the
@@ -66,7 +83,7 @@ native repair state and embedding full train and financial histories in a
 presentation manifest. Native saves and the canonical network retain authority;
 the compact manifest cannot be used to restore topology.
 
-## Verification
+## Verification of the first three changes
 
 The shared suite passes 1,072 tests and the Japan consumer suite passes 7.
 Behavioral regressions cover verified reuse and conservative fallback, deep
@@ -141,10 +158,10 @@ Neither switch with compact presentation crashed.
 | Deferred simulation preparation | 26.512 s |
 | Simulation ready from measured handoff start | 351.091 s |
 
-These improvements do not make this large save's handoff fast: staging plus
+Before the fourth optimization, this large save's handoff remained slow: staging plus
 native loading still account for about 86% of total time. The installed save
 read bridge recorded a native fallback on the staged graph. Avoiding the large
-Electron save transfers is the next substantial target; routing is idle during
+Electron save transfers was the next substantial target; routing was idle during
 those waits. No end-to-end speedup ratio is claimed from the different-direction
 and differently configured captures.
 
@@ -159,3 +176,68 @@ save. Ultra mode, camera and autosave were restored to their original settings.
 This change does not replace native autosave transport or make assignment
 publication fully streaming. Neither lower routing-worker memory nor a
 successful round trip establishes that every source of the earlier OOM is gone.
+
+## Renderer-local handoff verification, September 20
+
+The same paused Japan network was loaded in a fresh game process with the v2
+host bridge and the rebuilt `local.japan-open-world` consumer. The round trip
+used Ultra-high-speed mode, with native autosave temporarily disabled as in the
+preceding handoff benchmark. No topology, ledger, clock or construction edits
+were made. These are individual local runs, not a controlled multi-run estimate.
+
+| Hiroshima to Okayama phase | Previous native transport | Renderer-local handoff |
+| --- | ---: | ---: |
+| Source staging | 154.465 s | 25.747 s |
+| Native first-load wait | 149.125 s | 7.533 s |
+| Map ready | 324.569 s | 51.108 s |
+| Deferred simulation preparation | 26.512 s | 24.069 s |
+| Simulation ready | 351.091 s | 75.199 s |
+
+The measured return trip used 78.6% less total time. Its native save stage,
+including snapshot isolation and the acknowledged recovery copy, took 7.110 s.
+The outbound Okayama-to-Hiroshima switch reached map readiness in 42.059 s and
+simulation readiness in 65.872 s; its native save stage took 7.028 s.
+
+Both switches reported `nativeSaveTransport: renderer-local`, exact verifier
+v4 reuse and no second native restore. The host recorded two stages and two
+consumptions, zero failures, and zero retained payloads afterward. JSON reads
+remained at the one original-file load, and native full-object reads remained
+zero across both switches. Maps and styles were loaded and the original
+Okayama camera returned. All 41 evaluator requests completed, every evaluator
+worker was released, and simulation intent remained enabled through each switch.
+
+Exact SHA-256 comparisons matched stations, tracks, track groups, station
+nodes/groups, signals, routes, trains, financial history, route finances and
+owned train count after each direction. Native session, paused clock, money
+and the infrastructure billing cursor also matched the original save.
+
+Neither switch OOMed. Sampled main-renderer V8 heap peaks were 2.15 GiB outbound
+and 2.59 GiB on return; the return sample also had 0.81 GiB of backing storage.
+Renderer-process private memory peaked at 4.17 GiB and 5.10 GiB respectively.
+Heap sampling had gaps up to 16.4/17.9 seconds during blocked work, so these are
+observed peaks, not a proven upper bound. The final sampled V8 heap settled to
+about 1.64 GiB, with 0.86 GiB of backing storage. This change eliminates the
+slow object-bridge round trip and releases its owned payload; it does not prove
+that long-session memory growth, native autosave or renderer-reload OOMs are fixed.
+
+Validation passes 1,104 shared-platform tests and 7 Japan behavioral tests.
+Regressions cover local consumption, missing capabilities, metadata validation,
+delayed message delivery, newer native selections, failed/uncertain backups,
+timeouts, cleanup retries, stale runtime staging, borrowed snapshot isolation,
+early snapshot release and safe host-patch upgrades with rollback.
+
+The Japan built/installed bundle SHA-256 is
+`BD8EC7F0A6771ABF28AFA25E8ADE4FC17B6D175C114FF79151E8F868AD511452`,
+with matching UTC timestamp `2026-09-20T18:46:01.5501369Z` and the local-handoff
+marker. The installed native archive SHA-256 is
+`d5549a5815a02146713f4c293e63a4f1f48d1ce7e1f4f08804953ba0d7ab4214`;
+its verified original backup is retained. The PMTiles service remains HTTP 200
+with `native-pmtiles-directory-v4`. Live diagnostics proved the v2 host and new
+consumer were executing. Detailed captures are Git-ignored under
+`.analysis/faster-tile-handoff/local-v1-*`.
+
+After benchmarking, autosave was restored to five minutes with five retained
+autosaves, and Ultra mode was returned to its original off state. A full process
+restart restored the unchanged original Okayama save and released the benchmark
+session's heap. Exact state comparisons passed again after that reload; the
+game remained paused at its original clock and balance.

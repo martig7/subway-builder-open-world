@@ -515,6 +515,7 @@ export function startOpenWorld({
         stageNativeRecovery: async (snapshot, transition) => {
           const stages = [];
           try {
+            const saveStageStarted = Date.now();
             stages.push(await stageNativeRecovery({
               electron,
               snapshot,
@@ -523,6 +524,8 @@ export function startOpenWorld({
               reason: 'tile-navigation',
               transitionId: transition.transitionId,
             }));
+            sample.nativeSaveTransport = stages[0]?.transport ?? 'native';
+            sample.nativeSaveStageMilliseconds = Date.now() - saveStageStarted;
             if (typeof requestedRecoveryStage === 'function') {
               stages.push(await requestedRecoveryStage(snapshot, transition));
             }
@@ -535,7 +538,7 @@ export function startOpenWorld({
           return {
             nativeHandoff: stages[0]?.nativeHandoff,
             async rollback() {
-              for (const stage of stages.reverse()) await stage?.rollback?.();
+              for (const stage of [...stages].reverse()) await stage?.rollback?.();
             },
           };
         },
@@ -1637,6 +1640,8 @@ export function startOpenWorld({
         toTileId: loadedCityCode,
         totalMilliseconds: measured?.startedAt ? finishedAt - measured.startedAt : null,
         stageMilliseconds: measured?.startedAt && measured?.stagedAt ? measured.stagedAt - measured.startedAt : null,
+        nativeSaveTransport: measured?.nativeSaveTransport ?? 'native',
+        nativeSaveStageMilliseconds: measured?.nativeSaveStageMilliseconds ?? null,
         completionMilliseconds: finishedAt - cityLoadStartedAt,
         navigationMilliseconds: measured?.stagedAt ? cityLoadStartedAt - measured.stagedAt : null,
         startHeapBytes: measured?.startHeapBytes ?? null,

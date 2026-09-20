@@ -71,6 +71,66 @@ test('stages a city-bound native recovery save without mutating the live snapsho
   assert.equal(pending, null);
 });
 
+test('tile handoff uses the renderer-local capability and rolls back by exact owner without reading a save graph', async () => {
+  const source = nativeSave();
+  const calls = [];
+  let staged;
+  const electron = {
+    __openWorldLocalHandoffVersion: 'renderer-local-native-handoff-v1',
+    __openWorldStageLocalHandoff: async (save) => {
+      calls.push('local-stage'); staged = save;
+      return { success: true, recoveryId: save.metadata[RECOVERY_METADATA_KEY].recoveryId };
+    },
+    __openWorldCancelLocalHandoff: async (recoveryId) => {
+      calls.push(['cancel', recoveryId]); return { success: true, cancelled: true };
+    },
+    setPendingSave: () => assert.fail('full graph must not enter the context bridge'),
+    getPendingSave: () => assert.fail('rollback must not copy a full pending save'),
+  };
+  const result = await stageNativeRecovery({ electron, snapshot: source, destinationCityCode: 'NEC_B',
+    reason: 'tile-navigation', transitionId: 'transition-1', randomUUID: () => 'local-1' });
+  assert.equal(result.transport, 'renderer-local');
+  assert.equal(staged.cityCode, 'NEC_B');
+  assert.deepEqual(staged.data.routes, source.data.routes);
+  assert.notEqual(staged.data, source.data, 'native loader receives an isolated snapshot');
+  assert.equal(source.cityCode, 'NEC_A');
+  assert.equal(await result.rollback(), true);
+  assert.deepEqual(calls, ['local-stage', ['cancel', 'local-1']]);
+});
+
+test('renderer reload and unknown local bridge versions retain the native recovery transport', async () => {
+  for (const [reason, version] of [['renderer-reload', 'renderer-local-native-handoff-v1'],
+    ['tile-navigation', 'unknown']]) {
+    let pending;
+    const result = await stageNativeRecovery({
+      electron: {
+        __openWorldLocalHandoffVersion: version,
+        __openWorldStageLocalHandoff: () => assert.fail('unsupported local stage'),
+        __openWorldCancelLocalHandoff: () => assert.fail('unsupported local cancel'),
+        setPendingSave: async (save) => { pending = save; return { success: true }; },
+        getPendingSave: async () => ({ success: true, data: pending }),
+        removePendingSave: async () => { pending = null; },
+      },
+      snapshot: nativeSave(), destinationCityCode: 'NEC_B', reason,
+    });
+    assert.equal(result.transport, 'native');
+    assert.equal(await result.rollback(), true, 'the native host names its cleanup removePendingSave');
+    assert.equal(pending, null);
+  }
+});
+
+test('a failed local backup is cancelled without retrying a full graph through the native bridge', async () => {
+  const cancelled = [];
+  await assert.rejects(stageNativeRecovery({ electron: {
+    __openWorldLocalHandoffVersion: 'renderer-local-native-handoff-v1',
+    __openWorldStageLocalHandoff: async () => ({ success: false, error: 'backup rejected' }),
+    __openWorldCancelLocalHandoff: async (id) => { cancelled.push(id); return { success: true, cancelled: true }; },
+    setPendingSave: () => assert.fail('uncertain stage must not retry through a different transport'),
+  }, snapshot: nativeSave(), destinationCityCode: 'NEC_B', reason: 'tile-navigation',
+  transitionId: 'transition-1', randomUUID: () => 'failed-local' }), /backup rejected/);
+  assert.deepEqual(cancelled, ['failed-local']);
+});
+
 test('reload guard restores the live native game after the base initializer clears it', async () => {
   let liveState = nativeSave().data;
   let pending = null;

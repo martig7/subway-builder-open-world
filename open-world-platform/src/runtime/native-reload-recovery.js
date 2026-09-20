@@ -8,6 +8,27 @@ const RELOAD_GUARD_VERSION_KEY = '__openWorldNativeReloadRecoveryVersion__';
 
 export const NATIVE_RELOAD_RECOVERY_VERSION = 6;
 export const NATIVE_RECOVERY_CHECKPOINT_INTERVAL_MS = 15_000;
+export const LOCAL_NATIVE_HANDOFF_VERSION = 'renderer-local-native-handoff-v1';
+
+// The rollback closure must not retain the staged save graph after consumption.
+function localHandoffRollback(electron, recoveryId) {
+  return async () => {
+    const result = await electron.__openWorldCancelLocalHandoff(recoveryId);
+    if (result?.success === false) throw new Error(result.error ?? 'Could not cancel the local native handoff');
+    return result?.cancelled === true;
+  };
+}
+
+function nativeRecoveryRollback(electron, recoveryId) {
+  return async () => {
+    const clear = electron.removePendingSave ?? electron.clearPendingSave;
+    if (typeof clear !== 'function') return false;
+    const pending = await readPendingSave(electron);
+    if (recoveryMarker(pending)?.recoveryId !== recoveryId) return false;
+    await clear.call(electron);
+    return true;
+  };
+}
 
 function nativeSaveData(snapshot) {
   return snapshot?.data && typeof snapshot.data === 'object' ? snapshot.data : snapshot;
@@ -72,9 +93,10 @@ function tryReplaceNativeReload(electron, expected, replacement) {
 }
 
 /**
- * Stage an ephemeral Native Save in Subway Builder's main process. The save is
- * the sole recovery authority; no rail or finance data is written to sidecar
- * storage.
+ * Stage an ephemeral Native Save for the existing native loader. A capable host
+ * keeps tile handoffs in the renderer and acknowledges its main-process recovery
+ * copy through a structured-clone channel. Other hosts retain native transport.
+ * No rail or finance data is written to sidecar storage.
  */
 export async function stageNativeRecovery({
   electron,
@@ -116,25 +138,39 @@ export async function stageNativeRecovery({
       stagedAt: now(),
     },
   };
-  const result = await electron.setPendingSave(handoff);
-  if (result?.success === false) {
-    throw new Error(result.error ?? 'Could not stage the native recovery save');
+  const local = reason === 'tile-navigation'
+    && electron.__openWorldLocalHandoffVersion === LOCAL_NATIVE_HANDOFF_VERSION
+    && typeof electron.__openWorldStageLocalHandoff === 'function'
+    && typeof electron.__openWorldCancelLocalHandoff === 'function';
+  const rollback = local ? localHandoffRollback(electron, recoveryId) : nativeRecoveryRollback(electron, recoveryId);
+  try {
+    const result = local
+      ? await electron.__openWorldStageLocalHandoff(handoff)
+      : await electron.setPendingSave(handoff);
+    if (result?.success === false) {
+      throw new Error(result.error ?? 'Could not stage the native recovery save');
+    }
+    if (local && (result?.success !== true || result?.recoveryId !== recoveryId)) {
+      throw new Error('The local native handoff acknowledgement did not match its owner');
+    }
+  } catch (error) {
+    // A late/uncertain local write must be retired, never repeated through the
+    // legacy bridge (which could replace an explicitly selected native save).
+    if (local) {
+      try { await rollback(); } catch (rollbackError) { error.recoveryRollbackError = rollbackError; }
+    }
+    throw error;
   }
 
   return {
     status: 'staged',
+    transport: local ? 'renderer-local' : 'native',
     recoveryId,
     reason,
     sourceCityCode,
     destinationCityCode,
     nativeHandoff: nativeHandoffEvidence(handoff, recoveryMarker(handoff)),
-    async rollback() {
-      if (typeof electron.clearPendingSave !== 'function') return false;
-      const pending = await readPendingSave(electron);
-      if (recoveryMarker(pending)?.recoveryId !== recoveryId) return false;
-      await electron.clearPendingSave();
-      return true;
-    },
+    rollback,
   };
 }
 
