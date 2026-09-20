@@ -1,0 +1,176 @@
+{
+  "source": "commute-speed-exploration-results.json",
+  "complete": true,
+  "baselineVariant": "wasm",
+  "heapMiB": 768,
+  "semiMiB": null,
+  "rows": [
+    {
+      "variant": "wasm",
+      "combinedMedianSeconds": 105.58967735000003,
+      "passSeconds": [
+        106.51552260000003,
+        104.66383210000004
+      ],
+      "maximumProcessRssMiB": 402.26953125,
+      "maximumSampledHeapMiB": 252.2245330810547,
+      "exactAssignments": true,
+      "exactProfiles": true,
+      "perTile": [
+        {
+          "tile": "JP_PREF_12",
+          "medianSeconds": 26.6046616
+        },
+        {
+          "tile": "JP_TOKYO_MAINLAND",
+          "medianSeconds": 42.17624350000003
+        },
+        {
+          "tile": "JP_KANAGAWA_MAINLAND",
+          "medianSeconds": 36.808772250000004
+        }
+      ]
+    },
+    {
+      "variant": "wasm-aggregate-modes",
+      "combinedMedianSeconds": 37.0509675,
+      "passSeconds": [
+        37.34580990000001,
+        36.756125099999984
+      ],
+      "maximumProcessRssMiB": 442.01171875,
+      "maximumSampledHeapMiB": 261.45104217529297,
+      "exactAssignments": true,
+      "exactProfiles": true,
+      "perTile": [
+        {
+          "tile": "JP_PREF_12",
+          "medianSeconds": 9.152508549999997
+        },
+        {
+          "tile": "JP_TOKYO_MAINLAND",
+          "medianSeconds": 15.556209100000007
+        },
+        {
+          "tile": "JP_KANAGAWA_MAINLAND",
+          "medianSeconds": 12.342249849999993
+        }
+      ]
+    },
+    {
+      "variant": "wasm-aggregate-modes-reuse",
+      "combinedMedianSeconds": 33.48139705000001,
+      "passSeconds": [
+        33.55331750000003,
+        33.40947659999999
+      ],
+      "maximumProcessRssMiB": 452.13671875,
+      "maximumSampledHeapMiB": 270.9403610229492,
+      "exactAssignments": false,
+      "exactProfiles": false,
+      "perTile": [
+        {
+          "tile": "JP_PREF_12",
+          "medianSeconds": 8.979191099999994
+        },
+        {
+          "tile": "JP_TOKYO_MAINLAND",
+          "medianSeconds": 13.719924000000008
+        },
+        {
+          "tile": "JP_KANAGAWA_MAINLAND",
+          "medianSeconds": 10.782281950000005
+        }
+      ]
+    }
+  ],
+  "approximations": [
+    {
+      "variant": "wasm-aggregate-modes-reuse",
+      "totalDirectionalPopulation": 26574936,
+      "changedMetricsPopulationPercent": 7.3089357581143375,
+      "worseCostPopulationPercent": 7.007271814314059,
+      "transitTimeNullnessChanges": 138,
+      "meanPositiveCostErrorSeconds": 53.96184850344057,
+      "p95PositiveCostErrorSeconds": 279.1370744982373,
+      "p99PositiveCostErrorSeconds": 828.3076742664603,
+      "maxErrorSeconds": 26577.099435837332,
+      "maxRelativeErrorPercent": 836.2070472907524,
+      "dailyRevenueChangePercent": -1.648677293742158,
+      "transitShareChangePercentagePoints": -0.537502705556845,
+      "largestRouteChanges": [
+        {
+          "route": "d73ab948-5959-4612-a9f0-5a15724b7340",
+          "baseline": 836623,
+          "candidate": 806622,
+          "change": -30001,
+          "changePercent": -3.5859640483228405
+        },
+        {
+          "route": "43cd51b8-20d9-484f-a32e-c7b3ae5f7a38",
+          "baseline": 642473,
+          "candidate": 623983,
+          "change": -18490,
+          "changePercent": -2.87794195242446
+        },
+        {
+          "route": "f594d5c2-16fd-4878-a989-3efa12b1ec4d",
+          "baseline": 1126023,
+          "candidate": 1111098,
+          "change": -14925,
+          "changePercent": -1.3254613804513762
+        },
+        {
+          "route": "03e3af2f-5807-4a1a-9bd9-5c165c096cba",
+          "baseline": 700568,
+          "candidate": 686501,
+          "change": -14067,
+          "changePercent": -2.007942126959838
+        },
+        {
+          "route": "340d77f1-d9e2-4838-bf43-6c613f285019",
+          "baseline": 750781,
+          "candidate": 736725,
+          "change": -14056,
+          "changePercent": -1.8721837659717016
+        },
+        {
+          "route": "da5ec0d0-536d-4386-b249-7a4d735f7c6f",
+          "baseline": 533729,
+          "candidate": 519861,
+          "change": -13868,
+          "changePercent": -2.5983223695920588
+        },
+        {
+          "route": "8e824745-c06a-4132-a617-0d791e820b23",
+          "baseline": 490766,
+          "candidate": 477597,
+          "change": -13169,
+          "changePercent": -2.6833562227212155
+        },
+        {
+          "route": "76c31ad8-8b8e-4160-b983-4b74415e93df",
+          "baseline": 405729,
+          "candidate": 394745,
+          "change": -10984,
+          "changePercent": -2.7072257590657802
+        },
+        {
+          "route": "4a175c7d-f28e-4a2f-86cf-9d9912b61dd7",
+          "baseline": 520943,
+          "candidate": 509992,
+          "change": -10951,
+          "changePercent": -2.102149371428352
+        },
+        {
+          "route": "87ae2972-5952-4d2b-994c-7ea377ad8723",
+          "baseline": 405680,
+          "candidate": 395807,
+          "change": -9873,
+          "changePercent": -2.4336915795701044
+        }
+      ]
+    }
+  ],
+  "approximationMetricsCollected": true
+}
