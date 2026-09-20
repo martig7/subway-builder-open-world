@@ -1,6 +1,6 @@
 // Experimental packed C++ search. The production router owns catchments,
 // exact-path caching, fare rules and journey materialization.
-export function createWasmTransitSearch(bytes, { labelCapacity = null } = {}) {
+export function createWasmTransitSearch(bytes, { labelCapacity = null, partition = null, partitionMode = 1 } = {}) {
   const instance = new WebAssembly.Instance(new WebAssembly.Module(bytes));
   const api = instance.exports;
   let graph = null;
@@ -52,6 +52,7 @@ export function createWasmTransitSearch(bytes, { labelCapacity = null } = {}) {
       starts: allocate(Float64Array, stationIds.length * 3), ends: allocate(Float64Array, stationIds.length),
       labels: allocate(Uint8Array, capacity * api.label_size()), best: allocate(Int32Array, states.size),
       heap: allocate(Uint8Array, capacity * api.heap_entry_size()), path: allocate(Int32Array, capacity), result: allocate(Float64Array, 8),
+      ...(partition ? { lowerBounds: allocate(Float64Array, stationIds.length) } : {}),
     };
     const additionalPages = Math.ceil((offset - api.memory.buffer.byteLength) / 65536);
     if (additionalPages > 0) api.memory.grow(additionalPages);
@@ -69,6 +70,10 @@ export function createWasmTransitSearch(bytes, { labelCapacity = null } = {}) {
       starts.forEach(([id, { seconds, mode }], index) => p.starts.view.set([stationOrdinals.get(id), seconds, mode === 'drive' ? 1 : 0], index * 3));
       p.ends.view.fill(Infinity);
       for (const [id, seconds] of ends) p.ends.view[stationOrdinals.get(id)] = seconds;
+      if (partition) {
+        p.lowerBounds.view.set(partition.bounds(router, ends, rules));
+        api.set_partition_bounds(p.lowerBounds.pointer, partitionMode);
+      }
       const status = api.search(stateCount, capacity, p.offsets.pointer, p.edges.pointer, p.chainOffsets.pointer, p.chains.pointer,
         p.periods.pointer, p.phases.pointer, p.starts.pointer, starts.length, p.ends.pointer,
         requestedDepartureSeconds, rules.PERCEIVED_TIME.WALK_MULTIPLIER, rules.PERCEIVED_TIME.WAIT_MULTIPLIER,
@@ -76,6 +81,7 @@ export function createWasmTransitSearch(bytes, { labelCapacity = null } = {}) {
         p.labels.pointer, p.best.pointer, p.heap.pointer, p.path.pointer, p.result.pointer);
       if (status < 0) return null; // A bounded scratch overflow uses the JS search.
       const result = p.result.view;
+      if (partition) partition.record(api.partition_pruned());
       return { available: status === 1, source: starts[result[1]], egressWalkSeconds: result[2],
         edges: status === 1 ? Array.from(p.path.view.subarray(0, result[3]), id => originalEdges[id]).reverse() : [],
         stats: { relaxedEdges: result[4], settledStates: result[5], createdLabels: result[6], corridorEdges: result[7] } };

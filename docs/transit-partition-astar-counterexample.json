@@ -1,0 +1,91 @@
+{
+  "seed": 7,
+  "differentPops": [
+    "p6",
+    "p10",
+    "p14",
+    "p18",
+    "p22",
+    "p34",
+    "p38"
+  ],
+  "modeChoicesMatch": true,
+  "example": {
+    "id": "p6",
+    "baseline": {
+      "stationRoutes": [
+        {
+          "routeId": "r0",
+          "stationIds": [
+            "s0",
+            "s2",
+            "s3",
+            "s4",
+            "s6",
+            "s7",
+            "s10"
+          ]
+        },
+        {
+          "routeId": "r1",
+          "stationIds": [
+            "s10",
+            "s11",
+            "s12",
+            "s14",
+            "s15"
+          ]
+        }
+      ],
+      "accessWalkSeconds": 0,
+      "accessDriveSeconds": 56.29243161380787,
+      "egressWalkSeconds": 0,
+      "transferWalkSeconds": 0,
+      "waitSeconds": 50,
+      "departureShiftSeconds": 314.70756838619127,
+      "accessPerceivedSeconds": 56.29243161380787,
+      "egressPerceivedSeconds": 0,
+      "waitPerceivedSeconds": 68.5,
+      "departureShiftPerceivedSeconds": 125.88302735447651,
+      "networkSeconds": 1080,
+      "totalClockSeconds": 1501,
+      "totalSeconds": 1330.6754589682844,
+      "fare": 3
+    },
+    "astar": {
+      "stationRoutes": [
+        {
+          "routeId": "r0",
+          "stationIds": [
+            "s0",
+            "s2",
+            "s3",
+            "s4",
+            "s6",
+            "s7",
+            "s10",
+            "s11",
+            "s12",
+            "s13",
+            "s14",
+            "s15"
+          ]
+        }
+      ],
+      "accessWalkSeconds": 0,
+      "accessDriveSeconds": 56.29243161380787,
+      "egressWalkSeconds": 0,
+      "transferWalkSeconds": 0,
+      "waitSeconds": 50,
+      "departureShiftSeconds": 314.70756838619127,
+      "accessPerceivedSeconds": 56.29243161380787,
+      "egressPerceivedSeconds": 0,
+      "waitPerceivedSeconds": 68.5,
+      "departureShiftPerceivedSeconds": 125.88302735447651,
+      "networkSeconds": 1080,
+      "totalClockSeconds": 1501,
+      "totalSeconds": 1330.6754589682844,
+      "fare": 3
+    }
+  }
+}

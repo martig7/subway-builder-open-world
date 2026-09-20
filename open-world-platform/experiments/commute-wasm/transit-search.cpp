@@ -9,6 +9,23 @@ static double maximum(double a, double b) { return a > b ? a : b; }
 static double minimum(double a, double b) { return a < b ? a : b; }
 static double infinity() { return __builtin_huge_val(); }
 
+// Only the separate partition experiment enables these hooks. The ordinary
+// Wasm build has identical priorities and does not read a lower-bound table.
+#ifdef PARTITION_EXPERIMENT
+static const double* partitionBounds = nullptr;
+static int partitionMode = 0, partitionPruned = 0;
+extern "C" void set_partition_bounds(const double* bounds, int mode) {
+  partitionBounds = bounds; partitionMode = mode; partitionPruned = 0;
+}
+extern "C" int partition_pruned() { return partitionPruned; }
+static double priority(double cost, int station) {
+  return cost + (partitionMode == 2 ? partitionBounds[station] : 0);
+}
+#define SEARCH_PRIORITY(cost, station) priority(cost, station)
+#else
+#define SEARCH_PRIORITY(cost, station) cost
+#endif
+
 static void push(HeapEntry* heap, int& size, HeapEntry entry) {
   int at = size++;
   while (at > 0) {
@@ -84,13 +101,18 @@ extern "C" int search(int states, int capacity, const int* offsets, const double
     if (count >= capacity) { result[0] = -1; return -1; }
     labels[count] = {requested + seconds, cost, station, station, 0, 0, -1, -1, i, driving};
     bestLabel[station] = count++;
-    push(heap, heapSize, {cost, station, 0});
+    push(heap, heapSize, {SEARCH_PRIORITY(cost, station), station, 0});
   }
   while (heapSize > 0 && heap[0].cost < best) {
     HeapEntry current = pop(heap, heapSize);
     int currentIndex = bestLabel[current.state];
-    if (currentIndex < 0 || current.cost != labels[currentIndex].cost) continue;
+    if (currentIndex < 0 || current.cost != SEARCH_PRIORITY(labels[currentIndex].cost, labels[currentIndex].station)) continue;
     const Label currentLabel = labels[currentIndex];
+#ifdef PARTITION_EXPERIMENT
+    if (partitionMode && currentLabel.cost + partitionBounds[currentLabel.station] > best) {
+      partitionPruned++; continue;
+    }
+#endif
     result[5] += 1;
     if (ends[currentLabel.station] != infinity() && (currentLabel.boarded || !currentLabel.driving)) {
       double candidate = currentLabel.cost + ends[currentLabel.station] * walkWeight;
@@ -130,7 +152,7 @@ extern "C" int search(int states, int capacity, const int* offsets, const double
         labels[count] = {actual, cost, station, state, route, boarded, previousIndex, edgeId, previous.source, previous.driving};
         bestLabel[state] = count++;
         if (ci == chainOffsets[first + 1] - 1 || ends[station] != infinity()) {
-          push(heap, heapSize, {cost, state, 0}); break;
+          push(heap, heapSize, {SEARCH_PRIORITY(cost, station), state, 0}); break;
         }
         result[7] += 1;
         previousIndex = count - 1;
