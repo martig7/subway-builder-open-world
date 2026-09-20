@@ -3,7 +3,7 @@ import { runRoutingJob } from './routing-job-queue.js';
 
 const DEMAND_JSON_DECODER_VERSION = 1;
 const DEMAND_JSON_DECODER_STATE = '__openWorldDemandJsonDecoder';
-const NATIVE_DEMAND_EVALUATOR_VERSION = 3;
+const NATIVE_DEMAND_EVALUATOR_VERSION = 4;
 const NATIVE_DEMAND_EVALUATOR_STATE = '__openWorldNativeDemandEvaluator';
 const NATIVE_DEMAND_EVALUATOR_WORKER_NAME = 'open-world-native-demand-worker-evaluator-v4-bounded';
 
@@ -318,7 +318,9 @@ export function createOffMainThreadNativeDemandEvaluator({
     }).finally(() => {
       queued--; stats.completed++;
     });
-    tail = job.catch(() => {});
+    // The serialization barrier must never retain a fulfilled response. A
+    // catch-only tail keeps the last profile/assignments after worker release.
+    tail = job.then(() => undefined, () => undefined);
     return job;
   };
 
