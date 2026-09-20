@@ -1,12 +1,7 @@
-import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { createFastModeChooser } from './mode-choice.js';
+import * as oracle from './legacy-mode-choice-oracle.js';
 
-const sourceUrl = new URL('../../src/runtime/cross-tile-mode-choice.js', import.meta.url);
-const source = (await readFile(sourceUrl, 'utf8')).replace(
-  "from './routing-graph-index.js'", `from '${new URL('./routing-graph-index.js', sourceUrl).href}'`,
-) + '\nexport { chooseModesFromMetrics, incomeForPerson, rulesWithDefaults };';
-const oracle = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const rules = oracle.rulesWithDefaults();
 const fast = createFastModeChooser({ incomeValueAt: (i, n, r) => oracle.incomeForPerson(i, n, r) / r.HOURS_WORKED_PER_YEAR / 3600 });
 let seed = 93817;

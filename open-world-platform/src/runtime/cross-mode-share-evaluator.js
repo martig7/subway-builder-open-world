@@ -1,4 +1,4 @@
-import { calculateCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, createBoundedCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import { runRoutingJob } from './routing-job-queue.js';
 import { assertNativeDemandMemoryBudget } from './embedded-tile-package-adapter.js';
 
@@ -18,7 +18,7 @@ export function createCrossModeShareEvaluator({
   let sequence = 0;
   let workerFailure = null;
   const pending = new Map();
-  const routingCache = createCrossTileRoutingCache();
+  const routingCache = createBoundedCrossTileRoutingCache();
   const stats = { version: CROSS_ROUTING_CACHE_VERSION, workerEvaluations: 0, fallbackEvaluations: 0, latestError: null, latestRoutingStats: null };
 
   const release = () => {

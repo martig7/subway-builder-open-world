@@ -1,8 +1,9 @@
-import { nativeDemandEvaluationBatches, mergeNativeDemandProfiles } from './off-tile-native-demand.js';
-import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
+import { nativeDemandEvaluationBatches } from './off-tile-native-demand.js';
+import { createBoundedCrossTileRoutingCache } from './cross-tile-mode-choice.js';
+import { createIncrementalNativeDemandProfileMerger } from './incremental-commute-aggregation.js';
 import { ACTIVE_DEMAND_DISK_CACHE_VERSION } from './active-demand-disk-cache.js';
 
-export const NATIVE_DEMAND_WORKER_MEMORY_VERSION = 'native-demand-worker-memory-v2';
+export const NATIVE_DEMAND_WORKER_MEMORY_VERSION = 'native-demand-worker-memory-v3-bounded';
 export const NATIVE_DEMAND_WORKER_CACHE_LIMITS = Object.freeze({
   maxSearchLabels: 8000, maxPaths: 1024, maxCatchments: 4096,
 });
@@ -24,36 +25,38 @@ export async function runNativeDemandWorkerJob({ bytes, gzip = false, input, cac
   digest = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', value)), byte => byte.toString(16).padStart(2, '0')).join(''),
   evaluateBatches = nativeDemandEvaluationBatches,
 } = {}) {
-  const routingCache = createCrossTileRoutingCache(NATIVE_DEMAND_WORKER_CACHE_LIMITS);
+  const routingCache = createBoundedCrossTileRoutingCache(NATIVE_DEMAND_WORKER_CACHE_LIMITS);
+  let merge = createIncrementalNativeDemandProfileMerger();
   let disk = Boolean(cacheMode && store), key = null, cacheError = null;
-  if (disk) {
-    try {
-      key = `${ACTIVE_DEMAND_DISK_CACHE_VERSION}:${await digest(bytes)}:${await digest(new TextEncoder().encode(JSON.stringify(input)))}`;
-      const manifest = await store.read('manifest');
-      if (manifest?.key === key && Number.isInteger(manifest.chunks) && manifest.chunks > 0
-        && manifest.chunks <= MAX_CHUNKS && manifest.bytes <= MAX_DISK_BYTES) {
-        let cachedProfile = null;
-        for (let index = 0; index < manifest.chunks; index++) {
-          const chunk = await store.read(index);
-          if (!chunk) throw new Error('Incomplete demand disk cache');
-          const value = JSON.parse(await new Response(new Blob([chunk]).stream()
-            .pipeThrough(new DecompressionStream('gzip'))).text());
-          if (!Array.isArray(value.assignments) || value.profile?.hourly?.length !== 24) throw new Error('Invalid demand cache chunk');
-          cachedProfile = mergeNativeDemandProfiles(cachedProfile, value.profile);
-          if (cacheMode === 'assignments') emitAssignments(value.assignments);
-        }
-        return { status: 'cached', profile: cachedProfile, diskCache: 'hit', cacheBytes: manifest.bytes };
-      }
-      await store.clear();
-    } catch (error) {
-      cacheError = String(error.message); disk = false; resetAssignments();
-    }
-  }
-  let profile = null, chunks = 0, cacheBytes = 0;
   try {
+    if (disk) {
+      try {
+        key = `${ACTIVE_DEMAND_DISK_CACHE_VERSION}:${await digest(bytes)}:${await digest(new TextEncoder().encode(JSON.stringify(input)))}`;
+        const manifest = await store.read('manifest');
+        if (manifest?.key === key && Number.isInteger(manifest.chunks) && manifest.chunks > 0
+          && manifest.chunks <= MAX_CHUNKS && manifest.bytes <= MAX_DISK_BYTES) {
+          let cachedProfile = null;
+          for (let index = 0; index < manifest.chunks; index++) {
+            const chunk = await store.read(index);
+            if (!chunk) throw new Error('Incomplete demand disk cache');
+            const value = JSON.parse(await new Response(new Blob([chunk]).stream()
+              .pipeThrough(new DecompressionStream('gzip'))).text());
+            if (!Array.isArray(value.assignments) || value.profile?.hourly?.length !== 24) throw new Error('Invalid demand cache chunk');
+            cachedProfile = merge(cachedProfile, value.profile);
+            if (cacheMode === 'assignments') emitAssignments(value.assignments);
+          }
+          return { status: 'cached', profile: merge.finalize(cachedProfile), diskCache: 'hit', cacheBytes: manifest.bytes };
+        }
+        await store.clear();
+      } catch (error) {
+        cacheError = String(error.message); disk = false; resetAssignments();
+        merge.dispose(); merge = createIncrementalNativeDemandProfileMerger();
+      }
+    }
+    let profile = null, chunks = 0, cacheBytes = 0;
     const demand = await decodeDemand(bytes, gzip);
     for (const batch of evaluateBatches({ ...input, demand, routingCache })) {
-      profile = mergeNativeDemandProfiles(profile, batch.profile);
+      profile = merge(profile, batch.profile);
       if (disk) {
         try {
           // Route lists repeat heavily across assignments. Compress only this
@@ -73,7 +76,7 @@ export async function runNativeDemandWorkerJob({ bytes, gzip = false, input, cac
       try { await store.write('manifest', { key, chunks, bytes: cacheBytes }); }
       catch (error) { disk = false; cacheError = String(error.message); }
     }
-    return { status: 'evaluated', profile, diskCache: cacheMode ? disk ? 'written' : 'unavailable' : 'unused',
+    return { status: 'evaluated', profile: merge.finalize(profile), diskCache: cacheMode ? disk ? 'written' : 'unavailable' : 'unused',
       cacheBytes, cacheError, batchSize: input.batchSize ?? 128, batches: chunks };
-  } finally { routingCache.clear(); }
+  } finally { merge.dispose(); routingCache.clear(); }
 }

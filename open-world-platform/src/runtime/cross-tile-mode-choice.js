@@ -1,6 +1,8 @@
 import { RoutingLRU, indexRoutingGraph, compileRoutingCorridors } from './routing-graph-index.js';
 
-export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v2';
+import { createBoundedModeChooser } from './bounded-mode-choice.js';
+import { createBoundedTransitSearch } from './transit-search/index.js';
+export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v3-bounded';
 const EARTH_RADIUS_M = 6_371_000;
 // Subway Builder's straight-line station catchment uses RULES.WALKING_SPEED
 // (1 m/s), not WALKING_SPEED_ACCURATE_PATH (1.5 m/s).
@@ -284,23 +286,42 @@ function routingStats() {
     catchmentHits: 0, catchmentMisses: 0, driveAccessCandidates: 0,
     graphBuilds: 0, graphHits: 0, spatialIndexHits: 0, connectivityIndexHits: 0,
     connectivityRejects: 0, searches: 0, sourceSearchHits: 0, exactPathHits: 0,
-    settledStates: 0, relaxedEdges: 0, createdLabels: 0, corridorEdges: 0, retainedSearchLabels: 0 };
+    settledStates: 0, relaxedEdges: 0, createdLabels: 0, corridorEdges: 0, retainedSearchLabels: 0,
+    wasmSearches: 0, wasmFallbacks: 0 };
 }
 
 /** Session-owned derived data only. World changes discard every cached dependency. */
-export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 30_000, maxPaths = 8_192, maxCatchments = 65_536, searchKernel = null } = {}) {
+export function createRoutingSnapshot(profiles) {
+  // The caller owns these immutable profiles for one evaluation, including
+  // across asynchronous batch transport. This is never a live game-store cache.
+  return Object.freeze({ profiles, key: JSON.stringify(Object.entries(profiles ?? {}).filter(([, p]) => p).sort(([a], [b]) => a.localeCompare(b))) });
+}
+
+export function createBoundedCrossTileRoutingCache(options = {}) {
+  return createCrossTileRoutingCache({ maxSearchLabels: 8000, maxPaths: 1024, maxCatchments: 4096, optimized: true, ...options });
+}
+
+export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 30_000, maxPaths = 8_192, maxCatchments = 65_536, searchKernel = null, optimized = false } = {}) {
+  const kernel = searchKernel ?? (optimized ? createBoundedTransitSearch() : null);
+  const modeChooser = newModeChooser();
   let world = null, previous = null, geometryKey = null, topologyKey = null, topologyIndex = null, regionSequence = 0;
   const sourceSearches = new RoutingLRU(maxSearchLabels, tree => tree.labels.size);
   const paths = new RoutingLRU(maxPaths);
   const regions = new RoutingLRU(256);
-  const clear = () => { previous = null; geometryKey = topologyKey = topologyIndex = null; sourceSearches.clear(); paths.clear(); regions.clear(); };
+  const clear = () => { previous = null; geometryKey = topologyKey = topologyIndex = null; sourceSearches.clear(); paths.clear(); regions.clear(); kernel?.clear?.(); modeChooser.clear(); };
   return {
     clear,
-    getRouter(networkProfiles, worldId = 'evaluation-session') {
+    diagnostics: () => ({ backend: kernel?.stats?.version ?? 'javascript',
+      kernel: kernel?.stats ? { ...kernel.stats, partition: kernel.stats.partition ? { ...kernel.stats.partition } : null } : null,
+      modeChoice: { ...modeChooser.stats } }),
+    getRouter(networkProfiles, worldId = 'evaluation-session', snapshot = null) {
       if (world !== worldId) { clear(); world = worldId; }
       // Compare exact serialized inputs, not the legacy 32-bit signature or object
       // identity: worker structured cloning creates fresh objects on every request.
-      const key = JSON.stringify(Object.entries(networkProfiles ?? {}).filter(([,p])=>p).sort(([a],[b])=>a.localeCompare(b)));
+      // Only a job-owned immutable snapshot can reuse its serialization. Normal
+      // callers still observe same-object topology/service mutations exactly.
+      const key = snapshot?.profiles === networkProfiles && typeof snapshot.key === 'string' ? snapshot.key
+        : JSON.stringify(Object.entries(networkProfiles ?? {}).filter(([,p])=>p).sort(([a],[b])=>a.localeCompare(b)));
       if (enabled && previous?.key === key) {
         previous.router.routingStats = { ...routingStats(), graphHits: 1, retainedSearchLabels: sourceSearches.used };
         return previous.router;
@@ -336,7 +357,8 @@ export function createCrossTileRoutingCache({ enabled = true, maxSearchLabels = 
         return version;
       });
       router.sourceSearches = sourceSearches; router.exactPaths = paths; router.cacheEnabled = enabled;
-      router.searchKernel = searchKernel;
+      router.searchKernel = kernel;
+      router.modeChooser = modeChooser;
       router.ruleKeys = new Map(Object.values(router.rulesByTile).concat(router.defaultRules).map(r=>[r,JSON.stringify(r)]));
       previous = {key,router};
       return router;
@@ -714,6 +736,7 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
     const searched = router.searchKernel.search(router, { starts, ends, rules, requestedDepartureSeconds,
       bound: incumbent?.available ? incumbent.totalSeconds : Infinity });
     if (searched) {
+      router.routingStats.wasmSearches++;
       router.routingStats.searches++;
       for (const [name, count] of Object.entries(searched.stats)) router.routingStats[name] += count;
       let result;
@@ -731,6 +754,7 @@ function routeLeg(router, origin, destination, preferredTileId, requestedDepartu
       if (router.cacheEnabled) router.exactPaths.set(pathKey, result);
       return result;
     }
+    router.routingStats.wasmFallbacks++;
   }
   let tree = router.cacheEnabled ? router.sourceSearches.get(sourceKey) : null;
   if (tree) { router.sourceSearches.delete(sourceKey); router.routingStats.sourceSearchHits++; }
@@ -1104,27 +1128,6 @@ function incomeForPerson(index, population, rules) {
   return Math.max(rules.MINIMUM_INCOME, Math.min(income, rules.MAXIMUM_INCOME));
 }
 
-const incomeValueDistributionCache = new Map();
-
-function incomeValueDistribution(population, rules) {
-  const key = [
-    population,
-    rules.INCOME_MEAN,
-    rules.INCOME_STD_DEV,
-    rules.MINIMUM_INCOME,
-    rules.MAXIMUM_INCOME,
-    rules.HOURS_WORKED_PER_YEAR,
-  ].join('|');
-  let values = incomeValueDistributionCache.get(key);
-  if (values) return values;
-  values = new Float64Array(Math.max(0, Math.ceil(population)));
-  for (let index = 0; index < values.length; index++) {
-    values[index] = incomeForPerson(index, population, rules) / rules.HOURS_WORKED_PER_YEAR / 3_600;
-  }
-  incomeValueDistributionCache.set(key, values);
-  return values;
-}
-
 /** Mirrors Subway Builder 1.6's deterministic income-based mode choice. */
 export function chooseModes({ population, drivingTime, drivingDistance, transitTime, walkTime, transitCost, drivingTimeMultiplier, pathfindingRules = {} }) {
   const rules = rulesWithDefaults(pathfindingRules);
@@ -1132,23 +1135,12 @@ export function chooseModes({ population, drivingTime, drivingDistance, transitT
   return chooseModesFromMetrics(population, rules, metrics);
 }
 
-function chooseModesFromMetrics(population, rules, metrics) {
-  const result = { driving: 0, walking: 0, transit: 0, unknown: 0 };
-  const drivingTimeCost = metrics.driving.perceivedSeconds * metrics.driving.shortTripPenalty;
-  const drivingMoneyCost = metrics.driving.moneyCost * metrics.driving.shortTripPenalty;
-  const transitTimeCost = metrics.transit.perceivedSeconds;
-  const transitMoneyCost = metrics.transit.moneyCost;
-  const walkingTimeCost = metrics.walking.perceivedSeconds;
-  for (const hourlyValue of incomeValueDistribution(population, rules)) {
-    let bestCost = drivingTimeCost * hourlyValue + drivingMoneyCost;
-    let mode = 'driving';
-    const transitGeneralizedCost = transitTimeCost * hourlyValue + transitMoneyCost;
-    if (transitGeneralizedCost < bestCost) { bestCost = transitGeneralizedCost; mode = 'transit'; }
-    if (walkingTimeCost * hourlyValue < bestCost) mode = 'walking';
-    result[mode] += 1;
-  }
-  if (result.transit < rules.MIN_TRANSIT_CHOICE) { result.driving += result.transit; result.transit = 0; }
-  return result;
+function newModeChooser() {
+  return createBoundedModeChooser({ incomeValueAt: (i, n, rules) => incomeForPerson(i, n, rules) / rules.HOURS_WORKED_PER_YEAR / 3600 });
+}
+const directModeChooser = newModeChooser();
+function chooseModesFromMetrics(population, rules, metrics, chooser = directModeChooser) {
+  return chooser.choose(population, rules, metrics);
 }
 
 function modeChoiceMetrics({ drivingTime, drivingDistance, transitTime, walkTime, transitCost, drivingTimeMultiplier, rules }) {
@@ -1258,7 +1250,7 @@ function inspectPopModeChoice(input) {
     popId: prepared.popId, population: mass, homeTileId: prepared.homeTileId,
     workTileId: prepared.workTileId, gatewayId: prepared.gatewayId,
     requestedDepartureSeconds: prepared.requestedDepartureSeconds,
-    modes: chooseModesFromMetrics(mass, rules, metrics), transitPath,
+    modes: chooseModesFromMetrics(mass, rules, metrics, input.routers.modeChooser), transitPath,
     stationRoutes: prepared.stationRoutes, fareQuote: prepared.fareQuote,
     driving: metrics.driving, transit: metrics.transit, walking: metrics.walking,
     representativePerson: { personIndex: medianIndex, annualIncome: medianIncome, valuePerSecond, generalizedCost },
@@ -1276,10 +1268,10 @@ export function inspectCrossTileModeChoice({ crossDemand, popIndex, networkProfi
   });
 }
 
-function batchContext({ crossDemand, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0, worldId, routingCache = createCrossTileRoutingCache() }) {
+function batchContext({ crossDemand, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0, worldId, routingCache = createCrossTileRoutingCache(), routingSnapshot = null }) {
   if (crossDemand?.schemaVersion !== 1) throw new Error('Unsupported cross-demand data');
   const points = crossDemand.points.map(([id, longitude, latitude, tileId]) => ({ id, coords: [longitude, latitude], tileId }));
-  const routers = routingCache.getRouter(networkProfiles,worldId);
+  const routers = routingCache.getRouter(networkProfiles,worldId,routingSnapshot);
   const catalogKey = JSON.stringify(tileCatalog?.tiles?.map(t=>[t.id,t.bounds,t.neighbors?.map(n=>n.tileId)]));
   if (routers.catalogKey !== catalogKey) { routers.gatewayChains.clear(); routers.catalogKey = catalogKey; }
   return {
@@ -1293,12 +1285,12 @@ function emptyModeShareResult() {
   return { totals: new Map(), transitJourneys: new Map(), popModeChoices: {}, evaluatedPops: 0, transitViablePops: 0 };
 }
 
-function addPreparedModeChoice(result, prepared, fareQuote = prepared.fareQuote) {
+function addPreparedModeChoice(result, prepared, fareQuote = prepared.fareQuote, modeChooser = directModeChooser) {
   const { rawInputs, stationRoutes } = prepared;
   const transitFare = Number.isFinite(fareQuote?.total) && fareQuote.total >= 0 ? fareQuote.total : rawInputs.transitCost;
   const rules = rawInputs.pathfindingRules;
   const metrics = modeChoiceMetrics({ ...rawInputs, transitCost: transitFare, rules });
-  const modes = chooseModesFromMetrics(prepared.population, rules, metrics);
+  const modes = chooseModesFromMetrics(prepared.population, rules, metrics, modeChooser);
   result.popModeChoices[prepared.popId] = modes;
   const key = `${prepared.homeTileId}|${prepared.workTileId}|${prepared.gatewayId}`;
   const total = result.totals.get(key) ?? { driving: 0, walking: 0, transit: 0, unknown: 0 };
@@ -1323,7 +1315,7 @@ export function calculateCrossTileModeShares(input) {
   if (input.includeJourneyDetails) { result.journeyDetails = {}; result.choiceInputs = {}; }
   for (const [popIndex, pop] of input.crossDemand.pops.entries()) {
     const prepared = preparePopModeChoice({ ...context, pop, popIndex });
-    addPreparedModeChoice(result, prepared);
+    addPreparedModeChoice(result, prepared, prepared.fareQuote, context.routers.modeChooser);
     if (input.includeJourneyDetails) result.choiceInputs[prepared.popId] = {
       walkingTime: prepared.rawInputs.walkTime, walkingDistance: prepared.rawInputs.walkTime * WALK_SPEED_MPS,
       drivingTimeMultiplier: prepared.rawInputs.drivingTimeMultiplier,
@@ -1359,14 +1351,16 @@ export function prepareCrossTileModeShares(input) {
     prepared.transitPath = { available: prepared.transitPath.available, totalClockSeconds: prepared.transitPath.totalClockSeconds };
     entries.push(prepared);
   }
-  return { entries, fareRequests: [...requests.values()],
+  const preparedBatch = { entries, fareRequests: [...requests.values()],
     stations: [...stationIds].map(id => { const station = context.routers.stationById.get(id); return [id, { id, coords: station.coords }]; }),
     routingStats: { ...context.routers.routingStats },
   };
+  Object.defineProperty(preparedBatch, 'modeChooser', { value: context.routers.modeChooser });
+  return preparedBatch;
 }
 
 export function finishCrossTileModeShares(prepared, fareQuotes = new Map()) {
   const result = emptyModeShareResult();
-  for (const entry of prepared.entries) addPreparedModeChoice(result, entry, fareQuotes.get(entry.fareKey) ?? entry.fareQuote);
+  for (const entry of prepared.entries) addPreparedModeChoice(result, entry, fareQuotes.get(entry.fareKey) ?? entry.fareQuote, prepared.modeChooser);
   return { ...result, routingStats: prepared.routingStats };
 }

@@ -1,15 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createFastModeChooser } from './mode-choice.js';
-
-// Read the current source implementation as the oracle, including its actual
-// income noise/clamping, instead of maintaining a duplicate in this test.
-const sourceUrl = new URL('../../src/runtime/cross-tile-mode-choice.js', import.meta.url);
-const source = (await readFile(sourceUrl, 'utf8')).replace(
-  "from './routing-graph-index.js'", `from '${new URL('./routing-graph-index.js', sourceUrl).href}'`,
-) + '\nexport { chooseModesFromMetrics, incomeForPerson, rulesWithDefaults };';
-const oracle = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+import * as oracle from './legacy-mode-choice-oracle.js';
 const incomeValueAt = (i, n, rules) => oracle.incomeForPerson(i, n, rules) / rules.HOURS_WORKED_PER_YEAR / 3600;
 const metrics = (dt, dm, tt, tm, wt, penalty = 1) => ({
   driving: { perceivedSeconds: dt, moneyCost: dm, shortTripPenalty: penalty },

@@ -63,8 +63,8 @@ function distanceFare(distanceKm, rule, boardingCharge = rule.boardingCharge) {
 }
 
 /** Bundle-equivalent fare breakdown for route, flat, and distance groups. */
-export function computeJourneyFareBreakdown(segments, fareGroups = [], routes = [], legacyFare = 0) {
-  const index = fareIndex(fareGroups, routes, legacyFare);
+export function computeJourneyFareBreakdown(segments, fareGroups = [], routes = [], legacyFare = 0, preparedIndex = null) {
+  const index = preparedIndex ?? fareIndex(fareGroups, routes, legacyFare);
   const states = new Map();
   const items = [];
   let encounteredPaidSegment = false;
@@ -160,8 +160,8 @@ export function fareSegmentsFromStationRoutes(stationRoutes, stationById) {
 }
 
 /** Prefer the public native total, scaling the exact route breakdown to it. */
-export function quoteJourneyFare({ segments, fareGroups = [], routes = [], legacyFare = 0, nativeFare = null }) {
-  const breakdown = computeJourneyFareBreakdown(segments, fareGroups, routes, legacyFare);
+export function quoteJourneyFare({ segments, fareGroups = [], routes = [], legacyFare = 0, nativeFare = null, preparedIndex = null }) {
+  const breakdown = computeJourneyFareBreakdown(segments, fareGroups, routes, legacyFare, preparedIndex);
   const nativeTotal = typeof nativeFare === 'function' ? nativeFare(segments) : null;
   const total = Number.isFinite(nativeTotal) && nativeTotal >= 0 ? nativeTotal : breakdown.total;
   const rawAttribution = attributeJourneyFareByRoute(breakdown);
@@ -171,4 +171,10 @@ export function quoteJourneyFare({ segments, fareGroups = [], routes = [], legac
     for (const [routeId, amount] of Object.entries(rawAttribution)) revenueByRoute[routeId] = roundMoney(amount * total / rawTotal);
   } else if (total > 0 && segments?.[0]?.routeId) revenueByRoute[segments[0].routeId] = total;
   return { total, revenueByRoute, breakdown };
+}
+
+/** One immutable evaluation snapshot owns this small compiled fare table. */
+export function createJourneyFareQuote({ fareGroups = [], routes = [], legacyFare = 0 } = {}) {
+  const preparedIndex = fareIndex(fareGroups, routes, legacyFare);
+  return ({ segments, nativeFare = null }) => quoteJourneyFare({ segments, nativeFare, legacyFare, preparedIndex });
 }

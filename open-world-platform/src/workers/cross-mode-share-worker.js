@@ -1,4 +1,4 @@
-import { calculateCrossTileModeShares, prepareCrossTileModeShares, finishCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from '../runtime/cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, prepareCrossTileModeShares, finishCrossTileModeShares, createBoundedCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from '../runtime/cross-tile-mode-choice.js';
 import { NATIVE_DEMAND_WORKER_CACHE_LIMITS } from '../runtime/native-demand-worker-job.js';
 
 export const CROSS_MODE_SHARE_WORKER_MARKER = CROSS_ROUTING_CACHE_VERSION;
@@ -6,7 +6,7 @@ export const CROSS_MODE_SHARE_WORKER_MARKER = CROSS_ROUTING_CACHE_VERSION;
 /** Fare callbacks remain on the native host; only their compact results cross back. */
 export function createCrossModeShareWorkerHandler(postMessage) {
   const prepared = new Map();
-  const routingCache = createCrossTileRoutingCache(NATIVE_DEMAND_WORKER_CACHE_LIMITS);
+  const routingCache = createBoundedCrossTileRoutingCache(NATIVE_DEMAND_WORKER_CACHE_LIMITS);
   return (message) => {
     const { id, type, input } = message ?? {};
     try {

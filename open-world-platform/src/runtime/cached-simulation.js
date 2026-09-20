@@ -2,11 +2,11 @@ import { cachedSimulationPosting } from './cached-simulation-posting.js';
 export { cachedSimulationPosting } from './cached-simulation-posting.js';
 import { createOffMainThreadNativeDemandEvaluator } from './embedded-tile-package-adapter.js';
 import { evaluateOffTileNativeDemand } from './off-tile-native-demand.js';
-import { createCrossTileRoutingCache } from './cross-tile-mode-choice.js';
+import { createBoundedCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v15';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v16';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -63,7 +63,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   onHour = async () => {}, onDay = async () => {}, workerSource = null,
   postingWorkerSource = null, evaluate = null, prepareActiveDemand = null, onSavePhase = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
-  const routingCache = createCrossTileRoutingCache();
+  const routingCache = createBoundedCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
   // Track whole native actions, including async network preparation before a
   // worker exists and state publication after its response. Reuse this set on

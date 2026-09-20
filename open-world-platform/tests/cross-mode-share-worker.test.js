@@ -6,6 +6,15 @@ import { createCrossModeShareWorkerHandler } from '../src/workers/cross-mode-sha
 import { calculateCrossTileModeShares, createNetworkProfile } from '../src/runtime/cross-tile-mode-choice.js';
 import { fareSegmentsFromStationRoutes, quoteJourneyFare } from '../src/runtime/journey-fare.js';
 
+function assertEquivalent(actual, expected) {
+  const { routingStats: actualStats, ...actualOutput } = actual;
+  const { routingStats: expectedStats, ...expectedOutput } = expected;
+  assert.deepEqual(actualOutput, expectedOutput);
+  assert.equal(actualStats.wasmFallbacks, 0, 'this supported fixture must run the production Wasm backend');
+  assert.equal(actualStats.wasmSearches, actualStats.searches);
+  assert.equal(expectedStats.wasmSearches, 0, 'the reference uses the independent JavaScript search');
+}
+
 function fixture() {
   const profile = createNetworkProfile({ tileId: 'T0', stations: [0, 1, 2].map(i => ({ id: `s${i}`, coords: [i * 0.05, 0], stNodeIds: [`n${i}`], nearbyStations: [], buildType: 'constructed' })),
     routes: [{ id: 'r0', stNodes: [0, 1, 2].map(i => ({ id: `n${i}` })) }], trains: [{ id: 'train', routeId: 'r0' }],
@@ -52,7 +61,7 @@ test('worker retains native fare totals and exact attribution for flat, route an
     quoteCalls = 0;
     const client = evaluator();
     try {
-      assert.deepEqual(await client.evaluate(input), expected);
+      assertEquivalent(await client.evaluate(input), expected);
       assert.equal(quoteCalls, 2, 'repeated outward journeys share one authoritative quote');
       assert.equal(client.diagnostics().workerEvaluations, 1);
       assert.equal(client.diagnostics().fallbackEvaluations, 0);
@@ -72,7 +81,7 @@ test('missing workers retain compatibility, while crashed workers never retry in
         assert.equal(client.diagnostics().fallbackEvaluations, 0);
         continue;
       }
-      assert.deepEqual(await client.evaluate(input), calculateCrossTileModeShares(input));
+      assertEquivalent(await client.evaluate(input), calculateCrossTileModeShares(input));
       assert.equal(client.diagnostics().fallbackEvaluations, 1);
     } finally { client.dispose(); }
   }
@@ -102,14 +111,14 @@ test('worker transport excludes display geometry and retains the original catalo
   const client = evaluator(RecordingWorker);
   const fallback = evaluator(null);
   try {
-    assert.deepEqual(await client.evaluate(input), expected);
+    assertEquivalent(await client.evaluate(input), expected);
     assert.equal(client.diagnostics().workerEvaluations, 1);
     assert.equal(client.diagnostics().fallbackEvaluations, 0);
     const transferred = worker.received.find(message => message.type === 'evaluate').input.tileCatalog;
     assert.deepEqual(transferred, { tiles: [{ id: 'T0', bounds: [-1, -1, 1, 1], neighbors: [{ tileId: 'T1' }] }] });
     assert.equal(input.tileCatalog, catalog);
     assert.equal(Object.getOwnPropertyDescriptor(tile, 'boundaryGeometry').get, unused);
-    assert.deepEqual(await fallback.evaluate(input), expected);
+    assertEquivalent(await fallback.evaluate(input), expected);
   } finally { client.dispose(); fallback.dispose(); }
 });
 
@@ -133,7 +142,7 @@ test('the production handler evaluates across a real worker boundary with host f
   input.journeyFare = () => ({ total: 6.85, revenueByRoute: { r0: 6.85 } });
   const client = evaluator(ThreadWorker);
   try {
-    assert.deepEqual(await client.evaluate(input), calculateCrossTileModeShares(input));
+    assertEquivalent(await client.evaluate(input), calculateCrossTileModeShares(input));
     assert.equal(client.diagnostics().workerEvaluations, 1);
     assert.equal(client.diagnostics().fallbackEvaluations, 0);
   } finally { client.dispose(); }

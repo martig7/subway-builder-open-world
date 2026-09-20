@@ -1,6 +1,7 @@
-import { calculateCrossTileModeShares, createCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
+import { calculateCrossTileModeShares, createBoundedCrossTileRoutingCache, createRoutingSnapshot, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import { aggregateCompletedCommutes } from './completed-commute-aggregation.js';
-import { fareSegmentsFromStationRoutes, quoteJourneyFare } from './journey-fare.js';
+import { fareSegmentsFromStationRoutes, quoteJourneyFare, createJourneyFareQuote } from './journey-fare.js';
+import { createIncrementalNativeDemandProfileMerger } from './incremental-commute-aggregation.js';
 import {
   calculateNativeRevenueProfile,
   createNativeTopologyFinancePolicy,
@@ -238,7 +239,7 @@ function ridershipByRoute(calculated) {
  */
 function evaluateBatch({
   worldId,
-  routingCache = createCrossTileRoutingCache(),
+  routingCache = createBoundedCrossTileRoutingCache(),
   tileId,
   demand,
   networkProfile,
@@ -275,10 +276,13 @@ function evaluateBatch({
     worldId, routingCache,
     includeJourneyDetails: includeAssignments,
     crossDemand,
-    networkProfiles: { [tileId]: network },
+    networkProfiles: prepared?.routingSnapshot?.profiles ?? { [tileId]: network },
+    routingSnapshot: prepared?.routingSnapshot,
     gatewayCatalog: {},
     fare: Number(farePolicy?.fare) || 0,
-    journeyFare: (stationRoutes, stationById) => fareQuoteFor({
+    journeyFare: prepared?.routingFareQuote ? (stationRoutes, stationById) => prepared.routingFareQuote({
+      segments: fareSegmentsFromStationRoutes(stationRoutes, stationById),
+    }) : (stationRoutes, stationById) => fareQuoteFor({
       stationRoutes, stationById, farePolicy, globalNativeState,
     }),
   });
@@ -297,6 +301,7 @@ function evaluateBatch({
       fareGroups: globalNativeState?.fareGroups ?? farePolicy?.fareGroups ?? [],
       routes: globalNativeState?.routes ?? [],
       legacyFare: Number(farePolicy?.fare) || 0,
+      journeyFareQuote: prepared?.financeFareQuote,
     },
   );
   const profile = {
@@ -386,26 +391,38 @@ export function* nativeDemandEvaluationBatches(input) {
   if (!Array.isArray(demand?.pops) || !Array.isArray(demand?.points)) throw new Error(`Invalid native demand package: ${tileId}`);
   const size = Math.max(1, Math.min(4096, Math.floor(input.batchSize ?? NATIVE_DEMAND_BATCH_SIZE)));
   const pointById = new Map(demand.points.map(point => [String(point.id), point]));
-  const routingCache = input.routingCache ?? createCrossTileRoutingCache();
-  const contextKey = offTileNativeDemandContextKey(input);
-  const evaluationKey = hashText(JSON.stringify(stableValue({ contextKey, demand: demandFingerprint(demand) })));
-  const prepared = { contextKey, evaluationKey,
-    network: input.networkProfile ? deterministicNetworkProfile(input.networkProfile) : null };
-  if (!input.includeAssignments && input.existingProfile?.source === 'off-tile-estimator'
-    && input.existingProfile.evaluationKey === evaluationKey) {
-    yield { status: 'cached', profile: structuredClone(input.existingProfile) };
-    return;
-  }
-  for (let offset = 0; offset < Math.max(1, demand.pops.length); offset += size) {
-    const pops = demand.pops.slice(offset, offset + size);
-    const ids = new Set();
-    for (const pop of pops) { ids.add(String(pop.residenceId)); ids.add(String(pop.jobId)); }
-    const points = [...ids].map(id => pointById.get(id)).filter(Boolean);
-    const result = evaluateBatch({ ...input, existingProfile: null, routingCache, prepared,
-      demand: { points, pops } });
-    result.profile.evaluationKey = evaluationKey;
-    input.onBatch?.(pops.length);
-    yield result;
+  const routingCache = input.routingCache ?? createBoundedCrossTileRoutingCache();
+  try {
+    const contextKey = offTileNativeDemandContextKey(input);
+    const evaluationKey = hashText(JSON.stringify(stableValue({ contextKey, demand: demandFingerprint(demand) })));
+    const prepared = { contextKey, evaluationKey,
+      network: input.networkProfile ? deterministicNetworkProfile(input.networkProfile) : null };
+    if (prepared.network) prepared.routingSnapshot = createRoutingSnapshot({ [tileId]: prepared.network });
+    const routes = input.globalNativeState?.routes ?? [];
+    const routingFareGroups = input.globalNativeState?.fareGroups?.length ? input.globalNativeState.fareGroups : input.farePolicy?.fareGroups ?? [];
+    const financeFareGroups = input.globalNativeState?.fareGroups ?? input.farePolicy?.fareGroups ?? [];
+    const legacyFare = Number(input.farePolicy?.fare) || 0;
+    prepared.routingFareQuote = createJourneyFareQuote({ routes, fareGroups: routingFareGroups, legacyFare });
+    prepared.financeFareQuote = routingFareGroups === financeFareGroups ? prepared.routingFareQuote
+      : createJourneyFareQuote({ routes, fareGroups: financeFareGroups, legacyFare });
+    if (!input.includeAssignments && input.existingProfile?.source === 'off-tile-estimator'
+      && input.existingProfile.evaluationKey === evaluationKey) {
+      yield { status: 'cached', profile: structuredClone(input.existingProfile) };
+      return;
+    }
+    for (let offset = 0; offset < Math.max(1, demand.pops.length); offset += size) {
+      const pops = demand.pops.slice(offset, offset + size);
+      const ids = new Set();
+      for (const pop of pops) { ids.add(String(pop.residenceId)); ids.add(String(pop.jobId)); }
+      const points = [...ids].map(id => pointById.get(id)).filter(Boolean);
+      const result = evaluateBatch({ ...input, existingProfile: null, routingCache, prepared,
+        demand: { points, pops } });
+      result.profile.evaluationKey = evaluationKey;
+      input.onBatch?.(pops.length);
+      yield result;
+    }
+  } finally {
+    if (!input.routingCache) routingCache.clear();
   }
 }
 
@@ -442,15 +459,19 @@ export function mergeNativeDemandProfiles(target, profile) {
 }
 
 export function evaluateOffTileNativeDemand(input) {
+  const merge = createIncrementalNativeDemandProfileMerger();
+  const routingCache = input.routingCache ?? createBoundedCrossTileRoutingCache();
   let profile = null;
   const assignments = input.includeAssignments ? [] : null;
-  for (const batch of nativeDemandEvaluationBatches(input)) {
-    profile = mergeNativeDemandProfiles(profile, batch.profile);
-    if (assignments) for (const assigned of batch.assignments) assignments.push(assigned);
-  }
-  const cached = !input.includeAssignments && input.existingProfile?.source === 'off-tile-estimator'
-    && input.existingProfile.evaluationKey === profile.evaluationKey;
-  return { status: cached ? 'cached' : 'evaluated', profile, ...(assignments ? { assignments } : {}) };
+  try {
+    for (const batch of nativeDemandEvaluationBatches({ ...input, routingCache })) {
+      profile = merge(profile, batch.profile);
+      if (assignments) for (const assigned of batch.assignments) assignments.push(assigned);
+    }
+    const cached = !input.includeAssignments && input.existingProfile?.source === 'off-tile-estimator'
+      && input.existingProfile.evaluationKey === profile.evaluationKey;
+    return { status: cached ? 'cached' : 'evaluated', profile: merge.finalize(profile), ...(assignments ? { assignments } : {}) };
+  } finally { merge.dispose(); if (!input.routingCache) routingCache.clear(); }
 }
 
 export function isCurrentOffTileNativeDemandProfile(profile, { activeTile = false } = {}) {

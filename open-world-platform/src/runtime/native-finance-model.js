@@ -1,4 +1,4 @@
-import { quoteJourneyFare } from './journey-fare.js';
+import { createJourneyFareQuote } from './journey-fare.js';
 import { wholePeople, wholePeopleDistribution } from './whole-people.js';
 import { aggregateCompletedCommutes } from './completed-commute-aggregation.js';
 
@@ -340,8 +340,9 @@ function referencedTrackIds(route) {
  * paths, fares and income model without running inactive demand every hour.
  */
 export function calculateNativeRevenueProfile(pops = [], {
-  financeOwnedRouteIds = [], fareGroups = [], routes = [], legacyFare = 0,
+  financeOwnedRouteIds = [], fareGroups = [], routes = [], legacyFare = 0, journeyFareQuote = null,
 } = {}) {
+  const quote = journeyFareQuote ?? createJourneyFareQuote({ fareGroups, routes, legacyFare });
   const hourly = Array.from({ length: HOURS_PER_DAY }, emptyHour);
   const owned = new Set(financeOwnedRouteIds.map(String));
   let transitPopulation = 0;
@@ -382,8 +383,8 @@ export function calculateNativeRevenueProfile(pops = [], {
       if (!(fare >= 0)) continue;
       const oneWayRevenue = transitMass * fare * NATIVE_ANNUALIZATION;
       const routeIds = [...new Set((path?.segments ?? []).map((segment) => segment?.routeId).filter(Boolean))];
-      const quoted = path && (fareGroups.length || routes.length) ? quoteJourneyFare({
-        segments: path.segments ?? [], fareGroups, routes, legacyFare,
+      const quoted = path && (fareGroups.length || routes.length) ? quote({
+        segments: path.segments ?? [],
         nativeFare: () => fare,
       }) : null;
       let fareByRoute = quoted?.revenueByRoute ?? {};
