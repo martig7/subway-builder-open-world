@@ -4,7 +4,11 @@ status: accepted
 
 # Cached simulation temporarily owns the native tick
 
-Ultra-high-speed mode is an explicit, session-local option in Map rendering.
+Ultra-high-speed mode is an explicit option in Map rendering. The user's on/off
+choice is remembered between sessions for each runnable mod, independently of
+Native Save selection. Lifecycle shutdowns and temporary tile handoff holds do
+not change that preference. New installations default to off; upgrading a live
+older runtime retains its current choice.
 It replaces native train, signal, crowd and pop simulation with disposable
 calculated demand and finance profiles. The clock continues; Ultra speed uses
 ten times its ordinary clock increment. Other speed tiers keep their configured
@@ -82,7 +86,7 @@ cap with repeated uncompressed route lists; chunk compression keeps temporary
 allocations bounded and the limit applies to bytes actually stored. Cache
 generation changes clear the previous records in the same database.
 
-Caches and the toggle are not persisted as a second save authority. Saving
+The preference persists only a boolean, not a second save authority. Saving
 preserves the synchronous native save contract, settles the current interval,
 and shifts frozen train timing anchors in the saved copy. Disabling shifts the
 live anchors and clears transient passenger movements, preserving train IDs,
@@ -93,8 +97,13 @@ This is an estimate, not an equivalent execution of the native simulator.
 Capacity, congestion caused by trains, missed connections, signal delays and
 reliability are not simulated. Infrastructure expenses use the shared estimate
 and native train-type prices, including constructed grade crossings. Native
-simulation returns when the toggle is disabled; loading/reloading starts with
-the toggle off. An explicit Tile View navigation in the same live World carries
+simulation returns when the toggle is disabled. Loading/reloading initially
+disables execution, then restores the remembered choice after network and
+finance preparation. The new context validates or computes its own assignments;
+old session caches and ledger state are never restored from preferences. A user
+changing the preference during loading wins over the delayed restoration, and
+ended or replaced sessions cannot enable the next session's simulation.
+An explicit Tile View navigation in the same live World carries
 the player's enabled intent through a temporary handoff hold. The source first
 settles and rebases once, drains observed native actions, and drops its cached
 assignments. The destination prepares its own assignments while the clock is

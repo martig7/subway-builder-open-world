@@ -50,6 +50,7 @@ import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
 import { createCachedSimulation } from './cached-simulation.js';
 import { createTileSimulationHandoff, TILE_SIMULATION_HANDOFF_VERSION } from './tile-simulation-handoff.js';
+import { createRuntimeModePreferences } from './runtime-mode-preferences.js';
 import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js';
 import { registerIntercityTrains } from './intercity-trains.js';
 import { yieldBrowserPaint } from './frame-budget.js';
@@ -114,7 +115,17 @@ export function startOpenWorld({
   const registration = registerPilotCities(api, { tileBase });
   const dormantRuntimeKey = `__${globalStem}DormantRuntimeV1__`;
   const activeRuntimeKey = `__${globalStem}ActiveRuntimeV1__`;
-  globalThis[activeRuntimeKey]?.dispose?.();
+  const previousRuntime = globalThis[activeRuntimeKey];
+  const previousHandoff = previousRuntime?.diagnostics?.tileSimulationHandoff;
+  const modePreferences = createRuntimeModePreferences({
+    modId: definition.identity.manifestId,
+    initialChoices: previousRuntime?.modePreferences?.snapshot?.() ?? (previousRuntime ? {
+      ultraHighSpeed: ['staging', 'queued', 'preparing', 'restoring', 'error'].includes(previousHandoff?.status)
+        ? previousHandoff.requested : previousRuntime.cachedSimulation?.snapshot?.().enabled,
+      experimentalAutosaves: previousRuntime.diagnostics?.prototypeSaveWriter?.snapshot?.().enabled,
+    } : undefined),
+  });
+  previousRuntime?.dispose?.();
   const startupCityCode = typeof initialAuthoritativeCityCode === 'string'
     && initialAuthoritativeCityCode
     ? initialAuthoritativeCityCode
@@ -634,13 +645,16 @@ export function startOpenWorld({
     const scheduled = new Promise((resolve) => { resolveScheduled = resolve; });
     const run = () => {
       if (!ownsSession(owner) || loadEpoch !== epoch) { resolveScheduled(null); return; }
-      void recalculateCrossModeShare(reason, day, false, owner).then((result) => {
+      void recalculateCrossModeShare(reason, day, false, owner).then(async (result) => {
         if (ownsSession(owner) && loadEpoch === epoch) {
           settlementReady = result != null && !['pending', 'error', 'cancelled'].includes(result.status)
             && !result.nativeFinanceProfile?.failed?.length && !result.nativeFinanceProfile?.unavailable?.length;
-          if (settlementReady) recordAuthoritativeLoad({ phase: 'authoritative-load',
-            segment: 'startup-simulation-ready', version: TILE_SIMULATION_HANDOFF_VERSION,
-            reason, simulationReadyAt: Date.now() });
+          if (settlementReady) {
+            await restoreSavedSimulationChoice(owner, epoch);
+            if (ownsSession(owner) && loadEpoch === epoch) recordAuthoritativeLoad({ phase: 'authoritative-load',
+              segment: 'startup-simulation-ready', version: TILE_SIMULATION_HANDOFF_VERSION,
+              reason, simulationReadyAt: Date.now() });
+          }
         }
         resolveScheduled(result);
       }).catch((error) => {
@@ -728,12 +742,42 @@ export function startOpenWorld({
     },
   });
   diagnostics.retryTileSimulation = tileSimulationHandoff.retry;
+  // Only the UI facade persists intent. Lifecycle teardown and temporary Tile
+  // View holds continue to call the raw simulation without changing preferences.
+  const simulationControls = {
+    snapshot() {
+      const state = tileSimulationHandoff.mode.snapshot();
+      const requested = modePreferences.snapshot().ultraHighSpeed;
+      return { ...state, enabled: requested,
+        status: requested && !state.enabled ? 'restoring' : state.status };
+    },
+    subscribe(listener) {
+      const notify = () => listener(simulationControls.snapshot());
+      const unsubscribeMode = tileSimulationHandoff.mode.subscribe(notify);
+      const unsubscribePreference = modePreferences.subscribe(notify);
+      return () => { unsubscribeMode(); unsubscribePreference(); };
+    },
+    async setEnabled(value) {
+      modePreferences.setUltraHighSpeed(value);
+      if (value && !ready) return simulationControls.snapshot();
+      await tileSimulationHandoff.mode.setEnabled(value);
+      return simulationControls.snapshot();
+    },
+  };
+  async function restoreSavedSimulationChoice(owner, epoch) {
+    if (!ownsSession(owner) || loadEpoch !== epoch || !ready || tileSimulationHandoff.isPending()
+      || !modePreferences.snapshot().ultraHighSpeed) return;
+    await cachedSimulation.setEnabled(true);
+  }
+  diagnostics.modePreferences = modePreferences.snapshot;
   if (activeDemandPreparation) tilePackages.prepareActiveNativeDemand = args => {
     const profile = cachedSimulation.preparedNativeProfile(args.tileId);
     return profile ? { profile, status: 'cached', diskCache: 'live-profile' }
       : activeDemandPreparation.prepare(args);
   };
   const prototypeSaveWriter = createPrototypeSaveController({
+    initialEnabled: modePreferences.snapshot().experimentalAutosaves,
+    onEnabledChange: modePreferences.setExperimentalAutosaves,
     getState: () => game.callbacks.getState(),
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     isBusy: () => prototypeSaveBusyReason({ nativeWorkers: nativeCommuteWorkers?.snapshot?.(), simulation: cachedSimulation.snapshot() }),
@@ -751,7 +795,8 @@ export function startOpenWorld({
   // carry no per-boot token, so server restarts cannot strand the toggle.
   // Probe once here; the Map rendering panel re-probes whenever it opens
   // while unconfigured. No retry timer: failed loopback probes log console
-  // errors, and the toggle can only be armed from the panel anyway.
+  // errors. A remembered choice remains armed while the writer is unavailable;
+  // save attempts report that failure instead of silently changing transport.
   const saveWriterOrigins = [...new Set(
     [8800, definition.runtime.tileServerPort].filter(Boolean).map(port => `http://127.0.0.1:${port}`))];
   void prototypeSaveWriter.configureAutomatic({ origins: saveWriterOrigins }).catch(() => {});
@@ -828,7 +873,7 @@ export function startOpenWorld({
       renderDistanceToolbarRegistered = Boolean(registerRenderDistanceToolbar({
         api,
         controller: geographicContextController,
-        simulation: tileSimulationHandoff.mode,
+        simulation: simulationControls,
         saveWriter: prototypeSaveWriter,
         panelId: `${namespace}-render-distance`,
       }));
@@ -1042,9 +1087,12 @@ export function startOpenWorld({
           });
           loadedSaveName = currentSaveName;
           ready = true;
+          const epoch = loadEpoch;
           const modeShare = await recalculateCrossModeShare(request.reason, api.gameState.getCurrentDay?.() ?? null, false, owner);
-          if (!ownsSession(owner)) return;
+          if (!ownsSession(owner) || loadEpoch !== epoch) continue;
           settlementReady = modeShare != null;
+          if (settlementReady) await restoreSavedSimulationChoice(owner, epoch);
+          if (!ownsSession(owner) || loadEpoch !== epoch) continue;
           ensurePanel();
         } catch (error) {
           if (!ownsSession(owner)) return;
@@ -1876,6 +1924,8 @@ export function startOpenWorld({
   console.info(`${logLabel} registered`, registration);
   const controller = Object.freeze({
     cachedSimulation,
+    simulationControls,
+    modePreferences,
     platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
     definition,
     diagnostics,

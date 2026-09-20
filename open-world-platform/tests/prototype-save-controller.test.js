@@ -49,6 +49,23 @@ test('an enabled writer never invokes native saving after a gate rejection or tr
   }
 });
 
+test('a remembered experimental choice waits for writer discovery and never silently uses native saving', async () => {
+  const changes = [];
+  const f = fixture({}, { initialEnabled: true, onEnabledChange: value => changes.push(value) });
+  assert.equal(f.controller.snapshot().enabled, true);
+  assert.equal(f.controller.snapshot().configured, false);
+  assert.equal((await f.controller.invoke(f.native)).saved, false);
+  assert.equal(f.counts().nativeCalls, 0);
+  await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8800'],
+    fetchFn: async () => Response.json({ version: 'tile-save-prototype-v1' }) });
+  assert.equal(f.controller.snapshot().enabled, true);
+  assert.equal((await f.controller.invoke(f.native)).path, 'fixture.metro');
+  assert.deepEqual(changes, [], 'restoration and discovery are not explicit preference changes');
+  f.controller.setEnabled(false);
+  f.controller.dispose();
+  assert.deepEqual(changes, [false], 'disposal does not overwrite the saved choice');
+});
+
 test('pre-upload progress identifies settling and snapshot generation before work begins', async () => {
   const phases = [];
   const f = fixture();

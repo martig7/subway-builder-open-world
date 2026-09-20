@@ -67,7 +67,8 @@ Ultra-high-speed toggle. Service edits during preparation join replacement
 work. An unrelated save load or ended session cancels the pending transition,
 releases the observer's snapshot, and prevents delayed restoration or demand
 results from publishing into the replacement session. Loading a save or
-restarting still starts cached mode disabled.
+restarting restores the saved Ultra preference only after the new network's
+startup preparation; the old handoff cannot enable it.
 
 The cached wrapper is generation `open-world-cached-simulation-v17`; prior
 wrappers are replaced on reload. Source cache and frozen-train references are

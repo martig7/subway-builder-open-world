@@ -22,7 +22,7 @@ function deferred() {
 
 async function harness(run) {
   const savedGlobals = new Map(Object.getOwnPropertyNames(globalThis).filter(key => key.startsWith('__')
-    || ['fetch', 'sessionStorage', 'requestIdleCallback'].includes(key)).map(key => [key, globalThis[key]]));
+    || ['fetch', 'localStorage', 'sessionStorage', 'requestIdleCallback'].includes(key)).map(key => [key, globalThis[key]]));
   const savedConsole = { debug: console.debug, info: console.info, log: console.log, warn: console.warn, error: console.error };
   const hooks = new Map(); const idle = []; const errors = []; const ui = []; const unsubscribed = [];
   const state = createSubwayBuilderHostState({ cityCode: 'JP_TOKYO_MAINLAND', gameSessionId: 'session-A', saveName: 'save-A', money: 1_000_000, transitCost: 2.5,
@@ -47,6 +47,8 @@ async function harness(run) {
   globalThis.__subwayBuilder_storeCallbacks__ = { getState: () => state, setMoney() {}, setTicketCost() {} };
   globalThis.fetch = undefined;
   globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+  const preferences = new Map();
+  globalThis.localStorage = { getItem: key => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value) };
   globalThis.requestIdleCallback = (callback, options) => { if (options?.timeout === 1000) idle.push(callback); return 1; };
   console.debug = console.info = console.log = console.warn = () => {};
   console.error = (...args) => errors.push(args);
@@ -65,11 +67,80 @@ async function harness(run) {
     for (const controller of controllers) controller.dispose();
     Object.assign(console, savedConsole);
     for (const key of Object.getOwnPropertyNames(globalThis)) {
-      if ((key.startsWith('__') || ['fetch', 'sessionStorage', 'requestIdleCallback'].includes(key)) && !savedGlobals.has(key)) delete globalThis[key];
+      if ((key.startsWith('__') || ['fetch', 'localStorage', 'sessionStorage', 'requestIdleCallback'].includes(key)) && !savedGlobals.has(key)) delete globalThis[key];
     }
     for (const [key, value] of savedGlobals) globalThis[key] = value;
   }
 }
+
+test('a fresh runtime restores both choices, enabling Ultra only after network finance is ready', async t => {
+  const finance = deferred(), entered = deferred();
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => {
+    entered.resolve(); await finance.promise; return { status: 'cached' };
+  });
+  await harness(async ({ controller, restart, idle, hooks }) => {
+    await controller.simulationControls.setEnabled(true);
+    await controller.diagnostics.prototypeSaveWriter.configureAutomatic({ origins: ['http://127.0.0.1:8800'],
+      fetchFn: async () => Response.json({ version: 'tile-save-prototype-v1' }) });
+    controller.diagnostics.prototypeSaveWriter.setEnabled(true);
+    hooks.get('onGameEnd')();
+    assert.equal(controller.modePreferences.snapshot().ultraHighSpeed, true, 'lifecycle disable does not change user intent');
+    controller.dispose();
+    const next = restart();
+    assert.equal(next.diagnostics.prototypeSaveWriter.snapshot().enabled, true);
+    assert.equal(next.diagnostics.prototypeSaveWriter.snapshot().configured, false, 'writer discovery is independent of remembered selection');
+    assert.equal(next.simulationControls.snapshot().enabled, true);
+    assert.equal(next.cachedSimulation.snapshot().enabled, false, 'do not enable on an uninitialized native store');
+    const enabled = [];
+    t.mock.method(next.cachedSimulation, 'setEnabled', async value => { enabled.push(value); return { status: value ? 'ready' : 'off' }; });
+    await next.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await entered.promise;
+    assert.deepEqual(enabled.filter(Boolean), [], 'do not race startup demand allocation');
+    finance.resolve(); await new Promise(setImmediate);
+    assert.deepEqual(enabled.filter(Boolean), [true]);
+    assert.equal(next.modePreferences.snapshot().ultraHighSpeed, true);
+  });
+});
+
+for (const cancellation of ['user-disables', 'game-end', 'hot-reload']) {
+  test(`remembered Ultra restoration cannot outlive ${cancellation}`, async t => {
+    const finance = deferred(), entered = deferred();
+    t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => {
+      entered.resolve(); await finance.promise; return { status: 'cached' };
+    });
+    await harness(async ({ controller, restart, idle, hooks }) => {
+      await controller.simulationControls.setEnabled(true);
+      const enabled = [];
+      t.mock.method(controller.cachedSimulation, 'setEnabled', async value => { enabled.push(value); return { status: value ? 'ready' : 'off' }; });
+      await controller.lifecycle.gameLoaded('save-A');
+      idle.shift()(); await entered.promise;
+      if (cancellation === 'user-disables') await controller.simulationControls.setEnabled(false);
+      else if (cancellation === 'game-end') hooks.get('onGameEnd')();
+      else restart();
+      finance.resolve(); await new Promise(setImmediate);
+      assert.deepEqual(enabled.filter(Boolean), []);
+      assert.equal(controller.modePreferences.snapshot().ultraHighSpeed, cancellation !== 'user-disables');
+    });
+  });
+}
+
+test('an explicit off choice persists through runtime restart', async t => {
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  await harness(async ({ controller, restart, idle }) => {
+    await controller.simulationControls.setEnabled(true);
+    await controller.simulationControls.setEnabled(false);
+    controller.diagnostics.prototypeSaveWriter.setEnabled(false);
+    controller.dispose();
+    const next = restart();
+    const enabled = [];
+    t.mock.method(next.cachedSimulation, 'setEnabled', async value => { enabled.push(value); return { status: 'off' }; });
+    await next.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(setImmediate);
+    assert.deepEqual(enabled.filter(Boolean), []);
+    assert.equal(next.simulationControls.snapshot().enabled, false);
+    assert.equal(next.diagnostics.prototypeSaveWriter.snapshot().enabled, false);
+  });
+});
 
 for (const scenario of ['available', 'delayed', 'ended']) test(`transition completion handles missed map-ready (${scenario})`, async t => {
   const delayed = scenario !== 'available';

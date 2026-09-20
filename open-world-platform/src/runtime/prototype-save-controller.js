@@ -4,18 +4,18 @@ import { prototypeSaveProgressText } from './prototype-save-progress.js';
 const STREAM_SAVE = Symbol.for('open-world.stream-native-save');
 const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 
-// Experimental, session-local transport. Native generation/validation, cached
+// Experimental transport. Native generation/validation, cached
 // clock rebasing and the ordinary native load UI remain authoritative.
 const SAVE_GATE = 'prototype-save-gate';
 const gateError = message => Object.assign(new Error(message), { code: SAVE_GATE });
 export function createPrototypeSaveController({ getState, isReady = () => true,
   isBusy = () => false, freezeUi = blockSaveEdits, yieldTask = nextFrame,
   writeSave = writePrototypeNativeSave, onActivity = () => {}, fetchFn = fetch,
-  settleMs = 30000 } = {}) {
-  let configuration = null, enabled = false, pending = null, automatic = null, abort = null, disposed = false;
+  settleMs = 30000, initialEnabled = false, onEnabledChange = () => {} } = {}) {
+  let configuration = null, enabled = initialEnabled === true, pending = null, automatic = null, abort = null, disposed = false;
   let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v7', configured: false, enabled: false, status: 'off', last: null, error: null, transport: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v8', configured: false, enabled, status: 'off', last: null, error: null, transport: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
@@ -195,6 +195,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
     setEnabled(value) {
       if (value && (!configuration || disposed)) throw new Error('Configure the prototype writer first');
       enabled = Boolean(value);
+      onEnabledChange(enabled);
       if (enabled && !pending && status.transport === 'native') status = { ...status, status: 'ready', transport: null };
       notify(); return snapshot();
     },

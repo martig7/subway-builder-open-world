@@ -81,19 +81,20 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
         'aria-label': 'Ultra-high-speed cached simulation' }),
       'Ultra-high-speed mode'),
     h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
-      'Uses calculated ridership and finances. Trains, signals, crowds, and passenger movements stop simulating. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster.'),
+      'Uses calculated ridership and finances. Trains, signals, crowds, and passenger movements stop simulating. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster. Your choice is remembered between sessions.'),
     h('div', { className: 'text-xs', role: 'status', 'aria-live': 'polite' },
-      simulationState?.error ?? (simulationState?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'
+      simulationState?.error ?? (simulationState?.status === 'restoring' ? 'Restoring Ultra-high-speed mode after the network loads…'
+        : simulationState?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'
         : simulationState?.enabled ? `${simulationState.assignedPops.toLocaleString()} pop groups assigned · ${Math.round(simulationState.dailyRidership).toLocaleString()} estimated daily rides`
           : 'Native simulation'))),
   h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
     h('label', { className: 'flex items-center gap-2 text-sm font-medium' },
       h('input', { type: 'checkbox', role: 'switch', checked: saveState?.enabled ?? false,
-        disabled: !saveState?.configured,
+        disabled: !saveState?.configured && !saveState?.enabled,
         onChange: event => saveWriter?.setEnabled(event.target.checked),
         'aria-label': 'Experimental tile-server autosaves' }), 'Experimental tile-server autosaves'),
     h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
-      'Pauses simulation and editing while saving. Uses normal game files. Failures are reported without switching to native autosaves. Enabled for this session only.'),
+      'Pauses simulation and editing while saving. Uses normal game files. Failures are reported without switching to native autosaves. Your choice is remembered between sessions.'),
     h('div', { role: 'status', className: 'text-xs', 'aria-live': 'polite' },
       saveState?.error ?? (!saveState?.configured ? 'Save writer unavailable. Start or reconnect the local tile server.'
         : saveState.transport === 'native' ? 'Native autosave selected: experimental autosaves are disabled.'

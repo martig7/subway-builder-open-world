@@ -171,14 +171,14 @@ test('a failed experimental attempt reports no save and offers an experimental r
   assert.equal(retries, 1);
 });
 
-test('configured save writer enables the experimental save toggle', () => {
+for (const configured of [true, false]) test(`save mode can be changed with a ${configured ? 'configured' : 'remembered but unavailable'} writer`, () => {
   let requested;
   const React = {
     createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
     useState: value => [typeof value === 'function' ? value() : value, () => {}],
     useEffect: effect => effect(),
   };
-  const saveWriter = { snapshot: () => ({ configured: true, enabled: false, status: 'ready', last: null, error: null }),
+  const saveWriter = { snapshot: () => ({ configured, enabled: !configured, status: 'ready', last: null, error: null }),
     subscribe: () => () => {}, setEnabled: value => { requested = value; } };
   const panel = RenderDistancePanel({ React, saveWriter,
     controller: { getRenderDistance: () => 3,
@@ -187,6 +187,6 @@ test('configured save writer enables the experimental save toggle', () => {
   const toggle = [...nodes(panel)].find(node => node.props?.['aria-label'] === 'Experimental tile-server autosaves');
   assert.ok(toggle, 'configured experimental save toggle must be present');
   assert.equal(toggle.props.disabled, false);
-  toggle.props.onChange({ target: { checked: true } });
-  assert.equal(requested, true);
+  toggle.props.onChange({ target: { checked: configured } });
+  assert.equal(requested, configured);
 });
