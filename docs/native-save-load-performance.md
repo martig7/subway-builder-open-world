@@ -27,6 +27,22 @@ to retain the existing API and its permission checks. No IPC channel is added.
 An upstream host implementation of this transport and compact metadata API
 would eliminate the need for this local compatibility patch.
 
+## Load Game menu
+
+The verified Subway Builder 1.7.0 Load Game handler previously decoded the
+selected file into the renderer and then sent the full save back to the main
+process with `setPendingSave`. The compatibility installer now patches that
+specific renderer handler to call `loadAndSetPendingSave(path, autosaveId)`, the
+same native staging operation used by Resume. It then navigates using the
+compact city code returned by the host. On a host without that API, the handler
+retains its original loading path. A failed native stage still shows the Load
+Game error and does not navigate.
+
+The installer checks the original renderer and preload checksums, verifies the
+exact handler text before changing it, and compares every byte of the staged
+archive with the two expected entry replacements. It refuses a different game
+build or handler. The original archive remains available for exact restoration.
+
 ## Renderer-local tile handoffs
 
 Host bridge `native-save-read-json-v2` also supplies
@@ -73,7 +89,8 @@ node tools/native-save-read-patch.mjs apply '<staged-app.asar>.json'
 node tools/native-save-read-patch.mjs restore '<game-directory>'
 ```
 
-The preparer accepts only the inspected Subway Builder 1.7.0 preload checksum.
+The preparer accepts only the inspected Subway Builder 1.7.0 preload and
+renderer checksums.
 It creates a reviewable archive and checksum plan. The installer checks the
 current archive against the plan, retains the exact original at
 `resources/app.asar.before-open-world-save-read`, and records a receipt beside
@@ -81,8 +98,9 @@ it. Preparing an installed patch verifies its receipt and the original backup,
 then stages an upgrade from that verified original. Applying the upgrade keeps
 the original backup and retains the previous installation until the replacement
 receipt is published. Stale plans, changed receipts and interrupted transaction
-files are rejected. Only the preload entry and its ASAR header/integrity metadata
-change; every other member retains its original bytes. Restoration verifies both current and
+files are rejected. Only the verified preload and renderer entries and their
+ASAR header/integrity metadata change; every other member retains its original
+bytes. Restoration verifies both current and
 backup checksums before restoring the original archive.
 
 Game updates may replace the patch. The installer and restorer refuse to
@@ -143,6 +161,8 @@ concurrency and errors, archive member preservation, rollback, and refusal to
 overwrite an updated host.
 
 ## Load Game menu and preview check, September 19, 2026
+
+The following records the diagnosis before the menu patch above was implemented.
 
 The current 1.7.0 installation still has the `native-save-read-json-v1` preload
 patch. Its renderer entry is `dist/renderer/public/index-CM0DI1Ho.js`, SHA-256

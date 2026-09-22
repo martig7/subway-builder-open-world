@@ -5,15 +5,54 @@ import { readAsarEntry, replaceAsarEntry, sha256 } from '../host/asar-entry.js';
 import { installNativeSaveReadBridge } from '../host/native-save-read-bridge.js';
 
 const PRELOAD = 'dist/preload/preload.js';
+const RENDERER = 'dist/renderer/public/index-CM0DI1Ho.js';
 const MARKER = 'OPEN_WORLD_NATIVE_SAVE_READ_PATCH_V1';
-// Game updates require reviewing the native preload before extending this list.
+const MENU_MARKER = 'OPEN_WORLD_NATIVE_LOAD_MENU_V1';
+// Game updates require reviewing both native entries before extending this list.
 const SUPPORTED_BUILDS = Object.freeze([{ version: '1.7.0',
-  preloadSha256: '19e2d0d3db1f1a82d85f4559c24f3e255beae5d455a2d7d2de55a20bbfe1c82f' }]);
+  preloadSha256: '19e2d0d3db1f1a82d85f4559c24f3e255beae5d455a2d7d2de55a20bbfe1c82f',
+  rendererPath: RENDERER,
+  rendererSha256: '99fd5ed94f0c77636f32fe1f21c6165bc6649ea528beb03bee7ad87d4b8bd67d' }]);
 
 export function createNativeSaveReadPreload(preload) {
   // Preserve the original script's strict semantics before adding a bootstrap.
   const bootstrap = `"use strict";\n/* ${MARKER} */\n(${installNativeSaveReadBridge.toString()})(require('electron').contextBridge);\n`;
   return Buffer.concat([Buffer.from(bootstrap), preload]);
+}
+
+const NATIVE_LOAD_MENU = `      const fullSave = await loadGame(save2.id, save2.autosaveId);
+      if (!fullSave) {
+        throw new Error("Failed to load save - file may be corrupted or in an unsupported format");
+      }
+      const saveCityCode = inferCityCodeFromSave(fullSave);
+      fullSave.cityCode = saveCityCode;
+      if (window.electron?.setPendingSave) {
+        await window.electron.setPendingSave(fullSave);
+      }
+      goToGame({ city: saveCityCode, resume: true });`;
+
+/** The verified 1.7.0 Load Game menu already has the file path and autosave ID.
+ * Stage that file in the main process, exactly as the native Resume handler does. */
+export function createNativeSaveReadRenderer(renderer) {
+  const source = renderer.toString('utf8');
+  const handlerStart = source.indexOf('  async function handleLoadSave(save2) {');
+  const handlerEnd = source.indexOf('  async function handleDeleteSave(save2) {', handlerStart);
+  if (handlerStart < 0 || handlerEnd < 0 || source.indexOf('  async function handleLoadSave(save2) {', handlerStart + 1) >= 0) {
+    throw new Error('Could not find the verified Load Game handler');
+  }
+  const handler = source.slice(handlerStart, handlerEnd);
+  if (!handler.includes(NATIVE_LOAD_MENU) || handler.indexOf(NATIVE_LOAD_MENU) !== handler.lastIndexOf(NATIVE_LOAD_MENU)) {
+    throw new Error('Native renderer differs from the verified Load Game handler');
+  }
+  const replacement = `      /* ${MENU_MARKER} */
+      if (window.electron?.loadAndSetPendingSave) {
+        const result = await window.electron.loadAndSetPendingSave(save2.id, save2.autosaveId);
+        if (result?.success !== true) throw new Error(result?.error || "Failed to load save - file may be corrupted or in an unsupported format");
+        goToGame({ city: result.cityCode || save2.cityCode || "NYC", resume: true });
+      } else {
+${NATIVE_LOAD_MENU.split('\n').map(line => `  ${line}`).join('\n')}
+      }`;
+  return Buffer.from(source.slice(0, handlerStart) + handler.replace(NATIVE_LOAD_MENU, replacement) + source.slice(handlerEnd));
 }
 
 function patchPaths(archivePath) {
@@ -44,7 +83,8 @@ async function readRegularFile(filename) {
 
 function requirePlan(plan) {
   if (plan?.schemaVersion !== 1 || plan.marker !== MARKER
-    || !['install', 'upgrade'].includes(plan.operation ?? 'install')) throw new Error('Invalid native patch plan');
+    || !['install', 'upgrade'].includes(plan.operation ?? 'install')
+    || Boolean(plan.rendererPath) !== Boolean(plan.rendererSha256)) throw new Error('Invalid native patch plan');
 }
 
 /** The CLI uses the fixed production policy below. A separate policy lets
@@ -54,20 +94,30 @@ export function createNativeSaveReadPatchInstaller({ supportedBuilds = SUPPORTED
   function verifyOriginal(original) {
     const packageInfo = JSON.parse(readAsarEntry(original, 'package.json'));
     const preload = readAsarEntry(original, PRELOAD);
-    if (!builds.some(build => build.version === packageInfo.version && build.preloadSha256 === sha256(preload))) {
-      throw new Error('Native preload differs from the verified Subway Builder 1.7.0 build; no files changed');
-    }
-    return { packageInfo, preload };
+    const build = builds.find(candidate => candidate.version === packageInfo.version
+      && candidate.preloadSha256 === sha256(preload)
+      && (!candidate.rendererPath || candidate.rendererSha256 === sha256(readAsarEntry(original, candidate.rendererPath))));
+    if (!build) throw new Error('Native preload or renderer differs from the verified Subway Builder 1.7.0 build; no files changed');
+    return { packageInfo, preload, build };
   }
-  function verifyReplacement(original, patched, preloadHash) {
+  function verifyReplacement(original, patched, preloadHash, rendererPath, rendererHash) {
     const preload = readAsarEntry(patched, PRELOAD);
     if (sha256(preload) !== preloadHash) throw new Error('Staged preload verification failed');
     const nativePreload = readAsarEntry(original, PRELOAD);
     if (!preload.subarray(-nativePreload.length).equals(nativePreload)
-      || !preload.subarray(0, 128).toString().includes(`/* ${MARKER} */`)
-      || !replaceAsarEntry(original, PRELOAD, preload).equals(patched)) {
-      throw new Error('Native patch contains unexpected changes outside the verified preload bootstrap');
+      || !preload.subarray(0, 128).toString().includes(`/* ${MARKER} */`)) {
+      throw new Error('Native patch contains an unexpected preload bootstrap');
     }
+    let expected = replaceAsarEntry(original, PRELOAD, preload);
+    if (rendererPath && rendererHash) {
+      const renderer = readAsarEntry(patched, rendererPath);
+      if (sha256(renderer) !== rendererHash
+        || !renderer.equals(createNativeSaveReadRenderer(readAsarEntry(original, rendererPath)))) {
+        throw new Error('Staged renderer verification failed');
+      }
+      expected = replaceAsarEntry(expected, rendererPath, renderer);
+    }
+    if (!expected.equals(patched)) throw new Error('Native patch contains unexpected changes outside the verified entries');
   }
   async function installedState(paths, current) {
     const receiptBytes = await readRegularFile(paths.receiptPath);
@@ -84,7 +134,10 @@ export function createNativeSaveReadPatchInstaller({ supportedBuilds = SUPPORTED
     if (receipt.gameVersion != null && receipt.gameVersion !== verified.packageInfo.version) {
       throw new Error('Native patch receipt game version differs');
     }
-    verifyReplacement(original, current, receipt.preloadSha256);
+    if (receipt.rendererPath && receipt.rendererPath !== verified.build.rendererPath) {
+      throw new Error('Native patch receipt renderer target differs');
+    }
+    verifyReplacement(original, current, receipt.preloadSha256, receipt.rendererPath, receipt.rendererSha256);
     return { original, receipt, receiptBytes, ...verified };
   }
   async function noInterruptedTransaction(paths) {
@@ -103,7 +156,11 @@ export function createNativeSaveReadPatchInstaller({ supportedBuilds = SUPPORTED
     if (!upgrade) await requireAbsent([paths.backupPath]);
     const verified = upgrade ? await installedState(paths, current)
       : { original: current, ...verifyOriginal(current) };
-    const patched = replaceAsarEntry(verified.original, PRELOAD, createNativeSaveReadPreload(verified.preload));
+    let patched = replaceAsarEntry(verified.original, PRELOAD, createNativeSaveReadPreload(verified.preload));
+    if (verified.build.rendererPath) {
+      patched = replaceAsarEntry(patched, verified.build.rendererPath,
+        createNativeSaveReadRenderer(readAsarEntry(verified.original, verified.build.rendererPath)));
+    }
     const stagedPath = path.resolve(outputPath);
     const stagedParent = await realpath(path.dirname(stagedPath));
     const resolvedStage = path.join(stagedParent, path.basename(stagedPath));
@@ -115,6 +172,8 @@ export function createNativeSaveReadPatchInstaller({ supportedBuilds = SUPPORTED
       archivePath, stagedPath, gameVersion: verified.packageInfo.version,
       currentSha256: sha256(current), originalSha256: sha256(verified.original),
       patchedSha256: sha256(patched), preloadSha256: sha256(readAsarEntry(patched, PRELOAD)),
+      ...(verified.build.rendererPath ? { rendererPath: verified.build.rendererPath,
+        rendererSha256: sha256(readAsarEntry(patched, verified.build.rendererPath)) } : {}),
       ...(upgrade ? { receiptSha256: sha256(verified.receiptBytes) } : {}) };
     await writeFile(stagedPath, patched, { flag: 'wx' });
     try { await writeFile(`${stagedPath}.json`, `${JSON.stringify(plan, null, 2)}\n`, { flag: 'wx' }); }
@@ -139,7 +198,8 @@ export function createNativeSaveReadPatchInstaller({ supportedBuilds = SUPPORTED
       || (upgrade && sha256(verified.receiptBytes) !== plan.receiptSha256)) {
       throw new Error('Native backup or receipt changed; prepare again');
     }
-    verifyReplacement(verified.original, staged, plan.preloadSha256);
+    if (plan.rendererPath !== verified.build.rendererPath) throw new Error('Staged renderer target differs from verified game');
+    verifyReplacement(verified.original, staged, plan.preloadSha256, plan.rendererPath, plan.rendererSha256);
     const receipt = { ...plan, archivePath, backupPath: paths.backupPath, appliedAt: new Date().toISOString() };
     // The exclusive temporary file also excludes a concurrent apply. Never
     // remove a pre-existing temp: it may belong to an interrupted installation.

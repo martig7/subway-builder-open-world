@@ -14,19 +14,24 @@ const { prepareNativeSaveReadPatch, applyNativeSaveReadPatch, restoreNativeSaveR
   supportedBuilds: [{ version: '1.7.0', preloadSha256: sha256(Buffer.from('native preload')) }],
 });
 
-function fixtureArchive() {
+function fixtureArchive(renderer = null) {
   const preload = Buffer.from('native preload'), other = Buffer.from('other native bytes\0\xff');
   const packageInfo = Buffer.from('{"version":"1.7.0"}');
+  const rendererBytes = renderer == null ? null : Buffer.from(renderer);
+  const rendererFiles = rendererBytes ? { renderer: { files: { public: { files: { 'index-test.js': {
+    offset: String(preload.length), size: rendererBytes.length,
+  } } } } } } : {};
+  const afterRenderer = preload.length + (rendererBytes?.length ?? 0);
   const header = { files: { dist: { files: { preload: { files: { 'preload.js': {
     offset: '0', size: preload.length, integrity: { algorithm: 'SHA256', hash: sha256(preload), blockSize: 8,
       blocks: [sha256(preload.subarray(0, 8)), sha256(preload.subarray(8))] },
-  } } } } }, 'other.bin': { offset: String(preload.length), size: other.length },
-    'package.json': { offset: String(preload.length + other.length), size: packageInfo.length } } };
+  } } }, ...rendererFiles } }, 'other.bin': { offset: String(afterRenderer), size: other.length },
+    'package.json': { offset: String(afterRenderer + other.length), size: packageInfo.length } } };
   const json = Buffer.from(JSON.stringify(header)), size = 4 + Math.ceil(json.length / 4) * 4;
   const prefix = Buffer.alloc(12 + size);
   prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(size + 4, 4); prefix.writeUInt32LE(size, 8);
   prefix.writeUInt32LE(json.length, 12); json.copy(prefix, 16);
-  return Buffer.concat([prefix, preload, other, packageInfo]);
+  return Buffer.concat([prefix, preload, ...(rendererBytes ? [rendererBytes] : []), other, packageInfo]);
 }
 
 async function withInstalledFixture(run) {
@@ -126,6 +131,50 @@ test('upgrading a verified installation preserves its original backup and restor
     assert.deepEqual(readAsarEntry(await readFile(archivePath), 'other.bin'), readAsarEntry(original, 'other.bin'));
     assert.equal(JSON.parse(await readFile(receiptPath, 'utf8')).patchedSha256, sha256(patched));
     await restoreNativeSaveReadPatch({ gameRoot: root });
+    assert.deepEqual(await readFile(archivePath), original);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('an upgrade patches only the verified native menu and preload, then restores both', async () => {
+  const rendererPath = 'dist/renderer/public/index-test.js';
+  const renderer = `  async function handleLoadSave(save2) {
+      const fullSave = await loadGame(save2.id, save2.autosaveId);
+      if (!fullSave) {
+        throw new Error("Failed to load save - file may be corrupted or in an unsupported format");
+      }
+      const saveCityCode = inferCityCodeFromSave(fullSave);
+      fullSave.cityCode = saveCityCode;
+      if (window.electron?.setPendingSave) {
+        await window.electron.setPendingSave(fullSave);
+      }
+      goToGame({ city: saveCityCode, resume: true });
+  }
+  async function handleDeleteSave(save2) {}`;
+  const original = fixtureArchive(renderer), preload = readAsarEntry(original, 'dist/preload/preload.js');
+  const installer = createNativeSaveReadPatchInstaller({ supportedBuilds: [{ version: '1.7.0',
+    preloadSha256: sha256(preload), rendererPath, rendererSha256: sha256(Buffer.from(renderer)) }] });
+  const root = await mkdtemp(path.join(os.tmpdir(), 'open-world-menu-upgrade-'));
+  try {
+    await mkdir(path.join(root, 'resources'));
+    await writeFile(path.join(root, 'game.exe'), 'fixture');
+    const archivePath = path.join(root, 'resources', 'app.asar');
+    const previous = replaceAsarEntry(original, 'dist/preload/preload.js', createNativeSaveReadPreload(preload));
+    const backupPath = `${archivePath}.before-open-world-save-read`;
+    const receiptPath = `${archivePath}.open-world-save-read.json`;
+    await writeFile(archivePath, previous);
+    await writeFile(backupPath, original);
+    await writeFile(receiptPath, JSON.stringify({ schemaVersion: 1, marker: 'OPEN_WORLD_NATIVE_SAVE_READ_PATCH_V1',
+      archivePath, backupPath, originalSha256: sha256(original), patchedSha256: sha256(previous),
+      preloadSha256: sha256(readAsarEntry(previous, 'dist/preload/preload.js')) }));
+    const plan = await installer.prepareNativeSaveReadPatch({ gameRoot: root, outputPath: path.join(root, 'staged.asar') });
+    assert.equal(plan.operation, 'upgrade');
+    assert.equal(plan.rendererPath, rendererPath);
+    const staged = await readFile(plan.stagedPath);
+    assert.match(readAsarEntry(staged, rendererPath).toString(), /OPEN_WORLD_NATIVE_LOAD_MENU_V1/);
+    assert.deepEqual(readAsarEntry(staged, 'other.bin'), readAsarEntry(original, 'other.bin'));
+    await installer.applyNativeSaveReadPatch(plan);
+    assert.deepEqual(await readFile(archivePath), staged);
+    await installer.restoreNativeSaveReadPatch({ gameRoot: root });
     assert.deepEqual(await readFile(archivePath), original);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
