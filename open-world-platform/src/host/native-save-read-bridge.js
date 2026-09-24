@@ -70,7 +70,10 @@ export function installNativeSaveReadBridge(contextBridge) {
       const route = location?.hash?.startsWith('#/') ? location.hash.slice(1)
         : `${location?.pathname ?? ''}${location?.search ?? ''}`;
       const [pathname, search = ''] = route.split('?');
-      return pathname === '/game' ? new URLSearchParams(search).get('city') : null;
+      const city = pathname === '/game' ? new URLSearchParams(search).get('city') : null;
+      // The release loader may qualify the route as "manifest-id:tile-id" while
+      // native saves and World transitions retain the bare tile city code.
+      return city == null ? null : city.slice(city.lastIndexOf(':') + 1);
     }
     function identity(save) {
       const marker = save?.metadata?.openWorldNativeRecovery;

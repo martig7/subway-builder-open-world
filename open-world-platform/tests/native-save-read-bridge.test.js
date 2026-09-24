@@ -102,9 +102,11 @@ function deferred() {
   return { promise, resolve };
 }
 
-function localHarness({ write = null, remove = null, messaging = true, delayMessages = false } = {}) {
+function localHarness({ write = null, remove = null, messaging = true, delayMessages = false,
+  cityPrefix = null } = {}) {
   const listeners = new Map(), messages = [], crossings = [], calls = [];
-  const location = { hash: '#/game?city=JP_A', pathname: '/', search: '' };
+  const route = city => `#/game?city=${encodeURIComponent(cityPrefix ? `${cityPrefix}:${city}` : city)}&mode=easy`;
+  const location = { hash: route('JP_A'), pathname: '/', search: '' };
   let pending = null;
   const window = {};
   const listen = (type, fn) => {
@@ -167,7 +169,7 @@ function localHarness({ write = null, remove = null, messaging = true, delayMess
   vm.runInContext(`(${installNativeSaveReadBridge.toString()})(bridge)`, isolated);
   bridge.exposeInMainWorld('electron', native);
   return { api: main.electron, calls, crossings, ports, pending: () => pending,
-    destination: city => { location.hash = `#/game?city=${city}`; dispatch('hashchange', {}); },
+    destination: city => { location.hash = route(city); dispatch('hashchange', {}); },
     deliverMessages: () => { for (const message of messages.splice(0)) dispatch('message', { ...message, source: window }); },
     expireTimers: () => { for (const [timer, callback] of [...timers]) { clearTimeout(timer); timers.delete(timer); callback(); } },
     close: () => { for (const timer of timers.keys()) clearTimeout(timer); },
@@ -203,6 +205,18 @@ test('local handoff backs up once without a graph crossing contextBridge and con
     assert.equal(h.pending(), null, 'native loader removes the recovery backup normally');
     assert.deepEqual(h.calls, ['set:recovery-a', 'remove']);
     assert.ok(h.ports.every(port => port.closed));
+  } finally { h.close(); }
+});
+
+test('release-qualified game routes stage and consume a bare tile city handoff', async () => {
+  const h = localHarness({ cityPrefix: 'northeast-corridor-open-world' });
+  try {
+    const save = localSave();
+    const staged = await h.api.__openWorldStageLocalHandoff(save);
+    assert.equal(staged.success, true);
+    h.destination('JP_B');
+    assert.equal((await h.api.getPendingSave()).data, save);
+    assert.equal(h.api.__openWorldLocalHandoffStats().consumed, 1);
   } finally { h.close(); }
 });
 
