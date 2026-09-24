@@ -122,6 +122,10 @@ def write_archive(directory, stem, records):
             offset, length = payloads[payload_key]
             entries.append((key, offset, length, 0))
             counts[record['source']] += 1
+        if not entries:
+            # Package installers require a nonempty asset. The zero-entry index
+            # never reads this byte, so it preserves the empty route set.
+            stream.write(b'\0')
     with index_path.with_suffix('.idx.pending').open('wb') as stream:
         stream.write(HEADER.pack(MAGIC, 1, len(entries)))
         for entry in sorted(entries):

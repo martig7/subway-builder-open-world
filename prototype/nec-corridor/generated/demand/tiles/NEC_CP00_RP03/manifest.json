@@ -1,0 +1,64 @@
+{
+  "assets": [
+    {
+      "bytes": 1073265,
+      "path": "cross_commutes.json",
+      "sha256": "12a03d17034d98d429818becadd119baf25cb573f179d6b9c2efeeaafb4b558d"
+    },
+    {
+      "bytes": 5210934,
+      "path": "cross_demand.json.gz",
+      "sha256": "e067e2ca970f3d30ab644fb68be375c43c417d6c65f5d206a58505c1990f3d78"
+    },
+    {
+      "bytes": 36881,
+      "path": "demand_data.json.gz",
+      "sha256": "d6de4779f481f7569a758b1f2a21b31287af167bf82c1696e89d1167dca278c1"
+    }
+  ],
+  "cityCode": "NEC_CP00_RP03",
+  "dataFiles": {
+    "demandData": "demand_data.json.gz"
+  },
+  "drivingModel": {
+    "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
+    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:b5be204e65676946",
+    "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
+    "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
+    "passengerFerry": {
+      "catalogId": "fdae73efc51988f5b3cded79903c6a2ee4f885581dc99927a202c1e359acfa1d",
+      "costModel": "existing distance-based game cost; ferry fares not supplied",
+      "scheduleWaitSeconds": 0,
+      "transferSeconds": 300.0,
+      "version": "passenger-ferry-v1"
+    },
+    "profile": "driving",
+    "provider": "osrm",
+    "straightWater": {
+      "costModel": "existing game driving-distance cost; not a real ferry service",
+      "landMaskId": "b5be204e6567694609480f8dd3954fbbcb55751c5b095a4b2c3759fdce9c384a",
+      "maxShoreAccessMetres": 1500.0,
+      "shoreAccessSpeedMps": 1.4,
+      "synthetic": true,
+      "transferSeconds": 0,
+      "version": "straight-water-v1",
+      "waterSpeedKph": 5.0
+    }
+  },
+  "runtimeFiles": {
+    "crossCommutes": {
+      "encoding": "canonical-json",
+      "path": "cross_commutes.json",
+      "role": "cross-tile-commute-summary"
+    },
+    "crossDemand": {
+      "encoding": "gzip-json",
+      "path": "cross_demand.json.gz",
+      "role": "cross-tile-demand-viewer"
+    },
+    "schemaVersion": 1
+  },
+  "schemaVersion": 1,
+  "sha256": "d6de4779f481f7569a758b1f2a21b31287af167bf82c1696e89d1167dca278c1",
+  "tileId": "NEC_CP00_RP03"
+}

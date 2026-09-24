@@ -44,19 +44,19 @@ class SelectionTests(unittest.TestCase):
 
     def test_attached_selection_is_frozen_to_the_new_york_grid(self) -> None:
         selection = load_selection(SELECTION_PATH)
-        self.assertEqual(len(selection.tiles), 36)
+        self.assertEqual(len(selection.tiles), 59)
         self.assertEqual(selection.grid.crs, "EPSG:26918")
         self.assertEqual(selection.grid.bounds(0, 0), (553400, 4483300, 631100, 4580600))
         self.assertEqual(selection.tile_id_at(553401, 4483301), "NEC_CP00_RP00")
         self.assertEqual(selection.tile_id_at(631100, 4483301), "NEC_CP01_RP00")
-        self.assertIsNone(selection.tile_id_at(631101, 4775201))
+        self.assertEqual(selection.tile_id_at(631101, 4775201), "NEC_CP01_RP03")
 
     def test_catalog_has_selected_neighbors_and_geographic_bounds(self) -> None:
         selection = load_selection(SELECTION_PATH)
         catalog, coverage = build_catalog(selection)
-        self.assertEqual(catalog["selection"]["selectedCount"], 36)
-        self.assertEqual(len(catalog["tiles"]), 36)
-        self.assertEqual(len(coverage["features"]), 36)
+        self.assertEqual(catalog["selection"]["selectedCount"], 59)
+        self.assertEqual(len(catalog["tiles"]), 59)
+        self.assertEqual(len(coverage["features"]), 59)
         center = next(tile for tile in catalog["tiles"] if tile["id"] == "NEC_CP00_RP00")
         self.assertEqual(center["neighbors"], [
             {"direction": "north", "tileId": "NEC_CP00_RP01"},
@@ -74,6 +74,37 @@ class SelectionTests(unittest.TestCase):
                 & {tuple(point) for point in west["boundary"][:-1]}),
             2,
         )
+
+    def test_expansion_matches_populated_adjacent_cells(self) -> None:
+        selection = load_selection(SELECTION_PATH)
+        evidence = json.loads((ROOT.parents[1] / "worlds/nec-corridor/geography/expansion-evidence.json").read_text(encoding="utf-8"))
+        cells = selection.coordinates
+        for candidate in evidence["candidateCells"]:
+            coordinate = candidate["column"], candidate["row"]
+            if candidate["homeWorkers"] > 0:
+                self.assertIn(coordinate, cells)
+            else:
+                self.assertEqual(candidate["crosswalkBlocks"], 0)
+                self.assertNotIn(coordinate, cells)
+
+    def test_depot_codes_preserve_existing_tile_assets(self) -> None:
+        codes = json.loads((ROOT / "config/depot-codes.json").read_text(encoding="utf-8"))["tileCodes"]
+        selection = load_selection(SELECTION_PATH)
+        self.assertEqual(set(codes), set(selection.tile_ids))
+        evidence = json.loads((ROOT.parents[1] / "worlds/nec-corridor/geography/expansion-evidence.json").read_text(encoding="utf-8"))
+        new_tiles = {selection.coordinates[item["column"], item["row"]] for item in evidence["candidateCells"] if item["homeWorkers"] > 0}
+        new_codes = []
+        old_codes = []
+        for tile_id, code in codes.items():
+            if tile_id not in new_tiles:
+                manifest_path = ROOT / "generated/maps/tiles" / tile_id / "map-manifest.json"
+                self.assertEqual(code, json.loads(manifest_path.read_text(encoding="utf-8"))["cityCode"])
+                old_codes.append(code)
+            else:
+                new_codes.append(code)
+        self.assertEqual(len(new_codes), 23)
+        self.assertEqual(len(new_codes), len(set(new_codes)))
+        self.assertFalse(set(new_codes) & set(old_codes))
 
     def test_inconsistent_ownership_is_rejected(self) -> None:
         raw = json.loads(SELECTION_PATH.read_text(encoding="utf-8"))

@@ -17,6 +17,7 @@ from pyproj import Transformer
 
 ROOT = Path("/work")
 CATALOG = ROOT / "generated" / "catalog" / "nec-tile-catalog.json"
+DEPOT_CODES = ROOT / "config" / "depot-codes.json"
 RAW_OSM = ROOT / "raw-data" / "osm"
 OUTPUT = ROOT / "generated" / "maps"
 DEPOT_OUTPUT = OUTPUT / "depot"
@@ -72,12 +73,6 @@ def _count_features(path: Path) -> int | None:
     return count
 
 
-def _depot_code(index: int) -> str:
-    # Depot validates the first two characters as a letter prefix. Keep the
-    # NEC prefix stable while retaining a collision-free numeric tile suffix.
-    return f"NE{index:02d}"
-
-
 def _publish(tile_id: str, depot_code: str, city_dir: Path, tile: dict) -> dict[str, int]:
     tile_dir = OUTPUT / "tiles" / tile_id
     tile_dir.mkdir(parents=True, exist_ok=True)
@@ -110,9 +105,8 @@ def _publish(tile_id: str, depot_code: str, city_dir: Path, tile: dict) -> dict[
     return {name: (tile_dir / name).stat().st_size for name in required}
 
 
-def _build(tile: dict, index: int, osm_sources: dict[str, Path], by_id: dict[str, dict]) -> dict:
+def _build(tile: dict, depot_code: str, osm_sources: dict[str, Path], by_id: dict[str, dict]) -> dict:
     tile_id = tile["id"]
-    depot_code = _depot_code(index)
     marker = OUTPUT / "benchmarks" / f"{tile_id}.json"
     if marker.is_file():
         return json.loads(marker.read_text(encoding="utf-8"))
@@ -211,12 +205,15 @@ def main() -> None:
     unknown = sorted(set(tile_ids) - set(by_id))
     if unknown:
         raise ValueError(f"requested unknown tile IDs: {unknown}")
+    depot_codes = json.loads(DEPOT_CODES.read_text(encoding="utf-8"))["tileCodes"]
+    missing_codes = sorted(set(tile_ids) - set(depot_codes))
+    if missing_codes:
+        raise ValueError(f"missing stable Depot codes: {missing_codes}")
     sources = {postal: RAW_OSM / name for postal, name in OSM_SOURCES.items()}
     missing = [str(path) for path in sources.values() if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"missing NEC OSM inputs: {missing}")
-    global_index = {tile["id"]: index for index, tile in enumerate(tiles)}
-    results = [_build(by_id[tile_id], global_index[tile_id], sources, by_id) for tile_id in tile_ids]
+    results = [_build(by_id[tile_id], depot_codes[tile_id], sources, by_id) for tile_id in tile_ids]
     summary = {"schemaVersion": 1, "prototype": True, "tiles": results, "installedBytes": sum(row["installedBytes"] for row in results), "elapsedSeconds": round(sum(row["elapsedSeconds"] for row in results), 3), "peakRssBytes": max(row["peakRssBytes"] for row in results)}
     target = OUTPUT / "reports" / "nec-depot.json"
     target.parent.mkdir(parents=True, exist_ok=True)

@@ -4,11 +4,11 @@ import path from 'node:path';
 import { loadWorldDefinition } from '../contracts/load-world-definition.js';
 import { OPEN_WORLD_PLATFORM_RELEASE } from '../runtime/start-open-world.js';
 
-export async function verifyWorldMod({ worldRoot, outputRoot }) {
+export async function verifyWorldMod({ worldRoot, outputRoot, installManifestId }) {
   const { definition, worldDefinitionHash } = await loadWorldDefinition(worldRoot);
   const dist = path.resolve(outputRoot);
   const manifest = JSON.parse(await readFile(path.join(dist, 'manifest.json'), 'utf8'));
-  if (manifest.id !== definition.identity.manifestId) throw new Error(`Manifest mismatch: ${manifest.id}`);
+  if (manifest.id !== (installManifestId ?? definition.identity.manifestId)) throw new Error(`Manifest mismatch: ${manifest.id}`);
   if (manifest.main !== 'index.js') throw new Error('Runnable manifest must use index.js');
   const bundlePath = path.join(dist, manifest.main);
   const bundle = await readFile(bundlePath, 'utf8');

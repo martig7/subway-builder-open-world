@@ -57,6 +57,19 @@ test('runtime-only installation leaves verified city files and their server unto
   assert.match(await readFile(path.join(result.targetPath, 'index.js'), 'utf8'), /new-runtime/);
 });
 
+test('release manifest installs into its own directory while retaining the source World identity', async t => {
+  const f = await fixture(t);
+  const releaseId = 'tokyo-kanagawa-open-world';
+  await writeFile(path.join(f.options.outputRoot, 'manifest.json'), JSON.stringify({ id: releaseId, version: '1.0.0', main: 'index.js' }));
+  const result = await f.install({ installManifestId: releaseId });
+  assert.equal(path.basename(result.targetPath), releaseId);
+  assert.equal(result.definition.identity.manifestId, releaseId);
+  assert.equal(JSON.parse(await readFile(path.join(result.targetPath, 'manifest.json'), 'utf8')).id, releaseId);
+  assert.equal(JSON.parse(await readFile(path.join(result.targetPath, 'world-definition.json'), 'utf8')).identity.manifestId,
+    definition.identity.manifestId);
+  await assert.rejects(f.install(), /Manifest mismatch/);
+});
+
 test('changed source and same-size installed corruption each replace only the affected file', async t => {
   const f = await fixture(t);
   const first = await f.install();

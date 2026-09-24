@@ -1,14 +1,14 @@
 {
   "assets": [
     {
-      "bytes": 437735,
+      "bytes": 1073265,
       "path": "cross_commutes.json",
-      "sha256": "ce48ed596293016ec3e59832eb48abd12e6d3b7e0cb950d5ef89df649a0b7eda"
+      "sha256": "95c74e0d60f54b0bac4fa58ce3c2213016dd1f71151768083589c0c10d912c6e"
     },
     {
-      "bytes": 4411524,
+      "bytes": 5210935,
       "path": "cross_demand.json.gz",
-      "sha256": "cabe32257f611fe399b4954c09cc47182dfe2868247c2ab9ec884892ddbd6bc4"
+      "sha256": "cb59fe9d353a8597d9e1dbef66ef9b5250e09db56bbcadc2ae3ff7d5ab3dfb43"
     },
     {
       "bytes": 1598,
@@ -22,7 +22,7 @@
   },
   "drivingModel": {
     "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
-    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
+    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:b5be204e65676946",
     "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
     "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
     "passengerFerry": {
@@ -36,7 +36,7 @@
     "provider": "osrm",
     "straightWater": {
       "costModel": "existing game driving-distance cost; not a real ferry service",
-      "landMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
+      "landMaskId": "b5be204e6567694609480f8dd3954fbbcb55751c5b095a4b2c3759fdce9c384a",
       "maxShoreAccessMetres": 1500.0,
       "shoreAccessSpeedMps": 1.4,
       "synthetic": true,

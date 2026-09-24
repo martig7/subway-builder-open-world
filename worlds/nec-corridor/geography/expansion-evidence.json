@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "source": "2023 LODES8 JT01 main and aux OD plus 2020 Census block crosswalks for 14 NEC workplace jurisdictions",
+  "metric": "homeWorkers and workWorkers are observed jobs, not total residents; candidate cells with zero crosswalk blocks are omitted",
+  "candidateCells": [
+    {
+      "column": 1,
+      "row": 4,
+      "crosswalkBlocks": 8684,
+      "homeWorkers": 145063,
+      "workWorkers": 160729
+    },
+    {
+      "column": 2,
+      "row": 4,
+      "crosswalkBlocks": 5851,
+      "homeWorkers": 37155,
+      "workWorkers": 30704
+    },
+    {
+      "column": 3,
+      "row": 4,
+      "crosswalkBlocks": 4465,
+      "homeWorkers": 40196,
+      "workWorkers": 32255
+    },
+    {
+      "column": 4,
+      "row": 4,
+      "crosswalkBlocks": 8581,
+      "homeWorkers": 157845,
+      "workWorkers": 155335
+    },
+    {
+      "column": 5,
+      "row": 4,
+      "crosswalkBlocks": 4251,
+      "homeWorkers": 44435,
+      "workWorkers": 33199
+    },
+    {
+      "column": -1,
+      "row": 3,
+      "crosswalkBlocks": 3178,
+      "homeWorkers": 14483,
+      "workWorkers": 9734
+    },
+    {
+      "column": 0,
+      "row": 3,
+      "crosswalkBlocks": 6040,
+      "homeWorkers": 70977,
+      "workWorkers": 54501
+    },
+    {
+      "column": 1,
+      "row": 3,
+      "crosswalkBlocks": 7216,
+      "homeWorkers": 64251,
+      "workWorkers": 54302
+    },
+    {
+      "column": 5,
+      "row": 3,
+      "crosswalkBlocks": 19,
+      "homeWorkers": 40,
+      "workWorkers": 17
+    },
+    {
+      "column": -3,
+      "row": 2,
+      "crosswalkBlocks": 12933,
+      "homeWorkers": 138693,
+      "workWorkers": 125041
+    },
+    {
+      "column": -2,
+      "row": 2,
+      "crosswalkBlocks": 14705,
+      "homeWorkers": 207274,
+      "workWorkers": 262823
+    },
+    {
+      "column": -1,
+      "row": 2,
+      "crosswalkBlocks": 12345,
+      "homeWorkers": 105494,
+      "workWorkers": 97735
+    },
+    {
+      "column": 4,
+      "row": 2,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": 5,
+      "row": 2,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": -4,
+      "row": 1,
+      "crosswalkBlocks": 4710,
+      "homeWorkers": 23216,
+      "workWorkers": 16820
+    },
+    {
+      "column": -3,
+      "row": 1,
+      "crosswalkBlocks": 10230,
+      "homeWorkers": 86570,
+      "workWorkers": 83293
+    },
+    {
+      "column": 5,
+      "row": 1,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": -5,
+      "row": 0,
+      "crosswalkBlocks": 13406,
+      "homeWorkers": 98768,
+      "workWorkers": 87931
+    },
+    {
+      "column": -4,
+      "row": 0,
+      "crosswalkBlocks": 10356,
+      "homeWorkers": 103181,
+      "workWorkers": 102333
+    },
+    {
+      "column": 5,
+      "row": 0,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": -5,
+      "row": -1,
+      "crosswalkBlocks": 12476,
+      "homeWorkers": 104766,
+      "workWorkers": 95185
+    },
+    {
+      "column": 1,
+      "row": -1,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": 2,
+      "row": -1,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": 3,
+      "row": -1,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": 4,
+      "row": -1,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": 5,
+      "row": -1,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": -5,
+      "row": -2,
+      "crosswalkBlocks": 8046,
+      "homeWorkers": 139203,
+      "workWorkers": 98666
+    },
+    {
+      "column": 1,
+      "row": -2,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": -5,
+      "row": -3,
+      "crosswalkBlocks": 8481,
+      "homeWorkers": 155510,
+      "workWorkers": 142293
+    },
+    {
+      "column": 0,
+      "row": -3,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": 1,
+      "row": -3,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": -5,
+      "row": -4,
+      "crosswalkBlocks": 5176,
+      "homeWorkers": 45434,
+      "workWorkers": 27279
+    },
+    {
+      "column": -4,
+      "row": -4,
+      "crosswalkBlocks": 21125,
+      "homeWorkers": 565494,
+      "workWorkers": 630303
+    },
+    {
+      "column": -3,
+      "row": -4,
+      "crosswalkBlocks": 10296,
+      "homeWorkers": 229078,
+      "workWorkers": 221983
+    },
+    {
+      "column": -2,
+      "row": -4,
+      "crosswalkBlocks": 2406,
+      "homeWorkers": 13892,
+      "workWorkers": 10047
+    },
+    {
+      "column": -1,
+      "row": -4,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    },
+    {
+      "column": 0,
+      "row": -4,
+      "crosswalkBlocks": 0,
+      "homeWorkers": 0,
+      "workWorkers": 0
+    }
+  ]
+}

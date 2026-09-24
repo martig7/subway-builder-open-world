@@ -9,6 +9,15 @@ from open_world_map_creator.routing.route_geometry import HEADER, ENTRY, MAGIC, 
 
 
 class RouteGeometryTests(unittest.TestCase):
+    def test_empty_route_archive_has_no_index_entries_and_a_packageable_payload(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = write_archive(root, 'driving-routes', [])
+            self.assertEqual(report['routes'], 0)
+            self.assertEqual(report['uniqueRecords'], 0)
+            self.assertEqual(HEADER.unpack((root / 'driving-routes.idx').read_bytes()), (MAGIC, 1, 0))
+            self.assertEqual((root / 'driving-routes.bin').read_bytes(), b'\0')
+
     def test_archive_is_searchable_and_deduplicates_geometry(self):
         record = dict(origin=[1, 2], destination=[3, 4], polyline='abc', source='stored-osrm')
         with TemporaryDirectory() as directory:

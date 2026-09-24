@@ -17,15 +17,19 @@ The background uses [OpenStreetMap](https://www.openstreetmap.org/) tiles and di
 
 ## Implementation started
 
-The current footprint contains 36 tiles. Grid `(0, -2)` (`NEC_CP00_RM02`)
+The current footprint contains 59 tiles. The latest expansion adds a one-cell
+ring, including diagonals, around the previous 36-tile footprint where the 2023 LODES
+crosswalk and OD files show home workers. Twenty-three cells qualify; fourteen adjacent
+cells have no Census crosswalk blocks or intersection with the 2024 Census state
+boundaries and were omitted. The evidence is recorded
+in `worlds/nec-corridor/geography/expansion-evidence.json`. Grid `(0, -2)` (`NEC_CP00_RM02`)
 adds Brigantine and the adjacent New Jersey coast, joining its western neighbor
 at `(-1, -2)` and northern neighbor at `(0, -1)`. Grid `(3, 0)`
 (`NEC_CP03_RP00`) contains the eastern portion of Block Island. The authoritative runtime
 catalog is `worlds/nec-corridor/geography/tile-views.json`; the prototype selection
 and generated catalog carry the same footprint for map and demand compilation.
-The milestone totals below describe the original 34-tile build.
 
-The attached selection is now copied to `input/nec-corridor-selection.json` and validated against the New York grid contract. The first compiler slice generates a 34-tile catalog, optional Census state-intersection metadata, and a GeoJSON coverage layer.
+The attached selection is in `input/nec-corridor-selection.json` and validated against the New York grid contract. The catalog compiler generates 59 tile views, optional Census state-intersection metadata, and a GeoJSON coverage layer.
 
 From the repository root:
 
@@ -57,9 +61,9 @@ python -m nec_world_builder.cli acquire-sources
 
 The command is resumable: existing files are hashed and reused, while `--force` redownloads them. It writes the acquisition manifest and observed SHA-256 values to `raw-data/lodes/acquisition-report.json` and `config/sources.lock.resolved.json`.
 
-The completed workplace-led inventory is in `generated/reports/nec-lodes-inventory.json`. It covers all 34 selected tiles and conserves all 29,499,358 input rows / 32,291,113 workers with zero classification delta. `main` and `aux` remain separate in the report for provenance; workplace states outside this footprint are intentionally excluded.
+The original workplace-led inventory is in `generated/reports/nec-lodes-inventory.json`. It covered the prior 34-tile footprint and conserved all 29,499,358 input rows / 32,291,113 workers with zero classification delta. `main` and `aux` remain separate in the report for provenance; workplace states outside this footprint are intentionally excluded.
 
-To generate the map-only demand set, run `inventory-lodes` with the 14 state crosswalk, `main`, and `aux` mappings from `raw-data/lodes`, adding `--map-only`. That retains only OD pairs whose home and workplace blocks both land in the 34 selected tiles. The completed report is `generated/reports/nec-lodes-map-demand.json`: 22,379,010 retained rows / 24,432,954 workers, with 7,120,348 rows / 7,858,159 workers excluded by the map boundary.
+To generate the map-only demand set, run `inventory-lodes` with the 14 state crosswalk, `main`, and `aux` mappings from `raw-data/lodes`, adding `--map-only`. That retains only OD pairs whose home and workplace blocks both land in the 59 selected tiles. The completed report is `generated/reports/nec-lodes-map-demand.json`: 24,713,828 retained rows / 27,047,629 workers, with 4,785,530 rows / 5,243,484 workers excluded by the map boundary.
 
 The compact tile metrics and internal tile-pair export are generated with:
 
@@ -67,7 +71,7 @@ The compact tile metrics and internal tile-pair export are generated with:
 python -m nec_world_builder.cli build-metrics
 ```
 
-This writes `generated/reports/nec-tile-metrics.json` and `generated/reports/nec-tile-pairs.csv`. The metrics reconcile to 24,432,954 home workers and 24,432,954 workplace workers across all 34 tiles; cross-tile inbound and outbound totals each reconcile to 6,627,084 workers.
+This writes `generated/reports/nec-tile-metrics.json` and `generated/reports/nec-tile-pairs.csv`. The metrics reconcile to 27,047,629 home workers and 27,047,629 workplace workers across all 59 tiles; cross-tile inbound and outbound totals each reconcile to 7,635,196 workers.
 
 The current tests cover export validation, half-open tile assignment, catalog neighbors, acquisition-manifest expansion, mutually exclusive `main`/`aux` classification, and map-only filtering. Auxiliary files from workplace states outside the NEC grid are intentionally out of scope.
 
@@ -83,51 +87,19 @@ The Depot runner downloads the 14 official Geofabrik OSM extracts, uses OSM buil
 
 Use `-SkipDownloads`, `-SkipDemand`, or `-SkipDepot` to resume a specific phase. To run a single tile, pass `-Tile NEC_CM01_RM01`; the wrapper forwards that filter into Docker. OSM source provenance is recorded in `config/osm.sources.json`, and the Depot summary is `generated/maps/reports/nec-depot.json`.
 
-### Generated-road driving-time splice
+### Driving routes
 
-After complete map and demand artifacts exist, enrich them without rerunning
-LODES aggregation, Voronoi packing, Depot, PMTiles, or unified basemaps:
-
-```powershell
-$env:PYTHONPATH = (Join-Path (Get-Location) 'prototype/nec-corridor/src')
-python -m nec_world_builder.cli enrich-driving
-```
-
-The stage constructs a shortest-time graph from the already-generated
-`roads.geojson.gz` files using effective speeds of 85 km/h for highways,
-50 km/h for major roads, and 30 km/h for minor roads. It atomically splices the
-resulting seconds and metres into native and cross-tile demand, recalculates
-cross-commute summaries, and refreshes package hashes. Trips over 250 km, snaps
-farther than 5 km, disconnected paths, and implausible detours retain the prior
-geometric estimate. The audit report is
-`generated/demand/reports/nec-road-routing.json`.
-
-Native outputs and directed cross-tile-pair models are checkpointed in the
-transactional staging directory, so an interrupted run resumes completed work.
-Cross demand is partitioned by directed tile pair: up to four deterministic
-road routes calibrate each partition's distance and time factors, reducing the
-full NEC cross search from 57,531 paths to at most 4,348 representative paths.
-
-### On-demand driving-route rendering
-
-The NEC consumer also serves the game's native
-`map://paths/<city>/<popId>` request for `nec-native-pop-*` and
-`nec-cross-pop-*` cohorts. Native pop details and the cross-demand viewer share
-one asynchronous route-path module. It loads generated `roads.geojson.gz`
-partitions lazily, routes in a Web Worker with the same 85/50/30 km/h effective
-speeds, and caches the two most recent road graphs.
-
-In-tile requests start with the active tile. Cross-tile requests use the
-shortest neighbor chain from the NEC tile catalog and expand that corridor by
-one tile only if the first graph is disconnected. Routes over 250 km, failed
-snaps, disconnected graphs, and excessive detours retain the geometric
-fallback. No route graph is built until a player opens a pop path.
+The published 59-tile demand uses the pinned NEC OSRM driving dataset. The
+routing stage preserves every native and cross-tile cohort while adding driving
+time and distance, then stores route geometry in per-tile archives for the
+game's `map://paths/<city>/<popId>` requests. The publication steps, data
+checks, and fallback policy are in [`docs/nec-routing-publication.md`](../../docs/nec-routing-publication.md).
 
 ## Mod scaffold
 
-`mod/` is the NEC adaptation of the original NY mod. It registers all 36 selected tiles with the same world-tile runtime, keeps the NEC world identity separate from NY saves, embeds the world-level cross-tile demand catalog, and serves each tile's PMTiles archive through the native directory server.
+`mod/` is the NEC adaptation of the original NY mod. It registers all 59 selected tiles with the same world-tile runtime, keeps the NEC world identity separate from NY saves, embeds the world-level cross-tile demand catalog, and serves each tile's PMTiles archive through the native directory server.
 
-The build step stages the two generated sources into the game-facing package layout:
+The build step stages map, demand, and route geometry sources into the game-facing package layout:
 
 ```powershell
 Push-Location .\prototype\nec-corridor\mod
@@ -136,4 +108,13 @@ npm run install:mod
 Pop-Location
 ```
 
-`npm run build` waits until every selected tile has both its demand package and its Depot map package. It writes staged packages to `generated/mod/tiles/` and bundles `start-tile-server.ps1` plus its native PMTiles server helper into `mod/dist/`; it does not install anything into the game. `npm run install:mod` is the explicit install step. It copies each PMTiles archive into the installed city data, launches the bundled startup script from the installed mod directory, and uses port `8799` so the NEC service does not collide with the NY canary service on `8798`.
+For the installed `northeast-corridor-open-world` release identity, use
+`npm run build:release` followed by `npm run install:release` from the same
+mod directory. Both commands use the current shared `open-world-platform`
+implementation and the selected NEC Tile Packages.
+
+`npm run build` waits until every selected tile has its demand, Depot map, and
+route geometry packages. It stages them under `generated/mod/tiles/` and builds
+the runnable bundle in `mod/dist/`. The install commands copy changed packages
+into the game city-data directory and register NEC with the official shared
+PMTiles service on port `8799`.

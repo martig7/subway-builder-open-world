@@ -1,19 +1,19 @@
 {
   "assets": [
     {
-      "bytes": 437735,
+      "bytes": 1073265,
       "path": "cross_commutes.json",
-      "sha256": "69d1cf63bca7f4620099f1e4c58259d730cef547e36956f2da33a2f50f5d60ed"
+      "sha256": "85195f047990c32f49789fa15f15b4712b11f85e8178ef82488ee222fcf66241"
     },
     {
-      "bytes": 4411524,
+      "bytes": 5210934,
       "path": "cross_demand.json.gz",
-      "sha256": "2d381abb9fa44a3449172e11deb7bf0df6984856e4000911fc6e01ca8953a3d5"
+      "sha256": "90f2b8b3a32aac19d0cdd72118454c9ffebc04b36c72fda99ea0a820a0adae6a"
     },
     {
-      "bytes": 185220,
+      "bytes": 185219,
       "path": "demand_data.json.gz",
-      "sha256": "573bc917ea9859fdddbc440041524bf2615c7fab5c8728dd1a4e55d9b8d473de"
+      "sha256": "686c08685185da39da68af9a7509bf04ccac7b5fef8ec47fe02e717ff22cf0ca"
     }
   ],
   "cityCode": "NEC_CP02_RP01",
@@ -22,7 +22,7 @@
   },
   "drivingModel": {
     "datasetId": "geofabrik-nec-fa3341c01012db3c-car-v6",
-    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:df5f3d156bb05f89",
+    "graphVersion": "osrm:geofabrik-nec-fa3341c01012db3c-car-v6:passenger-ferry-v1:fdae73efc51988f5:straight-water-v1:b5be204e65676946",
     "label": "OSRM driving profile (geofabrik-nec-fa3341c01012db3c-car-v6)",
     "longDistanceFallback": "great-circle \u00d7 configured circuity at configured fallback speed",
     "passengerFerry": {
@@ -36,7 +36,7 @@
     "provider": "osrm",
     "straightWater": {
       "costModel": "existing game driving-distance cost; not a real ferry service",
-      "landMaskId": "df5f3d156bb05f89c37f9ecf70ff22c636542c88997538b76716073376bf2595",
+      "landMaskId": "b5be204e6567694609480f8dd3954fbbcb55751c5b095a4b2c3759fdce9c384a",
       "maxShoreAccessMetres": 1500.0,
       "shoreAccessSpeedMps": 1.4,
       "synthetic": true,
@@ -59,6 +59,6 @@
     "schemaVersion": 1
   },
   "schemaVersion": 1,
-  "sha256": "573bc917ea9859fdddbc440041524bf2615c7fab5c8728dd1a4e55d9b8d473de",
+  "sha256": "686c08685185da39da68af9a7509bf04ccac7b5fef8ec47fe02e717ff22cf0ca",
   "tileId": "NEC_CP02_RP01"
 }

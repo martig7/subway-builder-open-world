@@ -33,10 +33,15 @@ export function resolveInstallTargets({ definition, applicationDataPath = applic
   return { applicationDataPath: appData, modsPath, citiesDataPath, targetPath };
 }
 
-export async function installWorldMod({ worldRoot, outputRoot, packageRoot, applicationDataPath, startServer = true, repair = false }, control = serverControl) {
+export async function installWorldMod({ worldRoot, outputRoot, packageRoot, applicationDataPath, installManifestId, startServer = true, repair = false }, control = serverControl) {
   const { definition, selectedTiles } = await loadWorldDefinition(worldRoot);
-  await verifyWorldMod({ worldRoot, outputRoot });
-  const targets = resolveInstallTargets({ definition, applicationDataPath });
+  await verifyWorldMod({ worldRoot, outputRoot, installManifestId });
+  const installedDefinition = installManifestId == null || installManifestId === definition.identity.manifestId ? definition : {
+    ...definition,
+    identity: { ...definition.identity, manifestId: installManifestId },
+    release: { ...definition.release, installDirectoryName: installManifestId },
+  };
+  const targets = resolveInstallTargets({ definition: installedDefinition, applicationDataPath });
   const distPath = path.resolve(outputRoot);
   const packagesPath = path.resolve(packageRoot);
   const shared = definition.runtime.tileServerProvider === 'shared-native-v4';
@@ -61,11 +66,11 @@ export async function installWorldMod({ worldRoot, outputRoot, packageRoot, appl
   const artifactPlan = await planArtifactFiles(entries, { previous, repair });
 
   const builtManifest = JSON.parse(await readFile(path.join(distPath, 'manifest.json'), 'utf8'));
-  const sharedContext = shared ? await control.prepareSharedServer({ definition, selectedTiles, dataRoot: targets.citiesDataPath, version: builtManifest.version }) : null;
+  const sharedContext = shared ? await control.prepareSharedServer({ definition: installedDefinition, selectedTiles, dataRoot: targets.citiesDataPath, version: builtManifest.version }) : null;
   // Bundle updates leave the running server and unchanged city files alone.
   if (artifactPlan.files.some(file => file.changed && file.key.endsWith('/tiles.pmtiles'))) {
     if (shared) await control.stopSharedServer(sharedContext);
-    else await control.stopTileServer({ definition, starterPath: path.join(distPath, 'start-tile-server.ps1'), installRoot: targets.targetPath });
+    else await control.stopTileServer({ definition: installedDefinition, starterPath: path.join(distPath, 'start-tile-server.ps1'), installRoot: targets.targetPath });
   }
   await mkdir(targets.modsPath, { recursive: true });
   await rm(targets.targetPath, { recursive: true, force: true });
@@ -77,16 +82,16 @@ export async function installWorldMod({ worldRoot, outputRoot, packageRoot, appl
   for (const tile of selectedTiles) for (const filename of WORLD_DATA_FILES) await rm(path.join(targets.citiesDataPath, tile.id, filename), { force: true });
   await writeFile(statePath, `${JSON.stringify(artifactState, null, 2)}\n`);
   const installedManifest = JSON.parse(await readFile(path.join(targets.targetPath, 'manifest.json'), 'utf8'));
-  if (installedManifest.id !== definition.identity.manifestId) throw new Error('Installed manifest verification failed');
+  if (installedManifest.id !== installedDefinition.identity.manifestId) throw new Error('Installed manifest verification failed');
   if (shared) await control.registerSharedWorld(sharedContext);
   const tileServer = startServer
-    ? shared ? await control.startSharedServer(sharedContext, definition)
-      : await control.ensureTileServerReady({ definition, starterPath: path.join(targets.targetPath, 'start-tile-server.ps1') })
+    ? shared ? await control.startSharedServer(sharedContext, installedDefinition)
+      : await control.ensureTileServerReady({ definition: installedDefinition, starterPath: path.join(targets.targetPath, 'start-tile-server.ps1') })
     : { status: 'not-started' };
   if (startServer && definition.demand.routeGeometry) {
     const health = await fetch(`http://127.0.0.1:${definition.runtime.tileServerPort}/_health`, { signal: AbortSignal.timeout(5_000) });
     if (!health.ok || health.headers.get('X-OpenWorld-Route-Archive') !== ROUTE_GEOMETRY_VERSION)
       throw new Error('The installed map service needs the stored-driving-routes-v1 update');
   }
-  return { ...targets, definition, tileServer, changedArtifactFiles: artifactPlan.changed };
+  return { ...targets, definition: installedDefinition, tileServer, changedArtifactFiles: artifactPlan.changed };
 }
