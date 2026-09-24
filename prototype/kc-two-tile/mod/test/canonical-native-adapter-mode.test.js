@@ -183,6 +183,7 @@ test('canonical rail render revisions follow native payload identity and native 
     trains: 0,
     trainStyles: 0,
     trainSimulationActive: true,
+    trainsOutOfService: false,
   });
 
   testFixture.state.timeConfig = { paused: false, timeSpeed: 'ultrafast', elapsedSeconds: 1000 };
@@ -192,6 +193,7 @@ test('canonical rail render revisions follow native payload identity and native 
     trains: 0,
     trainStyles: 0,
     trainSimulationActive: true,
+    trainsOutOfService: false,
   });
 
   testFixture.state.trains = [{ id: 'train-a', progress: 0.5 }];
@@ -201,12 +203,14 @@ test('canonical rail render revisions follow native payload identity and native 
 
   const cachedOwner = Symbol.for('open-world.cached-simulation');
   Object.defineProperty(testFixture.state.handleIncrementGameState, cachedOwner, {
-    value: { controller: { isTickSuppressionActive: () => true } },
+    value: { controller: { isTickSuppressionActive: () => true, areTrainsOutOfService: () => true } },
   });
   testFixture.state.timeConfig = { paused: false, timeSpeed: 'normal', elapsedSeconds: 2000 };
   assert.equal(adapter.getRailRenderRevisions().trainSimulationActive, false,
     'cached mode suppresses native train simulation independently of native speed');
+  assert.equal(adapter.getRailRenderRevisions().trainsOutOfService, true);
   testFixture.state.handleIncrementGameState[cachedOwner].controller.isTickSuppressionActive = () => false;
+  testFixture.state.handleIncrementGameState[cachedOwner].controller.areTrainsOutOfService = () => false;
   testFixture.state.timeConfig.paused = true;
   assert.equal(adapter.getRailRenderRevisions().trainSimulationActive, false,
     'pause suppresses train simulation when cached mode is off');

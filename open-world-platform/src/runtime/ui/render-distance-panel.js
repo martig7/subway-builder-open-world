@@ -81,7 +81,7 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
         'aria-label': 'Ultra-high-speed cached simulation' }),
       'Ultra-high-speed mode'),
     h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
-      'Uses calculated ridership and finances. Trains, signals, crowds, and passenger movements stop simulating. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster. Your choice is remembered between sessions.'),
+      'Uses calculated ridership and finances. Trains go out of service and disappear from the map; trains, signals, crowds, and passenger movements stop simulating. Trains resume in native mode. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster. Your choice is remembered between sessions.'),
     h('div', { className: 'text-xs', role: 'status', 'aria-live': 'polite' },
       simulationState?.error ?? (simulationState?.status === 'restoring' ? 'Restoring Ultra-high-speed mode after the network loads…'
         : simulationState?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'

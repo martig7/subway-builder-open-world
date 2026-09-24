@@ -6,7 +6,7 @@ import { createBoundedCrossTileRoutingCache } from './cross-tile-mode-choice.js'
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v17';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v18';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -297,6 +297,9 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     isTickSuppressionActive() {
       return isSuspended() || stopping != null || (enabled && !disposed && isReady());
     },
+    areTrainsOutOfService() {
+      return !disposed && (stopping != null || (enabled && (isReady() || isSuspended())));
+    },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     invalidate() {
       revision++;
@@ -365,7 +368,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         frozenTrains.clear();
         status = 'off'; error = null; notify();
         })();
-        try { await stopping; } finally { stopping = null; }
+        try { await stopping; } finally { stopping = null; notify(); }
       }
       return snapshot();
     },

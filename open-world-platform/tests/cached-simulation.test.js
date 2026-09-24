@@ -98,8 +98,10 @@ test('tick-suppression status follows the wrapper readiness dispatch condition',
   const f = fixture(undefined, () => ready);
   await f.controller.setEnabled(true);
   assert.equal(f.controller.isTickSuppressionActive(), true);
+  assert.equal(f.controller.areTrainsOutOfService(), true);
   ready = false;
   assert.equal(f.controller.isTickSuppressionActive(), false);
+  assert.equal(f.controller.areTrainsOutOfService(), false, 'an unready cache leaves native train service active');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1, 'an unready cache delegates to native simulation');
   await f.controller.dispose();
@@ -331,10 +333,12 @@ test('replacing the cached wrapper retains pending native work until its origina
 test('cached ticks bypass all native simulation, reuse assignments, honor pause and restore physical fleet', async () => {
   const f = fixture();
   assert.equal(f.controller.isTickSuppressionActive(), false);
+  assert.equal(f.controller.areTrainsOutOfService(), false);
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await f.controller.setEnabled(true);
   assert.equal(f.controller.isTickSuppressionActive(), true);
+  assert.equal(f.controller.areTrainsOutOfService(), true);
   const trains = f.state.trains;
   await f.state.handleIncrementGameState();
   assert.equal(f.state.timeConfig.elapsedSeconds, 25000);
@@ -354,6 +358,7 @@ test('cached ticks bypass all native simulation, reuse assignments, honor pause 
   assert.deepEqual(f.hours, [7, 8]);
   await f.controller.setEnabled(false);
   assert.equal(f.controller.isTickSuppressionActive(), false);
+  assert.equal(f.controller.areTrainsOutOfService(), false);
   assert.equal(f.state.trains[0].id, trains[0].id);
   assert.equal(f.state.trains[0].timings[0].arrivalTime, 29800);
   await f.state.handleIncrementGameState();
@@ -570,7 +575,7 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v17');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v18');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -589,7 +594,7 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v17');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v18');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);

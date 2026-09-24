@@ -718,6 +718,9 @@ export function startOpenWorld({
     },
   });
   diagnostics.cachedSimulation = cachedSimulation.snapshot;
+  hookDisposers.push(cachedSimulation.subscribe(() => {
+    geographicContextController?.syncMovementDeckVisibilityGuard?.();
+  }));
   const tileSimulationHandoff = createTileSimulationHandoff({
     simulation: cachedSimulation,
     schedule: scheduleSimulationPreparation,

@@ -70,6 +70,29 @@ function lineFeature(x = 139, color = 'red') {
   };
 }
 
+test('ultra high speed hides both train passes and restores them without changing the native layers', () => {
+  let revisions = { tracks: 1, trackStyles: 1, trains: 1, trainStyles: 1,
+    trainSimulationActive: true, trainsOutOfService: false };
+  const trains = { type: 'FeatureCollection', features: [
+    { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [139, 35] } },
+  ] };
+  const layers = [new Layer('trains-under', trains), new Layer('trains', trains)];
+  const f = fixture({ layers, revisions });
+  const patch = f.deck.__openWorldMovementDeckVisibilityGuard;
+  assert.ok(f.deck.props.layers.every(layer => layer.props.visible));
+
+  revisions = { ...revisions, trainSimulationActive: false, trainsOutOfService: true };
+  patch.railRenderRevisionProvider = () => revisions;
+  f.deck.setProps({ layers });
+  assert.ok(f.deck.props.layers.every(layer => layer.props.visible === false));
+  assert.equal(patch.nativeLayers, layers, 'native train data stays available when mode ends');
+
+  revisions = { ...revisions, trainSimulationActive: true, trainsOutOfService: false };
+  f.deck.setProps({ layers });
+  assert.ok(f.deck.props.layers.every(layer => layer.props.visible));
+  assert.ok(f.deck.props.layers.every(layer => layer.props.data.features.length === 1));
+});
+
 test('stable rail revisions reuse newly wrapped track and stopped-train layers without legacy comparisons', () => {
   const revisions = { tracks: 7, trackStyles: 2, trains: 11, trainStyles: 3, trainSimulationActive: false };
   const tracks = { type: 'FeatureCollection', features: [lineFeature()] };

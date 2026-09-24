@@ -651,6 +651,15 @@ function cachedSimulationSuppressesNativeTicks(state) {
   }
 }
 
+function cachedSimulationTrainsOutOfService(state) {
+  const controller = state?.handleIncrementGameState?.[CACHED_SIMULATION_OWNER]?.controller;
+  if (!controller) return false;
+  if (typeof controller.areTrainsOutOfService === 'function') {
+    return controller.areTrainsOutOfService() === true;
+  }
+  return controller.snapshot?.()?.enabled === true;
+}
+
 function readRailRenderRevisions(callbacks, state) {
   if (!callbacks || (typeof callbacks !== 'object' && typeof callbacks !== 'function')) return null;
   if (!hasRailRenderPayloads(state)) return null;
@@ -701,6 +710,7 @@ function readRailRenderRevisions(callbacks, state) {
     // therefore not train-render invalidation signals.
     trainSimulationActive: timeConfig.paused !== true
       && !cachedSimulationSuppressesNativeTicks(state),
+    trainsOutOfService: cachedSimulationTrainsOutOfService(state),
   };
 }
 

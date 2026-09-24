@@ -59,7 +59,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-export const MOVEMENT_DECK_GUARD_VERSION = 34;
+export const MOVEMENT_DECK_GUARD_VERSION = 35;
 export const RAIL_RENDER_CACHE_VERSION = 'rail-render-bounded-static-snapshots-v34';
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
@@ -1948,6 +1948,7 @@ function maskMovementDeckLayers(
   const hiddenByOverview = isLowZoomOverview(zoom) && !isRailLine;
   const nativeVisible = (layers.props?.visible ?? layers.visible) !== false;
   const hidden = !nativeVisible || hiddenByOverview
+    || (/^trains(?:-under)?$/i.test(String(layerId)) && railRenderRevisions?.trainsOutOfService === true)
     || ((isMovement || isStationDeckLayer) && !isDetailedMovementZoom(zoom))
     || (isRoad && !isDetailedRoadZoom(layerId, zoom));
   if (hidden) {
@@ -2433,6 +2434,7 @@ function revisionSignature(revisions) {
     revisions.trains,
     revisions.trainStyles,
     revisions.trainSimulationActive,
+    revisions.trainsOutOfService,
   ].map(value => value ?? 'unknown').join(':');
 }
 
