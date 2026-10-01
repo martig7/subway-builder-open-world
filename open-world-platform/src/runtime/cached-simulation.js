@@ -6,7 +6,7 @@ import { createBoundedCrossTileRoutingCache } from './cross-tile-mode-choice.js'
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v18';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v19';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -78,7 +78,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     }
     return result;
   };
-  let enabled = false, disposed = false, busy = null, refreshPromise = null, stopping = null;
+  let enabled = false, disposed = false, busy = null, refreshPromise = null, starting = null, stopping = null;
   let suspension = null;
   const isSuspended = () => {
     if (disposed || !suspension) return false;
@@ -100,7 +100,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     suspended: isSuspended(),
     pendingMidnightRefresh,
     saveWork: { observed: !disposed && NATIVE_ACTIONS.every(name => getState()[name]?.[OWNER]?.controller === controller),
-      native: nativeWork.size, cached: Boolean(busy || refreshPromise || stopping || isSuspended()) },
+      native: nativeWork.size, cached: Boolean(busy || refreshPromise || starting || stopping || isSuspended()) },
     saveReferenceSharing: NATIVE_SAVE_REFERENCE_SHARING_VERSION,
     ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
     assignedPops: cache?.assignedPops ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
@@ -338,20 +338,42 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
         // Memory admission may defer a destination. Retrying its enable must
         // finish preparation without toggling/rebasing the same interval twice.
         if (value && status !== 'ready') {
+          await starting;
+          if (!enabled || request !== modeRequest || disposed) return snapshot();
           try { await prepareEnabled(request); } catch (failure) { fail(failure); }
         }
         return snapshot();
       }
       if (value) {
+        const targetSession = getState().gameSessionId, targetTile = getState().cityCode;
         enabled = true; revision++; status = 'calculating';
-        startedAt = getState().timeConfig.elapsedSeconds; sessionId = getState().gameSessionId;
-        settledAt = startedAt; cache = null; dependencies = null; cacheContext = null; pendingMidnightRefresh = false;
+        startedAt = null; sessionId = null; settledAt = null;
+        cache = null; dependencies = null; cacheContext = null; pendingMidnightRefresh = false;
         frozenTrains.clear(); notify();
+        const begin = () => {
+          if (!enabled || disposed) return false;
+          const state = getState();
+          if (state.gameSessionId !== targetSession || state.cityCode !== targetTile) {
+            enabled = false; status = 'off'; notify(); return false;
+          }
+          startedAt = state.timeConfig.elapsedSeconds; settledAt = startedAt; sessionId = targetSession;
+          return true;
+        };
+        // 1.7.2 starts native commute waves without awaiting them in the tick.
+        // Block new native calls, then let already observed work publish before
+        // freezing the clock and preparing cached assignments. Accounting must
+        // start after the last native tick, including its finance settlement.
+        if (nativeWork.size) {
+          const drain = controller.drainNativeWork().then(begin);
+          starting = drain;
+          try { if (!await drain || request !== modeRequest) return snapshot(); }
+          finally { if (starting === drain) starting = null; }
+        } else if (!begin()) return snapshot();
         try { await prepareEnabled(request); } catch (failure) { fail(failure); }
       } else {
         enabled = false; revision++;
         stopping = (async () => {
-        await busy; await refreshPromise; await flush();
+        await starting; await busy; await refreshPromise; await flush();
         const state = getState();
         if (state.gameSessionId === sessionId) {
           observeFrozenTrains(state);

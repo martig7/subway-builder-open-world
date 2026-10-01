@@ -93,6 +93,64 @@ function fixture(evaluate = async () => calculated(), isReady = () => true, opti
   return { state, game, controller, postings, hours, days, native: () => ({ nativeTicks, nativeCommutes, nativePaths }) };
 }
 
+test('cached enable drains detached native commute waves and starts accounting after the final native tick', async () => {
+  let finishTick, finishCommute, calculations = 0;
+  const tickPending = new Promise(resolve => { finishTick = resolve; });
+  const commutePending = new Promise(resolve => { finishCommute = resolve; });
+  const f = fixture(async () => { calculations++; return calculated(); }, undefined, { nativeActions: {
+    async handleIncrementGameState() {
+      await tickPending;
+      this.setTimeConfig({ elapsedSeconds: 25008 });
+      this.setTrains(this.trains.map(train => ({ ...train, timings: [{ arrivalTime: 25008 }] })));
+    },
+    async simulateCommutes() {
+      await commutePending;
+      this.setDemandData({ ...this.demandData,
+        popsMap: new Map([...this.demandData.popsMap].map(([id, pop]) => [id, { ...pop, nativeWave: true }])) });
+    },
+  } });
+  const tick = f.state.handleIncrementGameState();
+  const wave = f.state.simulateCommutes();
+  const enabling = f.controller.setEnabled(true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calculations, 0, 'background native results must finish before cached assignments are prepared');
+  finishTick(); await tick;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calculations, 0, 'the detached wave remains observed after the native tick returns');
+  finishCommute(); await wave; await enabling;
+  assert.equal(calculations, 1);
+  assert.equal(f.state.demandData.popsMap.get('p').nativeWave, true);
+  assert.ok(f.state.demandData.popsMap.get('p').commutes.homeToWork);
+  f.state.setTimeConfig({ paused: false, timeSpeed: 'fast' });
+  await f.state.handleIncrementGameState();
+  await f.controller.setEnabled(false);
+  assert.deepEqual(f.postings.map(posting => posting.postingId), ['cached-simulation:one:25008:25016'],
+    'native tick time must not also be charged as cached time');
+  assert.equal(f.state.trains[0].timings[0].arrivalTime, 25016);
+  await f.controller.dispose();
+});
+
+test('a cancelled cached enable or replaced save cannot prepare after a native wave drains', async () => {
+  for (const cancellation of ['disable', 'replace-save']) {
+    let finish, calculations = 0;
+    const pending = new Promise(resolve => { finish = resolve; });
+    const f = fixture(async () => { calculations++; return calculated(); }, undefined,
+      { nativeActions: { simulateCommutes: () => pending } });
+    const wave = f.state.simulateCommutes();
+    const enabling = f.controller.setEnabled(true);
+    let disabling;
+    if (cancellation === 'disable') disabling = f.controller.setEnabled(false);
+    else f.state.gameSessionId = 'replacement-save';
+    finish(); await wave; await enabling; await disabling;
+    assert.equal(calculations, 0, cancellation);
+    assert.equal(f.controller.snapshot().enabled, false, cancellation);
+    assert.equal(f.controller.snapshot().status, 'off', cancellation);
+    assert.equal(f.postings.length, 0, cancellation);
+    assert.equal(f.state.timeConfig.elapsedSeconds, 25000, cancellation);
+    await f.controller.dispose();
+  }
+});
+
 test('tick-suppression status follows the wrapper readiness dispatch condition', async () => {
   let ready = true;
   const f = fixture(undefined, () => ready);
@@ -569,13 +627,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v16', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v18', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v18');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v19');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -588,13 +646,13 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const original = f.state.generateSave[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v16', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v18', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v18');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v19');
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);

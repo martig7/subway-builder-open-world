@@ -59,7 +59,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-export const MOVEMENT_DECK_GUARD_VERSION = 35;
+export const MOVEMENT_DECK_GUARD_VERSION = 36;
 export const RAIL_RENDER_CACHE_VERSION = 'rail-render-bounded-static-snapshots-v34';
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
@@ -1546,11 +1546,31 @@ function sampleBinaryAttribute(attribute, vertexIndex) {
   return values;
 }
 
+const portolanSourceFeatureIndices = new WeakMap();
+const PORTOLAN_PICKING_ORIGINAL = Symbol('portolan-picking-original');
+
+function preservePortolanPickingIndices(layer, renderedData) {
+  const indices = portolanSourceFeatureIndices.get(renderedData);
+  if (!indices || typeof layer?.getPickingInfo !== 'function') return;
+  const nativeGetPickingInfo = layer.getPickingInfo[PORTOLAN_PICKING_ORIGINAL] ?? layer.getPickingInfo;
+  const wrapper = function openWorldPortolanSourcePickingInfo(...args) {
+    const info = nativeGetPickingInfo.apply(this, args);
+    if (!info || !Number.isInteger(info.index) || info.index < 0) return info;
+    // 1.7.2's context menu resolves a binary ribbon index through the original
+    // band.routes. Dropped and split paths must keep that source identity.
+    const sourceIndex = indices[info.index];
+    return sourceIndex == null ? null : { ...info, index: sourceIndex };
+  };
+  Object.defineProperty(wrapper, PORTOLAN_PICKING_ORIGINAL, { value: nativeGetPickingInfo });
+  layer.getPickingInfo = wrapper;
+}
+
 function clipPortolanBinaryPaths(binary, virtualization) {
   const haloBounds = virtualization?.haloBounds;
   if (!Array.isArray(haloBounds)) return binary.source;
   const outputStarts = [0];
   const outputValues = Object.fromEntries(Object.entries(binary.attributes).map(([key]) => [key, []]));
+  const outputSourceIndices = [];
   let outputVertexCount = 0;
   let outputFeatureCount = 0;
   for (let featureIndex = 0; featureIndex < binary.source.length; featureIndex += 1) {
@@ -1579,6 +1599,7 @@ function clipPortolanBinaryPaths(binary, virtualization) {
       }
       outputVertexCount += piece.coordinates.length;
       outputFeatureCount += 1;
+      outputSourceIndices.push(portolanSourceFeatureIndices.get(binary.source)?.[featureIndex] ?? featureIndex);
       outputStarts.push(outputVertexCount);
     }
   }
@@ -1588,12 +1609,14 @@ function clipPortolanBinaryPaths(binary, virtualization) {
       ? { ...attribute, value: sequenceLike(attribute.value, outputValues[key]) }
       : { ...attribute, value: sequenceLike(attribute.value, []) },
   ]));
-  return {
+  const renderedData = {
     ...binary.source,
     length: outputFeatureCount,
     startIndices: sequenceLike(binary.startIndices, outputStarts),
     attributes,
   };
+  portolanSourceFeatureIndices.set(renderedData, new Uint32Array(outputSourceIndices));
+  return renderedData;
 }
 
 function interlinedSourceParts(feature) {
@@ -2299,6 +2322,7 @@ function maskMovementDeckLayers(
   }
   if (omitEmptyStationIcons(overrides.data)) return null;
   const maskedLayer = Object.keys(overrides).length ? cloneLayerWithOverrides(layers, overrides) : layers;
+  if (portolanBinary) preservePortolanPickingIndices(maskedLayer, overrides.data ?? portolanBinary.source);
   if (
     (dataEntry || (isRoad && source))
     && virtualization

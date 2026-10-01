@@ -29,7 +29,7 @@ would eliminate the need for this local compatibility patch.
 
 ## Load Game menu
 
-The verified Subway Builder 1.7.0 Load Game handler previously decoded the
+The verified Subway Builder 1.7.0 and 1.7.2 Load Game handlers decode the
 selected file into the renderer and then sent the full save back to the main
 process with `setPendingSave`. The compatibility installer now patches that
 specific renderer handler to call `loadAndSetPendingSave(path, autosaveId)`, the
@@ -89,8 +89,8 @@ node tools/native-save-read-patch.mjs apply '<staged-app.asar>.json'
 node tools/native-save-read-patch.mjs restore '<game-directory>'
 ```
 
-The preparer accepts only the inspected Subway Builder 1.7.0 preload and
-renderer checksums.
+The preparer accepts only the inspected Subway Builder 1.7.0 and 1.7.2 preload
+and renderer checksums.
 It creates a reviewable archive and checksum plan. The installer checks the
 current archive against the plan, retains the exact original at
 `resources/app.asar.before-open-world-save-read`, and records a receipt beside
@@ -122,6 +122,46 @@ The read version is `native-save-read-json-v2`; the local handoff version is
 `renderer-local-native-handoff-v1`. An ordinary JSON-backed Native Save
 should report a JSON read and no native fallback. Diagnostics return counts and
 encoding time, never the save payload.
+
+## Version 1.7.2 audit, October 1, 2026
+
+The updated game still exposes `getPendingSave`, `loadGameFromPath`,
+`setPendingSave`, and `loadAndSetPendingSave` as ordinary preload IPC functions.
+Its unpatched pending-save read crosses the isolated preload boundary with the
+full decoded object. Its Load Game handler remains the same full
+`loadGame` → `setPendingSave` round trip, while Resume already uses compact
+native `loadAndSetPendingSave` staging. Neither optimization above has been
+superseded by 1.7.2. The optional installer now recognizes these exact reviewed
+entries in addition to 1.7.0:
+
+| Native entry | SHA-256 |
+| --- | --- |
+| `dist/preload/preload.js` | `0b095373ae605b17dee6c0cb105898ec8fd41a108a6dcc128fa449760f7367ce` |
+| `dist/renderer/public/index-NqqqjH9_.js` | `7578256076ff13e3bada8801af26e56c336f83a5c193c9d92c2b9ef0f231240c` |
+
+`scripts/test-native-save-bundle.mjs` executes the complete shipped preload and
+the shipped `load`, `loadGame`, and `handleLoadSave` functions in isolated VMs.
+Electron IPC, navigation, notifications, timers, and the DOM are inert fixtures;
+the native main process is not executed. This proves native pending reads have
+one full-object bridge crossing and native Load Game has two before navigation.
+The same shipped functions with the patch have zero such crossings. Exact
+selected-file/autosave arguments, the loading guard, native staging failures,
+unavailable-host fallback, compact identity reads, and preservation of arbitrary
+save fields (including a reliability-history fixture) pass.
+
+The harness also stages a disposable archive containing the real extracted
+entries through the production checksum policy, verifies only the intended
+entries change, and leaves its original untouched. Installer unit tests cover
+both reviewed versions, independent renderer paths, changed preload/renderer
+bytes, and unknown versions. The focused save tests pass 36/36. These checks
+establish code and transport compatibility; they are not new loading benchmarks
+or evidence of an installed/reloaded host patch.
+
+The shipped main process is bytecode (`dist/main/main.jsc`). Read-only strings
+inspection confirms the existing save IPC channel names and compact result
+fields (`cityCode`, `hasRoutes`, `hasTracks`). Its handler implementation was
+not decompiled into executable source; the compact success/failure responses in
+the VM are fixtures matching the native Resume consumer.
 
 ## Measured Japan result, September 12, 2026
 

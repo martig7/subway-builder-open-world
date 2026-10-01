@@ -1,7 +1,8 @@
 import { SHARED_TRANSIT_STATE_KEYS, hasCompleteNativeTopology } from './shared-transit-network.js';
 import { stripNetworkFromSnapshot } from './network-projection.js';
+import { serializeNativeReliabilityHistory } from './native-reliability-snapshot.js';
 
-export const NATIVE_HANDOFF_VERIFICATION_VERSION = 'native-handoff-exact-reuse-v4';
+export const NATIVE_HANDOFF_VERIFICATION_VERSION = 'native-handoff-exact-reuse-v5';
 export const NATIVE_HANDOFF_LOAD_WAIT_VERSION = 'native-handoff-load-wait-v1';
 const OWNER = Symbol.for('open-world.native-handoff-load-observer');
 const RECOVERY_METADATA_KEY = 'openWorldNativeRecovery';
@@ -10,7 +11,7 @@ const LEDGER_KEYS = [
   'playTimeSeconds', 'totalLifetimeRidership', 'dailyStats', 'stationsDemolishedAllTime',
   'buildingDemolitionSpendAllTime', 'everDemolishedBuilding', 'demolishedOsmIds',
   'routesDeletedAllTime', 'firstTransferMadeAt', 'hasGoneBankrupt', 'rockefellerPaidOut',
-  'yardsEnabled', 'yards', 'trackEditSession',
+  'yardsEnabled', 'yards', 'trackEditSession', 'reliabilityHistory',
 ];
 
 const PAIR_CACHE_LIMIT = 8_192;
@@ -139,9 +140,11 @@ function compareState(expected, actual, { networkOnly = false, nativeLoad = fals
       // session for disrupted routes remains a non-null mismatch and falls back.
       else if (key === 'trackEditSession') expectedValue = null;
     }
+    const actualValue = nativeLoad && key === 'reliabilityHistory'
+      ? serializeNativeReliabilityHistory(actual?.[key]) : actual?.[key];
     const mismatch = nativeLoad && key === 'signals'
       ? compareSignals(expected[key], actual?.[key], budget)
-      : difference(expectedValue, actual?.[key], path, budget);
+      : difference(expectedValue, actualValue, path, budget);
     if (mismatch) return mismatch;
   }
   if (!networkOnly) {

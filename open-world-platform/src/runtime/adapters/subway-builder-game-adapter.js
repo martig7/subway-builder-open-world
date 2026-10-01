@@ -1,5 +1,7 @@
 import { runFrameBudgeted } from '../frame-budget.js';
+import { queryNativeDirectedTrackGraph } from '../native-directed-track-search.js';
 import { shareNativeSaveReferences } from '../native-save-reference-sharing.js';
+import { serializeNativeReliabilityHistory } from '../native-reliability-snapshot.js';
 import { observeNativeTileHandoff } from '../native-handoff-verification.js';
 import { armTileRenderingRetirement } from '../tile-rendering-retirement.js';
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
@@ -35,10 +37,10 @@ import {
 } from '../simulation-performance-diagnostics.js';
 
 /**
- * Subway Builder 1.7.0 integration boundary.
+ * Subway Builder 1.7.2 integration boundary.
  *
  * The public mod API is versioned independently from the game: the inspected
- * 1.7.0 renderer exposes API version 1.0.0.  The unsupported callback global
+ * 1.7.2 renderer exposes API version 1.0.0.  The unsupported callback global
  * contains only setMoney, setTicketCost, and getState; private Zustand actions
  * must be obtained from getState().  Keep every use of that seam in this file.
  */
@@ -108,7 +110,7 @@ const CLIPPED_ROUTE_PREVIEW_EDIT_LISTENERS = Symbol.for('open-world.clipped-rout
 const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_BATCH = Symbol.for('open-world.clipped-route-preview-edit-original-batch');
 const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_CONFIRM = Symbol.for('open-world.clipped-route-preview-edit-original-confirm');
 const CLIPPED_ROUTE_PREVIEW_EDIT_ORIGINAL_SET_PREVIEW = Symbol.for('open-world.clipped-route-preview-edit-original-set-preview');
-const CURRENT_CLIPPED_ROUTE_PREVIEW_EDIT_GUARD_VERSION = 18;
+const CURRENT_CLIPPED_ROUTE_PREVIEW_EDIT_GUARD_VERSION = 19;
 const CANONICAL_NATIVE_MODE_BINDING = Symbol.for('open-world.canonical-native-network-mode');
 const CANONICAL_NATIVE_INTERLINING_CACHE = Symbol.for('open-world.canonical-native-interlining-cache');
 const CANONICAL_NATIVE_INTERLINING_CACHE_VERSION = Symbol.for('open-world.canonical-native-interlining-cache-version');
@@ -121,8 +123,6 @@ const RAIL_RENDER_REVISION_GUARD_VERSION = Symbol.for('open-world.rail-render-re
 const RAIL_RENDER_REVISION_GUARD_ORIGINAL = Symbol.for('open-world.rail-render-revision-guard-original');
 const CURRENT_RAIL_RENDER_REVISIONS_VERSION = 2;
 const CACHED_SIMULATION_OWNER = Symbol.for('open-world.cached-simulation');
-const NATIVE_PASS_THROUGH_PLATFORM_PENALTY = 10.1;
-const NATIVE_TURNBACK_WRONG_WAY_PENALTY = 25;
 const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
   // Sandbox's unlimited balance is a mode invariant, not just a large number.
   // Restoring a destination tile as "easy" would immediately make the native
@@ -141,7 +141,7 @@ const NATIVE_FINANCIAL_STATE_KEYS = Object.freeze([
 ]);
 
 export const SUBWAY_BUILDER_CITY_AUTHORITY_VERSION = 'zustand-city-authority-v6';
-export const NATIVE_TILE_SNAPSHOT_COPY_VERSION = 'native-tile-snapshot-copy-v2';
+export const NATIVE_TILE_SNAPSHOT_COPY_VERSION = 'native-tile-snapshot-copy-v3';
 
 /**
  * Read the current city from the live Zustand snapshot.
@@ -209,6 +209,13 @@ export function prepareNativeTileRestoreSnapshot(snapshot, {
   }
   if (preserveCompletedCommutes) {
     draft.data.completedCommutes = compactNativeSnapshot({ data: authoritativeFinanceState }).data.completedCommutes ?? [];
+  }
+  if (preserveNativeFinance && (Object.hasOwn(authoritativeFinanceState ?? {}, 'reliabilityHistory')
+    || Object.hasOwn(fallbackState ?? {}, 'reliabilityHistory'))) {
+    draft.data.reliabilityHistory = serializeNativeReliabilityHistory(
+      Object.hasOwn(authoritativeFinanceState ?? {}, 'reliabilityHistory')
+        ? authoritativeFinanceState.reliabilityHistory : fallbackState?.reliabilityHistory,
+    );
   }
   if (cityCode) {
     const uid = cityUid || cityCode;
@@ -1159,26 +1166,7 @@ function nativeTrackGraphDistance(state, startNode, endNode) {
   const platformTrackIds = new Set((state?.stNodes ?? [])
     .flatMap((node) => node?.trackIds ?? [])
     .map(String));
-  const distances = new Map([[startKey, 0]]);
-  const queue = [{ key: startKey, distance: 0 }];
-  while (queue.length > 0) {
-    queue.sort((left, right) => left.distance - right.distance);
-    const current = queue.shift();
-    if (current.distance !== distances.get(current.key)) continue;
-    if (current.key === endKey) return current.distance;
-    for (const edge of trackGraph.get(current.key) ?? []) {
-      const nextKey = String(edge?.coordsString ?? '');
-      if (!nextKey) continue;
-      const weight = 1
-        + (platformTrackIds.has(String(edge?.trackId)) ? NATIVE_PASS_THROUGH_PLATFORM_PENALTY : 0)
-        + ((edge?.trackIsReversed ?? edge?.reversed) ? NATIVE_TURNBACK_WRONG_WAY_PENALTY : 0);
-      const nextDistance = current.distance + weight;
-      if (nextDistance >= (distances.get(nextKey) ?? Infinity)) continue;
-      distances.set(nextKey, nextDistance);
-      queue.push({ key: nextKey, distance: nextDistance });
-    }
-  }
-  return Infinity;
+  return queryNativeDirectedTrackGraph(trackGraph, platformTrackIds, startKey, endKey).distance;
 }
 
 function nativeDirectedTrackPath(state, startNode, endNode) {
@@ -1190,43 +1178,7 @@ function nativeDirectedTrackPath(state, startNode, endNode) {
   const platformTrackIds = new Set((state?.stNodes ?? [])
     .flatMap((node) => node?.trackIds ?? [])
     .map(String));
-  const distances = new Map([[startKey, 0]]);
-  const previous = new Map();
-  const queue = [{ key: startKey, distance: 0 }];
-  while (queue.length > 0) {
-    queue.sort((left, right) => left.distance - right.distance);
-    const current = queue.shift();
-    if (current.distance !== distances.get(current.key)) continue;
-    if (current.key === endKey) {
-      const path = [];
-      let cursor = endKey;
-      while (cursor !== startKey) {
-        const step = previous.get(cursor);
-        if (!step) return null;
-        path.push({
-          trackId: String(step.edge.trackId),
-          reversed: Boolean(step.edge.trackIsReversed ?? step.edge.reversed),
-          length: Number(step.edge.trackLength ?? step.edge.length) || 0,
-          signals: [],
-        });
-        cursor = step.from;
-      }
-      return path.reverse();
-    }
-    for (const edge of trackGraph.get(current.key) ?? []) {
-      const nextKey = String(edge?.coordsString ?? '');
-      if (!nextKey) continue;
-      const weight = 1
-        + (platformTrackIds.has(String(edge?.trackId)) ? NATIVE_PASS_THROUGH_PLATFORM_PENALTY : 0)
-        + ((edge?.trackIsReversed ?? edge?.reversed) ? NATIVE_TURNBACK_WRONG_WAY_PENALTY : 0);
-      const nextDistance = current.distance + weight;
-      if (nextDistance >= (distances.get(nextKey) ?? Infinity)) continue;
-      distances.set(nextKey, nextDistance);
-      previous.set(nextKey, { from: current.key, edge });
-      queue.push({ key: nextKey, distance: nextDistance });
-    }
-  }
-  return null;
+  return queryNativeDirectedTrackGraph(trackGraph, platformTrackIds, startKey, endKey, { withPath: true }).path;
 }
 
 function attachSignalsToPath(path, signals) {
@@ -1884,7 +1836,7 @@ export class SubwayBuilderGameAdapter {
     api = globalThis.SubwayBuilderAPI,
     callbacks = globalThis.__subwayBuilder_storeCallbacks__,
     expectedApiVersion = '1.0.0',
-    inspectedGameVersion = '1.7.0',
+    inspectedGameVersion = '1.7.2',
     nativeSaveLifecycle = null,
   } = {}) {
     this.api = api;
@@ -3251,6 +3203,9 @@ export class SubwayBuilderGameAdapter {
     ];
     for (const key of liveKeys) {
       if (state[key] !== undefined) data[key] = state[key];
+    }
+    if (Object.hasOwn(state, 'reliabilityHistory')) {
+      data.reliabilityHistory = serializeNativeReliabilityHistory(state.reliabilityHistory);
     }
     data.elapsedSeconds = state.timeConfig?.elapsedSeconds ?? data.elapsedSeconds ?? 0;
 

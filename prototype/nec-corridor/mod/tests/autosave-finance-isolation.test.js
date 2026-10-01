@@ -234,7 +234,7 @@ test('autosave is observational and cannot checkpoint or mutate native finance',
     });
     assert.equal(globalThis.__necCorridorDiagnostics__?.saveAuthorityVersion, 'native-save-authority-v1');
     assert.equal(globalThis.__necCorridorDiagnostics__?.capability?.supported, true);
-    assert.equal(globalThis.__necCorridorDiagnostics__?.capability?.inspectedGameVersion, '1.7.0');
+    assert.equal(globalThis.__necCorridorDiagnostics__?.capability?.inspectedGameVersion, '1.7.2');
     assert.equal(globalThis.__necCorridorDiagnostics__?.capability?.interliningModel, 'portolan-v1');
     assert.deepEqual(globalThis.__necCorridorDiagnostics__?.capability?.missing, []);
     assert.deepEqual(counters.unregisteredComponents.slice(0, 2), [

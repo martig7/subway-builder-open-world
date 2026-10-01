@@ -102,6 +102,17 @@ test('a staged exact native load reuses authority after normal 1.7 loader transf
   assert.equal(f.consume().reused, false, 'proof is one-use');
 });
 
+for (const changed of [false, true]) test(`1.7.2 handoff verifies deserialized reliability history (changed=${changed})`, () => {
+  const history = { lastHourTimestamp: 3600,
+    currentHour: { r: { all: { count: 3, onTime: 2, delaySum: 12, addedSum: 6 } } }, byRoute: {} };
+  const f = setup({ load: (state, save) => ({ ...loadNative170(state, save), reliabilityHistory: structuredClone(history) }) });
+  f.snapshot.data.reliabilityHistory = { v: 1, lastHourTimestamp: 3600,
+    currentHour: { r: { all: [3, 2, 12, 6] } }, byRoute: {} };
+  f.state.loadSave(f.handoff());
+  if (changed) f.state.reliabilityHistory.currentHour.r.all.count++;
+  assert.equal(f.consume().reused, !changed, 'reliability must agree with the staged Native Save');
+});
+
 for (const value of [undefined, null]) test(`native nullish yard defaults preserve exact reuse (${value})`, () => {
   const f = setup();
   f.snapshot.data.yardsEnabled = value;

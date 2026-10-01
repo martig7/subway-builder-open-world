@@ -14,11 +14,11 @@ const { prepareNativeSaveReadPatch, applyNativeSaveReadPatch, restoreNativeSaveR
   supportedBuilds: [{ version: '1.7.0', preloadSha256: sha256(Buffer.from('native preload')) }],
 });
 
-function fixtureArchive(renderer = null) {
+function fixtureArchive(renderer = null, { version = '1.7.0', rendererName = 'index-test.js' } = {}) {
   const preload = Buffer.from('native preload'), other = Buffer.from('other native bytes\0\xff');
-  const packageInfo = Buffer.from('{"version":"1.7.0"}');
+  const packageInfo = Buffer.from(JSON.stringify({ version }));
   const rendererBytes = renderer == null ? null : Buffer.from(renderer);
-  const rendererFiles = rendererBytes ? { renderer: { files: { public: { files: { 'index-test.js': {
+  const rendererFiles = rendererBytes ? { renderer: { files: { public: { files: { [rendererName]: {
     offset: String(preload.length), size: rendererBytes.length,
   } } } } } } : {};
   const afterRenderer = preload.length + (rendererBytes?.length ?? 0);
@@ -177,6 +177,61 @@ test('an upgrade patches only the verified native menu and preload, then restore
     await installer.restoreNativeSaveReadPatch({ gameRoot: root });
     assert.deepEqual(await readFile(archivePath), original);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('reviewed versions select their own renderer entry and reject altered inputs before writing', async () => {
+  const renderer = `  async function handleLoadSave(save2) {
+      const fullSave = await loadGame(save2.id, save2.autosaveId);
+      if (!fullSave) {
+        throw new Error("Failed to load save - file may be corrupted or in an unsupported format");
+      }
+      const saveCityCode = inferCityCodeFromSave(fullSave);
+      fullSave.cityCode = saveCityCode;
+      if (window.electron?.setPendingSave) {
+        await window.electron.setPendingSave(fullSave);
+      }
+      goToGame({ city: saveCityCode, resume: true });
+  }
+  async function handleDeleteSave(save2) {}`;
+  const versions = ['1.7.0', '1.7.2'];
+  const supportedBuilds = versions.map(version => ({ version,
+    preloadSha256: sha256(Buffer.from('native preload')),
+    rendererPath: `dist/renderer/public/index-${version}.js`,
+    rendererSha256: sha256(Buffer.from(renderer)),
+  }));
+  const installer = createNativeSaveReadPatchInstaller({ supportedBuilds });
+  for (const [index, version] of versions.entries()) {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'open-world-reviewed-build-'));
+    try {
+      await mkdir(path.join(root, 'resources'));
+      await writeFile(path.join(root, 'game.exe'), 'fixture');
+      const archivePath = path.join(root, 'resources', 'app.asar');
+      const original = fixtureArchive(renderer, { version, rendererName: `index-${version}.js` });
+      const expectedRendererPath = supportedBuilds[index].rendererPath;
+      for (const [entry, replacement] of [
+        ['dist/preload/preload.js', Buffer.from('altered preload')],
+        [expectedRendererPath, Buffer.from(`${renderer}\n// unreviewed change`)],
+        ['package.json', Buffer.from('{"version":"1.7.3"}')],
+      ]) {
+        const altered = replaceAsarEntry(original, entry, replacement);
+        await writeFile(archivePath, altered);
+        await assert.rejects(installer.prepareNativeSaveReadPatch({ gameRoot: root, outputPath: path.join(root, 'rejected.asar') }),
+          /verified Subway Builder builds/);
+        assert.deepEqual(await readFile(archivePath), altered, 'rejecting a checksum/version mismatch cannot replace the native archive');
+        await assert.rejects(readFile(path.join(root, 'rejected.asar')), { code: 'ENOENT' });
+      }
+      await writeFile(archivePath, original);
+      const plan = await installer.prepareNativeSaveReadPatch({ gameRoot: root, outputPath: path.join(root, 'reviewed.asar') });
+      assert.equal(plan.gameVersion, version);
+      assert.equal(plan.rendererPath, expectedRendererPath);
+      const staged = await readFile(plan.stagedPath);
+      assert.match(readAsarEntry(staged, expectedRendererPath).toString(), /OPEN_WORLD_NATIVE_LOAD_MENU_V1/);
+      assert.deepEqual(readAsarEntry(staged, 'other.bin'), readAsarEntry(original, 'other.bin'));
+      await installer.applyNativeSaveReadPatch(plan);
+      await installer.restoreNativeSaveReadPatch({ gameRoot: root });
+      assert.deepEqual(await readFile(archivePath), original);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  }
 });
 
 test('upgrade refuses changed native archives, backups, receipts and staged content without replacing them', async () => {

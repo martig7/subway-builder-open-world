@@ -8,6 +8,7 @@
 // lifetime-stat notifications, UI notifications, crossing-bell audio, and the
 // scenario's existing map/demand-loading/native-load seams. Compression and
 // lifecycle callback ownership/dispatch are real shipped implementations.
+// Reload recovery must not generate another live snapshot or recompress demand.
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -15,6 +16,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { parse } from 'acorn';
+import { serializeNativeReliabilityHistory } from '../src/runtime/native-reliability-snapshot.js';
 
 const input = process.argv[2];
 if (!input) throw Error('Provide the renderer index extracted from the installed game app.asar');
@@ -40,7 +42,7 @@ function findNode(node, matches) {
 
 const stats = { decoderFunctions: 0, decoderRotations: 0, decoderAliases: 0,
   generateSaveCalls: 0, compressionCalls: 0, compressedPopRows: 0, nativeSaveEchoes: 0,
-  hookRegistrations: {}, hookDispatches: {}, hookInvocations: {}, nativeErrors: [] };
+  hookRegistrations: {}, hookDispatches: {}, hookInvocations: {}, reliabilitySaves: 0, nativeErrors: [] };
 const quietLogger = Object.fromEntries(['debug', 'info', 'warn', 'error', 'log'].map((name) => [name, () => {}]));
 const context = vm.createContext({
   console: quietLogger, logger: quietLogger, Error, structuredClone,
@@ -100,6 +102,33 @@ for (const node of callbackArrays) evaluate(`var ${text(node)};`, `native-game:$
 const dispatchNames = ['GameInit', 'GameEnd', 'GameSaved', 'GameLoaded', 'CityLoad', 'MapReady', 'DayChange', 'ScheduleChange'];
 for (const name of ['makeUnsubscribe', 'compressDemandData', 'compressCommuteSummary', 'compressModeChoice',
   'trimPathForStorage', 'reapplyCustomMapLayers', ...dispatchNames.map((name) => `trigger${name}`)]) loadFunction(name);
+// 1.7.2 adds reliability to Native Saves. Use the shipped serializer when
+// present so this harness also remains runnable against the older baseline.
+const hasReliabilitySaves = functions.has('serializeReliabilityHistory');
+if (hasReliabilitySaves) {
+  for (const name of ['serializeReliabilityHistory', 'deserializeReliabilityHistory', 'isFiniteNumberArray']) loadFunction(name);
+  for (const name of ['EMPTY_RELIABILITY_HISTORY', 'RELIABILITY_MAX_ENTRIES']) {
+    const declaration = declarations.find((node) => node.id.name === name);
+    assert.ok(declaration, `Shipped value ${name} was not found`);
+    evaluate(`var ${text(declaration)};`, `native-game:${name}`);
+  }
+  for (let sample = 0; sample < 32; sample++) {
+    const history = { lastHourTimestamp: sample * 3600,
+      currentHour: { route: { empty: { count: 0 }, all: {
+        count: sample, onTime: sample >> 1, delaySum: sample * 2.25, addedSum: sample * 1.75,
+      } } },
+      byRoute: { route: { empty: [], section: sample === 0 ? [] : [{
+        timestamp: sample * 3600 - 3600, count: sample + 1, onTime: sample,
+        delaySum: sample * 3.5, addedSum: sample * 0.5,
+      }] } },
+    };
+    const nativeSaved = context.serializeReliabilityHistory(history);
+    assert.deepEqual(serializeNativeReliabilityHistory(history), structuredClone(nativeSaved));
+    const loaded = context.deserializeReliabilityHistory(nativeSaved);
+    assert.deepEqual(serializeNativeReliabilityHistory(loaded), structuredClone(nativeSaved));
+  }
+  stats.reliabilityDifferentialCases = 32;
+}
 const nativeCompression = context.compressDemandData;
 context.compressDemandData = (...args) => { stats.compressionCalls++; return nativeCompression(...args); };
 
@@ -129,6 +158,11 @@ const harness = {
       assert.ok(methods.has(name), `Shipped store action ${name} was not found`);
       state[name] = evaluate(`(${text(methods.get(name))})`, `native-game:store.${name}`);
     }
+    if (hasReliabilitySaves) state.reliabilityHistory = {
+      lastHourTimestamp: 28_800,
+      currentHour: { 'source-route': { all: { count: 3, onTime: 2, delaySum: 12.4, addedSum: 5.6 } } },
+      byRoute: { 'source-route': { all: [{ timestamp: 25_200, count: 4, onTime: 3, delaySum: 14, addedSum: 7 }] } },
+    };
     // A real, nonempty demand row proves the shipped compressor ran through
     // its population traversal, instead of merely accepting an empty fixture.
     state.demandData.popsMap.set('native-compression-probe', {
@@ -139,10 +173,20 @@ const harness = {
     state.generateSave = (...args) => {
       counters.generateSave++; stats.generateSaveCalls++;
       const saveCallbacksBefore = stats.hookInvocations.onGameSaved ?? 0;
-      const save = nativeGenerate(...args);
+      let save;
+      try { save = nativeGenerate(...args); }
+      catch (error) { stats.nativeErrors.push(error.message); throw error; }
       stats.nativeSaveEchoes += (stats.hookInvocations.onGameSaved ?? 0) - saveCallbacksBefore;
       assert.equal(save.version, context.CURRENT_SAVE_VERSION);
       assert.equal(save.data.compressedDemandData.v, 2);
+      if (hasReliabilitySaves) {
+        assert.deepEqual(JSON.parse(JSON.stringify(save.data.reliabilityHistory)), {
+          v: 1, lastHourTimestamp: 28_800,
+          currentHour: { 'source-route': { all: [3, 2, 12, 6] } },
+          byRoute: { 'source-route': { all: [25_200, 4, 3, 14, 7] } },
+        });
+        stats.reliabilitySaves++;
+      }
       stats.compressedPopRows = Math.max(stats.compressedPopRows, save.data.compressedDemandData.p.length);
       return save;
     };
@@ -172,8 +216,8 @@ const harness = {
     }]));
   },
   recordRecoveryBaseline() { recoveryCompressionBaseline = stats.compressionCalls; },
-  assertRecoveryReusedCompression() {
-    assert.equal(stats.compressionCalls, recoveryCompressionBaseline, 'Second recovery must not repeat shipped demand compression');
+  assertReloadSkippedCompression() {
+    assert.equal(stats.compressionCalls, recoveryCompressionBaseline, 'Completed-save reload must not repeat shipped demand compression');
     recoveryVerified = true;
   },
 };
@@ -210,9 +254,9 @@ assert.ok(fixtureHooks, 'Fixture API hooks were not found');
 edits.push({ start: fixtureHooks.value.start, end: fixtureHooks.value.end, value: 'native.createHooks(hooks)' });
 const recoveryAssertion = findNode(scenario, (node) => node.type === 'ExpressionStatement'
   && node.expression.callee?.object?.name === 'assert'
-  && node.expression.arguments?.some((argument) => argument.value === 'template reuse must capture current live state'));
+  && node.expression.arguments?.some((argument) => argument.value === 'reload must not generate a live recovery snapshot'));
 assert.ok(recoveryAssertion, 'Fixture recovery assertion was not found');
-edits.push({ start: recoveryAssertion.end, end: recoveryAssertion.end, value: '\nnative.assertRecoveryReusedCompression();' });
+edits.push({ start: recoveryAssertion.end, end: recoveryAssertion.end, value: '\nnative.assertReloadSkippedCompression();' });
 let adaptedFixture = fixture;
 for (const edit of edits.sort((left, right) => right.start - left.start)) {
   adaptedFixture = adaptedFixture.slice(0, edit.start) + edit.value + adaptedFixture.slice(edit.end);
@@ -223,6 +267,7 @@ try {
   assert.equal(recoveryVerified, true);
   assert.ok(stats.compressedPopRows > 0);
   assert.ok(stats.nativeSaveEchoes > 0, 'Native generateSave must dispatch its save echo into the mod');
+  if (hasReliabilitySaves) assert.ok(stats.reliabilitySaves > 0);
   assert.ok(stats.hookInvocations.onGameInit > 0 && stats.hookInvocations.onDayChange > 0);
   assert.deepEqual(stats.nativeErrors, []);
   for (const name of Object.keys(stats.hookRegistrations)) {
@@ -233,9 +278,9 @@ try {
   console.log(JSON.stringify({
     bundlePath, bundleSha256: createHash('sha256').update(source).digest('hex'),
     scenario: fileURLToPath(fixtureUrl), schemaValidation: 'stubbed; not under test',
-    ...stats, recoveryTemplateReusedWithoutCompression: recoveryVerified,
+    ...stats, reloadSkippedSnapshotCompression: recoveryVerified,
   }, null, 2));
-  console.log('PASS: shipped save compression, lifecycle hooks, recovery reuse, restart invalidation, and unsubscription');
+  console.log('PASS: shipped save compression, lifecycle hooks, observational reload, restart invalidation, and unsubscription');
 } catch (error) {
   console.error('FAIL: isolated native game-bundle scenario:', error.message);
   console.error(JSON.stringify({ ...stats, actual: error.actual, expected: error.expected }, null, 2));

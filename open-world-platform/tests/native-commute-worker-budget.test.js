@@ -62,6 +62,44 @@ test('the game app protocol reports native routing activity to the save gate', a
   assert.equal(f.budget.snapshot().busy, 0);
 });
 
+test('the verified 1.7.2 worker keeps background commute waves inside the physical budget', async () => {
+  const f = harness();
+  const faces = Array.from({ length: 24 }, () => new f.root.Worker(
+    'app://./assets/popCommuteWorker.worker-CAqx0wJ7.js', { type: 'module' }));
+  const network = { version: 1, network: { stops: ['native-1.7.2'] } };
+  for (const face of faces.slice(0, 7)) {
+    face.postMessage({ setNetwork: network });
+    face.postMessage({ popCommutes: [] });
+  }
+  await f.step();
+  assert.equal(f.budget.snapshot().logicalWorkers, 24);
+  assert.equal(f.budget.snapshot().workers, 6);
+  assert.equal(f.budget.snapshot().queued, 1);
+  assert.equal(f.budget.snapshot().networkClones, 1);
+  f.workers[0].finish({ processedPops: [] }); await f.step();
+  assert.equal(f.budget.snapshot().queued, 0);
+  for (const worker of f.workers) worker.finish({ processedPops: [] });
+  await f.step();
+  assert.equal(f.budget.snapshot().busy, 0);
+  for (const callback of [...f.timers.values()]) callback();
+  assert.equal(f.budget.snapshot().workers, 0, 'native dynamic scheduling does not retire idle network heaps');
+});
+
+test('unknown worker hashes, non-module workers, remote URLs and a second script build pass through', () => {
+  const f = harness();
+  new f.root.Worker(url, { type: 'module' });
+  for (const [candidate, options] of [
+    ['file:///game/popCommuteWorker.worker-unknown.js', { type: 'module' }],
+    ['file:///game/popCommuteWorker.worker-CAqx0wJ7.js', { type: 'module' }],
+    [url, {}],
+    ['https://example.com/popCommuteWorker.worker-CI81Zuw7.js', { type: 'module' }],
+  ]) {
+    const worker = new f.root.Worker(candidate, options);
+    assert.equal(worker, f.workers.at(-1));
+  }
+  assert.equal(f.budget.snapshot().logicalWorkers, 1);
+});
+
 test('pressure reduces concurrency without terminating in-flight work, and idle workers can be recreated with their network', async () => {
   const f = harness(), faces = Array.from({ length: 8 }, () => new f.root.Worker(url, { type: 'module' }));
   for (const face of faces) { face.postMessage({ setNetwork: { version: 1, network: { name: 'first' } } }); face.postMessage({ popCommutes: [] }); }
@@ -92,7 +130,7 @@ test('other workers pass through unchanged and hot reload restores the previous 
   assert.equal(other, f.workers[0]);
   const prior = f.root.Worker;
   assert.equal(installNativeCommuteWorkerBudget({ root: f.root }), f.budget);
-  f.root.__openWorldNativeCommuteWorkerBudget__.version = 'native-commute-worker-budget-v1';
+  f.root.__openWorldNativeCommuteWorkerBudget__.version = 'native-commute-worker-budget-v2';
   const next = installNativeCommuteWorkerBudget({ root: f.root });
   assert.notEqual(f.root.Worker, prior);
   assert.notEqual(next, f.budget);

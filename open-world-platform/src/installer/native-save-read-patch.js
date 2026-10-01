@@ -5,14 +5,17 @@ import { readAsarEntry, replaceAsarEntry, sha256 } from '../host/asar-entry.js';
 import { installNativeSaveReadBridge } from '../host/native-save-read-bridge.js';
 
 const PRELOAD = 'dist/preload/preload.js';
-const RENDERER = 'dist/renderer/public/index-CM0DI1Ho.js';
 const MARKER = 'OPEN_WORLD_NATIVE_SAVE_READ_PATCH_V1';
 const MENU_MARKER = 'OPEN_WORLD_NATIVE_LOAD_MENU_V1';
 // Game updates require reviewing both native entries before extending this list.
 const SUPPORTED_BUILDS = Object.freeze([{ version: '1.7.0',
   preloadSha256: '19e2d0d3db1f1a82d85f4559c24f3e255beae5d455a2d7d2de55a20bbfe1c82f',
-  rendererPath: RENDERER,
-  rendererSha256: '99fd5ed94f0c77636f32fe1f21c6165bc6649ea528beb03bee7ad87d4b8bd67d' }]);
+  rendererPath: 'dist/renderer/public/index-CM0DI1Ho.js',
+  rendererSha256: '99fd5ed94f0c77636f32fe1f21c6165bc6649ea528beb03bee7ad87d4b8bd67d' },
+{ version: '1.7.2',
+  preloadSha256: '0b095373ae605b17dee6c0cb105898ec8fd41a108a6dcc128fa449760f7367ce',
+  rendererPath: 'dist/renderer/public/index-NqqqjH9_.js',
+  rendererSha256: '7578256076ff13e3bada8801af26e56c336f83a5c193c9d92c2b9ef0f231240c' }]);
 
 export function createNativeSaveReadPreload(preload) {
   // Preserve the original script's strict semantics before adding a bootstrap.
@@ -31,7 +34,7 @@ const NATIVE_LOAD_MENU = `      const fullSave = await loadGame(save2.id, save2.
       }
       goToGame({ city: saveCityCode, resume: true });`;
 
-/** The verified 1.7.0 Load Game menu already has the file path and autosave ID.
+/** The verified 1.7.0 and 1.7.2 Load Game menus have the file path and autosave ID.
  * Stage that file in the main process, exactly as the native Resume handler does. */
 export function createNativeSaveReadRenderer(renderer) {
   const source = renderer.toString('utf8');
@@ -97,7 +100,7 @@ export function createNativeSaveReadPatchInstaller({ supportedBuilds = SUPPORTED
     const build = builds.find(candidate => candidate.version === packageInfo.version
       && candidate.preloadSha256 === sha256(preload)
       && (!candidate.rendererPath || candidate.rendererSha256 === sha256(readAsarEntry(original, candidate.rendererPath))));
-    if (!build) throw new Error('Native preload or renderer differs from the verified Subway Builder 1.7.0 build; no files changed');
+    if (!build) throw new Error(`Native preload or renderer differs from the verified Subway Builder builds (${builds.map(candidate => candidate.version).join(', ')}); no files changed`);
     return { packageInfo, preload, build };
   }
   function verifyReplacement(original, patched, preloadHash, rendererPath, rendererHash) {

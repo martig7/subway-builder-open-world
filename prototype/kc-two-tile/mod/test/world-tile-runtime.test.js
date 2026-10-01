@@ -3135,7 +3135,7 @@ test('production adapter accepts the inspected 1.7.0 Portolan store seam and API
   };
   const adapter = new SubwayBuilderGameAdapter(fixture);
   const report = adapter.probe(); assert.equal(report.supported, true); assert.deepEqual(report.callbackMethods, ['getState', 'setMoney', 'setTicketCost']);
-  assert.equal(report.inspectedGameVersion, '1.7.0');
+  assert.equal(report.inspectedGameVersion, '1.7.2');
   assert.equal(report.interliningModel, 'portolan-v1');
   assert.deepEqual(report.missingStateActionsByGroup, {
     snapshotAndCity: [], network: [], routeEditing: [], simulation: [], finance: [],
@@ -5121,13 +5121,20 @@ test('clipped-route preview guard recovers canonical clipping metadata stripped 
   assert.equal(fixture.state.previewRoute.openWorldProjectionLocalEdit, true);
 });
 
-test('clipped-route preview guard upgrades a legacy in-memory wrapper during mod reload', () => {
+test('clipped-route preview guard replaces generation 18 wrappers and bindings during mod reload', () => {
   const fixture = realSeamFixture();
-  const legacyBatch = async () => undefined;
+  const nativeBatch = async () => undefined;
+  const nativeConfirm = () => ({ success: true });
+  const nativeSetPreview = (route) => { fixture.state.previewRoute = route; };
+  const legacyBatch = async () => { throw new Error('retained generation 18'); };
+  const legacyListeners = { onConfirmed: () => undefined };
   Object.defineProperty(legacyBatch, Symbol.for('open-world.clipped-route-preview-edit-guard'), { value: true });
+  Object.defineProperty(legacyBatch, Symbol.for('open-world.clipped-route-preview-edit-guard-version'), { value: 18 });
+  Object.defineProperty(legacyBatch, Symbol.for('open-world.clipped-route-preview-edit-original-batch'), { value: nativeBatch });
+  Object.defineProperty(legacyBatch, Symbol.for('open-world.clipped-route-preview-edit-listeners'), { value: legacyListeners });
   fixture.state.batchPreviewRouteUpdates = legacyBatch;
-  fixture.state.confirmRouteChange = () => ({ success: true });
-  fixture.state.setPreviewRoute = (route) => { fixture.state.previewRoute = route; };
+  fixture.state.confirmRouteChange = nativeConfirm;
+  fixture.state.setPreviewRoute = nativeSetPreview;
   fixture.state.setRoutes = (routes) => { fixture.state.routes = routes; };
   const adapter = new SubwayBuilderGameAdapter(fixture);
 
@@ -5135,8 +5142,11 @@ test('clipped-route preview guard upgrades a legacy in-memory wrapper during mod
   assert.notEqual(fixture.state.batchPreviewRouteUpdates, legacyBatch);
   assert.equal(
     fixture.state.batchPreviewRouteUpdates[Symbol.for('open-world.clipped-route-preview-edit-guard-version')],
-    18,
+    19,
   );
+  assert.notEqual(fixture.state.batchPreviewRouteUpdates[Symbol.for('open-world.clipped-route-preview-edit-listeners')], legacyListeners);
+  assert.equal(fixture.state.batchPreviewRouteUpdates[Symbol.for('open-world.clipped-route-preview-edit-original-batch')], nativeBatch);
+  assert.notEqual(fixture.state.setPreviewRoute, nativeSetPreview);
   assert.deepEqual(adapter.installClippedRoutePreviewEditGuard(), { installed: true, reused: true });
 });
 

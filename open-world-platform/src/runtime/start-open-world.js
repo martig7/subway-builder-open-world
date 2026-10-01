@@ -58,8 +58,10 @@ import { installRendererMemoryDiagnostics } from './renderer-memory-diagnostics.
 import { installRendererDebugRecorder } from './renderer-debug-recorder.js';
 import { createRendererTileCacheBudget } from './renderer-tile-cache-budget.js';
 import { installNativeCommuteWorkerBudget } from './native-commute-worker-budget.js';
+import { NATIVE_RELIABILITY_SNAPSHOT_VERSION } from './native-reliability-snapshot.js';
+import { NATIVE_DIRECTED_TRACK_SEARCH_VERSION } from './native-directed-track-search.js';
 
-export const RUNTIME_AUDIT_VERSION = 'runtime-audit-2026-09-v1';
+export const RUNTIME_AUDIT_VERSION = 'runtime-audit-game-1.7.2-v1';
 
 export const OPEN_WORLD_PLATFORM_RELEASE = 'open-world-platform-v1';
 export const STARTUP_MAP_RECOVERY_VERSION = 'startup-map-recovery-v1';
@@ -400,6 +402,8 @@ export function startOpenWorld({
     authoritativeLoads: [],
     identityBindingVersion: WORLD_IDENTITY_BINDING_VERSION,
     snapshotCopyVersion: NATIVE_TILE_SNAPSHOT_COPY_VERSION,
+    reliabilitySnapshotVersion: NATIVE_RELIABILITY_SNAPSHOT_VERSION,
+    directedTrackSearchVersion: NATIVE_DIRECTED_TRACK_SEARCH_VERSION,
     latestAuthoritativeLoad: null,
     latest: null,
   };

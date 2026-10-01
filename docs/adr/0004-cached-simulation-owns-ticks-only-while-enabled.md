@@ -15,6 +15,13 @@ ten times its ordinary clock increment. Other speed tiers keep their configured
 increments. Native Saves remain authoritative for topology, inventory, time and
 the Native Ledger.
 
+Subway Builder 1.7.2 launches commuter waves without awaiting them in the tick.
+Enabling cached execution first blocks new native work and drains observed
+native actions, including their state publication. The final native timestamp
+starts cached accounting; disabling or replacing the native session during the
+drain cancels preparation. Native decision staggering remains active whenever
+cached execution is disabled.
+
 While the mode owns the tick, it posts estimated active-tile revenue and
 full-network expenses through native ledger actions. The existing World runtime
 continues to post inactive-tile native revenue and custom cross-tile revenue.
@@ -69,8 +76,10 @@ policy based on observed crashes, not a V8 limit or a guarantee against OOM.
 Missing/stale measurements use serial execution without inventing headroom.
 
 Subway Builder 1.7's native commute pool otherwise creates one worker per logical
-CPU and retains a separate routing network in each. For the verified
-`popCommuteWorker.worker-CI81Zuw7.js` protocol, an early constructor adapter keeps
+CPU and retains a separate routing network in each. Version 1.7.2 dispatches only
+seven at a time on a 24-thread fixture, but still constructs all 24 workers.
+For the verified `popCommuteWorker.worker-CI81Zuw7.js` (1.7.0) and
+`popCommuteWorker.worker-CAqx0wJ7.js` (1.7.2) protocols, an early constructor adapter keeps
 the game's logical workers and executes their unchanged batches through at most
 six physical workers. Fresh combined allocation above 3 GiB lowers concurrency
 to two, and above 3.25 GiB to one. In-flight batches finish before downsizing;

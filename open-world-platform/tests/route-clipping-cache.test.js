@@ -18,6 +18,8 @@ class Layer {
       overrides.visible ?? this.props.visible,
     );
   }
+
+  getPickingInfo({ info }) { return info; }
 }
 
 function binaryPaths() {
@@ -251,6 +253,51 @@ test('Portolan containment does not bridge the gap in a disjoint halo union', ()
   assert.notStrictEqual(rendered, source);
   assert.equal(rendered.length, 2, 'each intersected halo must retain its separate clipped piece');
   assert.deepEqual([...rendered.startIndices], [0, 2, 4]);
+});
+
+test('clipped Portolan picking uses the native source index after removing and splitting paths', () => {
+  const f = fixture();
+  f.virtualization.signature = 'pickable-disjoint-region';
+  f.virtualization.haloBounds = [[0, 0, 1, 1], [2, 0, 3, 1]];
+  const source = binaryFromPaths([
+    [[10, 10], [11, 11]],
+    [[0.5, 0.5], [2.5, 0.5]],
+    [[0.1, 0.2], [0.8, 0.2]],
+  ]);
+  f.deck.setProps({ layers: [new Layer('portolan-ribbons', source), new Layer('portolan-ribbons-under', source)] });
+  for (const layer of f.deck.props.layers) {
+    assert.equal(layer.props.data.length, 3);
+    assert.deepEqual([0, 1, 2].map(index => layer.getPickingInfo({ info: { index, layer } }).index), [1, 1, 2]);
+    assert.equal(layer.getPickingInfo({ info: { index: -1 } }).index, -1);
+    assert.equal(layer.getPickingInfo({ info: { index: 99 } }), null);
+  }
+  assert.equal(source.length, 3, 'the native binary source remains canonical');
+});
+
+test('Portolan source-index remapping survives cache reuse and updates after the mask changes', () => {
+  const f = fixture();
+  const source = binaryFromPaths([[[10, 10], [11, 11]], [[-75, 40.5], [-74, 40.5]]]);
+  const nativeLayer = new Layer('portolan-ribbons', source);
+  f.deck.setProps({ layers: [nativeLayer] });
+  const first = f.deck.props.layers[0];
+  assert.equal(first.getPickingInfo({ info: { index: 0 } }).index, 1);
+  assert.equal(nativeLayer.getPickingInfo({ info: { index: 0 } }).index, 0);
+  const object = { source: 'native-pick-object' };
+  const sourceLayer = { id: 'native-source-layer' };
+  const picked = first.getPickingInfo({ info: { index: 0, object, sourceLayer } });
+  assert.strictEqual(picked.object, object);
+  assert.strictEqual(picked.sourceLayer, sourceLayer);
+  // Some callers resubmit the Deck layer tree that already contains our clone.
+  f.deck.setProps({ layers: [first] });
+  assert.equal(f.deck.props.layers[0].getPickingInfo({ info: { index: 0 } }).index, 1);
+  f.deck.setProps({ layers: f.deck.props.layers });
+  assert.equal(f.deck.props.layers[0].getPickingInfo({ info: { index: 0 } }).index, 1);
+  f.deck.setProps({ layers: [new Layer('portolan-ribbons', source)] });
+  assert.equal(f.deck.props.layers[0].getPickingInfo({ info: { index: 0 } }).index, 1);
+  f.virtualization.signature = 'changed-picking-mask';
+  f.virtualization.haloBounds = [[9, 9, 12, 12]];
+  f.deck.setProps({ layers: [new Layer('portolan-ribbons', source)] });
+  assert.equal(f.deck.props.layers[0].getPickingInfo({ info: { index: 0 } }).index, 0);
 });
 
 test('noncanonical Portolan geometry and attributes retain the clipping fallback', () => {
