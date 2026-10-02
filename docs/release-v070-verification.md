@@ -1,8 +1,9 @@
 # v0.7.0 release verification
 
 The release remains **draft** pending the user's review and explicit publication
-request. The release source is `449ccd505045211e1d06d4de0b7cf9d8d44e86d0` on
-`codex/release-v070`; later documentation commits do not change the installers.
+request. The release branch is `codex/release-v070`. Installer and runtime
+implementation was frozen at `449ccd505045211e1d06d4de0b7cf9d8d44e86d0`;
+subsequent commits update documentation and the Mac CI test fixture only.
 
 ## Packaged worlds
 
@@ -71,5 +72,45 @@ The Mac application embeds the same exact signed catalog as Windows setup.
 Patch notes follow the published v0.6.0 format: **Download and install**, then
 **What's new**, with end-user bullets and compact signing/checksum details.
 
-Final Mac workflow and uploaded-asset verification results will be appended
-after the draft uploads and CI finish.
+## Final Mac verification
+
+[Full workflow 37039916404](https://github.com/martig7/subway-builder-open-world/actions/runs/37039916404)
+passed on Apple Silicon and Intel. Both jobs downloaded the actual draft assets,
+built and mounted their DMG, installed and hash-verified both real worlds,
+checked the packaged service, verified uninstall, and passed the running app's
+local update check. These exact tested DMGs are attached to the draft.
+
+Apple Silicon tested the real worlds sequentially because the hosted runner
+could not retain both while satisfying the installer's staging/rollback space
+requirements. It verified healthy services with 59 NEC and 47 Japan packages.
+Intel verified real coexistence: 59 packages after NEC, then 106 after Japan,
+and uninstall preserving the remaining world. Both architectures also pass
+the multi-world safety fixtures.
+
+The first full Apple Silicon attempt correctly stopped at Japan's disk-space
+guard. The CI fixture had underestimated the peak space needed when retaining
+NEC. Commit `777518a` bases the test's capacity decision on the Mac installer's
+reported requirements. Limited-disk CI runs also remove the exact verified
+mirror ZIPs after testing/uninstalling a world, freeing space for the next world.
+Production space safeguards and installers were unchanged. The repaired full
+workflow passed; the earlier interface/update workflow
+[37031727241](https://github.com/martig7/subway-builder-open-world/actions/runs/37031727241)
+also passed both architectures.
+
+## Final assets
+
+The draft contains 37 assets. All 36 checksum entries match GitHub's uploaded
+SHA-256 digests; the checksum file itself is also verified. All 24 signed-catalog
+assets match their declared byte sizes and SHA-256 values. The signed catalog
+and its embedded Mac envelope agree. The local audit receipt is
+`.analysis/v070-final-receipt.json` and remains Git-ignored.
+
+| Installer | SHA-256 |
+| --- | --- |
+| Windows Setup | `365761c61c7d24f336bd4e1117509ab560c39904402c2b3436d734878ec0b586` |
+| Apple Silicon DMG | `23aa504a2708d91e5303e2cf00825c5eb0c00d635bd6e6cf414e62cbb0ed1953` |
+| Intel DMG | `487ca0c738356883de1209e0b92be37c73264530f9756ed0ade87c600d3093db` |
+
+[Draft release](https://github.com/martig7/subway-builder-open-world/releases/tag/untagged-507e3b731900e24362d4).
+Normal public update checks continue to see v0.6.0 until the user publishes
+v0.7.0 as a stable release. No publication command was run.
