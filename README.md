@@ -41,4 +41,4 @@ Raw census/e-Stat inputs, OSM extracts, graphs, Depot output, PMTiles, building 
 
 ## Status
 
-This is an active feasibility prototype, not a stable production release. It targets the inspected Subway Builder 1.6.0 runtime and Mod API 1.0.0 surface.
+This is an active feasibility prototype, not a stable production release. It targets the inspected Subway Builder 1.7.2 runtime and Mod API 1.0.0 surface.
