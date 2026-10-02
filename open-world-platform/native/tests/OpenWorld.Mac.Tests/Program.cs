@@ -8,6 +8,10 @@ var root = Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? Pat
 Directory.CreateDirectory(root);
 try
 {
+    await UpdateCheckerTests.CandidateDiscovery();
+    await UpdateCheckerTests.ReleaseEligibility();
+    await UpdateCheckerTests.EndpointScope();
+    Console.WriteLine("PASS manager candidate discovery, release eligibility and loopback override");
     var catalog = MacInstallation.LoadCatalog();
     Console.WriteLine("PASS embedded signed catalog and central version");
     var assets = Path.Combine(root, "assets"); Directory.CreateDirectory(assets);

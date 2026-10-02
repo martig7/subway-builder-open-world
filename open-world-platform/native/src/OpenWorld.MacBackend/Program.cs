@@ -14,6 +14,10 @@ try
     {
         case "catalog": using (installation.Lock()) { installation.Recover(); Emit(new { type = "catalog", data = installation.Describe() }); } break;
         case "status": Emit(new { type = "status", message = await installation.StatusAsync() }); break;
+        case "updates":
+            var update = await UpdateChecker.CheckAsync(installation.Catalog.Version, cancellation.Token);
+            Emit(new { type = "update", isAvailable = update.IsAvailable, message = update.Message, releasePage = update.ReleasePage?.AbsoluteUri });
+            break;
         case "start": using (installation.Lock()) { installation.Recover(); await installation.StartAsync(); } break;
         case "stop": using (installation.Lock()) await installation.StopAsync(); break;
         case "restart": using (installation.Lock()) { await installation.StopAsync(); installation.Recover(); await installation.StartAsync(); } break;

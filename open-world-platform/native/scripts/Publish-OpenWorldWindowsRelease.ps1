@@ -3,6 +3,8 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^https://')][string]$ReleaseAssetBaseUrl,
     [Parameter(Mandatory = $true)][string]$NecModRoot,
     [Parameter(Mandatory = $true)][string]$NecTileRoot,
+    [string]$JapanModRoot,
+    [string]$JapanTileRoot,
     [string]$TokyoModRoot,
     [string]$TokyoTileRoot,
     [Parameter(Mandatory = $true)][string]$Output,

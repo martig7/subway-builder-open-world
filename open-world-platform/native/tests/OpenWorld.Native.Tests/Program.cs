@@ -16,6 +16,10 @@ if (args.Length == 2 && args[0] == "--native-capture-fixture")
 
 var tests = new (string Name, Func<Task> Run)[]
 {
+    ("manager discovers v0.7.0 from v0.6.0 through a real loopback release endpoint", UpdateCheckerTests.CandidateDiscovery),
+    ("manager handles current, older, draft, prerelease and failed update responses", UpdateCheckerTests.ReleaseEligibility),
+    ("manager test update source is restricted to explicit loopback URLs", UpdateCheckerTests.EndpointScope),
+    ("Windows manager update button offers the unpublished candidate from v0.6.0", ManagerUpdateButton),
     ("prototype save writer preserves native bytes and never publishes interrupted uploads", PrototypeSaveWriterTests.Run),
     ("save writer trusts game origins and keeps browser tokens", SaveWriterAccessTests.GameOrigin),
     ("save writer resolves the configured game save folder", SaveWriterAccessTests.SaveLocation),
@@ -131,6 +135,18 @@ static async Task<int> FullReleaseSmoke(string releaseRootArgument, string scrat
         }
         if (!File.Exists(Path.Combine(locations.ModRoot, "index.js"))) throw new InvalidDataException("Smoke install is missing the mod bundle.");
         if (!File.Exists(locations.ServerExecutablePath)) throw new InvalidDataException("Smoke install is missing the tile-server executable.");
+        var installedBundle = await File.ReadAllTextAsync(Path.Combine(locations.ModRoot, "index.js"));
+        if (!installedBundle.Contains("runtime-audit-game-1.7.2-v1", StringComparison.Ordinal))
+            throw new InvalidDataException("Smoke install is missing the current runtime marker.");
+        using (var modArchive = ZipFile.OpenRead(Path.Combine(releaseRoot, manifest.Assets.Single(asset => asset.Kind == ReleaseAssetKind.Mod).Name)))
+        using (var reader = new StreamReader(modArchive.GetEntry("index.js")!.Open()))
+            Equal(await reader.ReadToEndAsync(), installedBundle);
+        using (var installedManifest = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(locations.ModRoot, "manifest.json"))))
+        {
+            Equal(manifest.Product.ManifestId, installedManifest.RootElement.GetProperty("id").GetString());
+            Equal(manifest.Product.Version, installedManifest.RootElement.GetProperty("version").GetString());
+        }
+        await ReleaseServiceSmoke(manifest, locations, catalog.Worlds.SelectMany(world => world.TileIds).Count(id => Directory.Exists(Path.Combine(locations.CityDataRoot, id))));
         Console.WriteLine($"PASS full release cancellation/resume smoke: {manifest.TileIds.Count} tiles, {manifest.Assets.Count} assets, version {manifest.Product.Version}");
         }
         return 0;
@@ -138,6 +154,51 @@ static async Task<int> FullReleaseSmoke(string releaseRootArgument, string scrat
     finally
     {
         Directory.Delete(scratchRoot, recursive: true);
+    }
+}
+
+static async Task ReleaseServiceSmoke(ReleaseManifest manifest, InstallLocations locations, int expectedTiles)
+{
+    using var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+    probe.Start();
+    var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+    probe.Stop();
+    var start = new System.Diagnostics.ProcessStartInfo(locations.ServerExecutablePath)
+    {
+        UseShellExecute = false, CreateNoWindow = true,
+        RedirectStandardOutput = true, RedirectStandardError = true
+    };
+    foreach (var argument in new[] { "serve", "--port", port.ToString(), "--root", locations.CityDataRoot, "--state-root", Path.Combine(locations.StateRoot, "smoke"), "--log-root", locations.ServerLogRoot })
+        start.ArgumentList.Add(argument);
+    using var process = System.Diagnostics.Process.Start(start) ?? throw new Exception("Release tile server did not start");
+    var output = process.StandardOutput.ReadToEndAsync();
+    var errors = process.StandardError.ReadToEndAsync();
+    try
+    {
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        while (true)
+        {
+            if (process.HasExited) throw new Exception("Release tile server exited: " + await errors);
+            try
+            {
+                using var response = await client.GetAsync($"http://127.0.0.1:{port}/_health", deadline.Token);
+                response.EnsureSuccessStatusCode();
+                Equal("native-pmtiles-directory-v4", response.Headers.GetValues("X-PMTiles-Server-Version").Single());
+                Equal(manifest.Product.Version, response.Headers.GetValues("X-PMTiles-Server-Build").Single());
+                using var health = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(deadline.Token));
+                Equal(expectedTiles, health.RootElement.GetProperty("archives").GetInt32());
+                Console.WriteLine($"PASS packaged tile-server health: {expectedTiles} archives, build {manifest.Product.Version}");
+                break;
+            }
+            catch (HttpRequestException) { await Task.Delay(200, deadline.Token); }
+        }
+    }
+    finally
+    {
+        if (!process.HasExited) process.Kill();
+        await process.WaitForExitAsync();
+        await Task.WhenAll(output, errors);
     }
 }
 
@@ -339,6 +400,47 @@ static Task ManagerReplacementVerification()
     finally { Directory.Delete(root, true); }
     return Task.CompletedTask;
 }
+
+static Task ManagerUpdateButton() => UpdateCheckerTests.WithCandidate(async () =>
+{
+    var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var thread = new Thread(() =>
+    {
+        var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+        SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(dispatcher));
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        try
+        {
+            var source = ManifestFor(".");
+            var manifest = source with { Product = source.Product with { Version = "0.6.0" } };
+            var scratch = Path.Combine(Path.GetTempPath(), "update-button-" + Guid.NewGuid().ToString("N"));
+            var locations = InstallLocations.Resolve(manifest, scratch, scratch);
+            var window = new ManagerWindow(manifest, locations, TileServerRuntimePaths.FromLocations(locations), true,
+                confirmUpdate: result =>
+                {
+                    try
+                    {
+                        Equal(true, result.IsAvailable);
+                        Equal("Version 0.7.0 is available.", result.Message);
+                        Equal("https://github.com/martig7/subway-builder-open-world/releases/tag/v0.7.0", result.ReleasePage?.AbsoluteUri);
+                    }
+                    catch (Exception error) { done.TrySetException(error); }
+                    dispatcher.BeginInvoke(() => frame.Continue = false);
+                    return false;
+                });
+            ((System.Windows.Controls.Button)window.FindName("UpdatesButton")).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+            Equal("Version 0.7.0 is available.", ((System.Windows.Controls.TextBlock)window.FindName("ActivityText")).Text);
+            window.Close();
+            done.TrySetResult();
+        }
+        catch (Exception error) { done.TrySetException(error); }
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.IsBackground = true;
+    thread.Start();
+    await done.Task.WaitAsync(TimeSpan.FromSeconds(15));
+});
 
 static Task WorldCheckboxes()
 {

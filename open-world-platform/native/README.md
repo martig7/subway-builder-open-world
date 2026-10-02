@@ -136,7 +136,7 @@ and SHA-256 value from the signed release catalog.
 
 ## Release
 
-The release command builds Northeast Corridor (36 tiles) and includes Japan
+The release command builds Northeast Corridor (59 tiles) and includes Japan
 (47 prefecture tiles) when `-JapanModRoot` and `-JapanTileRoot` are supplied.
 Tokyo–Kanagawa remains an optional compatibility consumer. Each release build replaces only its packaged manifest identity,
 verifies the requested semantic version, and declares
@@ -145,12 +145,12 @@ build used by its development mod.
 
 ```powershell
 ./scripts/Publish-NecWindowsRelease.ps1 `
-  -ReleaseAssetBaseUrl https://github.com/OWNER/REPO/releases/download/v0.6.0 `
+  -ReleaseAssetBaseUrl https://github.com/OWNER/REPO/releases/download/v0.7.0 `
   -NecModRoot ../../../prototype/nec-corridor/mod `
   -NecTileRoot ../../../prototype/nec-corridor/generated/mod/tiles `
   -JapanModRoot ../../../prototype/japan/mod `
   -JapanTileRoot ../../../prototype/japan/generated/mod/tiles `
-  -Output ../../../prototype/nec-corridor/generated/release/v0.6.0
+  -Output ../../../prototype/nec-corridor/generated/release/v0.7.0
 ```
 
 The first run creates a five-year RSA code-signing certificate in the current
@@ -176,14 +176,14 @@ The Windows binary is signed with the same self-signed publisher certificate as
 setup. The placeholder macOS binaries are unsigned and must be signed and
 notarized on macOS before they can provide a normal Gatekeeper experience.
 
-### v0.6.0 verification before publication
+### Release verification before publication
 
 Japan keeps manifest ID `local.japan-open-world`, including existing saves and
 installed-world registration. Setup offers NEC and Japan independently. Both
 use the shared service on port 8799. Stored native route indexes/binaries ship
 with every tile; the world-wide cross-route archive ships with the initial tile.
 
-The packager splits NEC into four ZIPs and Japan into twelve ZIPs and rejects a
+The packager splits NEC into eight ZIPs and Japan into twelve ZIPs and rejects a
 part over 1.9 GB before compression. Every ZIP has a bounded tile allowlist and
 recorded byte size/SHA-256. Packaging never regenerates geography or demand.
 
@@ -191,7 +191,7 @@ recorded byte size/SHA-256. Packaging never regenerates geography or demand.
 using the same bytes embedded by Windows setup. Copy it into
 `src/OpenWorld.MacBackend/release-envelope.json` before committing the candidate.
 The macOS workflow can download it directly from a draft release by supplying
-`release_tag: v0.6.0`; its GitHub token allows draft asset access. The workflow
+`release_tag: v0.7.0`; its GitHub token allows draft asset access. The workflow
 builds/mounts the DMG and runs a full install, file verification, service health,
 and uninstall for **every** catalog world on both Apple Silicon and Intel.
 The local asset folder still requires catalog sizes and hashes; it bypasses no
@@ -201,10 +201,31 @@ Windows real-asset verification uses an isolated fresh scratch directory:
 
 ```powershell
 dotnet run --project tests/OpenWorld.Native.Tests -c Release -- `
-  --release-smoke D:/OpenWorldReleases/v0.6.0 D:/OpenWorldReleases/smoke-v060
+  --release-smoke D:/OpenWorldReleases/v0.7.0 D:/OpenWorldReleases/smoke-v070
 ```
 
 Keep the GitHub release draft pending an explicit publication request, even after
 these checks pass. Neither workflow publishes
 it automatically. macOS artifacts are ad-hoc signed, not notarized.
+
+### Preview update discovery without publishing
+
+Both managers share the public stable-release check. Windows offers to open the
+release page when a newer version exists; Mac now checks and offers the same
+action. Drafts and prereleases are excluded, and equal/older versions do not
+prompt. HTTP failures remain visible rather than reporting success.
+
+Run `node tools/preview-release-update.mjs` from the repository root. It serves
+the current `VERSION` at `http://127.0.0.1:8193/releases/latest`. Set
+`OPEN_WORLD_UPDATE_TEST_URL` to that URL only in the environment of the manager
+being tested, then click **Check for updates**. This simulates the metadata
+GitHub will return after publication; the actual GitHub release stays draft.
+The override accepts only HTTP loopback URLs and never changes asset verification.
+Stop the preview process and clear the variable after testing. With no override,
+the manager continues using GitHub's `/releases/latest` endpoint.
+
+The native and Mac suites exercise a real local HTTP response from v0.6.0 to
+v0.7.0, plus current/older releases, drafts, prereleases, invalid responses,
+cancellation and HTTP errors. Windows additionally invokes the WPF update button
+and checks its offered release page and displayed result.
 

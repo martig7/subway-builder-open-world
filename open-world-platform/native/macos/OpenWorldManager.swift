@@ -25,6 +25,8 @@ struct World: Identifiable {
     @Published var error: String?
     @Published var confirmUninstall = false
     @Published var confirmCancel = false
+    @Published var updatePage: URL?
+    @Published var confirmUpdate = false
     @Published var login = SMAppService.mainApp.status == .enabled
     @Published var localAssets: URL?
     var process: Process?
@@ -86,6 +88,9 @@ struct World: Identifiable {
                     self.installing = false; self.run("catalog")
                 } else if command == "catalog" {
                     self.run("status")
+                } else if command == "status" && CommandLine.arguments.contains("--ui-update-smoke") &&
+                          ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true" {
+                    self.run("updates")
                 } else if ["start", "stop", "restart"].contains(command) {
                     self.run("status")
                 }
@@ -123,8 +128,20 @@ struct World: Identifiable {
             fraction = object["fraction"] as? Double ?? 0
             transfer = "\(size((object["bytes"] as? NSNumber)?.int64Value ?? 0)) / \(size((object["totalBytes"] as? NSNumber)?.int64Value ?? 0))"
         case "error": error = object["message"] as? String ?? "Operation failed."
+        case "update":
+            message = object["message"] as? String ?? "Update check complete"
+            if CommandLine.arguments.contains("--ui-update-smoke"),
+               ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true",
+               object["isAvailable"] as? Bool == false, message == "You have the latest version.",
+               let root = ProcessInfo.processInfo.environment["UI_SNAPSHOT_ROOT"] {
+                try? message.write(toFile: root + "/ui-update-smoke-passed", atomically: true, encoding: .utf8)
+            }
+            if object["isAvailable"] as? Bool == true,
+               let page = object["releasePage"] as? String, let url = URL(string: page) {
+                updatePage = url; confirmUpdate = true
+            }
         case "cancelled": message = object["message"] as? String ?? "Cancelled"
-        case "complete": if operation != "catalog" && operation != "status" { message = "Complete" }
+        case "complete": if !["catalog", "status", "updates"].contains(operation) { message = "Complete" }
         default: break
         }
     }
@@ -222,7 +239,7 @@ struct MainView: View {
                     Button("Uninstall…") { model.confirmUninstall = true }
                 }.disabled(model.busy)
                 Toggle("Open manager when I sign in", isOn: Binding(get: { model.login }, set: { model.setLogin($0) })).disabled(model.busy)
-                Button("Check for updates") { NSWorkspace.shared.open(URL(string: "https://github.com/martig7/subway-builder-open-world/releases")!) }.buttonStyle(.link)
+                Button("Check for updates") { model.run("updates") }.buttonStyle(.link).disabled(model.busy)
             }
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: 7) {
@@ -245,6 +262,10 @@ struct MainView: View {
                 }
             }
         }.padding(24).frame(width: 610, height: 480)
+        .alert("Update available", isPresented: $model.confirmUpdate) {
+            Button("Open release page") { if let page = model.updatePage { NSWorkspace.shared.open(page) } }
+            Button("Later", role: .cancel) {}
+        } message: { Text(model.message) }
         .alert("Operation needs attention", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK", role: .cancel) { model.error = nil }
             Button("Open logs") { model.openLogs() }

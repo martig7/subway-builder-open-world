@@ -72,19 +72,27 @@ jobs:
         env:
           OPEN_WORLD_RELEASE_ASSET_ROOT: ${{ runner.temp }}/release-assets
         run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- "$HOME/Applications/Open World Manager.app/Contents/MacOS/open-world-tile-server" --full-release
-      - name: Live UI backend integration
+      - name: Live UI backend and local update integration
         env:
           UI_SNAPSHOT_ROOT: ${{ runner.temp }}
+          OPEN_WORLD_UPDATE_TEST_URL: http://127.0.0.1:8193/releases/latest
         run: |
           set -euo pipefail
-          "$HOME/Applications/Open World Manager.app/Contents/MacOS/OpenWorldManager" --ui-smoke > artifacts/ui-smoke.log 2>&1 &
+          node tools/preview-release-update.mjs > artifacts/update-preview.log 2>&1 &
+          preview_pid=$!
+          for i in $(seq 1 20); do
+            curl --fail --silent "$OPEN_WORLD_UPDATE_TEST_URL" > /dev/null && break
+            sleep 1
+          done
+          "$HOME/Applications/Open World Manager.app/Contents/MacOS/OpenWorldManager" --ui-smoke --ui-update-smoke > artifacts/ui-smoke.log 2>&1 &
           pid=$!
-          trap 'kill "$pid" || true' EXIT
+          trap 'kill "$pid" "$preview_pid" || true' EXIT
           for i in $(seq 1 30); do
-            test -f "$UI_SNAPSHOT_ROOT/ui-smoke-passed" && break
+            test -f "$UI_SNAPSHOT_ROOT/ui-update-smoke-passed" && break
             sleep 1
           done
           cat "$UI_SNAPSHOT_ROOT/ui-smoke-passed"
+          cat "$UI_SNAPSHOT_ROOT/ui-update-smoke-passed"
           sleep 1
           screencapture -x -o -l "$(cat "$UI_SNAPSHOT_ROOT/live-window-id")" artifacts/screenshots/live-catalog.png
       - name: Capture every interface

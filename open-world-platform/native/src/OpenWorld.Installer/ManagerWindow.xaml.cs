@@ -10,6 +10,8 @@ using Color = System.Windows.Media.Color;
 using MessageBox = System.Windows.MessageBox;
 using SystemColors = System.Windows.SystemColors;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("OpenWorld.Native.Tests")]
+
 namespace OpenWorld.Installer;
 
 public partial class ManagerWindow : Window
@@ -20,6 +22,7 @@ public partial class ManagerWindow : Window
     private readonly bool isPreview;
     private readonly bool startServerOnLoad;
     private readonly bool startHidden;
+    private readonly Func<UpdateResult, bool> confirmUpdate;
     private readonly TaskCompletionSource<bool> initialRefresh = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ManagerTrayIcon? trayIcon;
     private bool busy;
@@ -37,7 +40,8 @@ public partial class ManagerWindow : Window
         TileServerRuntimePaths runtime,
         bool isPreview,
         bool startServerOnLoad = false,
-        bool startHidden = false)
+        bool startHidden = false,
+        Func<UpdateResult, bool>? confirmUpdate = null)
     {
         InitializeComponent();
         this.manifest = manifest;
@@ -46,6 +50,7 @@ public partial class ManagerWindow : Window
         this.isPreview = isPreview;
         this.startServerOnLoad = startServerOnLoad;
         this.startHidden = startHidden;
+        this.confirmUpdate = confirmUpdate ?? (result => MessageBox.Show(this, $"{result.Message}\n\nOpen the release page?", "Subway Builder Open World", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes);
         var presentation = ManagerPresentation.FromManifest(manifest);
         Title = presentation.Title;
         ManagerTitleText.Text = presentation.Title;
@@ -280,7 +285,7 @@ public partial class ManagerWindow : Window
             var result = await UpdateChecker.CheckAsync(manifest.Product.Version, token);
             ActivityText.Text = result.Message;
             if (result.IsAvailable && result.ReleasePage is not null &&
-                MessageBox.Show(this, $"{result.Message}\n\nOpen the release page?", "Subway Builder Open World", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                confirmUpdate(result))
                 Process.Start(new ProcessStartInfo(result.ReleasePage.AbsoluteUri) { UseShellExecute = true });
         }, verifyAfter: false);
 

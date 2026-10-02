@@ -185,8 +185,8 @@ internal sealed record Options(
             Optional("manifest-id", "northeast-corridor-open-world"),
             Optional("asset-prefix", "nec"),
             Optional("tile-prefix", "NEC"),
-            Integer("expected-tiles", 36),
-            Integer("map-parts", 4),
+            Integer("expected-tiles", 59),
+            Integer("map-parts", 8),
             Integer("port", 8799),
             Optional("manifest-name", "release-manifest.json"));
     }

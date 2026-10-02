@@ -137,8 +137,8 @@ dotnet run --project $packager -c Release -- `
     --output $resolvedOutput `
     --base-url $ReleaseAssetBaseUrl `
     --version $Version `
-    --expected-tiles 36 `
-    --map-parts 4 `
+    --expected-tiles 59 `
+    --map-parts 8 `
     --manifest-name release-manifest-nec.json
 if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed.' }
 
