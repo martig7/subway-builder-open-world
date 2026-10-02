@@ -99,7 +99,18 @@ try
         var real = new MacInstallation(catalog, Path.Combine(root, "real-manager"), Path.Combine(root, "real-game"), args[0], false);
         var assetRoot = Environment.GetEnvironmentVariable("OPEN_WORLD_RELEASE_ASSET_ROOT");
         var installedIds = new List<string>();
-        var requiredForUnion = catalog.Worlds.Sum(w => w.Space.InstalledBytes) + catalog.Worlds.SelectMany(w => w.Assets).Max(a => a.DownloadBytes) + 2L * 1024 * 1024 * 1024;
+        // Use the actual Mac installer's requirements, including staging and
+        // rollback space. The catalog's Windows working-space figure differs.
+        var description = JsonSerializer.SerializeToElement(real.Describe(), MacInstallation.Json);
+        var requiredById = description.GetProperty("worlds").EnumerateArray()
+            .ToDictionary(w => w.GetProperty("id").GetString()!, w => w.GetProperty("requiredFreeBytes").GetInt64());
+        long residentBytes = 0, requiredForUnion = 0;
+        foreach (var world in catalog.Worlds)
+        {
+            requiredForUnion = Math.Max(requiredForUnion, residentBytes + requiredById[world.Product.ManifestId]);
+            residentBytes += world.Assets.Where(a => a.Kind != ReleaseAssetKind.Support).Sum(a => a.InstalledBytes);
+        }
+        requiredForUnion += 2L * 1024 * 1024 * 1024;
         var retainWorlds = new DriveInfo(Path.GetPathRoot(root)!).AvailableFreeSpace > requiredForUnion;
         Console.WriteLine(retainWorlds ? "Testing real installed-world coexistence" : "Limited disk: testing real worlds sequentially");
         foreach (var world in catalog.Worlds)
@@ -116,7 +127,25 @@ try
             } finally { await real.StopAsync(); }
             installedIds.Add(id);
             foreach (var installedId in installedIds) await real.VerifyAsync(installedId, CancellationToken.None);
-            if (!retainWorlds) { await real.UninstallAsync(id); installedIds.Remove(id); }
+            if (!retainWorlds)
+            {
+                await real.UninstallAsync(id); installedIds.Remove(id);
+                // This Actions-only mirror is no longer needed after hash,
+                // installation and service verification. Free it for the next
+                // world rather than reducing the installer's space safeguards.
+                if (assetRoot is not null)
+                {
+                    var mirror = Path.GetFullPath(assetRoot);
+                    var runner = Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
+                    Assert(mirror.StartsWith(runner + Path.DirectorySeparatorChar, StringComparison.Ordinal), "Release mirror is outside the CI scratch root");
+                    foreach (var asset in world.Assets)
+                    {
+                        var path = Path.GetFullPath(Path.Combine(mirror, asset.Name));
+                        Assert(Path.GetDirectoryName(path) == mirror, "Unsafe CI asset cleanup path");
+                        File.Delete(path);
+                    }
+                }
+            }
             Console.WriteLine($"PASS real {id} download, hashes, full install, verification and server health");
         }
         foreach (var id in installedIds.ToArray())
