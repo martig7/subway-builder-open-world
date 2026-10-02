@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { WorldTileRuntime } from '../src/runtime/world-tile-runtime.js';
+import { SubwayBuilderGameAdapter } from '../src/runtime/adapters/subway-builder-game-adapter.js';
 import {
   installMovementDeckVisibilityGuard,
   movementDeckGuardDiagnostics,
@@ -91,6 +93,39 @@ test('ultra high speed hides both train passes and restores them without changin
   f.deck.setProps({ layers });
   assert.ok(f.deck.props.layers.every(layer => layer.props.visible));
   assert.ok(f.deck.props.layers.every(layer => layer.props.data.features.length === 1));
+});
+
+test('reloaded train layers remain hidden through the World runtime while cached mode is active', () => {
+  let cachedMode = true;
+  const trains = { type: 'FeatureCollection', features: [
+    { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [139, 35] } },
+  ] };
+  const state = { cityCode: 'NEC_CP00_RP00', gameSessionId: 'save-a',
+    timeConfig: { paused: false, timeSpeed: 'ultrafast' },
+    tracksGeojsonFeatures: {
+      lines: { geojson: { type: 'FeatureCollection', features: [] }, polygons: [] },
+      base: { geojson: { type: 'FeatureCollection', features: [] }, polygons: [] },
+    },
+    trainWindowsGeojson: { geojson: trains, polygons: [] },
+    handleIncrementGameState() {},
+  };
+  state.handleIncrementGameState[Symbol.for('open-world.cached-simulation')] = {
+    controller: { isTickSuppressionActive: () => cachedMode, areTrainsOutOfService: () => cachedMode },
+  };
+  const game = new SubwayBuilderGameAdapter({ callbacks: { getState: () => state }, api: {} });
+  game.activateCanonicalNativeNetworkMode();
+  const runtime = new WorldTileRuntime({ game, tileIds: ['NEC_CP00_RP00'] });
+  const layers = [new Layer('trains-under', trains), new Layer('trains', trains)];
+  const f = fixture({ layers, revisions: runtime.getRailRenderRevisions() });
+  assert.ok(f.deck.props.layers.every(layer => layer.props.visible === false), 'cached mode must hide both native train passes');
+  f.deck.__openWorldMovementDeckVisibilityGuard.railRenderRevisionProvider = () => runtime.getRailRenderRevisions();
+  state.gameSessionId = 'save-b';
+  state.trainWindowsGeojson = { geojson: structuredClone(trains), polygons: [] };
+  f.deck.setProps({ layers: layers.map(layer => layer.clone({})) });
+  assert.ok(f.deck.props.layers.every(layer => layer.props.visible === false), 'fresh save-loaded layers must stay hidden');
+  cachedMode = false;
+  f.deck.setProps({ layers });
+  assert.ok(f.deck.props.layers.every(layer => layer.props.visible === true), 'disabling cached mode restores native train rendering');
 });
 
 test('stable rail revisions reuse newly wrapped track and stopped-train layers without legacy comparisons', () => {
@@ -192,7 +227,7 @@ test('hot reload replaces a previous-generation guard and wrapper', () => {
   const oldWrapper = function oldWrapper() {};
   const layers = [new Layer('tracks', { type: 'FeatureCollection', features: [] })];
   const deck = { props: { layers }, setProps: oldWrapper };
-  deck.__openWorldMovementDeckVisibilityGuard = {
+  const oldPatch = deck.__openWorldMovementDeckVisibilityGuard = {
     version: MOVEMENT_DECK_GUARD_VERSION - 1,
     nativeLayers: layers,
     originalSetProps: original,
@@ -205,6 +240,7 @@ test('hot reload replaces a previous-generation guard and wrapper', () => {
   installMovementDeckVisibilityGuard(map, owner, virtualization, () => 1, () => ({ tracks: 1, trackStyles: 1 }));
 
   assert.equal(deck.__openWorldMovementDeckVisibilityGuard.version, MOVEMENT_DECK_GUARD_VERSION);
+  assert.notEqual(deck.__openWorldMovementDeckVisibilityGuard, oldPatch);
   assert.notEqual(deck.setProps, oldWrapper);
   assert.notEqual(deck.__openWorldMovementDeckVisibilityGuard.wrapper, oldWrapper);
 });

@@ -207,6 +207,7 @@ test('reads the active tile without constructing a full runtime view', async () 
   assert.equal(runtime.getInterliningRevision(), 7);
   assert.deepEqual(runtime.getRailRenderRevisions(), {
     tracks: 2, trackStyles: 3, trains: 4, trainStyles: 5, trainSimulationActive: false,
+    trainsOutOfService: false,
   });
 });
 

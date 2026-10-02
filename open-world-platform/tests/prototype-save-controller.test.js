@@ -37,6 +37,20 @@ test('prototype is opt-in, saves with a stable pause, and restores playback with
   assert.equal(f.controller.snapshot().last.data, undefined);
 });
 
+test('experimental autosaves use a normal native autosave name without transport details', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 0, 2, 3, 4, 5).getTime() });
+  let savedName;
+  const f = fixture({ writeSave: (save, options) => {
+    savedName = save.name;
+    options.beforeCommit();
+    return { bytes: 123, durationMs: 50, path: 'fixture.metro' };
+  } });
+  await f.configure();
+  await f.controller.invoke(f.native);
+  assert.equal(savedName, '[Auto] 2026-01-02_03-04-05');
+  assert.doesNotMatch(savedName, /Tile server|prototype|experimental/i);
+});
+
 test('an enabled writer never invokes native saving after a gate rejection or transfer failure', async () => {
   for (const options of [{ busy: true }, { writeSave: async () => { throw new Error('Writer unavailable'); } }]) {
     const f = fixture(options);

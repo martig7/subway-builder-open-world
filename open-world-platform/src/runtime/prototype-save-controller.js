@@ -8,6 +8,14 @@ const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 // clock rebasing and the ordinary native load UI remain authoritative.
 const SAVE_GATE = 'prototype-save-gate';
 const gateError = message => Object.assign(new Error(message), { code: SAVE_GATE });
+
+// Match Subway Builder's native autosave service, using local calendar time.
+function nativeAutosaveName() {
+  const time = new Date();
+  const pad = value => String(value).padStart(2, '0');
+  return `[Auto] ${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())}_${pad(time.getHours())}-${pad(time.getMinutes())}-${pad(time.getSeconds())}`;
+}
+
 export function createPrototypeSaveController({ getState, isReady = () => true,
   isBusy = () => false, freezeUi = blockSaveEdits, yieldTask = nextFrame,
   writeSave = writePrototypeNativeSave, onActivity = () => {}, fetchFn = fetch,
@@ -15,7 +23,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
   let configuration = null, enabled = initialEnabled === true, pending = null, automatic = null, abort = null, disposed = false;
   let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v8', configured: false, enabled, status: 'off', last: null, error: null, transport: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v9', configured: false, enabled, status: 'off', last: null, error: null, transport: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
@@ -84,7 +92,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       if (!sameContext() || !isReady() || isBusy()) throw gateError('Game state changed before snapshot generation');
       const stable = getState();
       const generated = performance.now();
-      let save = await stable.generateSave({ name: `[Auto] Tile server ${new Date().toISOString().replaceAll(':', '-')}`, [STREAM_SAVE]: true });
+      let save = await stable.generateSave({ name: nativeAutosaveName(), [STREAM_SAVE]: true });
       const generateMs = performance.now() - generated;
       if (save.version !== 4) throw new Error('Prototype supports native save schema 4 only');
       // Prototype uploads omit native journey-history rows: the demand model,

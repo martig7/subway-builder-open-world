@@ -611,6 +611,7 @@ export class WorldTileRuntime {
     return Object.fromEntries([
       ...keys.map((key) => [key, revisions[key]]),
       ['trainSimulationActive', revisions.trainSimulationActive],
+      ['trainsOutOfService', revisions.trainsOutOfService === true],
     ]);
   }
   getWorldId() { return (this.world ?? this.viewWorldFallback)?.worldId ?? null; }

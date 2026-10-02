@@ -59,7 +59,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-export const MOVEMENT_DECK_GUARD_VERSION = 36;
+export const MOVEMENT_DECK_GUARD_VERSION = 37;
 export const RAIL_RENDER_CACHE_VERSION = 'rail-render-bounded-static-snapshots-v34';
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
