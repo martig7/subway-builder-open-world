@@ -9,7 +9,7 @@ const raw = { schemaVersion: 1, gateways: ['g'], points: [
   ['home', 136.7, 35.1, 'a', 200, 0], ['work', 139.4, 35.3, 'b', 0, 200],
 ], pops: [['cross-pop', 200, 0, 1, 0, '07:30', '17:30', 13942, 320004]] };
 const choices = { 'cross-pop': { transit: 40, driving: 160, walking: 0 } };
-function setup() {
+function setup(data = raw) {
   const sources = new Map(), layers = new Map(), handlers = new Map(), writes = [];
   let loaded = true, resolveRoute, inspections = 0, requests = 0;
   const map = { isStyleLoaded: () => loaded, getSource: id => sources.get(id), getLayer: id => layers.get(id),
@@ -20,12 +20,55 @@ function setup() {
   };
   const controller = new CrossDemandOverlayController({ api: {}, tileCatalog: { tiles: [{ id: 'a', name: 'Aichi' }, { id: 'b', name: 'Kanagawa' }] },
     runtime: { getActiveTileId: () => 'b', view: () => ({ crossPopModeChoices: choices }), inspectCrossTileModeChoice() { inspections++; return { transitPath: { available: false } }; } },
-    tilePackages: { loadCrossDemand: async () => raw }, routePaths: { resolve() { requests++; return new Promise(resolve => { resolveRoute = resolve; }); } },
+    tilePackages: { loadCrossDemand: async () => data }, routePaths: { resolve() { requests++; return new Promise(resolve => { resolveRoute = resolve; }); } },
   });
   controller.attachMap(map);
   return { controller, map, sources, layers, writes, handlers, loaded: value => { loaded = value; },
+    data: value => { data = value; },
     finish: () => resolveRoute({ source: 'stored-osrm', coordinates: [[136.7,35.1],[138,35],[139.4,35.3]] }), counts: () => ({ inspections, requests }) };
 }
+
+function panelText(controller, point = null) {
+  const h = (tag, props, ...children) => ({ tag, props, children: children.flat() });
+  const tree = demandPanelContent({ h, controller, snapshot: controller.snapshot(), point });
+  const text = node => typeof node === 'string' ? node : node?.children?.map(text).join(' ') ?? '';
+  return text(tree);
+}
+
+test('commute-only NEC-style demand hides trip views globally and for a selected point', async () => {
+  // NEC LODES packages omit the optional trip type; zero-mass one-way records
+  // also cannot produce any qualifying trip dots.
+  const s = setup({ ...raw, pops: [...raw.pops, ['empty-trip', 0, 0, 1, 0, '12:00', '', 1, 1, 'oneWay']] });
+  await s.controller.open();
+  assert.deepEqual(s.controller.snapshot().viewModes, ['residents', 'workers']);
+  assert.match(panelText(s.controller), /Residents.*Workers/);
+  assert.doesNotMatch(panelText(s.controller), /Trips from|Trips to/);
+  s.controller.selectPoint('home');
+  assert.doesNotMatch(panelText(s.controller, s.controller.pointDetails()), /Trips from|Trips to/);
+  s.controller.setViewMode('outboundMovements');
+  assert.equal(s.controller.snapshot().viewMode, 'residents');
+  s.controller.setViewMode('workers');
+  s.controller.setViewMode('inboundMovements');
+  assert.equal(s.controller.snapshot().viewMode, 'workers');
+});
+
+test('Japan-style one-way demand keeps both trip views, then resets a stale trip selection on reload', async () => {
+  const s = setup({ ...raw, pops: [...raw.pops, ['one-way', 25, 0, 1, 0, '12:00', '', 1, 1, 'oneWay']] });
+  await s.controller.open();
+  assert.match(panelText(s.controller), /Trips from.*Trips to/);
+  s.controller.setViewMode('outboundMovements');
+  assert.equal(s.controller.snapshot().viewMode, 'outboundMovements');
+  assert.equal(s.sources.get('kc-cross-demand-points-source').data.features[0].properties.population, 25);
+  s.controller.setViewMode('inboundMovements');
+  s.controller.selectPoint('work');
+  assert.match(panelText(s.controller, s.controller.pointDetails()), /Trips from.*Trips to/);
+  s.controller.close();
+  s.data(raw);
+  await s.controller.open();
+  assert.equal(s.controller.snapshot().viewMode, 'residents');
+  assert.doesNotMatch(panelText(s.controller), /Trips from|Trips to/);
+  assert.equal(s.sources.get('kc-cross-demand-points-source').data.features[0].properties.population, 200);
+});
 
 test('summaries conserve cached mode counts; map filters use assigned modes', () => {
   const model = new CrossDemandModel(raw, {}, choices);

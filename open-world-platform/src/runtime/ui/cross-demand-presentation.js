@@ -92,7 +92,8 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
     if (point) content.push(back('All cross-city demand', () => c.clearSelection()), heading(h, 'Demand point details'),
       h('p', { className: 'text-xs text-muted-foreground' }, c.tileName(point.point.tileId)));
     content.push(h('div', { className: 'grid grid-cols-2 gap-1' }, ...[['residents', 'Residents', 'home'], ['workers', 'Workers', 'work'],
-      ['outboundMovements', 'Trips from', 'home'], ['inboundMovements', 'Trips to', 'work']].map(([view, label, glyph]) =>
+      ['outboundMovements', 'Trips from', 'home'], ['inboundMovements', 'Trips to', 'work']]
+      .filter(([view]) => s.viewModes.includes(view)).map(([view, label, glyph]) =>
       button(h, [icon(h, glyph), label], () => c.setViewMode(view), { key: view, 'aria-pressed': s.viewMode === view,
         className: `flex flex-1 items-center justify-center gap-2 rounded border py-2 text-xs ${s.viewMode === view ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}` }))),
       h('label', { className: 'flex items-center gap-2 text-xs' }, h('input', { type: 'checkbox', checked: s.faded, onChange: e => c.setFaded(e.target.checked) }), 'Fade demand layer'),

@@ -3,7 +3,10 @@ import { demandPanelContent } from './cross-demand-presentation.js';
 import { nativeDemandIgnoresClick } from './native-demand-presentation.js';
 import { NativeDemandDeckOverlay } from './native-demand-deck.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'one-way-movements-v1';
+export const CROSS_DEMAND_PANEL_VERSION = 'available-trip-views-v2';
+
+const COMMUTER_VIEWS = Object.freeze(['residents', 'workers']);
+const TRIP_VIEWS = Object.freeze([...COMMUTER_VIEWS, 'outboundMovements', 'inboundMovements']);
 
 // Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
 // uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.
@@ -137,6 +140,7 @@ export class CrossDemandOverlayController {
     return {
       active: this.active, status: this.status, error: this.error,
       viewMode: this.viewMode,
+      viewModes: this.availableViewModes(),
       selectedPointId: this.selectedPointId, selectedPopIndex: this.selectedPopIndex,
       routeStatus: this.routeStatus,
       version: CROSS_DEMAND_PANEL_VERSION, modeFilter: this.modeFilter, faded: this.faded,
@@ -195,6 +199,7 @@ export class CrossDemandOverlayController {
       const view = this.runtime.view();
       this.model = new CrossDemandModel(this.rawData, view.gatewayLedger, view.crossPopModeChoices);
       this.modelRevision++; this.detailCache = null;
+      if (!this.availableViewModes().includes(this.viewMode)) this.setViewMode('residents');
       this.status = 'ready'; this.#emit(); this.#refreshMap();
     } catch (error) {
       if (!this.active || request !== this.openRequest) return;
@@ -209,8 +214,12 @@ export class CrossDemandOverlayController {
     this.#refreshMap(); this.#emit(); this.detailCache = null;
   }
 
+  availableViewModes() {
+    return this.model?.stats.oneWayMovements > 0 ? TRIP_VIEWS : COMMUTER_VIEWS;
+  }
+
   setViewMode(viewMode) {
-    if (!['residents', 'workers', 'outboundMovements', 'inboundMovements'].includes(viewMode)) return;
+    if (!this.availableViewModes().includes(viewMode)) return;
     this.viewMode = viewMode; this.selectedPopIndex = null; this.selectedDrivingPath = null;
     this.routeStatus = 'idle'; this.routeRequest++; this.#emit(); this.#refreshMap();
   }
