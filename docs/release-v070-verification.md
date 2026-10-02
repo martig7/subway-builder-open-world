@@ -111,6 +111,6 @@ and its embedded Mac envelope agree. The local audit receipt is
 | Apple Silicon DMG | `23aa504a2708d91e5303e2cf00825c5eb0c00d635bd6e6cf414e62cbb0ed1953` |
 | Intel DMG | `487ca0c738356883de1209e0b92be37c73264530f9756ed0ade87c600d3093db` |
 
-[Draft release](https://github.com/martig7/subway-builder-open-world/releases/tag/untagged-507e3b731900e24362d4).
+[Draft release in GitHub's release list](https://github.com/martig7/subway-builder-open-world/releases).
 Normal public update checks continue to see v0.6.0 until the user publishes
 v0.7.0 as a stable release. No publication command was run.
