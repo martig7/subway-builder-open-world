@@ -1,9 +1,10 @@
 # v0.7.0 release verification
 
 The release remains **draft** pending the user's review and explicit publication
-request. The release branch is `codex/release-v070`. Installer and runtime
-implementation was frozen at `449ccd505045211e1d06d4de0b7cf9d8d44e86d0`;
-subsequent commits update documentation and the Mac CI test fixture only.
+request. The initial release branch is `codex/release-v070`; the demand-viewer
+correction is on `codex/nec-cross-demand-view-modes`, implementation commit
+`ecb195e`. The draft incorporates this correction in both consumer bundles and
+the signed installer catalogs.
 
 ## Packaged worlds
 
@@ -21,7 +22,7 @@ Map ZIPs remain below the 1.9 GB packaging budget and have bounded tile allowlis
 
 ## Local checks
 
-- 1,140 platform/Kansas City regression tests pass.
+- 1,142 platform/Kansas City regression tests pass.
 - 18 NEC consumer tests and 7 Japan consumer tests pass.
 - 43 Windows/native tests pass, including an actual WPF **Check for updates**
   button invocation from a 0.6.0 manifest to the 0.7.0 candidate.
@@ -40,6 +41,35 @@ Windows installation tests use an isolated workspace scratch root and an
 available test port. They do not replace the user's game installation. The test
 process owns and stops its own server, and removes its scratch installation.
 An in-game v0.7.0 playtest is left for the user's draft review.
+
+## Demand-viewer correction
+
+The panel now offers **Trips from** and **Trips to** only when the loaded
+cross-tile demand contains positive-mass one-way trips. Commute-only demand keeps
+**Residents** and **Workers**. This is based on demand records, so NEC gains the
+trip buttons automatically when qualifying data becomes available. Reloading
+commute-only data after a trip view resets the view to Residents.
+
+Regression tests cover the global panel, point details, zero-mass trips,
+unavailable mode selection, preservation of Japan's trip modes, and reload from
+one-way to commute-only demand. Checks using the real generated New York and
+Tokyo packages confirm two buttons for NEC (zero one-way movements) and all four
+for Japan (7,815,206 one-way movements).
+
+The rebuilt NEC release consumer `northeast-corridor-open-world` was installed
+from `prototype/nec-corridor/mod/dist`. Its installed bundle matches the built
+SHA-256 and timestamp and contains `available-trip-views-v2`. The shared local
+service returns HTTP 200 with `native-pmtiles-directory-v4` and 106 archives.
+The game was closed, so executing the new bundle in a live renderer remains a
+user review step. Japan's local installation was not replaced.
+
+Both release mod ZIPs were refreshed without regenerating or replacing map
+archives. Catalog byte counts and hashes were recalculated, the catalog was
+signed with the existing publisher certificate, and setup was rebuilt.
+The refreshed Windows payload passed full NEC and Japan cancellation/resume
+installation checks, bundle equality checks, and healthy service checks with
+59 and then 106 archives. All 43 native tests also pass, including local
+0.6.0-to-0.7.0 update discovery and the Windows manager's update button.
 
 ## Update discovery before publication
 
@@ -78,7 +108,7 @@ Patch notes follow the published v0.6.0 format: **Download and install**, then
 passed on Apple Silicon and Intel. Both jobs downloaded the actual draft assets,
 built and mounted their DMG, installed and hash-verified both real worlds,
 checked the packaged service, verified uninstall, and passed the running app's
-local update check. These exact tested DMGs are attached to the draft.
+local update check. This full-payload run preceded the demand-viewer correction.
 
 Apple Silicon tested the real worlds sequentially because the hosted runner
 could not retain both while satisfying the installer's staging/rollback space
@@ -86,6 +116,14 @@ requirements. It verified healthy services with 59 NEC and 47 Japan packages.
 Intel verified real coexistence: 59 packages after NEC, then 106 after Japan,
 and uninstall preserving the remaining world. Both architectures also pass
 the multi-world safety fixtures.
+
+After the demand-viewer correction,
+[workflow 37061045012](https://github.com/martig7/subway-builder-open-world/actions/runs/37061045012)
+rebuilt both architectures using the refreshed signed envelope. Both jobs
+mounted the new DMGs and passed installer safety, service lifecycle, live
+interface/backend and local update checks. These exact outputs replace the
+draft's Mac installers. This follow-up did not redownload the unchanged full
+map payload; the original full Mac run and refreshed full Windows run cover it.
 
 The first full Apple Silicon attempt correctly stopped at Japan's disk-space
 guard. The CI fixture had underestimated the peak space needed when retaining
@@ -107,9 +145,9 @@ and its embedded Mac envelope agree. The local audit receipt is
 
 | Installer | SHA-256 |
 | --- | --- |
-| Windows Setup | `365761c61c7d24f336bd4e1117509ab560c39904402c2b3436d734878ec0b586` |
-| Apple Silicon DMG | `23aa504a2708d91e5303e2cf00825c5eb0c00d635bd6e6cf414e62cbb0ed1953` |
-| Intel DMG | `487ca0c738356883de1209e0b92be37c73264530f9756ed0ade87c600d3093db` |
+| Windows Setup | `5cc2b3ae437bdc3692f71170b618cc1aa71b4777f73352305ed225d2443e0277` |
+| Apple Silicon DMG | `2c16f9a3e7d99f26049b0e0667259c09dea0317a12efae9f41f7ce0e391112ca` |
+| Intel DMG | `e412c6f166d0d36243d579393f85847d0cb7c599a68cbf70aa4a222d01ca369e` |
 
 [Draft release in GitHub's release list](https://github.com/martig7/subway-builder-open-world/releases).
 Normal public update checks continue to see v0.6.0 until the user publishes
