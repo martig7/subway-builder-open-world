@@ -5,6 +5,8 @@ request. The initial release branch is `codex/release-v070`; the demand-viewer
 correction is on `codex/nec-cross-demand-view-modes`, implementation commit
 `ecb195e`. The draft incorporates this correction in both consumer bundles and
 the signed installer catalogs.
+Save reload and naming fixes follow on `codex/save-reload-and-naming`,
+implementation commit `347f06d`.
 
 ## Packaged worlds
 
@@ -22,7 +24,7 @@ Map ZIPs remain below the 1.9 GB packaging budget and have bounded tile allowlis
 
 ## Local checks
 
-- 1,142 platform/Kansas City regression tests pass.
+- 1,144 platform/Kansas City regression tests pass.
 - 18 NEC consumer tests and 7 Japan consumer tests pass.
 - 43 Windows/native tests pass, including an actual WPF **Check for updates**
   button invocation from a 0.6.0 manifest to the 0.7.0 candidate.
@@ -70,6 +72,35 @@ The refreshed Windows payload passed full NEC and Japan cancellation/resume
 installation checks, bundle equality checks, and healthy service checks with
 59 and then 106 archives. All 43 native tests also pass, including local
 0.6.0-to-0.7.0 update discovery and the Windows manager's update button.
+
+## Save reload and naming fixes
+
+The native adapter reported `trainsOutOfService` correctly, but the World runtime
+discarded it from the render revisions. Direct renderer tests passed while the
+actual adapter-to-World-to-renderer path kept both train passes visible. The
+runtime now forwards this boolean. Native pause and native Ultra speed remain
+separate from cached mode's train visibility. Regression coverage replaces a
+save session and render layers, then verifies that disabling cached mode
+restores both train passes.
+
+The movement guard advances to generation 37. Its hot-reload regression verifies
+that attachment replaces both the previous patch object and wrapper function.
+Train inventory, positions and saved data are not changed by this rendering fix.
+
+New experimental autosaves use the native service's local-time format,
+`[Auto] YYYY-MM-DD_HH-MM-SS`, instead of exposing the transport as "Tile server".
+A fixed-clock regression checks the exact name and zero-padding. Existing saved
+files are not renamed.
+
+Both symptom tests failed before the corrections and pass afterward. The full
+1,144-test platform suite, 18 NEC tests and 7 Japan tests pass. The installed
+NEC bundle matches its build hash and timestamp and contains guard generation
+37 and `tile-save-controller-v9`. Its local service is healthy. The game was
+closed, so the live save-reload reproduction remains part of the user's review.
+The refreshed signed Windows payload also passes full NEC and Japan
+cancellation/resume installs, exact bundle verification, and service health
+with 59 and then 106 archives. All 43 native tests pass, including real loopback
+update discovery from 0.6.0 to 0.7.0 and the Windows manager's update button.
 
 ## Update discovery before publication
 
@@ -121,9 +152,16 @@ After the demand-viewer correction,
 [workflow 37061045012](https://github.com/martig7/subway-builder-open-world/actions/runs/37061045012)
 rebuilt both architectures using the refreshed signed envelope. Both jobs
 mounted the new DMGs and passed installer safety, service lifecycle, live
-interface/backend and local update checks. These exact outputs replace the
-draft's Mac installers. This follow-up did not redownload the unchanged full
+interface/backend and local update checks. These outputs verified the
+demand-viewer correction. This follow-up did not redownload the unchanged full
 map payload; the original full Mac run and refreshed full Windows run cover it.
+
+For the save reload and naming fixes,
+[workflow 37066968665](https://github.com/martig7/subway-builder-open-world/actions/runs/37066968665)
+rebuilt and verified both architectures against the latest signed envelope.
+Installer safety, service lifecycle, live interface and local update checks
+passed. These exact DMGs are now attached to the draft. The map payload and
+native installer behavior are unchanged.
 
 The first full Apple Silicon attempt correctly stopped at Japan's disk-space
 guard. The CI fixture had underestimated the peak space needed when retaining
@@ -145,9 +183,9 @@ and its embedded Mac envelope agree. The local audit receipt is
 
 | Installer | SHA-256 |
 | --- | --- |
-| Windows Setup | `5cc2b3ae437bdc3692f71170b618cc1aa71b4777f73352305ed225d2443e0277` |
-| Apple Silicon DMG | `2c16f9a3e7d99f26049b0e0667259c09dea0317a12efae9f41f7ce0e391112ca` |
-| Intel DMG | `e412c6f166d0d36243d579393f85847d0cb7c599a68cbf70aa4a222d01ca369e` |
+| Windows Setup | `6c8334e934db1237183f7b7f8ca185223a9dce81a14c786fbbf00a3d20a25823` |
+| Apple Silicon DMG | `bec69ff5a67572fadefe5956d56b290301bfc0c2abb05de82b81a13cf1cf9f0f` |
+| Intel DMG | `68a591204f9740d60b4d1e5f27a7ffc7ef037d817628819b4939f03480166ad0` |
 
 [Draft release in GitHub's release list](https://github.com/martig7/subway-builder-open-world/releases).
 Normal public update checks continue to see v0.6.0 until the user publishes
