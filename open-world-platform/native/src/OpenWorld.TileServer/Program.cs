@@ -72,29 +72,16 @@ var builder = WebApplication.CreateSlimBuilder();
 builder.Logging.ClearProviders();
 builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, port));
 await using var app = builder.Build();
-PrototypeSaveWriter? saveWriter = null;
-var savePrototypeRoot = options.Optional("save-prototype-root")
-    ?? GameSaveLocation.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
-if (savePrototypeRoot is not null)
-{
-    try
-    {
-        saveWriter = new PrototypeSaveWriter(savePrototypeRoot);
-        log.Write("INFO", $"Prototype save writer targeting {savePrototypeRoot}.");
-    }
-    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-    {
-        log.Write("WARN", $"Prototype save writer disabled: {exception.Message}");
-    }
-}
-using var prototypeSaveWriter = saveWriter;
-if (prototypeSaveWriter is not null) PrototypeSaveEndpoints.Map(app, prototypeSaveWriter, instanceId);
+using var prototypeSaveWriter = new PrototypeSaveWriterService(options.Optional("save-prototype-root"),
+    onDirectory: directory => log.Write("INFO", $"Prototype save writer targeting {directory} ({PrototypeSaveWriterService.LocationVersion})."));
+// Discovery stays available even before settings exist or after a folder error.
+PrototypeSaveEndpoints.Map(app, prototypeSaveWriter, instanceId);
 
 app.Use(async (context, next) =>
 {
     var requestClock = Stopwatch.StartNew();
     context.Response.Headers.AccessControlAllowOrigin = "*";
-    context.Response.Headers.AccessControlAllowHeaders = $"Range, Content-Type, {controlHeader}, X-Save-Chunk-Sha256";
+    context.Response.Headers.AccessControlAllowHeaders = $"Range, Content-Type, {controlHeader}, X-Save-Chunk-Sha256, {PrototypeSaveWriterService.WriterHeader}";
     context.Response.Headers.AccessControlAllowMethods = "GET, HEAD, POST, OPTIONS";
     context.Response.Headers.AccessControlExposeHeaders = "X-OpenWorld-Route-Archive";
     context.Response.Headers.CacheControl = "public, max-age=3600";
@@ -103,6 +90,7 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-OpenWorld-Route-Archive"] = RouteArchive.Version;
     context.Response.Headers["X-OpenWorld-Debug-Recorder"] = RendererDebugRecorder.Version;
     context.Response.Headers["X-OpenWorld-Native-Logs"] = NativeLogCapture.Version;
+    context.Response.Headers["X-OpenWorld-Save-Writer"] = PrototypeSaveWriterService.LocationVersion;
     context.Response.Headers[instanceHeader] = instanceId;
     try
     {

@@ -129,3 +129,18 @@ test('unreadable commit receipts report an unknown outcome instead of claiming n
       error => error.saveOutcome === 'unknown' && error.message === 'Commit response lost');
   }
 });
+
+test('every upload and recovery request stays bound to the discovered save folder', async () => {
+  const paths = [];
+  const fetchFn = async (url, options) => {
+    assert.equal(options.headers['X-OpenWorld-Save-Writer-Id'], 'native-folder-binding');
+    const action = url.pathname.split('/').at(-1); paths.push(action);
+    if (action === 'begin') return Response.json({ id: 'upload' });
+    if (action === 'commit') throw new Error('lost response');
+    if (action === 'result') return new Response('missing', { status: 404 });
+    return Response.json({ accepted: true });
+  };
+  await assert.rejects(writePrototypeNativeSave({ data: [1] }, { origin: 'http://127.0.0.1:8799',
+    writerId: 'native-folder-binding', fetchFn }), /lost response/);
+  assert.deepEqual(paths, ['begin', '0', 'commit', 'result', 'abort']);
+});

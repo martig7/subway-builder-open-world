@@ -291,7 +291,7 @@ internal static class SaveWriterAccess
 
 internal static class PrototypeSaveEndpoints
 {
-    public static void Map(WebApplication app, PrototypeSaveWriter writer, string token)
+    public static void Map(WebApplication app, PrototypeSaveWriterService service, string token)
     {
         app.MapMethods("/_prototype/save/{**rest}", ["OPTIONS"], context => { context.Response.StatusCode = 204; return Task.CompletedTask; });
         app.MapPost("/_prototype/save/{**rest}", async context =>
@@ -310,27 +310,47 @@ internal static class PrototypeSaveEndpoints
                 { if (memory.Length + read > limit) throw new InvalidDataException("Save request too large"); memory.Write(buffer, 0, read); }
                 var bytes = memory.ToArray();
                 string result;
-                if (route is ["status"]) result = "{\"version\":\"" + PrototypeSaveWriter.Version + "\"}";
-                else if (route is ["begin"])
+                if (route is ["status"])
                 {
-                    using var json = JsonDocument.Parse(bytes);
-                    result = "{\"id\":\"" + writer.Begin(json.RootElement) + "\"}";
+                    string? directory = null;
+                    if (bytes.Length != 0)
+                    {
+                        using var configuration = JsonDocument.Parse(bytes);
+                        if (configuration.RootElement.ValueKind != JsonValueKind.Object)
+                            throw new InvalidDataException("Expected save-folder configuration.");
+                        if (configuration.RootElement.TryGetProperty("directory", out var value))
+                        {
+                            if (value.ValueKind != JsonValueKind.String) throw new InvalidDataException("Expected an absolute save folder.");
+                            directory = value.GetString();
+                        }
+                    }
+                    var writerId = service.Discover(directory);
+                    result = "{\"version\":\"" + PrototypeSaveWriter.Version + "\",\"locationVersion\":\"" + PrototypeSaveWriterService.LocationVersion + "\",\"writerId\":\"" + writerId + "\"}";
                 }
-                else if (route.Length == 3 && route[1] == "chunk" && int.TryParse(route[2], out var sequence))
-                { writer.Append(route[0], sequence, bytes, context.Request.Headers["X-Save-Chunk-Sha256"].ToString()); result = "{\"accepted\":true}"; }
-                else if (route.Length == 2 && route[1] == "commit")
+                else
                 {
-                    using var json = JsonDocument.Parse(bytes);
-                    var saved = writer.Commit(route[0], json.RootElement.GetProperty("chunks").GetInt32(), json.RootElement.GetProperty("bytes").GetInt64());
-                    result = JsonSerializer.Serialize(saved, TileServerJsonContext.Default.PrototypeSaveResult);
+                    var writer = service.Get(context.Request.Headers[PrototypeSaveWriterService.WriterHeader].ToString());
+                    if (route is ["begin"])
+                    {
+                        using var json = JsonDocument.Parse(bytes);
+                        result = "{\"id\":\"" + writer.Begin(json.RootElement) + "\"}";
+                    }
+                    else if (route.Length == 3 && route[1] == "chunk" && int.TryParse(route[2], out var sequence))
+                    { writer.Append(route[0], sequence, bytes, context.Request.Headers["X-Save-Chunk-Sha256"].ToString()); result = "{\"accepted\":true}"; }
+                    else if (route.Length == 2 && route[1] == "commit")
+                    {
+                        using var json = JsonDocument.Parse(bytes);
+                        var saved = writer.Commit(route[0], json.RootElement.GetProperty("chunks").GetInt32(), json.RootElement.GetProperty("bytes").GetInt64());
+                        result = JsonSerializer.Serialize(saved, TileServerJsonContext.Default.PrototypeSaveResult);
+                    }
+                    else if (route.Length == 2 && route[1] == "result") result = JsonSerializer.Serialize(writer.Receipt(route[0]), TileServerJsonContext.Default.PrototypeSaveResult);
+                    else if (route.Length == 2 && route[1] == "abort") { writer.Abort(route[0]); result = "{\"aborted\":true}"; }
+                    else { context.Response.StatusCode = 404; return; }
                 }
-                else if (route.Length == 2 && route[1] == "result") result = JsonSerializer.Serialize(writer.Receipt(route[0]), TileServerJsonContext.Default.PrototypeSaveResult);
-                else if (route.Length == 2 && route[1] == "abort") { writer.Abort(route[0]); result = "{\"aborted\":true}"; }
-                else { context.Response.StatusCode = 404; return; }
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsync(result, context.RequestAborted);
             }
-            catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or JsonException or IOException or KeyNotFoundException or FormatException)
+            catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or JsonException or IOException or UnauthorizedAccessException or KeyNotFoundException or FormatException or ArgumentException)
             { context.Response.StatusCode = 400; await context.Response.WriteAsync(ex.Message[..Math.Min(160, ex.Message.Length)]); }
         });
     }

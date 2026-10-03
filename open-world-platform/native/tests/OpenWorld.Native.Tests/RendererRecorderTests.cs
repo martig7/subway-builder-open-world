@@ -154,6 +154,7 @@ static class RendererRecorderTests
         try
         {
             await Start();
+            var writerId = await SaveWriterLocationTests.Http(client, Path.Combine(scratch.Root, "native-folder"));
             Check(!(await RendererRecorderController.GetAsync(port)).Enabled, "Fresh HTTP recorder must be off.");
             using (var unauthorized = await client.PostAsync("/_control/recorder", new StringContent("{\"enabled\":true}")))
                 Check(unauthorized.StatusCode == HttpStatusCode.Forbidden, "Recorder switch must require the managed instance token.");
@@ -186,6 +187,8 @@ static class RendererRecorderTests
             using (var tileResponse = await client.GetAsync("/JP_PREF01/0/0/0.mvt"))
                 Check(tileResponse.IsSuccessStatusCode && (await tileResponse.Content.ReadAsByteArrayAsync()).Length > 0, "Recording interrupted tile serving.");
             await Stop(); await Start();
+            Check(await SaveWriterLocationTests.Http(client, Path.Combine(scratch.Root, "native-folder")) != writerId,
+                "Restart reused a stale save-folder binding.");
             Check((await RendererRecorderController.GetAsync(port)).Enabled, "HTTP recorder setting did not survive restart.");
             await RendererRecorderController.SetAsync(port, scratch.State, false);
             Check(!(await RendererRecorderController.GetAsync(port)).Enabled, "Manager could not disable recorder.");

@@ -21,6 +21,20 @@ remaining installed manager when it was already running.
 - `OpenWorld.ReleasePackager` produces one flat Railyard mod ZIP, one signed
   support package, and independently repairable data ZIPs for a selected World.
 
+## Experimental save writer
+
+The mod supplies the game's actual `getCurrentSaveFolder` result to
+`POST /_prototype/save/status`, including Steam-managed and default folders.
+The server enables the writer on discovery and returns a folder binding used
+throughout the upload. Discovery remains available after folder-access failures
+and settings changes; each save refreshes the binding after a server restart.
+Without a game-supplied directory, settings select a custom folder or the
+standalone default `Documents/SubwayBuilder/saves`. An explicit
+`--save-prototype-root` takes precedence. Update both the mod and server for
+`native-save-location-v2`; a new mod rejects an older server that cannot bind
+the native folder. Save-status access uses the same trusted-game/control-token
+checks as uploads. See [the writer guide](../../docs/prototypes/tile-server-save-writer.md).
+
 The public setup path does not invoke PowerShell. PowerShell is used only by the
 maintainer-side release script to create/reuse a self-signed code-signing
 certificate and sign the produced executables and release manifest.

@@ -18,19 +18,28 @@ internal static class SaveWriterAccessTests
         Directory.CreateDirectory(applicationData);
         try
         {
-            if (GameSaveLocation.Resolve(applicationData) is not null) throw new Exception("A missing settings file resolved a save folder.");
+            var documents = Path.Combine(applicationData, "Documents");
+            var defaultSaves = Path.Combine(documents, "SubwayBuilder", "saves");
+            string? Resolve() => GameSaveLocation.Resolve(applicationData, documents);
+            if (Resolve() != defaultSaves) throw new Exception("Default saves have no writer when settings are missing.");
             var saves = Path.Combine(applicationData, "saves");
             Directory.CreateDirectory(saves);
             Directory.CreateDirectory(Path.Combine(applicationData, "metro-maker4"));
             File.WriteAllText(Path.Combine(applicationData, "metro-maker4", "settings.json"), "{}");
-            if (GameSaveLocation.Resolve(applicationData) is not null) throw new Exception("Default settings resolved a save folder.");
+            foreach (var settings in new[] { "{}", "{\"customSavesDirectory\":null}", "{\"customSavesDirectory\":\"\"}" })
+            {
+                File.WriteAllText(Path.Combine(applicationData, "metro-maker4", "settings.json"), settings);
+                if (Resolve() != defaultSaves) throw new Exception("Default settings did not resolve the native default save folder.");
+            }
             File.WriteAllText(Path.Combine(applicationData, "metro-maker4", "settings.json"),
                 "{\"customSavesDirectory\":\"" + saves.Replace("\\", "\\\\") + "\"}");
-            if (GameSaveLocation.Resolve(applicationData) != saves) throw new Exception("The configured save folder was not resolved.");
+            if (Resolve() != saves) throw new Exception("The configured save folder was not resolved.");
             File.WriteAllText(Path.Combine(applicationData, "metro-maker4", "settings.json"), "{\"customSavesDirectory\":\"relative/saves\"}");
-            if (GameSaveLocation.Resolve(applicationData) is not null) throw new Exception("A relative save folder was accepted.");
+            if (Resolve() is not null) throw new Exception("A relative save folder was accepted.");
             File.WriteAllText(Path.Combine(applicationData, "metro-maker4", "settings.json"), "{\"customSavesDirectory\":");
-            if (GameSaveLocation.Resolve(applicationData) is not null) throw new Exception("A corrupt settings file resolved a save folder.");
+            if (Resolve() is not null) throw new Exception("A corrupt settings file resolved a save folder.");
+            File.WriteAllText(Path.Combine(applicationData, "metro-maker4", "settings.json"), new string(' ', 65537));
+            if (Resolve() is not null) throw new Exception("An oversized settings file resolved a save folder.");
             return Task.CompletedTask;
         }
         finally { Directory.Delete(applicationData, recursive: true); }

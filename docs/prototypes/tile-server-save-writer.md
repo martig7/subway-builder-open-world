@@ -216,9 +216,23 @@ $env:DOTNET_GCHeapHardLimit = '0x10000000'
 & '.\open-world-platform\native\src\OpenWorld.TileServer\bin\Release\net8.0\open-world-tile-server.exe' serve --root "$env:APPDATA\metro-maker4\cities\data" --tiles JP_TOKYO_MAINLAND --port 8800 --state-root '.analysis/save-writer/state' --save-prototype-root 'D:\SubwayBuilder'
 ```
 
-The save root defaults to the game's configured save folder
-(`customSavesDirectory` from settings); `--save-prototype-root` still
-overrides it. The loaded mod connects on its own: it probes port 8800 first, then the
+Since `native-save-location-v2` / `tile-save-controller-v10`, the mod asks the
+game's native `getCurrentSaveFolder` API for its actual save directory and sends
+it to `POST /_prototype/save/status`. This handles Steam-managed folders and
+the standalone default without requiring a custom save-folder setting. The
+server keeps discovery available even when settings are absent or a previous
+folder could not be opened, and retries folder creation on later discovery.
+The returned writer ID binds every upload, commit, receipt and abort to that
+directory; a different renderer's discovery cannot redirect a pending save.
+Each save rechecks the game's folder and obtains a fresh binding after a server
+restart. Ordinary website origins still require the server's control token.
+
+Older clients without a directory use `customSavesDirectory` from settings or
+the standalone game's default `Documents/SubwayBuilder/saves`. Invalid or
+unreadable settings do not silently redirect saves to a different folder.
+`--save-prototype-root` overrides both discovery and settings for diagnostics.
+Update both the mod and native tile server: a mod with a native directory refuses
+an older server that cannot bind that directory. The loaded mod connects on its own: it probes port 8800 first, then the
 World's tile server, once at startup and again whenever the Map rendering
 panel opens while unconfigured (re-probes are throttled to one per minute, so
 a stopped writer cannot spam the console), so no `--enable` pairing step is

@@ -219,6 +219,36 @@ test('automatic configuration ignores version mismatches', async () => {
   assert.equal((await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8800'], fetchFn })).configured, false);
 });
 
+test('automatic writer discovery uses the native default or Steam save folder and refreshes after restart', async () => {
+  let directory = 'C:\\game-data\\steam-saves';
+  let writerId = 'writer-before-restart';
+  const seen = [];
+  const fetchFn = async (url, options) => {
+    seen.push({ path: new URL(url).pathname, body: JSON.parse(options.body), headers: options.headers });
+    return Response.json({ version: 'tile-save-prototype-v1', locationVersion: 'native-save-location-v2', writerId });
+  };
+  const f = fixture({ writeSave: async (save, options) => {
+    assert.equal(options.writerId, 'writer-after-restart');
+    return { bytes: 123, durationMs: 10 };
+  } }, { fetchFn, getSaveDirectory: async () => directory });
+  await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8799'], fetchFn });
+  assert.equal(seen[0].body.directory, directory);
+  directory = 'D:\\new-custom-saves'; writerId = 'writer-after-restart';
+  f.controller.setEnabled(true);
+  await f.controller.run();
+  assert.equal(seen[1].body.directory, directory);
+  assert.equal(f.controller.snapshot().locationVersion, 'native-save-location-v2');
+});
+
+test('a server that cannot bind the native folder cannot enable experimental autosaves', async () => {
+  const f = fixture({}, { getSaveDirectory: async () => 'C:\\Steam saves' });
+  await f.controller.configureAutomatic({ origins: ['http://127.0.0.1:8799'],
+    fetchFn: async () => Response.json({ version: 'tile-save-prototype-v1' }) });
+  assert.equal(f.controller.snapshot().configured, false);
+  assert.match(f.controller.snapshot().error, /Update Open World and restart the tile server/);
+  assert.throws(() => f.controller.setEnabled(true), /Configure/);
+});
+
 test('reconnect reuses remembered origins and throttles failed probes', async () => {
   const f = fixture();
   let calls = 0;

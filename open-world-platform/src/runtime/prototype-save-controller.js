@@ -8,6 +8,7 @@ const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 // clock rebasing and the ordinary native load UI remain authoritative.
 const SAVE_GATE = 'prototype-save-gate';
 const gateError = message => Object.assign(new Error(message), { code: SAVE_GATE });
+const NATIVE_SAVE_LOCATION_VERSION = 'native-save-location-v2';
 
 // Match Subway Builder's native autosave service, using local calendar time.
 function nativeAutosaveName() {
@@ -19,14 +20,38 @@ function nativeAutosaveName() {
 export function createPrototypeSaveController({ getState, isReady = () => true,
   isBusy = () => false, freezeUi = blockSaveEdits, yieldTask = nextFrame,
   writeSave = writePrototypeNativeSave, onActivity = () => {}, fetchFn = fetch,
-  settleMs = 30000, initialEnabled = false, onEnabledChange = () => {} } = {}) {
+  settleMs = 30000, initialEnabled = false, onEnabledChange = () => {},
+  getSaveDirectory = () => globalThis.window?.electron?.getCurrentSaveFolder?.() } = {}) {
   let configuration = null, enabled = initialEnabled === true, pending = null, automatic = null, abort = null, disposed = false;
   let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v9', configured: false, enabled, status: 'off', last: null, error: null, transport: null };
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v10', locationVersion: NATIVE_SAVE_LOCATION_VERSION, configured: false, enabled, status: 'off', last: null, error: null, transport: null };
   const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
+
+  async function writerStatus(origin, { token, signal, statusFetch = fetchFn } = {}) {
+    // Ask the native game: Steam chooses its own folder and ignores custom settings.
+    let onAbort;
+    const directory = await Promise.race([Promise.resolve().then(getSaveDirectory),
+      new Promise((_, reject) => {
+        onAbort = () => reject(signal.reason);
+        if (signal?.aborted) onAbort();
+        else signal?.addEventListener('abort', onAbort, { once: true });
+      })]).finally(() => signal?.removeEventListener('abort', onAbort));
+    const response = await statusFetch(new URL('/_prototype/save/status', origin), {
+      method: 'POST', headers: { ...(token ? { 'X-PMTiles-Control-Token': token } : {}),
+        ...(directory ? { 'Content-Type': 'application/json' } : {}) },
+      ...(directory ? { body: JSON.stringify({ directory }) } : {}), signal,
+    });
+    if (!response.ok) throw new Error(`Save writer is unavailable (${response.status})`);
+    const result = await response.json();
+    if (result?.version !== TILE_SAVE_PROTOTYPE_VERSION) throw new Error('Save writer version differs');
+    if (directory && (result.locationVersion !== NATIVE_SAVE_LOCATION_VERSION || typeof result.writerId !== 'string' || !result.writerId))
+      throw Object.assign(new Error('Update Open World and restart the tile server to support the native save folder'),
+        { code: 'save-location-support-required' });
+    return result;
+  }
 
   async function capture() {
     const startedAt = Date.now();
@@ -48,12 +73,9 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       if (disposed || !configuration || !isReady()) throw gateError('Tile save prototype is not ready');
       // A stopped writer must fail before freezing the game or generating a
       // large snapshot. Keep configuration so a restarted service can recover.
-      const response = await fetchFn(new URL('/_prototype/save/status', configuration.origin), {
-        method: 'POST', headers: configuration.token ? { 'X-PMTiles-Control-Token': configuration.token } : {},
-        signal: AbortSignal.any([localAbort.signal, AbortSignal.timeout(3000)]),
-      });
-      if (!response.ok || (await response.json()).version !== TILE_SAVE_PROTOTYPE_VERSION)
-        throw new Error('Save writer is unavailable');
+      const connected = await writerStatus(configuration.origin, { token: configuration.token,
+        signal: AbortSignal.any([localAbort.signal, AbortSignal.timeout(3000)]) });
+      configuration = { ...configuration, writerId: connected.writerId };
       localAbort.signal.throwIfAborted();
       if (disposed || !isReady()) throw gateError('World changed while checking the save writer');
       state = getState(); session = state.gameSessionId; city = state.cityCode;
@@ -162,6 +184,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
     // restarts. Remembers its origins for reconnect().
     if (origins.length) reconnectOrigins = origins;
     if (pending || disposed || configuration) return snapshot();
+    let discoveryError = null;
     for (const origin of origins) {
       let base;
       try {
@@ -169,14 +192,15 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
         if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1') continue;
       } catch { continue; }
       try {
-        const response = await fetchFn(new URL('/_prototype/save/status', base),
-          { method: 'POST', signal: AbortSignal.timeout(timeoutMs) });
-        if (!response.ok) continue;
-        if ((await response.json())?.version !== TILE_SAVE_PROTOTYPE_VERSION) continue;
-        configuration = { origin: base.origin, token: null };
+        const connected = await writerStatus(base, { statusFetch: fetchFn, signal: AbortSignal.timeout(timeoutMs) });
+        configuration = { origin: base.origin, token: null, writerId: connected.writerId };
         status = { ...status, status: 'ready', error: null }; notify(); return snapshot();
-      } catch { continue; }
+      } catch (error) {
+        if (error.code === 'save-location-support-required') discoveryError = error.message;
+        continue;
+      }
     }
+    if (discoveryError) { status = { ...status, error: discoveryError }; notify(); }
     return snapshot();
   }
   return {
@@ -187,10 +211,8 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       const base = new URL(origin);
       if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1' || typeof token !== 'string' || token.length < 16)
         throw new Error('Expected an authenticated loopback tile server');
-      const response = await fetchFn(new URL('/_prototype/save/status', base), { method: 'POST',
-        headers: { 'X-PMTiles-Control-Token': token }, signal: AbortSignal.timeout(3000) });
-      if (!response.ok || (await response.json()).version !== TILE_SAVE_PROTOTYPE_VERSION) throw new Error('Prototype writer is unavailable');
-      configuration = { origin: base.origin, token }; status.status = 'ready'; notify();       return snapshot();
+      const connected = await writerStatus(base, { token, signal: AbortSignal.timeout(3000) });
+      configuration = { origin: base.origin, token, writerId: connected.writerId }; status.status = 'ready'; notify();       return snapshot();
     },
     reconnect({ fetchFn = fetch, timeoutMs = 3000 } = {}) {
       // Panel-open re-probe for a writer that started after the mod loaded.
