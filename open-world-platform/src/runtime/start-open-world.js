@@ -68,6 +68,7 @@ export const RUNTIME_AUDIT_VERSION = 'runtime-audit-game-1.7.2-v1';
 
 export const OPEN_WORLD_PLATFORM_RELEASE = 'open-world-platform-v1';
 export const STARTUP_MAP_RECOVERY_VERSION = 'startup-map-recovery-v1';
+export const NATIVE_STARTUP_READINESS_VERSION = 'native-load-before-world-startup-v1';
 export const TILE_SWITCH_PRESENTATION_VERSION = 'tile-switch-paint-before-handoff-v2';
 export const OPEN_WORLD_MAX_TRACK_LENGTH_METERS = 100_000;
 
@@ -164,7 +165,9 @@ export function startOpenWorld({
       if (event === 'game-init') return activeController?.lifecycle?.gameInit?.();
       if (event === 'game-loaded') return activeController?.lifecycle?.gameLoaded?.(payload);
       if (event === 'city-load') {
-        return activeController?.lifecycle?.cityLoad?.(cityCode, { authoritative: true });
+        // City discovery can precede loadSave applying its selected payload.
+        // The native loaded/init hooks authorize adopting identity and demand.
+        return activeController?.lifecycle?.cityLoad?.(cityCode);
       }
       return activeController;
     };
@@ -395,6 +398,7 @@ export function startOpenWorld({
     generation,
     platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
     startupMapRecoveryVersion: STARTUP_MAP_RECOVERY_VERSION,
+    nativeStartupReadinessVersion: NATIVE_STARTUP_READINESS_VERSION,
     cityAuthorityVersion: SUBWAY_BUILDER_CITY_AUTHORITY_VERSION,
     worldDefinitionHash: artifacts.worldDefinitionHash ?? null,
     saveAuthorityVersion: SAVE_AUTHORITY_VERSION,

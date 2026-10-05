@@ -22,13 +22,13 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function harness(run, { storage = new Map(), nativeDayTicks = false } = {}) {
+async function harness(run, { storage = new Map(), nativeDayTicks = false, initialCityCode = 'JP_TOKYO_MAINLAND' } = {}) {
   const savedGlobals = new Map(Object.getOwnPropertyNames(globalThis).filter(key => key.startsWith('__')
     || ['fetch', 'localStorage', 'sessionStorage', 'requestIdleCallback'].includes(key)).map(key => [key, globalThis[key]]));
   const savedConsole = { debug: console.debug, info: console.info, log: console.log, warn: console.warn, error: console.error };
   const hooks = new Map(); const idle = []; const errors = []; const ui = []; const unsubscribed = [];
   const nativeDays = [];
-  const state = createSubwayBuilderHostState({ cityCode: 'JP_TOKYO_MAINLAND', gameSessionId: 'session-A', saveName: 'save-A', money: 1_000_000, transitCost: 2.5,
+  const state = createSubwayBuilderHostState({ cityCode: initialCityCode, gameSessionId: 'session-A', saveName: 'save-A', money: 1_000_000, transitCost: 2.5,
     routeFinancials: { byRoute: {}, lastHourTimestamp: 0, currentHour: {} },
     financialHistory: { entries: [], lastHourTimestamp: 0, currentHourRevenue: 0, currentHourExpenses: 0, currentHourExpenseCategories: {} },
     generateSave() { return { name: state.saveName, cityCode: state.cityCode, gameSessionId: state.gameSessionId, viewport: {}, data: {
@@ -79,7 +79,7 @@ async function harness(run, { storage = new Map(), nativeDayTicks = false } = {}
   try {
     await run({ controller: restart(), restart, api, state, hooks, idle, errors, ui, unsubscribed, nativeDays });
   } finally {
-    for (const controller of controllers) controller.dispose();
+    for (const controller of new Set([...controllers, globalThis.__tokyoKanagawaActiveRuntimeV1__].filter(Boolean))) controller.dispose();
     Object.assign(console, savedConsole);
     for (const key of Object.getOwnPropertyNames(globalThis)) {
       if ((key.startsWith('__') || ['fetch', 'localStorage', 'sessionStorage', 'requestIdleCallback'].includes(key)) && !savedGlobals.has(key)) delete globalThis[key];
@@ -108,6 +108,94 @@ test('cold native load resolves the saved demand checkpoint World despite a stal
     assert.equal(await demand.readState('induced-demand', demand.getContext()), '{"pressure":7}');
     assert.deepEqual(errors, []);
   }, { storage });
+});
+
+test('dormant city discovery waits for the selected native save before choosing its demand checkpoint World', async t => {
+  let boots = 0, nativeLoaded = false;
+  const gate = deferred(), originalBoot = WorldTileRuntime.prototype.boot;
+  t.mock.method(WorldTileRuntime.prototype, 'boot', async function (...args) {
+    boots++; if (!nativeLoaded) await gate.promise;
+    return originalBoot.apply(this, args);
+  });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  const storage = new Map(), savedWorldId = 'selected-saved-world';
+  const store = new DemandExtensionStore({ storage, createId: () => 'dormant-checkpoint' });
+  const saved = await store.commit(await store.readCheckpoint(null, savedWorldId), 'JP_TOKYO_MAINLAND', 'induced-demand',
+    { ledger: '{"pressure":9}', points: [], pops: [] }, 'saved-day');
+  await harness(async ({ controller, state, hooks, idle, errors }) => {
+    assert.equal(controller.status, 'dormant');
+    state.cityCode = 'JP_TOKYO_MAINLAND'; state.gameSessionId = 'temporary-city-session';
+    const discovery = hooks.get('onCityLoad')(state.cityCode);
+    await new Promise(setImmediate);
+    const active = globalThis.__tokyoKanagawaActiveRuntimeV1__, earlyBoots = boots;
+    state.gameSessionId = 'selected-native-session';
+    state.financialHistory.openWorldAuthoritativeWorldId = savedWorldId;
+    state.financialHistory[DEMAND_CHECKPOINT_FIELD] = structuredClone(saved.marker);
+    nativeLoaded = true;
+    const loaded = active.lifecycle.gameLoaded('selected-native-save');
+    gate.resolve(); await Promise.all([discovery, loaded]);
+    assert.equal(active.diagnostics.demandExtensions().error, null);
+    assert.equal(earlyBoots, 0, 'city discovery must not authorize native save adoption');
+    assert.equal(boots, 1); assert.equal(active.diagnostics.currentWorld.worldId, savedWorldId);
+    assert.equal(active.diagnostics.nativeStartupReadinessVersion, 'native-load-before-world-startup-v1');
+    assert.deepEqual(state.financialHistory[DEMAND_CHECKPOINT_FIELD], saved.marker);
+    idle.shift()(); await new Promise(setImmediate);
+    const demand = globalThis.SubwayBuilderOpenWorldDemand;
+    assert.equal(await demand.readState('induced-demand', demand.getContext()), '{"pressure":9}');
+    assert.deepEqual(errors, []);
+  }, { storage, initialCityCode: 'unknown' });
+});
+
+test('dormant city discovery still starts a new World when native game initialization completes', async t => {
+  let boots = 0;
+  const originalBoot = WorldTileRuntime.prototype.boot;
+  t.mock.method(WorldTileRuntime.prototype, 'boot', function (...args) { boots++; return originalBoot.apply(this, args); });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  await harness(async ({ state, hooks, idle, errors }) => {
+    state.cityCode = 'JP_TOKYO_MAINLAND';
+    await hooks.get('onCityLoad')(state.cityCode);
+    assert.equal(boots, 0);
+    const active = globalThis.__tokyoKanagawaActiveRuntimeV1__;
+    state.gameSessionId = 'new-native-world';
+    await active.lifecycle.gameInit();
+    assert.equal(boots, 1); assert.equal(active.diagnostics.currentWorld.worldId, 'new-native-world');
+    idle.shift()(); await new Promise(setImmediate);
+    assert.equal(globalThis.SubwayBuilderOpenWorldDemand.getContext().demandReady, true);
+    assert.deepEqual(errors, []);
+  }, { initialCityCode: 'unknown' });
+});
+
+for (const kind of ['internal-runtime', 'save-echo']) test(`dormant city discovery preserves the native hot-reload startup route (${kind})`, async t => {
+  let boots = 0;
+  const originalBoot = WorldTileRuntime.prototype.boot;
+  t.mock.method(WorldTileRuntime.prototype, 'boot', function (...args) { boots++; return originalBoot.apply(this, args); });
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  const storage = new Map(), entries = new Map(), savedWorldId = 'replayed-saved-world';
+  const store = new DemandExtensionStore({ storage, createId: () => `replay-${kind}` });
+  const saved = await store.commit(await store.readCheckpoint(null, savedWorldId), 'JP_TOKYO_MAINLAND', 'induced-demand',
+    { ledger: '{"pressure":11}', points: [], pops: [] }, 'saved-day');
+  await harness(async ({ state, hooks, idle, errors }) => {
+    globalThis.sessionStorage = { getItem: key => entries.get(key) ?? null,
+      setItem: (key, value) => entries.set(key, value), removeItem: key => entries.delete(key) };
+    state.cityCode = 'JP_TOKYO_MAINLAND';
+    await hooks.get('onCityLoad')(state.cityCode);
+    assert.equal(boots, 0);
+    const active = globalThis.__tokyoKanagawaActiveRuntimeV1__;
+    state.gameSessionId = 'replayed-native-session';
+    state.financialHistory.openWorldAuthoritativeWorldId = savedWorldId;
+    state.financialHistory[DEMAND_CHECKPOINT_FIELD] = structuredClone(saved.marker);
+    if (kind === 'save-echo') entries.set('tokyo-kanagawa:pending-native-save-echo', JSON.stringify({
+      saveName: 'selected-native-save', nativeSessionId: state.gameSessionId,
+    }));
+    await active.lifecycle.gameLoaded(kind === 'internal-runtime' ? 'open-world-runtime' : 'selected-native-save');
+    assert.equal(boots, 1); assert.equal(active.diagnostics.currentWorld.worldId, savedWorldId);
+    assert.equal(active.diagnostics.authoritativeLoads.find(event => event.segment === 'lifecycle-start').hotReload, true);
+    assert.deepEqual(state.financialHistory[DEMAND_CHECKPOINT_FIELD], saved.marker);
+    idle.shift()(); await new Promise(setImmediate);
+    const demand = globalThis.SubwayBuilderOpenWorldDemand;
+    assert.equal(await demand.readState('induced-demand', demand.getContext()), '{"pressure":11}');
+    assert.deepEqual(errors, []);
+  }, { storage, initialCityCode: 'unknown' });
 });
 
 test('startup retries a native memory admission deferral after the budget becomes available', async t => {
