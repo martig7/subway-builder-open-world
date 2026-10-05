@@ -826,7 +826,7 @@ export class WorldTileRuntime {
             dailyRevenue: result.profile.dailyRevenue,
           });
         } catch (error) {
-          results.failed.push({ tileId: candidateTileId, error: String(error?.message ?? error) });
+          results.failed.push({ tileId: candidateTileId, error: String(error?.message ?? error), errorName: error?.name ?? null });
           this.telemetry({
             phase: 'off-tile-native-demand', tileId: candidateTileId, status: 'failed',
             error: String(error?.message ?? error),
@@ -916,7 +916,7 @@ export class WorldTileRuntime {
       this.demandExtensions?.assertSaveReady();
     } catch (error) {
       compilation = { evaluated: 0, cached: 0, unavailable: [],
-        failed: [{ tileId, error: String(error?.message ?? error) }] };
+        failed: [{ tileId, error: String(error?.message ?? error), errorName: error?.name ?? null }] };
     }
     if (!isCurrent()) return { status: 'cancelled', compiled: false };
     const staleDemandTiles = this.#staleDemandProfileTiles(staged.backgroundNativeFinance);

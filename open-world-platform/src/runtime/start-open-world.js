@@ -16,7 +16,8 @@ import {
 import { HashCityNavigationAdapter } from './adapters/hash-city-navigation-adapter.js';
 import { registerCrossDemandViewer } from './ui/cross-demand-viewer.js';
 import { registerNetworkProjectionOverlay } from './ui/network-projection-overlay.js';
-import { EmbeddedTilePackageAdapter, resolveRendererDataUrl } from './embedded-tile-package-adapter.js';
+import { EmbeddedTilePackageAdapter, resolveRendererDataUrl, assertNativeDemandMemoryBudget } from './embedded-tile-package-adapter.js';
+import { createStartupDemandSettlement } from './startup-demand-settlement.js';
 import { createActiveDemandPreparation } from './active-demand-preparation.js';
 import { createOpenWorldCatalog } from './open-world-catalog.js';
 import { createOpenWorldCityRegistration } from './open-world-city-registration.js';
@@ -627,6 +628,7 @@ export function startOpenWorld({
   demandContext = demandContextRegistry().register(definition.identity.manifestId, demandExtensions);
   diagnostics.demandExtensions = demandExtensions.snapshot;
   let startupModeSharePromise = null;
+  let startupDemandSettlement = null;
   let startPromise = null;
   let startupTail = Promise.resolve();
   let gameLoadObserved = false;
@@ -665,6 +667,10 @@ export function startOpenWorld({
     } catch (error) {
       if (!ownsSession(owner)) return null;
       console.warn(`${logLabel} cross-city mode-share recalculation failed (${reason})`, error);
+      diagnostics.latestCrossModeShare = { reason,
+        status: error?.name === 'NativeDemandMemoryPressureError' ? 'pending' : 'error',
+        errorName: error?.name ?? null, error: error?.message ?? String(error) };
+      if (error?.name === 'NativeDemandMemoryPressureError') return diagnostics.latestCrossModeShare;
       return null;
     }
   }
@@ -687,30 +693,28 @@ export function startOpenWorld({
 
   function deferStartupModeShare(reason, day, owner = session) {
     const epoch = loadEpoch;
-    let resolveScheduled;
-    const scheduled = new Promise((resolve) => { resolveScheduled = resolve; });
-    const run = () => {
-      if (!ownsSession(owner) || loadEpoch !== epoch) { resolveScheduled(null); return; }
-      void recalculateCrossModeShare(reason, day, false, owner).then(async (result) => {
-        if (ownsSession(owner) && loadEpoch === epoch) {
-          settlementReady = result != null && !['pending', 'error', 'cancelled'].includes(result.status)
-            && !result.nativeFinanceProfile?.failed?.length && !result.nativeFinanceProfile?.unavailable?.length;
-          demandContext?.refresh();
-          if (settlementReady) {
-            await restoreSavedSimulationChoice(owner, epoch);
-            if (ownsSession(owner) && loadEpoch === epoch) recordAuthoritativeLoad({ phase: 'authoritative-load',
-              segment: 'startup-simulation-ready', version: TILE_SIMULATION_HANDOFF_VERSION,
-              reason, simulationReadyAt: Date.now() });
-          }
-        }
-        resolveScheduled(result);
-      }).catch((error) => {
-        console.warn(`${logLabel} deferred startup mode-share failed`, error);
-        resolveScheduled(null);
-      });
-    };
-    scheduleSimulationPreparation(run);
-    return scheduled;
+    startupDemandSettlement?.cancel();
+    startupDemandSettlement = createStartupDemandSettlement({
+      isCurrent: () => ownsSession(owner) && loadEpoch === epoch && ready,
+      schedule: scheduleSimulationPreparation,
+      admit: () => assertNativeDemandMemoryBudget(rendererMemory.sample('startup.demand.admission')),
+      run: () => recalculateCrossModeShare(reason, day, false, owner),
+      onChange: state => {
+        const failure = state.status === 'failed' && diagnostics.latestCrossModeShare?.reason === reason
+          ? diagnostics.latestCrossModeShare.error : null;
+        diagnostics.startupDemandSettlement = { ...state, ...(failure ? { error: failure } : {}), reason, epoch };
+      },
+      onError: error => console.warn(`${logLabel} deferred startup mode-share failed`, error),
+      onReady: async () => {
+        settlementReady = true;
+        demandContext?.refresh();
+        await restoreSavedSimulationChoice(owner, epoch);
+        if (ownsSession(owner) && loadEpoch === epoch) recordAuthoritativeLoad({ phase: 'authoritative-load',
+          segment: 'startup-simulation-ready', version: TILE_SIMULATION_HANDOFF_VERSION,
+          reason, simulationReadyAt: Date.now() });
+      },
+    });
+    return startupDemandSettlement.promise;
   }
 
   async function settleCrossTileCommutes(reason = 'hourly') {
@@ -1445,6 +1449,7 @@ export function startOpenWorld({
     }
     if (loadKind !== 'tile-navigation') {
       loadEpoch++;
+      startupDemandSettlement?.cancel();
       runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
       await tileSimulationHandoff.cancel();
       await cachedSimulation.setEnabled(false);
@@ -1494,6 +1499,7 @@ export function startOpenWorld({
       return;
     }
     loadEpoch++;
+    startupDemandSettlement?.cancel();
     runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
     await tileSimulationHandoff.cancel();
     await cachedSimulation.setEnabled(false);
@@ -1966,6 +1972,7 @@ export function startOpenWorld({
       return;
     }
     loadEpoch++;
+    startupDemandSettlement?.cancel();
     runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
     void tileSimulationHandoff.cancel();
     void cachedSimulation.setEnabled(false);
@@ -2029,6 +2036,7 @@ export function startOpenWorld({
     dispose() {
       if (moduleDisposed) return;
       loadEpoch++;
+      startupDemandSettlement?.cancel();
       runtime.abandonStagedTransition({ transitionId: tileSimulationHandoff.snapshot()?.transitionId });
       void tileSimulationHandoff.cancel();
       game.cancelNativeTileHandoff();

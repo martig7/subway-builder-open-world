@@ -10,6 +10,7 @@ import { WorldTileRuntime } from '../src/runtime/world-tile-runtime.js';
 import { FakeGameAdapter } from '../src/runtime/adapters/fake-game-adapter.js';
 import { MemoryTilePackageAdapter } from '../src/runtime/adapters/memory-tile-package-adapter.js';
 import { ModStorageWorldStateAdapter } from '../src/runtime/adapters/mod-storage-world-state-adapter.js';
+import { assertNativeDemandMemoryBudget } from '../src/runtime/embedded-tile-package-adapter.js';
 
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
@@ -571,6 +572,23 @@ test('staged finance never republishes an earlier tile profile after its demand 
   assert.equal(runtime.world.backgroundNativeFinance?.tileRevenueProfiles?.T0, undefined);
   await runtime.recalculateCrossTileModeShare({ reason: 'extension-demand-change', force: true });
   assert.equal(runtime.world.backgroundNativeFinance.tileRevenueProfiles.T0.demandRevisionKey, 'new-demand');
+});
+
+test('native finance preserves typed memory admission failures for startup recovery', async () => {
+  const tilePackages = new MemoryTilePackageAdapter({ T0: {
+    manifest: { tileId: 'T0', cityCode: 'T0', schemaVersion: 1, dataFiles: {} },
+    commuteCatalog: { buildHash: 'memory-deferral', buckets: [], gateways: [] },
+  } });
+  tilePackages.evaluateNativeDemand = async () => {
+    assertNativeDemandMemoryBudget({ at: Date.now(), workersAvailable: true, allIsolatesAllocatedBytes: 3.5 * 1024 ** 3 });
+  };
+  const runtime = new WorldTileRuntime({ game: new FakeGameAdapter(), worldState: new ModStorageWorldStateAdapter(),
+    tilePackages, revenueAccrual: { invalidate() {}, replaceProfiles() {} },
+    initialWorld: { activeTileId: 'T0', wallet: 100, cohorts: [] } });
+  await runtime.boot('memory-deferral-world', 'T0');
+  const result = await runtime.recalculateCrossTileModeShare({ reason: 'startup', force: true });
+  assert.equal(result.nativeFinanceProfile.status, 'pending');
+  assert.equal(result.nativeFinanceProfile.failed[0].errorName, 'NativeDemandMemoryPressureError');
 });
 
 test('both direct and staged tile loads restore extensions before refreshing native commutes', async () => {

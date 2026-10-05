@@ -6,6 +6,7 @@ import { prototypeSaveBusyReason } from '../src/runtime/prototype-save-readiness
 import { WorldTileRuntime } from '../src/runtime/world-tile-runtime.js';
 import { WorldIdentityResolver } from '../src/runtime/world-identity.js';
 import { DemandExtensionStore, DEMAND_CHECKPOINT_FIELD } from '../src/runtime/demand-extension-state.js';
+import { assertNativeDemandMemoryBudget } from '../src/runtime/embedded-tile-package-adapter.js';
 import { createSubwayBuilderHostState } from '../testkit/subway-builder-host.js';
 import { GeographicContextOverlayController } from '../src/runtime/ui/geographic-context-overlay.js';
 import { HashCityNavigationAdapter } from '../src/runtime/adapters/hash-city-navigation-adapter.js';
@@ -95,6 +96,63 @@ test('cold native load resolves the saved demand checkpoint World despite a stal
     assert.equal(await demand.readState('induced-demand', demand.getContext()), '{"pressure":7}');
     assert.deepEqual(errors, []);
   }, { storage });
+});
+
+test('startup retries a native memory admission deferral after the budget becomes available', async t => {
+  let allowed = false, attempts = 0;
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => {
+    attempts++;
+    assertNativeDemandMemoryBudget({ at: Date.now(), workersAvailable: true,
+      allIsolatesAllocatedBytes: (allowed ? 1 : 3.5) * 1024 ** 3 });
+    return { status: 'cached' };
+  });
+  await harness(async ({ controller, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    idle.shift()(); await new Promise(setImmediate);
+    assert.equal(attempts, 1);
+    assert.equal(controller.diagnostics.startupDemandSettlement.status, 'waiting-for-memory');
+    assert.equal(globalThis.SubwayBuilderOpenWorldDemand.getContext().demandReady, false);
+    allowed = true;
+    t.mock.timers.tick(1000); await new Promise(setImmediate);
+    idle.shift()?.(); await new Promise(setImmediate);
+    assert.equal(attempts, 2, 'startup should resume automatically after a native memory admission deferral');
+    assert.equal(globalThis.SubwayBuilderOpenWorldDemand.getContext().demandReady, true);
+    assert.equal(controller.diagnostics.authoritativeLoads.at(-1).segment, 'startup-simulation-ready');
+    assert.equal(controller.diagnostics.startupDemandSettlement.status, 'ready');
+  });
+});
+
+for (const retire of ['dispose', 'game-end']) test(`startup memory retry is cancelled on ${retire}`, async t => {
+  let attempts = 0;
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => {
+    attempts++; assertNativeDemandMemoryBudget({ at: Date.now(), workersAvailable: true,
+      allIsolatesAllocatedBytes: 3.5 * 1024 ** 3 });
+  });
+  await harness(async ({ controller, idle, hooks }) => {
+    await controller.lifecycle.gameLoaded('save-A'); t.mock.timers.enable({ apis: ['setTimeout'] });
+    idle.shift()(); await new Promise(setImmediate);
+    if (retire === 'dispose') controller.dispose(); else hooks.get('onGameEnd')();
+    t.mock.timers.tick(60_000); await new Promise(setImmediate);
+    idle.shift()?.(); await new Promise(setImmediate);
+    assert.equal(attempts, 1); assert.equal(controller.diagnostics.startupDemandSettlement.status, 'cancelled');
+  });
+});
+
+test('startup reports a nonmemory failure without scheduling another attempt', async t => {
+  let attempts = 0;
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => {
+    attempts++; throw new Error('Saved demand checkpoint is unavailable');
+  });
+  await harness(async ({ controller, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A'); t.mock.timers.enable({ apis: ['setTimeout'] });
+    idle.shift()(); await new Promise(setImmediate);
+    t.mock.timers.tick(60_000); await new Promise(setImmediate);
+    idle.shift()?.(); await new Promise(setImmediate);
+    assert.equal(attempts, 1); assert.equal(controller.diagnostics.startupDemandSettlement.status, 'failed');
+    assert.equal(controller.diagnostics.startupDemandSettlement.error, 'Saved demand checkpoint is unavailable');
+    assert.equal(globalThis.SubwayBuilderOpenWorldDemand.getContext().demandReady, false);
+  });
 });
 
 test('a fresh runtime restores both choices, enabling Ultra only after network finance is ready', async t => {
