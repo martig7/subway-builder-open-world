@@ -4,13 +4,79 @@ import { DemandExtensionStore, DEMAND_CHECKPOINT_FIELD, normalizeDemandExtension
 export const DEMAND_CONTEXT_VERSION = 1;
 export const DEMAND_CONTEXT_EVENT = 'subway-builder-open-world-demand-context';
 export const DEMAND_DEFERRED_CODE = 'OPEN_WORLD_DEMAND_DEFERRED';
+export const DEMAND_DAY_EVENTS_VERSION = 1;
 const CONTEXT_KEYS = ['providerId', 'resolvedWorldId', 'nativeSessionId', 'tileId', 'epoch'];
+const DAY_CONTEXT_KEYS = [...CONTEXT_KEYS, 'definitionId', 'cityCode', 'providerGeneration'];
+const DAY_PROVIDER_OWNER = Symbol('open-world.demand-day-provider');
 const samePop = (a, b) => Boolean(a && b && ['id', 'residenceId', 'jobId', 'size', 'drivingSeconds',
   'drivingDistance', 'homeDepartureTime', 'workDepartureTime'].every(key => a[key] === b[key]));
 const samePoint = (a, b) => Boolean(a && b && a.id === b.id && a.location?.[0] === b.location?.[0] && a.location?.[1] === b.location?.[1]);
 
 export function demandContextRegistry(root = globalThis) {
-  if (root.SubwayBuilderOpenWorldDemand?.version === 1) return root.SubwayBuilderOpenWorldDemand;
+  const existing = root.SubwayBuilderOpenWorldDemand;
+  if (existing?.version === 1 && existing.dayEventsVersion === DEMAND_DAY_EVENTS_VERSION
+    && typeof existing.subscribeDayChange === 'function') return existing;
+  // An older frozen v1 registry may own an in-flight checkpoint or handoff.
+  // Delegate its methods so upgrade preserves those closures and generations.
+  const base = existing?.version === 1 ? existing : createDemandContextRegistry(root);
+  const listeners = new Set(), wrappedProviders = new WeakMap();
+  const getContext = () => {
+    const context = base.getContext();
+    if (!context) return null;
+    const publicContext = { ...context };
+    delete publicContext[DAY_PROVIDER_OWNER];
+    return Object.freeze(publicContext);
+  };
+  const registry = Object.freeze({
+    ...base, getContext, dayEventsVersion: DEMAND_DAY_EVENTS_VERSION,
+    subscribeDayChange(listener) {
+      if (typeof listener !== 'function') throw new TypeError('Expected a demand day listener');
+      listeners.add(listener); return () => listeners.delete(listener);
+    },
+    register(providerId, provider) {
+      let wrapped = wrappedProviders.get(provider);
+      if (!wrapped) {
+        wrapped = { owner: null, provider: { ...provider, getContext() {
+          const context = provider.getContext();
+          return context ? { ...context, [DAY_PROVIDER_OWNER]: wrapped.owner } : null;
+        } } };
+        wrappedProviders.set(provider, wrapped);
+      }
+      const owner = wrapped.owner = {};
+      const handle = base.register(providerId, wrapped.provider);
+      const owns = expected => {
+        const current = base.getContext();
+        return current?.[DAY_PROVIDER_OWNER] === owner && expected
+          && DAY_CONTEXT_KEYS.every(key => expected[key] === current[key]);
+      };
+      return Object.freeze({ ...handle,
+        async publishDayChange(day, expected = getContext()) {
+          const result = { day, status: 'published', delivered: 0, failed: 0 };
+          if (!Number.isSafeInteger(day) || day < 0) return { ...result, status: 'invalid' };
+          for (const listener of [...listeners]) {
+            if (!owns(expected)) return { ...result, status: 'superseded' };
+            if (!listeners.has(listener)) continue;
+            try {
+              // Readiness/revision may change while finance or an earlier
+              // subscriber commits. The operation identity alone fences days.
+              await listener(Object.freeze({ day, context: getContext() }));
+              result.delivered++;
+            } catch (error) {
+              if (!owns(expected)) return { ...result, status: 'superseded' };
+              result.failed++;
+              console.warn('[OpenWorld] demand day listener failed', error);
+            }
+          }
+          return owns(expected) ? result : { ...result, status: 'superseded' };
+        },
+      });
+    },
+  });
+  root.SubwayBuilderOpenWorldDemand = registry;
+  return registry;
+}
+
+function createDemandContextRegistry(root) {
   const providers = new Map(), listeners = new Set(), handoffs = new Map();
   let generation = 0;
   const notify = () => {
@@ -64,7 +130,6 @@ export function demandContextRegistry(root = globalThis) {
       };
     },
   });
-  root.SubwayBuilderOpenWorldDemand = registry;
   return registry;
 }
 

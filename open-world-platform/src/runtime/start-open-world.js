@@ -625,8 +625,10 @@ export function startOpenWorld({
     },
   });
   runtime.demandExtensions = demandExtensions;
-  demandContext = demandContextRegistry().register(definition.identity.manifestId, demandExtensions);
+  const demandRegistry = demandContextRegistry();
+  demandContext = demandRegistry.register(definition.identity.manifestId, demandExtensions);
   diagnostics.demandExtensions = demandExtensions.snapshot;
+  diagnostics.demandDayEvents = { version: demandRegistry.dayEventsVersion, latest: null };
   let startupModeSharePromise = null;
   let startupDemandSettlement = null;
   let startPromise = null;
@@ -763,7 +765,14 @@ export function startOpenWorld({
     postingWorkerSource: workerSources.hourlyFinance,
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
-    onDay: flushMidnightCommutes,
+    onDay: async day => {
+      const expected = demandRegistry.getContext();
+      await flushMidnightCommutes();
+      // Cached ticks bypass native handleIncrementGameState and its public
+      // day hook. Notify extensions only after midnight commutes settle;
+      // retain the pre-await operation so a load cannot adopt this old day.
+      diagnostics.demandDayEvents.latest = await demandContext.publishDayChange(day, expected);
+    },
     beforeGenerateSave: () => demandExtensions.beginNativeSave(),
     onSavePhase: (stage, details) => {
       if (stage === 'generate.start') activeDemandPreparation?.releaseIdle();

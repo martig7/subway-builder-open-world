@@ -22,11 +22,12 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function harness(run, { storage = new Map() } = {}) {
+async function harness(run, { storage = new Map(), nativeDayTicks = false } = {}) {
   const savedGlobals = new Map(Object.getOwnPropertyNames(globalThis).filter(key => key.startsWith('__')
     || ['fetch', 'localStorage', 'sessionStorage', 'requestIdleCallback'].includes(key)).map(key => [key, globalThis[key]]));
   const savedConsole = { debug: console.debug, info: console.info, log: console.log, warn: console.warn, error: console.error };
   const hooks = new Map(); const idle = []; const errors = []; const ui = []; const unsubscribed = [];
+  const nativeDays = [];
   const state = createSubwayBuilderHostState({ cityCode: 'JP_TOKYO_MAINLAND', gameSessionId: 'session-A', saveName: 'save-A', money: 1_000_000, transitCost: 2.5,
     routeFinancials: { byRoute: {}, lastHourTimestamp: 0, currentHour: {} },
     financialHistory: { entries: [], lastHourTimestamp: 0, currentHourRevenue: 0, currentHourExpenses: 0, currentHourExpenseCategories: {} },
@@ -34,6 +35,17 @@ async function harness(run, { storage = new Map() } = {}) {
       cityCode: state.cityCode, elapsedSeconds: 0, money: state.money, routes: [], stations: [], stNodes: [], trains: [], tracks: [], trackGroups: [], signals: [], stationGroups: [],
       routeFinancials: structuredClone(state.routeFinancials), financialHistory: structuredClone(state.financialHistory),
     } }; }, loadSave() {},
+    async handleIncrementGameState() {
+      if (!nativeDayTicks) return;
+      // Native handleIncrementGameState owns public day dispatch. Native
+      // setTimeConfig only updates clock state, as it does in the real game.
+      const before = Math.floor(state.timeConfig.elapsedSeconds / 86400);
+      state.setTimeConfig({ elapsedSeconds: state.timeConfig.elapsedSeconds + 240 });
+      const after = Math.floor(state.timeConfig.elapsedSeconds / 86400);
+      for (let day = before + 1; day <= after; day++) {
+        nativeDays.push(day); hooks.get('onDayChange')?.(day);
+      }
+    },
   });
   const api = { version: '1.0.0', registerCity() {}, cities: { setCityDataFiles() {} }, map: { setTileURLOverride() {}, setDefaultLayerVisibility() {} },
     utils: { getCities: () => [], getCityCode: () => state.cityCode, getMap: () => null, getPathfindingRules: () => ({}), loadCityData: async () => ({ points: [], pops: [] }),
@@ -65,7 +77,7 @@ async function harness(run, { storage = new Map() } = {}) {
     return controller;
   };
   try {
-    await run({ controller: restart(), restart, api, state, hooks, idle, errors, ui, unsubscribed });
+    await run({ controller: restart(), restart, api, state, hooks, idle, errors, ui, unsubscribed, nativeDays });
   } finally {
     for (const controller of controllers) controller.dispose();
     Object.assign(console, savedConsole);
@@ -770,6 +782,93 @@ test('deferred demand from an ended session cannot run on the replacement worker
     assert.equal(typeof capturedEvaluator, 'function');
     hooks.get('onGameEnd')();
     assert.throws(() => capturedEvaluator({}), /session ended/);
+  });
+});
+
+test('native daily dispatch remains active and five wrapped cached midnights notify demand extensions', async t => {
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  await harness(async ({ controller, state, idle, errors, nativeDays }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(setImmediate);
+    state.setTimeConfig({ elapsedSeconds: 86390, paused: false });
+    await state.handleIncrementGameState();
+    assert.deepEqual(nativeDays, [1], 'native positive control dispatches an elapsed-day index');
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    await controller.cachedSimulation.setEnabled(true);
+    const bridge = globalThis.SubwayBuilderOpenWorldDemand, events = [];
+    const unsubscribe = bridge.subscribeDayChange(event => events.push(event));
+    try {
+      assert.deepEqual(events, [], 'subscription never replays missed days');
+      for (let day = 1; day <= 5; day++) {
+        assert.equal(bridge.getContext().demandReady, true);
+        assert.equal(controller.cachedSimulation.snapshot().status, 'ready');
+        state.setTimeConfig({ elapsedSeconds: day * 86400 - 10, paused: false, timeSpeed: 'ultrafast' });
+        await state.handleIncrementGameState();
+        assert.equal(state.timeConfig.elapsedSeconds, day * 86400);
+      }
+      assert.deepEqual(events.map(event => event.day), [1, 2, 3, 4, 5]);
+      assert.ok(events.every(event => event.context.nativeSessionId === 'session-A' && event.context.demandReady));
+      assert.equal(controller.cachedSimulation.snapshot().ticks, 5);
+      assert.deepEqual(nativeDays, [1], 'cached mode bypasses the native day emitter');
+      assert.equal(controller.diagnostics.demandDayEvents.version, 1);
+      assert.deepEqual(controller.diagnostics.demandDayEvents.latest, { day: 5, status: 'published', delivered: 1, failed: 0 });
+      assert.deepEqual(errors, []);
+    } finally { unsubscribe(); }
+  }, { nativeDayTicks: true });
+});
+
+test('a cached midnight tick waits for async demand day subscribers', async t => {
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  const gate = deferred(), entered = deferred();
+  await harness(async ({ controller, state, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(setImmediate);
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    await controller.cachedSimulation.setEnabled(true);
+    const unsubscribe = globalThis.SubwayBuilderOpenWorldDemand.subscribeDayChange(async () => {
+      entered.resolve(); await gate.promise;
+    });
+    try {
+      state.setTimeConfig({ elapsedSeconds: 86390, paused: false, timeSpeed: 'ultrafast' });
+      let finished = false;
+      const tick = state.handleIncrementGameState().then(() => { finished = true; });
+      await entered.promise;
+      assert.equal(finished, false, 'checkpoint subscribers settle before the clock can take another tick');
+      const duplicate = state.handleIncrementGameState();
+      assert.equal(state.timeConfig.elapsedSeconds, 86400);
+      gate.resolve(); await Promise.all([tick, duplicate]);
+      assert.equal(controller.cachedSimulation.snapshot().ticks, 1);
+    } finally { gate.resolve(); unsubscribe(); }
+  });
+});
+
+test('a same-session save reload during midnight finance cannot publish the obsolete day', async t => {
+  const cross = deferred(), entered = deferred();
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async options => {
+    if (options.reason !== 'midnight-change') return { status: 'cached' };
+    entered.resolve(); return cross.promise;
+  });
+  await harness(async ({ controller, state, hooks, idle }) => {
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(setImmediate);
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    await controller.cachedSimulation.setEnabled(true);
+    const bridge = globalThis.SubwayBuilderOpenWorldDemand, events = [], expected = bridge.getContext();
+    const unsubscribe = bridge.subscribeDayChange(event => events.push(event));
+    try {
+      hooks.get('onScheduleChange')();
+      state.setTimeConfig({ elapsedSeconds: 86390, paused: false, timeSpeed: 'ultrafast' });
+      const tick = state.handleIncrementGameState(); await entered.promise;
+      const reload = controller.lifecycle.gameLoaded('save-A');
+      assert.equal(bridge.getContext().nativeSessionId, expected.nativeSessionId);
+      assert.notEqual(bridge.getContext().epoch, expected.epoch);
+      cross.resolve({ status: 'recalculated' }); await Promise.all([tick, reload]);
+      assert.deepEqual(events, []);
+      assert.equal(controller.diagnostics.demandDayEvents.latest.status, 'superseded');
+    } finally { cross.resolve({ status: 'recalculated' }); unsubscribe(); }
   });
 });
 
