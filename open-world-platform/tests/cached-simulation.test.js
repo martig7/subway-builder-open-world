@@ -93,6 +93,21 @@ function fixture(evaluate = async () => calculated(), isReady = () => true, opti
   return { state, game, controller, postings, hours, days, native: () => ({ nativeTicks, nativeCommutes, nativePaths }) };
 }
 
+test('demand durability gate rejects before either synchronous or async native save generation starts', async () => {
+  for (const asynchronous of [false, true]) {
+    let nativeCalls = 0, blocked = true;
+    const f = fixture(undefined, undefined, { beforeGenerateSave: () => {
+      if (blocked) throw new Error('demand checkpoint not durable');
+    }, nativeActions: { generateSave: asynchronous
+      ? async () => { nativeCalls++; return { data: { valid: true } }; }
+      : () => { nativeCalls++; return { data: { valid: true } }; } } });
+    assert.throws(() => f.state.generateSave(), /not durable/);
+    assert.equal(nativeCalls, 0);
+    blocked = false; assert.equal((await f.state.generateSave()).data.valid, true);
+    assert.equal(nativeCalls, 1); await f.controller.dispose();
+  }
+});
+
 test('cached enable drains detached native commute waves and starts accounting after the final native tick', async () => {
   let finishTick, finishCommute, calculations = 0;
   const tickPending = new Promise(resolve => { finishTick = resolve; });
@@ -633,7 +648,7 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v19');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v21');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -646,13 +661,15 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const original = f.state.generateSave[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v18', original };
+  let retired = 0;
+  const oldPatch = { version: 'open-world-cached-simulation-v20', original, controller: { dispose() { retired++; } } };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v19');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v21');
+  assert.equal(retired, 1);
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
   assert.equal(f.state.generateSave, original);

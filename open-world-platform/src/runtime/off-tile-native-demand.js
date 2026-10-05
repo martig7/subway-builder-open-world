@@ -2,6 +2,7 @@ import { calculateCrossTileModeShares, createBoundedCrossTileRoutingCache, creat
 import { aggregateCompletedCommutes } from './completed-commute-aggregation.js';
 import { fareSegmentsFromStationRoutes, quoteJourneyFare, createJourneyFareQuote } from './journey-fare.js';
 import { createIncrementalNativeDemandProfileMerger } from './incremental-commute-aggregation.js';
+import { mergeDemandExtensions } from './demand-extension-state.js';
 import {
   calculateNativeRevenueProfile,
   createNativeTopologyFinancePolicy,
@@ -109,6 +110,7 @@ export function offTileNativeDemandContextKey({
   networkProfile,
   farePolicy = {},
   financeOwnedRouteIds = [],
+  demandRevisionKey = null,
 }) {
   const network = deterministicNetworkProfile(networkProfile ?? {
     schemaVersion: 1, tileId, stations: [], routes: [], activeRouteIds: [], pathfindingRules: {},
@@ -119,6 +121,7 @@ export function offTileNativeDemandContextKey({
     routingVersion: CROSS_ROUTING_CACHE_VERSION,
     evaluatorSchemaVersion: EVALUATOR_SCHEMA_VERSION,
     tileId,
+    demandRevisionKey,
     network: network.structuralSignature ?? network.signature ?? null,
     pathfindingRules: network.pathfindingRules ?? {},
     farePolicy: scopedFarePolicy(farePolicy, network),
@@ -387,7 +390,8 @@ export const NATIVE_DEMAND_BATCH_SIZE = 128;
 // choice inputs and synthetic finance pops. Consumers may persist each batch
 // before requesting the next without retaining all native-shaped assignments.
 export function* nativeDemandEvaluationBatches(input) {
-  const { demand, tileId } = input;
+  const { tileId } = input;
+  const demand = mergeDemandExtensions(input.demand, input.demandExtensions ?? []);
   if (!Array.isArray(demand?.pops) || !Array.isArray(demand?.points)) throw new Error(`Invalid native demand package: ${tileId}`);
   const size = Math.max(1, Math.min(4096, Math.floor(input.batchSize ?? NATIVE_DEMAND_BATCH_SIZE)));
   const pointById = new Map(demand.points.map(point => [String(point.id), point]));
@@ -418,6 +422,7 @@ export function* nativeDemandEvaluationBatches(input) {
       const result = evaluateBatch({ ...input, existingProfile: null, routingCache, prepared,
         demand: { points, pops } });
       result.profile.evaluationKey = evaluationKey;
+      result.profile.demandRevisionKey = input.demandRevisionKey ?? null;
       input.onBatch?.(pops.length);
       yield result;
     }

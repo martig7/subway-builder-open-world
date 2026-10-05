@@ -1,4 +1,5 @@
 import { registerSchematicContext } from './schematic-context.js';
+import { createDemandExtensionRuntime, demandContextRegistry } from './demand-context.js';
 import { LOAD_DIAGNOSTICS_VERSION, WorldTileRuntime } from './world-tile-runtime.js';
 import {
   readLiveSubwayBuilderCityCode,
@@ -338,7 +339,9 @@ export function startOpenWorld({
     nativeDemandWorkerSource: workerSources.nativeDemandEvaluator ?? null,
   });
   const activeDemandPreparation = workerSources.nativeDemandEvaluator ? createActiveDemandPreparation({ game,
-    getState: () => game.callbacks.getState(), workerSource: workerSources.nativeDemandEvaluator }) : null;
+    getState: () => game.callbacks.getState(), workerSource: workerSources.nativeDemandEvaluator,
+    admit: async () => { await demandExtensions.flush(); demandExtensions.assertSaveReady(); },
+    getDemandRevisionKey: tileId => demandExtensions.cacheKeyFor(tileId) }) : null;
   if (activeDemandPreparation) tilePackages.prepareActiveNativeDemand = activeDemandPreparation.prepare;
   let latestMap = api.utils?.getMap?.() ?? null;
   let autosaveIdleGuard = null, autosaveIdleMap = null;
@@ -570,6 +573,7 @@ export function startOpenWorld({
         ready = false;
         schematicContext?.refresh();
         settlementReady = false;
+        demandContext?.refresh();
       } else {
         resumeRecoveryCheckpoint?.();
       }
@@ -585,6 +589,43 @@ export function startOpenWorld({
   let started = false;
   let ready = false;
   let settlementReady = false;
+  let demandContext = null;
+  let loadEpoch = 0;
+  const ownsCurrentCity = (cityCode = currentCityCode()) => registration.cities.includes(cityCode);
+  const demandExtensions = createDemandExtensionRuntime({
+    api, game, storage,
+    readContext: () => {
+      const cityCode = currentCityCode();
+      const tile = tileCatalog.tiles.find(tile => (tile.gameCityCode ?? tile.id) === cityCode);
+      if (!isCurrent() || !ownsCurrentCity(cityCode) || !tile) return null;
+      return {
+        providerId: definition.identity.manifestId, definitionId: definition.identity.worldId,
+        resolvedWorldId: runtime.getWorldId(), tileId: tile.id, cityCode,
+        nativeSessionId: api.gameState.getGameSessionId?.() ?? null, epoch: loadEpoch,
+        demandReady: ready && settlementReady && runtimeTileId() === cityCode && !tileSimulationHandoff.isPending(),
+        tileBounds: [...(tile.nativeMapBounds ?? tile.bounds)], basemapRevision: definition.map.basemapRevision,
+        sources: globalThis.SubwayBuilderOpenWorld?.getContext?.()?.sources ?? [],
+      };
+    },
+    onChanged: context => {
+      demandContext?.refresh();
+      if (context?.resolvedWorldId && runtime.world?.backgroundNativeFinance?.tileRevenueProfiles) {
+        const profile = runtime.world.backgroundNativeFinance.tileRevenueProfiles[context.tileId];
+        if (profile && (profile.demandRevisionKey ?? null) !== demandExtensions.cacheKeyFor(context.tileId)) {
+          delete runtime.world.backgroundNativeFinance.tileRevenueProfiles[context.tileId];
+          runtime.nativeRevenueCompilation = null;
+          if (ready) queueCommuteRefresh('extension-demand-change', false);
+        }
+      }
+    },
+    onError: error => {
+      console.error(`${logLabel} demand extension persistence failed`, error);
+      api.ui?.showNotification?.(`Demand changes could not be saved: ${error.message}`, 'error', 'Open World');
+    },
+  });
+  runtime.demandExtensions = demandExtensions;
+  demandContext = demandContextRegistry().register(definition.identity.manifestId, demandExtensions);
+  diagnostics.demandExtensions = demandExtensions.snapshot;
   let startupModeSharePromise = null;
   let startPromise = null;
   let startupTail = Promise.resolve();
@@ -592,8 +633,6 @@ export function startOpenWorld({
   let loadedSaveName = null;
   let requestedSessionReload = null;
   let sessionReloadPromise = null;
-  let loadEpoch = 0;
-  const ownsCurrentCity = (cityCode = currentCityCode()) => registration.cities.includes(cityCode);
   const roadLabelSourceGuard = createNativeRoadLabelSourceGuard({
     isEnabled: () => isCurrent() && ownsCurrentCity(),
     onReport: report => { diagnostics.nativeRoadLabelSource = report; },
@@ -656,6 +695,7 @@ export function startOpenWorld({
         if (ownsSession(owner) && loadEpoch === epoch) {
           settlementReady = result != null && !['pending', 'error', 'cancelled'].includes(result.status)
             && !result.nativeFinanceProfile?.failed?.length && !result.nativeFinanceProfile?.unavailable?.length;
+          demandContext?.refresh();
           if (settlementReady) {
             await restoreSavedSimulationChoice(owner, epoch);
             if (ownsSession(owner) && loadEpoch === epoch) recordAuthoritativeLoad({ phase: 'authoritative-load',
@@ -698,7 +738,7 @@ export function startOpenWorld({
   // widen this policy when construction or rendering replaces store arrays.
   const queueCommuteRefresh = (reason, networkChanged) => {
     if (!ready || !isCurrent() || !ownsCurrentCity()) return;
-    if (networkChanged) { runtime.markDerivedNetworkDirty(reason); schematicContext?.refresh(true); }
+    if (networkChanged) { runtime.markDerivedNetworkDirty(reason); schematicContext?.refresh(true); demandContext?.refresh(); }
     revenueAccrual.invalidate();
     session?.modeShareInvalidation.markDirty(reason);
     cachedSimulation.invalidate();
@@ -719,6 +759,7 @@ export function startOpenWorld({
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
     onDay: flushMidnightCommutes,
+    beforeGenerateSave: () => demandExtensions.beginNativeSave(),
     onSavePhase: (stage, details) => {
       if (stage === 'generate.start') activeDemandPreparation?.releaseIdle();
       rendererMemory.recordActivity(stage, details);
@@ -733,8 +774,10 @@ export function startOpenWorld({
     schedule: scheduleSimulationPreparation,
     onChange: value => {
       diagnostics.tileSimulationHandoff = value;
+      demandContext?.refresh();
       if (value?.status === 'ready') {
         settlementReady = true;
+        demandContext?.refresh();
         recordAuthoritativeLoad({ phase: 'authoritative-load', segment: 'tile-simulation-ready', ...value });
         if (diagnostics.latest?.transitionId === value.transitionId && diagnostics.latest?.toTileId === value.toTileId) {
           diagnostics.latest.simulationReadyAt = value.simulationReadyAt;
@@ -980,6 +1023,7 @@ export function startOpenWorld({
         ready = true;
         schematicContext?.refresh();
         settlementReady = true;
+        demandContext?.refresh();
       }
       await tileSimulationHandoff.cancel({ restore: sourceCurrent });
       api.ui?.showNotification?.(`Tile switch failed: ${error.message}`, 'error', 'Open World');
@@ -1055,6 +1099,7 @@ export function startOpenWorld({
         ready = false;
         schematicContext?.refresh();
         settlementReady = false;
+        demandContext?.refresh();
         const nativeSessionId = api.gameState.getGameSessionId();
         const loadTraceId = createAuthoritativeLoadTraceId(
           request.reason ?? 'session-reload',
@@ -1107,6 +1152,7 @@ export function startOpenWorld({
           const modeShare = await recalculateCrossModeShare(request.reason, api.gameState.getCurrentDay?.() ?? null, false, owner);
           if (!ownsSession(owner) || loadEpoch !== epoch) continue;
           settlementReady = modeShare != null;
+          demandContext?.refresh();
           if (settlementReady) await restoreSavedSimulationChoice(owner, epoch);
           if (!ownsSession(owner) || loadEpoch !== epoch) continue;
           ensurePanel();
@@ -1115,6 +1161,7 @@ export function startOpenWorld({
           ready = false;
           schematicContext?.refresh();
           settlementReady = false;
+          demandContext?.refresh();
           recordAuthoritativeLoad({
             phase: 'authoritative-load',
             loadTraceId,
@@ -1162,6 +1209,7 @@ export function startOpenWorld({
     const pendingStart = (async () => {
       started = true;
       settlementReady = false;
+      demandContext?.refresh();
       try {
         // A previous boot cannot be interrupted midway through native adoption.
         // Let it leave its await before a replacement startup touches this runtime.
@@ -1258,6 +1306,7 @@ export function startOpenWorld({
         ready = true;
         schematicContext?.refresh();
         settlementReady = false;
+        demandContext?.refresh();
         if (!ownsSession(startingSession)) return;
         geographicContextController = registerGeographicContextOverlay({
           runtime,
@@ -1308,6 +1357,7 @@ export function startOpenWorld({
         ready = false;
         schematicContext?.refresh();
         settlementReady = false;
+        demandContext?.refresh();
         if (startPromise === pendingStart) startPromise = null;
         recordAuthoritativeLoad({
           phase: 'authoritative-load',
@@ -1626,6 +1676,7 @@ export function startOpenWorld({
       ready = false;
       schematicContext?.refresh();
       settlementReady = false;
+      demandContext?.refresh();
       if (!nativeRestored) {
         // StoreInitializer emits city-load before it reads/applies the staged
         // Native Save. Yield outside the runtime queue so that first native
@@ -1905,6 +1956,7 @@ export function startOpenWorld({
       ready = false;
       schematicContext?.refresh();
       settlementReady = false;
+      demandContext?.refresh();
       loadedSaveName = null;
       loadTrace('hook.game-end.ignored', {
         reason: 'tile-navigation',
@@ -1927,6 +1979,7 @@ export function startOpenWorld({
     ready = false;
     schematicContext?.refresh();
     settlementReady = false;
+    demandContext?.refresh();
     loadedSaveName = null;
     authoritativeCityCode = null;
     storeConfirmedAuthoritativeCity = false;
@@ -1956,6 +2009,7 @@ export function startOpenWorld({
   });
   hookDisposers.push(runtime.subscribe(event => {
     schematicContext.refresh(event.type === 'projection-changed');
+    demandContext.refresh();
   }, { includeView: false }));
   const controller = Object.freeze({
     cachedSimulation,
@@ -1979,6 +2033,7 @@ export function startOpenWorld({
       game.cancelNativeTileHandoff();
       moduleDisposed = true;
       schematicContext.dispose();
+      demandContext.dispose();
       void cachedSimulation.dispose();
       prototypeSaveWriter.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {

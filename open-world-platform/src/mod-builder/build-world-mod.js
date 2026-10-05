@@ -26,6 +26,7 @@ async function loadEsbuild() {
 
 function moduleSpecifier(fromDirectory, targetPath) {
   const relative = path.relative(fromDirectory, targetPath).replaceAll(path.sep, '/');
+  if (path.isAbsolute(relative)) return relative;
   return relative.startsWith('.') ? relative : `./${relative}`;
 }
 

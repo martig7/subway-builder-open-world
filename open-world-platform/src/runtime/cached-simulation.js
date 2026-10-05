@@ -6,7 +6,7 @@ import { createBoundedCrossTileRoutingCache } from './cross-tile-mode-choice.js'
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v19';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v21';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -61,7 +61,7 @@ export function publishCachedDemand(state, assignments) {
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
   onHour = async () => {}, onDay = async () => {}, workerSource = null,
-  postingWorkerSource = null, evaluate = null, prepareActiveDemand = null, onSavePhase = null } = {}) {
+  postingWorkerSource = null, evaluate = null, prepareActiveDemand = null, onSavePhase = null, beforeGenerateSave = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createBoundedCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
@@ -416,40 +416,47 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           }
           const cachedActive = enabled && isReady();
           if (name === 'generateSave') {
-            const started = performance.now();
-            savePhase('generate.start', started);
-            if (cachedActive) { observeFrozenTrains(getState()); flush(); }
-            const rebaseSave = save => {
-              if (!cachedActive || !enabled || disposed || !save?.data || getState().gameSessionId !== sessionId) return save;
-              const elapsed = save.data.elapsedSeconds;
-              // No clock movement since the cached interval started: rebasing
-              // would only clone the fleet. Skip it so paused saves keep
-              // identical train references for the sharing pass.
-              if (Number.isFinite(elapsed) && elapsed === startedAt) return save;
-              return { ...save, data: { ...save.data,
-                ...(Number.isFinite(save.data.lastInfrastructureChargeTime) ? {
-                  lastInfrastructureChargeTime: save.data.lastInfrastructureChargeTime + elapsed - startedAt,
-                } : {}),
-                trains: (save.data.trains ?? []).map(train => rebaseFrozenTrain(train, elapsed)),
-              } };
-            };
-            let save;
-            try { save = original.apply(this, args); }
-            catch (error) { savePhase('generate.error', started); throw error; }
-            if (cachedActive) prefetch();
-            // Sharing repeated route lists reduces Electron's synchronous data
-            // handoff in native mode too, without changing serialized save values.
-            const prepareSave = value => {
-              savePhase('generate.end', started);
-              if (args[0]?.[Symbol.for('open-world.stream-native-save')]) return rebaseSave(value);
-              const sharingStarted = performance.now();
-              const result = shareNativeSaveReferences(rebaseSave(value));
-              savePhase('sharing.end', sharingStarted);
-              return result;
-            };
-            return typeof save?.then === 'function' ? save.then(prepareSave, error => {
-              savePhase('generate.error', started); throw error;
-            }) : prepareSave(save);
+            const lease = beforeGenerateSave?.(args);
+            let released = false;
+            const release = () => { if (!released) { released = true; if (typeof lease === 'function') lease(); } };
+            try {
+              const started = performance.now();
+              savePhase('generate.start', started);
+              if (cachedActive) { observeFrozenTrains(getState()); flush(); }
+              const rebaseSave = save => {
+                if (!cachedActive || !enabled || disposed || !save?.data || getState().gameSessionId !== sessionId) return save;
+                const elapsed = save.data.elapsedSeconds;
+                // No clock movement since the cached interval started: rebasing
+                // would only clone the fleet. Skip it so paused saves keep
+                // identical train references for the sharing pass.
+                if (Number.isFinite(elapsed) && elapsed === startedAt) return save;
+                return { ...save, data: { ...save.data,
+                  ...(Number.isFinite(save.data.lastInfrastructureChargeTime) ? {
+                    lastInfrastructureChargeTime: save.data.lastInfrastructureChargeTime + elapsed - startedAt,
+                  } : {}),
+                  trains: (save.data.trains ?? []).map(train => rebaseFrozenTrain(train, elapsed)),
+                } };
+              };
+              let save;
+              try { save = original.apply(this, args); }
+              catch (error) { savePhase('generate.error', started); throw error; }
+              if (cachedActive) prefetch();
+              // Sharing repeated route lists reduces Electron's synchronous data
+              // handoff in native mode too, without changing serialized save values.
+              const prepareSave = value => {
+                try {
+                  savePhase('generate.end', started);
+                  if (args[0]?.[Symbol.for('open-world.stream-native-save')]) return rebaseSave(value);
+                  const sharingStarted = performance.now();
+                  const result = shareNativeSaveReferences(rebaseSave(value));
+                  savePhase('sharing.end', sharingStarted);
+                  return result;
+                } finally { release(); }
+              };
+              return typeof save?.then === 'function' ? save.then(prepareSave, error => {
+                savePhase('generate.error', started); release(); throw error;
+              }) : prepareSave(save);
+            } catch (error) { release(); throw error; }
           }
           if (!cachedActive) return invokeNative(original, this, args);
           if (name === 'handleIncrementGameState') return tick();
@@ -472,6 +479,13 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       preparation.dispose(); worker.dispose(); routingCache.clear(); listeners.clear(); state.setTimeConfig?.({});
     },
   };
+  const previousControllers = new Set([...NATIVE_ACTIONS, 'generateSave']
+    .map(name => getState()[name]?.[OWNER]?.controller).filter(previous => previous && previous !== controller));
+  for (const previous of previousControllers) {
+    try {
+      Promise.resolve(previous.dispose?.()).catch(error => console.warn('[OpenWorld] previous cached controller disposal failed', error));
+    } catch (error) { console.warn('[OpenWorld] previous cached controller disposal failed', error); }
+  }
   controller.attach();
   return controller;
 }
