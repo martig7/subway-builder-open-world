@@ -1,6 +1,6 @@
 const ALIAS_PREFIX = 'identity:session:';
 const CANONICAL_WORLD_KEY = 'identity:canonical-world';
-export const WORLD_IDENTITY_BINDING_VERSION = 'direct-native-save-binding-v1';
+export const WORLD_IDENTITY_BINDING_VERSION = 'direct-native-save-binding-v2';
 
 function createIsolatedWorldId(prefix) {
   const suffix = globalThis.crypto?.randomUUID?.()
@@ -89,6 +89,25 @@ export class WorldIdentityResolver {
     }
     const alias = await this.#readAlias(sessionId, null);
     const recoveryAlias = this.recoveryAliases[sessionId];
+    const hasRecoveryAlias = typeof recoveryAlias === 'string' && Boolean(recoveryAlias);
+    if (hasNativeSessionId && typeof authoritativeWorldId === 'string' && authoritativeWorldId
+      && !hasRecoveryAlias) {
+      // The loaded Native Save owns this identity. A cached or durable alias
+      // must not select another World before its saved demand is restored.
+      // An unbound self-World already resolves correctly without a binding.
+      if (alias !== authoritativeWorldId && (alias != null || authoritativeWorldId !== sessionId)) {
+        const bound = await this.bind(sessionId, authoritativeWorldId, { force: true });
+        if (!bound) throw new Error('Authoritative native-save World binding could not be verified');
+      }
+      await this.#promoteCanonicalWorld(authoritativeWorldId);
+      return {
+        nativeSessionId: sessionId,
+        worldId: authoritativeWorldId,
+        aliased: authoritativeWorldId !== sessionId,
+        source: 'authoritative-marker',
+        sourceSessionId: null,
+      };
+    }
     // Explicit recovery bindings are migrations, not defaults. They must win
     // over a stale alias written by the broken projection lineage and replace
     // it through the authoritative storage API.
@@ -108,23 +127,6 @@ export class WorldIdentityResolver {
         nativeSessionId: sessionId,
         worldId: resolvedWorldId,
         aliased: resolvedWorldId !== sessionId,
-      };
-    }
-
-    if (hasNativeSessionId && typeof authoritativeWorldId === 'string' && authoritativeWorldId
-      && authoritativeWorldId !== sessionId) {
-      await this.bind(sessionId, authoritativeWorldId);
-      const settled = await this.#readAlias(sessionId, authoritativeWorldId);
-      const resolvedWorldId = typeof settled === 'string' && settled
-        ? settled
-        : authoritativeWorldId;
-      await this.#promoteCanonicalWorld(resolvedWorldId);
-      return {
-        nativeSessionId: sessionId,
-        worldId: resolvedWorldId,
-        aliased: resolvedWorldId !== sessionId,
-        source: 'authoritative-marker',
-        sourceSessionId: null,
       };
     }
 
@@ -188,7 +190,7 @@ export class WorldIdentityResolver {
     if (typeof nativeSessionId !== 'string' || !nativeSessionId
       || typeof worldId !== 'string' || !worldId) return false;
     const key = `${ALIAS_PREFIX}${nativeSessionId}`;
-    // Explicit navigation already authorizes replacement. Reading a newly
+    // Explicit navigation, native authority, or recovery authorizes replacement. Reading a newly
     // generated session first misses IDB and decodes the entire legacy store.
     // Write directly, then retain the existing read-back verification below.
     const existing = force ? null : this.canonicalAliases.has(nativeSessionId)
@@ -210,7 +212,7 @@ export class WorldIdentityResolver {
       if (existingIsCanonicalAlias && existing !== worldId) return false;
     }
     await this.storage?.set?.(key, worldId);
-    const settled = await this.storage?.get?.(key, worldId);
+    const settled = await this.storage?.get?.(key, null);
     if (settled === worldId) this.#rememberCanonical(nativeSessionId, worldId);
     return settled === worldId;
   }

@@ -5,6 +5,7 @@ import { startOpenWorld } from '../src/runtime/start-open-world.js';
 import { prototypeSaveBusyReason } from '../src/runtime/prototype-save-readiness.js';
 import { WorldTileRuntime } from '../src/runtime/world-tile-runtime.js';
 import { WorldIdentityResolver } from '../src/runtime/world-identity.js';
+import { DemandExtensionStore, DEMAND_CHECKPOINT_FIELD } from '../src/runtime/demand-extension-state.js';
 import { createSubwayBuilderHostState } from '../testkit/subway-builder-host.js';
 import { GeographicContextOverlayController } from '../src/runtime/ui/geographic-context-overlay.js';
 import { HashCityNavigationAdapter } from '../src/runtime/adapters/hash-city-navigation-adapter.js';
@@ -20,7 +21,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function harness(run) {
+async function harness(run, { storage = new Map() } = {}) {
   const savedGlobals = new Map(Object.getOwnPropertyNames(globalThis).filter(key => key.startsWith('__')
     || ['fetch', 'localStorage', 'sessionStorage', 'requestIdleCallback'].includes(key)).map(key => [key, globalThis[key]]));
   const savedConsole = { debug: console.debug, info: console.info, log: console.log, warn: console.warn, error: console.error };
@@ -49,6 +50,7 @@ async function harness(run) {
   globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   const preferences = new Map();
   globalThis.localStorage = { getItem: key => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value) };
+  if (storage) globalThis.__tokyoKanagawaDurableStorageV1__ = storage;
   globalThis.requestIdleCallback = (callback, options) => { if (options?.timeout === 1000) idle.push(callback); return 1; };
   console.debug = console.info = console.log = console.warn = () => {};
   console.error = (...args) => errors.push(args);
@@ -72,6 +74,28 @@ async function harness(run) {
     for (const [key, value] of savedGlobals) globalThis[key] = value;
   }
 }
+
+test('cold native load resolves the saved demand checkpoint World despite a stale session binding', async t => {
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
+  const savedWorldId = 'saved-player-world';
+  const storage = new Map([['identity:session:session-A', 'stale-player-world']]);
+  const store = new DemandExtensionStore({ storage, createId: () => 'saved-checkpoint' });
+  const saved = await store.commit(await store.readCheckpoint(null, savedWorldId), 'JP_TOKYO_MAINLAND', 'induced-demand',
+    { ledger: '{"pressure":7}', points: [], pops: [] }, 'saved-day');
+  await harness(async ({ controller, state, errors, idle }) => {
+    state.financialHistory.openWorldAuthoritativeWorldId = savedWorldId;
+    state.financialHistory[DEMAND_CHECKPOINT_FIELD] = structuredClone(saved.marker);
+    await controller.lifecycle.gameLoaded('save-A');
+    assert.equal(controller.diagnostics.demandExtensions().error, null);
+    assert.equal(controller.diagnostics.currentWorld.worldId, savedWorldId);
+    assert.equal(storage.get('identity:session:session-A'), savedWorldId);
+    assert.deepEqual(state.financialHistory[DEMAND_CHECKPOINT_FIELD], saved.marker, 'the exact saved checkpoint remains authoritative');
+    idle.shift()(); await new Promise(setImmediate);
+    const demand = globalThis.SubwayBuilderOpenWorldDemand;
+    assert.equal(await demand.readState('induced-demand', demand.getContext()), '{"pressure":7}');
+    assert.deepEqual(errors, []);
+  }, { storage });
+});
 
 test('a fresh runtime restores both choices, enabling Ultra only after network finance is ready', async t => {
   const finance = deferred(), entered = deferred();
