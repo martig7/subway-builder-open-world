@@ -1,3 +1,4 @@
+import { registerSchematicContext } from './schematic-context.js';
 import { LOAD_DIAGNOSTICS_VERSION, WorldTileRuntime } from './world-tile-runtime.js';
 import {
   readLiveSubwayBuilderCityCode,
@@ -475,6 +476,7 @@ export function startOpenWorld({
   diagnostics.tileCacheBudget = tileCacheBudget.snapshot;
   rendererMemory.recordActivity('runtime.attached', { tileId: currentCityCode() });
   let session = null;
+  let schematicContext = null;
   diagnostics.nativeNetworkMode = game.activateCanonicalNativeNetworkMode();
   diagnostics.trackGroupLoadGuard = game.installTrackGroupLoadGuard();
   diagnostics.simulationPerformance = game.installSimulationPerformanceDiagnostics();
@@ -566,6 +568,7 @@ export function startOpenWorld({
         // route/schedule hooks before onCityLoad. Treat that whole interval as
         // an internal view transition, not as a player network edit.
         ready = false;
+        schematicContext?.refresh();
         settlementReady = false;
       } else {
         resumeRecoveryCheckpoint?.();
@@ -695,7 +698,7 @@ export function startOpenWorld({
   // widen this policy when construction or rendering replaces store arrays.
   const queueCommuteRefresh = (reason, networkChanged) => {
     if (!ready || !isCurrent() || !ownsCurrentCity()) return;
-    if (networkChanged) runtime.markDerivedNetworkDirty(reason);
+    if (networkChanged) { runtime.markDerivedNetworkDirty(reason); schematicContext?.refresh(true); }
     revenueAccrual.invalidate();
     session?.modeShareInvalidation.markDirty(reason);
     cachedSimulation.invalidate();
@@ -973,7 +976,11 @@ export function startOpenWorld({
       game.cancelNativeTileHandoff();
       const sourceCurrent = ownsSession(owner) && loadEpoch === epoch && currentCityCode() === fromTileId
         && api.gameState.getGameSessionId?.() === sourceSessionId;
-      if (sourceCurrent) { ready = true; settlementReady = true; }
+      if (sourceCurrent) {
+        ready = true;
+        schematicContext?.refresh();
+        settlementReady = true;
+      }
       await tileSimulationHandoff.cancel({ restore: sourceCurrent });
       api.ui?.showNotification?.(`Tile switch failed: ${error.message}`, 'error', 'Open World');
       throw error;
@@ -1046,6 +1053,7 @@ export function startOpenWorld({
           continue;
         }
         ready = false;
+        schematicContext?.refresh();
         settlementReady = false;
         const nativeSessionId = api.gameState.getGameSessionId();
         const loadTraceId = createAuthoritativeLoadTraceId(
@@ -1094,6 +1102,7 @@ export function startOpenWorld({
           });
           loadedSaveName = currentSaveName;
           ready = true;
+          schematicContext?.refresh();
           const epoch = loadEpoch;
           const modeShare = await recalculateCrossModeShare(request.reason, api.gameState.getCurrentDay?.() ?? null, false, owner);
           if (!ownsSession(owner) || loadEpoch !== epoch) continue;
@@ -1104,6 +1113,7 @@ export function startOpenWorld({
         } catch (error) {
           if (!ownsSession(owner)) return;
           ready = false;
+          schematicContext?.refresh();
           settlementReady = false;
           recordAuthoritativeLoad({
             phase: 'authoritative-load',
@@ -1246,6 +1256,7 @@ export function startOpenWorld({
         finishStage('runtimeBoot');
         if (!ownsSession(startingSession)) return;
         ready = true;
+        schematicContext?.refresh();
         settlementReady = false;
         if (!ownsSession(startingSession)) return;
         geographicContextController = registerGeographicContextOverlay({
@@ -1295,6 +1306,7 @@ export function startOpenWorld({
         if (!ownsSession(startingSession)) return;
         started = false;
         ready = false;
+        schematicContext?.refresh();
         settlementReady = false;
         if (startPromise === pendingStart) startPromise = null;
         recordAuthoritativeLoad({
@@ -1612,6 +1624,7 @@ export function startOpenWorld({
       // is a view change, not a player service edit, so keep those hooks from
       // scheduling a spurious midnight mode-share rebuild.
       ready = false;
+      schematicContext?.refresh();
       settlementReady = false;
       if (!nativeRestored) {
         // StoreInitializer emits city-load before it reads/applies the staged
@@ -1674,6 +1687,7 @@ export function startOpenWorld({
         runtimeView: runtime.diagnosticView(),
       });
       ready = true;
+      schematicContext?.refresh();
       // A replacement native map can become available without another
       // onMapReady notification. Reacquire and attach before refreshing it.
       await reconcileLiveMap('tile-navigation-complete');
@@ -1837,6 +1851,7 @@ export function startOpenWorld({
       controllers: [crossDemandController, projectionOverlayController, geographicContextController],
     });
     latestMap = map;
+    schematicContext?.refresh();
     diagnostics.mapAttachment = {
       version: 'live-map-reattachment-v2',
       reason,
@@ -1888,6 +1903,7 @@ export function startOpenWorld({
       // Tearing down `started` here makes onGameInit replace the World and
       // discards the in-memory rail/ledger handoff before onCityLoad can use it.
       ready = false;
+      schematicContext?.refresh();
       settlementReady = false;
       loadedSaveName = null;
       loadTrace('hook.game-end.ignored', {
@@ -1909,6 +1925,7 @@ export function startOpenWorld({
     requestedSessionReload = null;
     sessionReloadPromise = null;
     ready = false;
+    schematicContext?.refresh();
     settlementReady = false;
     loadedSaveName = null;
     authoritativeCityCode = null;
@@ -1929,6 +1946,17 @@ export function startOpenWorld({
   };
   diagnostics.nativeAutosaveIdle = { snapshot: () => autosaveIdleGuard?.snapshot?.() ?? { installed: false } };
   console.info(`${logLabel} registered`, registration);
+  schematicContext = registerSchematicContext({
+    definition, tileCatalog, tileUrl: city => tileUrl(city, tileBase), loadVegetation: worldVegetationLoader,
+    readState: () => ({
+      owned: isCurrent() && ownsCurrentCity(), cityCode: currentCityCode(),
+      sessionId: api.gameState.getGameSessionId?.() ?? null, generation: loadEpoch,
+      ready: ready && Boolean(latestMap) && runtimeTileId() === currentCityCode(),
+    }),
+  });
+  hookDisposers.push(runtime.subscribe(event => {
+    schematicContext.refresh(event.type === 'projection-changed');
+  }, { includeView: false }));
   const controller = Object.freeze({
     cachedSimulation,
     simulationControls,
@@ -1950,6 +1978,7 @@ export function startOpenWorld({
       void tileSimulationHandoff.cancel();
       game.cancelNativeTileHandoff();
       moduleDisposed = true;
+      schematicContext.dispose();
       void cachedSimulation.dispose();
       prototypeSaveWriter.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {
