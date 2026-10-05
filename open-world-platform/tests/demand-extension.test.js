@@ -38,9 +38,30 @@ function fixture(storage = new Map(), selectContext = context => context) {
       const popIds = pops.map(pop => {
         assert.ok(native.demandData.points.has(pop.residenceId)); assert.ok(native.demandData.points.has(pop.jobId));
         const id = `mod-pop-${++actual}`;
-        native.demandData.popsMap.set(id, { ...pop, id, homeDepartureTime: 30000, workDepartureTime: 62000 }); return id;
+        native.demandData.popsMap.set(id, { ...pop, id, homeDepartureTime: 30000, workDepartureTime: 62000 });
+        for (const [endpoint, total] of [[pop.residenceId, 'residents'], [pop.jobId, 'jobs']]) {
+          const point = native.demandData.points.get(endpoint); point[total] = (point[total] ?? 0) + pop.size;
+          point.popIds ??= []; if (!point.popIds.includes(id)) point.popIds.push(id);
+        }
+        return id;
       });
       return { success: true, popIds };
+    },
+    removePops(ids) {
+      let removedCount = 0;
+      for (const id of ids) {
+        const pop = native.demandData.popsMap.get(id); if (!pop) continue;
+        for (const [endpoint, total] of [[pop.residenceId, 'residents'], [pop.jobId, 'jobs']]) {
+          const point = native.demandData.points.get(endpoint); point[total] -= pop.size;
+          point.popIds = (point.popIds ?? []).filter(value => value !== id);
+        }
+        native.demandData.popsMap.delete(id); removedCount++;
+      }
+      return { success: true, removedCount };
+    },
+    removeDemandPoint(id) {
+      assert.ok([...native.demandData.popsMap.values()].every(pop => pop.residenceId !== id && pop.jobId !== id));
+      native.demandData.points.delete(id); return { success: true, removedPopCount: 0 };
     },
   } };
   const errors = [];
@@ -63,6 +84,17 @@ test('demand provider is separate from schematic provider and replacement fences
   assert.throws(() => registry.readState('induced-demand', expected), /replaced/);
   handle.dispose();
   assert.ok(registry.getContext(), 'stale disposal must not remove the new provider');
+});
+
+test('empty checkpoints and ledger-only records do not require a native demand editor', async () => {
+  const f = fixture(); delete f.api.gameState.getDemandData; delete f.api.demand;
+  await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const store = new DemandExtensionStore({ storage: f.storage, createId: () => 'empty-ledger' });
+  const committed = await store.commit(await store.readCheckpoint(null, 'player-world'), 'tile', 'induced',
+    { ledger: '{"pressure":1}', points: [], pops: [] }, 'empty', [], { demandChanged: false });
+  f.native.financialHistory[DEMAND_CHECKPOINT_FIELD] = committed.marker; f.context.epoch++;
+  await f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  assert.equal(await f.runtime.readState('induced', f.runtime.getContext()), '{"pressure":1}');
 });
 
 test('mutation is synchronous once, becomes durable before native marker, and preserves finance', async () => {
@@ -175,6 +207,64 @@ test('native save leases from a previous context cannot hold a newly loaded save
   oldRelease(); assert.equal(f.runtime.getContext().demandReady, true);
 });
 
+test('cached startup waits an extension initialization commit before internal save capture', async () => {
+  const entries = new Map(), writing = deferred(), finish = deferred(); let writes = 0;
+  const storage = { get: key => entries.get(key), async set(key, value) {
+    if (++writes === 1) { writing.resolve(); await finish.promise; } entries.set(key, value);
+  } };
+  const f = fixture(storage); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  f.native.generateSave = () => ({ data: { completedCommutes: [] } });
+  f.native.setDemandData = value => { f.native.demandData = value; };
+  let prepared = 0;
+  const controller = createCachedSimulation({ game: { calculateNativeFinanceProfile: () => ({ expenseProfile: {} }) },
+    api: { utils: {} }, getState: () => f.native, beforeGenerateSave: () => f.runtime.beginNativeSave(),
+    admitDemand: () => f.runtime.admit(), prepareActiveDemand: async () => {
+      f.native.generateSave(); prepared++; return { assignments: [], profile: { hourly: [] } };
+    } });
+  const initialization = f.runtime.runMutation('induced', f.runtime.getContext(), { mutationId: 'initialize',
+    apply: () => ({ ledger: '{}', points: [], pops: [] }) });
+  await writing.promise;
+  const enabling = controller.setEnabled(true);
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(prepared, 0); assert.notEqual(controller.snapshot().status, 'error');
+  finish.resolve(); await initialization; await enabling;
+  assert.equal(prepared, 1); assert.equal(controller.snapshot().status, 'ready');
+  await controller.dispose();
+});
+
+test('cached startup retries a typed durability deferral without requiring a mode toggle', async () => {
+  const f = fixture(); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  f.native.generateSave = () => ({ data: { completedCommutes: [] } });
+  f.native.setDemandData = value => { f.native.demandData = value; };
+  let prepared = 0;
+  const controller = createCachedSimulation({ game: { calculateNativeFinanceProfile: () => ({ expenseProfile: {} }) },
+    api: { utils: {} }, getState: () => f.native, beforeGenerateSave: () => f.runtime.beginNativeSave(),
+    admitDemand: () => f.runtime.admit(), prepareActiveDemand: async () => {
+      if (++prepared === 1) {
+        void f.runtime.runMutation('induced', f.runtime.getContext(), { mutationId: 'initialize',
+          apply: () => ({ ledger: '{}', points: [], pops: [] }) });
+        // Reproduce native capture after admission but before commit durability.
+        f.native.generateSave();
+      }
+      return { assignments: [], profile: { hourly: [] } };
+    } });
+  await controller.setEnabled(true);
+  assert.equal(prepared, 2); assert.equal(controller.snapshot().status, 'ready');
+  assert.equal(f.runtime.getContext().demandReady, true); await controller.dispose();
+});
+
+test('a context replacement cancels demand admission instead of following it into the new save', async () => {
+  const entries = new Map(), writing = deferred(), finish = deferred();
+  const storage = { get: key => entries.get(key), async set(key, value) { writing.resolve(); await finish.promise; entries.set(key, value); } };
+  const f = fixture(storage); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const mutation = f.runtime.runMutation('induced', f.runtime.getContext(), { mutationId: 'initialize', apply: () => payload() });
+  const failedMutation = assert.rejects(mutation, /context changed/);
+  await writing.promise;
+  const admission = f.runtime.admit(); const cancelled = assert.rejects(admission, /context changed/);
+  f.context.epoch++; f.context.nativeSessionId = 'loaded-native';
+  finish.resolve(); await failedMutation; await cancelled;
+});
+
 test('exact older native save marker restores old extension and remaps regenerated pop IDs in ledger', async () => {
   const f = fixture(); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
   await f.runtime.runMutation('induced-demand', f.runtime.getContext(), { mutationId: 'day-1', apply: () => payload('original', 50) });
@@ -193,6 +283,122 @@ test('exact older native save marker restores old extension and remaps regenerat
   const missing = fixture(); missing.native.financialHistory[DEMAND_CHECKPOINT_FIELD] = oldMarker;
   await assert.rejects(missing.runtime.activate({ worldId: 'player-world', tileId: 'tile' }), /unavailable/);
   assert.equal(missing.runtime.getContext().demandReady, false);
+});
+
+test('same-object older native checkpoint removes only newer proven owned demand, including absent owners', async () => {
+  const f = fixture(); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const demandObject = f.native.demandData;
+  const ownedPoints = [{ id: 'qa-home', location: [.001, 0] }, { id: 'qa-work', location: [.009, 0] }];
+  await f.runtime.runMutation('qa-owner', f.runtime.getContext(), { mutationId: 'qa-add', apply() {
+    for (const point of ownedPoints) f.api.demand.addDemandPoint(point);
+    const { popIds } = f.api.demand.addPops([{ residenceId: 'qa-home', jobId: 'qa-work', size: 25, drivingSeconds: 400 }]);
+    return { ledger: JSON.stringify({ pops: { [popIds[0]]: { size: 25 } } }), points: ownedPoints,
+      pops: popIds.map(id => f.native.demandData.popsMap.get(id)) };
+  } });
+  const saveB = structuredClone(f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]);
+  const unrelated = f.api.demand.addPops([{ residenceId: 'home', jobId: 'work', size: 3 }]).popIds[0];
+  delete f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]; f.context.epoch++;
+  await f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  assert.equal(f.native.demandData, demandObject, 'native same-city loads can retain their demand object');
+  assert.equal(await f.runtime.readState('qa-owner', f.runtime.getContext()), null);
+  assert.equal(f.native.demandData.points.size, 2); assert.deepEqual([...f.native.demandData.popsMap.keys()], [unrelated]);
+  assert.deepEqual(f.native.demandData.points.get('home').popIds, [unrelated]);
+  // Repeating B then A restores/remaps B and removes that exact new live ID.
+  f.native.financialHistory[DEMAND_CHECKPOINT_FIELD] = saveB; f.context.epoch++;
+  await f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  assert.equal(f.native.demandData.points.size, 4); assert.equal(f.native.demandData.popsMap.size, 2);
+  delete f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]; f.context.epoch++;
+  await f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  assert.equal(f.native.demandData.points.size, 2); assert.deepEqual([...f.native.demandData.popsMap.keys()], [unrelated]);
+});
+
+test('provider replacement retains previous ownership for same-object native checkpoint rollback', async () => {
+  const f = fixture(); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const id = f.api.demand.addPops([{ residenceId: 'home', jobId: 'work', size: 25 }]).popIds[0];
+  await f.runtime.runMutation('qa-owner', f.runtime.getContext(), { mutationId: 'qa-add',
+    apply: () => ({ ledger: '{}', points: [], pops: [f.native.demandData.popsMap.get(id)] }) });
+  const registry = demandContextRegistry({}); registry.register('provider', f.runtime);
+  delete f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]; f.context.epoch++;
+  const replacement = createDemandExtensionRuntime({ api: f.api, game: { callbacks: { getState: () => f.native } },
+    storage: f.storage, readContext: () => f.context, onError: () => {} });
+  registry.register('provider', replacement);
+  await replacement.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  assert.equal(f.native.demandData.popsMap.size, 0); assert.equal(f.native.demandData.points.get('home').residents, 0);
+});
+
+test('same-tile player World replacement retires preceding proven owned demand', async () => {
+  const f = fixture(); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const id = f.api.demand.addPops([{ residenceId: 'home', jobId: 'work', size: 25 }]).popIds[0];
+  await f.runtime.runMutation('qa-owner', f.runtime.getContext(), { mutationId: 'qa-add',
+    apply: () => ({ ledger: '{}', points: [], pops: [f.native.demandData.popsMap.get(id)] }) });
+  f.context.resolvedWorldId = 'other-player-world'; f.context.nativeSessionId = 'other-player-native'; f.context.epoch++;
+  delete f.native.financialHistory[DEMAND_CHECKPOINT_FIELD];
+  await f.runtime.activate({ worldId: 'other-player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  assert.equal(f.native.demandData.popsMap.size, 0); assert.equal(f.native.demandData.points.get('home').residents, 0);
+  assert.equal(f.runtime.getContext().resolvedWorldId, 'other-player-world');
+});
+
+test('activation retains admission hold across prior commit completion and delayed restoration reads', async () => {
+  const entries = new Map(), writing = deferred(), finishWrite = deferred(), reading = deferred(), finishRead = deferred();
+  let holdWrite = false, holdRead = false;
+  const storage = { get(key) {
+    if (holdRead && key.startsWith('demand-checkpoint:')) { holdRead = false; reading.resolve(); return finishRead.promise.then(() => entries.get(key)); }
+    return entries.get(key);
+  }, async set(key, value) { if (holdWrite) { holdWrite = false; writing.resolve(); await finishWrite.promise; } entries.set(key, value); } };
+  const f = fixture(storage); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const empty = () => ({ ledger: '{}', points: [], pops: [] });
+  await f.runtime.runMutation('induced', f.runtime.getContext(), { mutationId: 'one', apply: empty });
+  holdWrite = true;
+  const obsolete = f.runtime.runMutation('induced', f.runtime.getContext(), { mutationId: 'two', apply: empty });
+  const rejected = assert.rejects(obsolete, /context changed/); await writing.promise;
+  holdRead = true;
+  const activating = f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  let admitted = false; const admission = f.runtime.admit().then(() => { admitted = true; });
+  finishWrite.resolve(); await rejected; await reading.promise;
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(admitted, false); assert.equal(f.runtime.snapshot().busy, true);
+  assert.equal(f.runtime.getContext().demandReady, false);
+  assert.throws(() => f.runtime.assertSaveReady(), error => error.code === 'OPEN_WORLD_DEMAND_DEFERRED');
+  finishRead.resolve(); await activating; await admission;
+  assert.equal(admitted, true); assert.equal(f.runtime.getContext().demandReady, true);
+});
+
+test('superseding a restore during remapped-ID persistence retires the generated live IDs', async () => {
+  const entries = new Map(), writing = deferred(), finish = deferred(); let hold = false;
+  const storage = { get: key => entries.get(key), async set(key, value) {
+    if (hold) { hold = false; writing.resolve(); await finish.promise; } entries.set(key, value);
+  } };
+  const f = fixture(storage); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const id = f.api.demand.addPops([{ residenceId: 'home', jobId: 'work', size: 25 }]).popIds[0];
+  await f.runtime.runMutation('qa-owner', f.runtime.getContext(), { mutationId: 'qa-add',
+    apply: () => ({ ledger: '{}', points: [], pops: [f.native.demandData.popsMap.get(id)] }) });
+  const populated = structuredClone(f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]);
+  delete f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]; f.context.epoch++;
+  await f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  f.native.financialHistory[DEMAND_CHECKPOINT_FIELD] = populated; f.context.epoch++; hold = true;
+  const restoring = f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  const obsolete = assert.rejects(restoring, /superseded/); await writing.promise;
+  assert.equal(f.native.demandData.popsMap.size, 1);
+  delete f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]; f.context.epoch++;
+  await f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
+  assert.equal(f.native.demandData.popsMap.size, 0); assert.equal(f.runtime.getContext().demandReady, true);
+  finish.resolve(); await obsolete;
+  assert.equal(f.native.demandData.popsMap.size, 0); assert.equal(f.runtime.getContext().demandReady, true);
+});
+
+test('retired point references from an unrelated owner fail preflight before any live demand edit', async () => {
+  const f = fixture(); await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' });
+  const point = { id: 'owned-home', location: [.001, 0] };
+  f.api.demand.addDemandPoint(point);
+  const id = f.api.demand.addPops([{ residenceId: point.id, jobId: 'work', size: 25 }]).popIds[0];
+  await f.runtime.runMutation('qa-owner', f.runtime.getContext(), { mutationId: 'qa-add',
+    apply: () => ({ ledger: '{}', points: [point], pops: [f.native.demandData.popsMap.get(id)] }) });
+  const foreign = f.api.demand.addPops([{ residenceId: point.id, jobId: 'work', size: 3 }]).popIds[0];
+  delete f.native.financialHistory[DEMAND_CHECKPOINT_FIELD]; f.context.epoch++;
+  await assert.rejects(f.runtime.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true }), /unrelated live pop/);
+  assert.deepEqual([...f.native.demandData.popsMap.keys()], [id, foreign]);
+  assert.equal(f.native.demandData.points.get(point.id).residents, 28);
+  assert.equal(f.runtime.getContext().demandReady, false); assert.equal(f.native.timeConfig.paused, true);
 });
 
 test('old immutable manifest never incorporates a later tile extension', async () => {
@@ -304,20 +510,22 @@ test('pending hot reload takeover preserves payload without repeating edits; old
   assert.deepEqual([...f.native.demandData.popsMap.keys()], ['owned-1']);
 });
 
-test('same tile native reload replaces demand object and discards hot reload takeover', async () => {
+test('explicit same-object native reload discards pending hot reload takeover', async () => {
   const entries = new Map(), writing = deferred(), release = deferred(); let delay = false;
   const storage = { get: key => entries.get(key), async set(key, value) {
     if (delay) { delay = false; writing.resolve(); await release.promise; } entries.set(key, value);
   } };
   const f = fixture(storage); const registry = demandContextRegistry({}); registry.register('provider', f.runtime);
   await f.runtime.activate({ worldId: 'player-world', tileId: 'tile' }); delay = true;
-  const mutation = registry.runMutation('induced', registry.getContext(), { mutationId: 'one', apply: () => payload() });
+  const mutation = registry.runMutation('induced', registry.getContext(), { mutationId: 'one', apply() {
+    const id = f.api.demand.addPops([{ residenceId: 'home', jobId: 'work', size: 50, drivingSeconds: 400, drivingDistance: 1000 }]).popIds[0];
+    return { ...payload(id), pops: [f.native.demandData.popsMap.get(id)] };
+  } });
   const rejectedOld = assert.rejects(mutation, /context changed/); await writing.promise;
-  f.native.demandData = { points: new Map(baseDemand().points.map(point => [point.id, point])), popsMap: new Map() };
   f.context.epoch++;
   const replacement = createDemandExtensionRuntime({ api: f.api, game: { callbacks: { getState: () => f.native } }, storage,
     readContext: () => f.context, onError: () => {} });
-  registry.register('provider', replacement); const activation = replacement.activate({ worldId: 'player-world', tileId: 'tile' });
+  registry.register('provider', replacement); const activation = replacement.activate({ worldId: 'player-world', tileId: 'tile', nativeAuthoritativeLoad: true });
   release.resolve(); await rejectedOld; await activation;
   assert.equal(await registry.readState('induced', registry.getContext()), null);
   assert.equal(f.native.demandData.popsMap.size, 0); assert.equal(f.native.financialHistory[DEMAND_CHECKPOINT_FIELD], undefined);

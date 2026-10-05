@@ -3,7 +3,11 @@ import { DemandExtensionStore, DEMAND_CHECKPOINT_FIELD, normalizeDemandExtension
 
 export const DEMAND_CONTEXT_VERSION = 1;
 export const DEMAND_CONTEXT_EVENT = 'subway-builder-open-world-demand-context';
+export const DEMAND_DEFERRED_CODE = 'OPEN_WORLD_DEMAND_DEFERRED';
 const CONTEXT_KEYS = ['providerId', 'resolvedWorldId', 'nativeSessionId', 'tileId', 'epoch'];
+const samePop = (a, b) => Boolean(a && b && ['id', 'residenceId', 'jobId', 'size', 'drivingSeconds',
+  'drivingDistance', 'homeDepartureTime', 'workDepartureTime'].every(key => a[key] === b[key]));
+const samePoint = (a, b) => Boolean(a && b && a.id === b.id && a.location?.[0] === b.location?.[0] && a.location?.[1] === b.location?.[1]);
 
 export function demandContextRegistry(root = globalThis) {
   if (root.SubwayBuilderOpenWorldDemand?.version === 1) return root.SubwayBuilderOpenWorldDemand;
@@ -71,7 +75,8 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
   const store = new DemandExtensionStore({ storage, createId });
   let checkpoint = null, hydratedTile = null, busy = false, failure = null, pending = null;
   let serial = Promise.resolve(), activationGeneration = 0, disposed = false, handoff = null;
-  const records = new Map(), saveHolds = new Set();
+  let ownedScope = null, activationHold = null;
+  const records = new Map(), saveHolds = new Set(), admissionWaiters = new Set();
   const state = () => game.callbacks.getState();
   const getContext = () => {
     if (disposed) return null;
@@ -80,7 +85,7 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
     return Object.freeze({ ...context, version: 1,
       demandRevision: checkpoint?.worldId === context.resolvedWorldId ? checkpoint.tiles[context.tileId]?.revision ?? 0 : 0,
       demandReady: Boolean(context.demandReady && checkpoint?.worldId === context.resolvedWorldId
-        && hydratedTile === context.tileId && !busy && !failure
+        && hydratedTile === context.tileId && !busy && activationHold == null && !failure
         && ![...saveHolds].some(identity => CONTEXT_KEYS.every(key => identity[key] === context[key]))),
     });
   };
@@ -107,7 +112,11 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
     if (typeof current.setFinancialHistory !== 'function') throw new Error('Native demand checkpoint marker cannot be saved');
     current.setFinancialHistory({ ...(current.financialHistory ?? {}), [DEMAND_CHECKPOINT_FIELD]: marker });
   };
-  const publish = () => onChanged(getContext());
+  const publish = () => {
+    for (const wake of admissionWaiters) wake();
+    admissionWaiters.clear();
+    onChanged(getContext());
+  };
   const fail = error => {
     failure = error; busy = false;
     const context = readContext();
@@ -118,6 +127,7 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
     const result = await store.commit(checkpoint, operation.tileId, operation.extensionId,
       operation.payload, operation.mutationId, operation.receipts, { demandChanged: operation.demandChanged });
     // Persisting an obsolete World must never stamp the newly loaded native save.
+    if (operation.activationGeneration !== activationGeneration) throw new Error('Demand context changed; discard the stale mutation');
     matches(operation.expected, false);
     checkpoint = result.checkpoint;
     records.set(keyFor(operation.tileId, operation.extensionId), { ...operation.payload, receipts: result.receipts });
@@ -141,8 +151,8 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
   const execute = operation => {
     busy = true; failure = null; publish();
     try { if (!operation.payload) capture(operation); }
-    catch (error) { fail(error); return Promise.reject(error); }
-    serial = persist(operation).catch(error => { fail(error); throw error; });
+    catch (error) { if (operation.activationGeneration === activationGeneration) fail(error); return Promise.reject(error); }
+    serial = persist(operation).catch(error => { if (operation.activationGeneration === activationGeneration) fail(error); throw error; });
     return serial;
   };
   const runtime = {
@@ -169,6 +179,7 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
         context = matches(expected);
         if (!context.demandReady || busy || failure) throw new Error('Native demand is not ready for mutations');
         pending = { expected, tileId: context.tileId, extensionId, mutationId, apply, receipts: record?.receipts ?? [],
+          activationGeneration,
           previousDemand: record,
           nativeDemand: api.gameState.getDemandData(),
           nativeMarker: structuredClone(state().financialHistory?.[DEMAND_CHECKPOINT_FIELD] ?? null) };
@@ -177,12 +188,14 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
       }
       return execute(pending);
     },
-    async activate({ worldId, tileId }) {
+    async activate({ worldId, tileId, nativeAuthoritativeLoad = false }) {
       const generation = ++activationGeneration;
+      activationHold = generation;
       saveHolds.clear();
       const context = readContext();
       const identity = context && Object.fromEntries(CONTEXT_KEYS.map(key => [key, context[key]]));
       const marker = state().financialHistory?.[DEMAND_CHECKPOINT_FIELD];
+      const previousRecords = [...records.values()].filter(Boolean), previousScope = ownedScope, previousOperation = pending;
       const assertCurrent = () => {
         if (generation !== activationGeneration) throw new Error('Demand activation was superseded');
         if (!identity || identity.resolvedWorldId !== worldId || identity.tileId !== tileId) throw new Error('Demand activation does not match the native World');
@@ -192,14 +205,15 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
       await serial.catch(() => {});
       try {
         assertCurrent();
+        busy = true; failure = null;
         const takeover = handoff; handoff = null;
         if (takeover) {
           await takeover.settled;
           assertCurrent();
         }
-        // A hot reload keeps the live native object. A real save load replaces
-        // it, even when World/session/tile IDs happen to be identical.
-        const takeoverMatches = takeover?.operation && takeover.operation.nativeDemand === api.gameState.getDemandData()
+        // Native same-city loads may keep the live demand object. Explicit
+        // native authority, not object identity alone, excludes pending takeover.
+        const takeoverMatches = !nativeAuthoritativeLoad && takeover?.operation && takeover.operation.nativeDemand === api.gameState.getDemandData()
           && ['resolvedWorldId', 'nativeSessionId', 'tileId'].every(key => identity[key] === takeover.operation.expected[key])
           && JSON.stringify(marker ?? null) === JSON.stringify(takeover.operation.nativeMarker ?? null);
         let restoredCheckpoint;
@@ -217,13 +231,77 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
         for (const extensionId of ids) {
           const record = await store.readRecord(restoredCheckpoint.tiles[tileId].extensions[extensionId]);
           assertCurrent();
+          restoredRecords.set(keyFor(tileId, extensionId), record);
+        }
+        // Reconcile only IDs proven owned by the preceding active extension
+        // records. Same-city native loadSave can retain newer demand in memory.
+        const prior = [];
+        const addPrior = (scope, values) => { if (scope?.tileId === tileId) prior.push(...values); };
+        addPrior(previousScope, previousRecords);
+        addPrior(takeover?.ownedScope, takeover?.knownRecords ?? []);
+        for (const operation of [previousOperation, takeover?.operation]) {
+          if (operation?.rawPayload && operation.tileId === tileId) {
+            prior.push(normalizeDemandExtension(operation.rawPayload));
+          }
+        }
+        const previousPops = new Map(), previousPoints = new Map(), desiredPops = new Map(), desiredPoints = new Map();
+        for (const record of prior) {
+          for (const pop of record.pops) previousPops.set(pop.id, pop);
+          for (const point of record.points) previousPoints.set(point.id, point);
+        }
+        for (const record of restoredRecords.values()) {
+          for (const pop of record.pops) desiredPops.set(pop.id, pop);
+          for (const point of record.points) desiredPoints.set(point.id, point);
+        }
+        let liveDemand = null;
+        if (previousPops.size || previousPoints.size) {
+          if (typeof api.gameState?.getDemandData !== 'function' || !api.demand) throw new Error('The supported demand editor is unavailable during reconciliation');
+          liveDemand = api.gameState.getDemandData();
+          if (!liveDemand?.points || !liveDemand?.popsMap) throw new Error('Native demand is unavailable during reconciliation');
+        }
+        const retiredPoints = [...previousPoints.values()].filter(point => samePoint(liveDemand?.points.get(point.id), point)
+          && !samePoint(point, desiredPoints.get(point.id)));
+        const retiredIds = new Set(retiredPoints.map(point => point.id));
+        const retiredPops = [...previousPops.values()].filter(pop => samePop(liveDemand?.popsMap.get(pop.id), pop)
+          && (!samePop(pop, desiredPops.get(pop.id)) || retiredIds.has(pop.residenceId) || retiredIds.has(pop.jobId))).map(pop => pop.id);
+        const retiredPopIds = new Set(retiredPops);
+        // Preflight before any editor call: retirement must never cascade into
+        // another extension's or the native game's still-live population.
+        if (retiredIds.size) for (const pop of liveDemand.popsMap.values()) {
+          if (!retiredPopIds.has(pop.id) && (retiredIds.has(pop.residenceId) || retiredIds.has(pop.jobId))) {
+            throw new Error('An unrelated live pop still references a retired extension point');
+          }
+        }
+        if (retiredPops.length) {
+          assertCurrent();
+          const removed = api.demand.removePops(retiredPops);
+          if (!removed.success) throw new Error(removed.error);
+        }
+        if (retiredPoints.length) {
+          for (const point of retiredPoints) {
+            assertCurrent();
+            const removed = api.demand.removeDemandPoint(point.id);
+            if (!removed.success) throw new Error(removed.error);
+          }
+        }
+        for (const extensionId of ids) {
+          const record = restoredRecords.get(keyFor(tileId, extensionId));
+          if (!record.points.length && !record.pops.length) continue;
           const remaps = new Map();
+          if (typeof api.gameState?.getDemandData !== 'function') throw new Error('The supported demand editor is unavailable during restoration');
           let demand = api.gameState.getDemandData();
           if (!demand || !api.demand) throw new Error('The supported demand editor is unavailable during restoration');
+          const trackRestoration = payload => {
+            assertCurrent();
+            if (ownedScope?.worldId !== worldId || ownedScope.tileId !== tileId) records.clear();
+            ownedScope = { worldId, tileId };
+            records.set(keyFor(tileId, extensionId), { ...payload, receipts: record.receipts });
+          };
           for (const point of record.points) if (!demand.points.has(point.id)) {
             assertCurrent();
             const added = api.demand.addDemandPoint(point);
             if (!added.success) throw new Error(added.error);
+            trackRestoration({ ...record, pops: record.pops.filter(pop => samePop(api.gameState.getDemandData().popsMap.get(pop.id), pop)) });
           }
           demand = api.gameState.getDemandData();
           const missing = record.pops.filter(pop => !demand.popsMap.has(pop.id));
@@ -240,6 +318,9 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
             // The supported editor regenerates departure times. Persist its
             // actual scalar pop records so inactive routing matches live demand.
             payload.pops = payload.pops.map(pop => ({ ...pop, ...demand.popsMap.get(pop.id), id: pop.id }));
+            // Record newly generated native IDs before durability yields. A
+            // later same-city activation must be able to retire these exact IDs.
+            trackRestoration(normalizeDemandExtension(payload));
             const result = await store.commit(restoredCheckpoint, tileId, extensionId, normalizeDemandExtension(payload), `restore:${createId()}`, record.receipts);
             assertCurrent();
             restoredCheckpoint = result.checkpoint; stamp(result.marker);
@@ -248,14 +329,16 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
         }
         assertCurrent();
         checkpoint = restoredCheckpoint;
+        ownedScope = { worldId, tileId };
         records.clear(); for (const [key, record] of restoredRecords) records.set(key, record);
         pending = null; failure = null;
         serial = Promise.resolve();
+        activationHold = null;
         hydratedTile = tileId; busy = false; publish();
       } catch (error) {
         // Obsolete activation must neither pause nor clobber the new session.
         if (generation === activationGeneration && identity
-          && CONTEXT_KEYS.every(key => readContext()?.[key] === identity[key])) fail(error);
+          && CONTEXT_KEYS.every(key => readContext()?.[key] === identity[key])) { activationHold = null; fail(error); }
         throw error;
       }
     },
@@ -279,8 +362,23 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
     assertSaveReady() {
       if (disposed) return;
       const context = readContext();
-      if (context && (busy || failure || hydratedTile !== context.tileId
-        || checkpoint?.worldId !== context.resolvedWorldId)) throw new Error('Save deferred until the demand mutation is durable');
+      if (context && (busy || activationHold != null || failure || hydratedTile !== context.tileId
+        || checkpoint?.worldId !== context.resolvedWorldId)) {
+        const error = new Error('Save deferred until the demand mutation is durable');
+        if ((busy || activationHold != null) && !failure) error.code = DEMAND_DEFERRED_CODE;
+        throw error;
+      }
+    },
+    async admit() {
+      const expected = getContext();
+      if (!expected) throw new Error('Demand admission was superseded');
+      while (true) {
+        matches(expected, false);
+        if (activationHold != null) { await new Promise(resolve => admissionWaiters.add(resolve)); continue; }
+        if (failure) throw failure;
+        if (!busy) { runtime.assertSaveReady(); return getContext(); }
+        await new Promise(resolve => admissionWaiters.add(resolve));
+      }
     },
     beginNativeSave() {
       const context = disposed ? null : readContext();
@@ -293,11 +391,17 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
     refresh: publish,
     flush() { return serial; },
     exportHandoff() {
-      return pending ? { operation: pending, checkpoint, settled: serial.catch(() => {}) } : handoff;
+      if (pending || records.size) return { operation: pending, checkpoint, settled: serial.catch(() => {}),
+        ownedScope, knownRecords: [...records.values()].filter(Boolean) };
+      return handoff;
     },
     acceptHandoff(value) { handoff = value ?? null; },
-    dispose() { disposed = true; activationGeneration++; saveHolds.clear(); },
-    snapshot() { return { hydratedTile, busy, error: failure?.message ?? null, worldId: checkpoint?.worldId ?? null }; },
+    dispose() {
+      disposed = true; activationGeneration++; activationHold = null; saveHolds.clear();
+      for (const wake of admissionWaiters) wake();
+      admissionWaiters.clear();
+    },
+    snapshot() { return { hydratedTile, busy: busy || activationHold != null, error: failure?.message ?? null, worldId: checkpoint?.worldId ?? null }; },
   };
   return runtime;
 }

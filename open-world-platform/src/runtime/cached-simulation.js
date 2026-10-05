@@ -5,8 +5,9 @@ import { evaluateOffTileNativeDemand } from './off-tile-native-demand.js';
 import { createBoundedCrossTileRoutingCache } from './cross-tile-mode-choice.js';
 import { createHourlyPostingPreparation } from './hourly-posting-preparation.js';
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
+import { DEMAND_DEFERRED_CODE } from './demand-context.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v21';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v22';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -61,7 +62,8 @@ export function publishCachedDemand(state, assignments) {
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
   onHour = async () => {}, onDay = async () => {}, workerSource = null,
-  postingWorkerSource = null, evaluate = null, prepareActiveDemand = null, onSavePhase = null, beforeGenerateSave = null } = {}) {
+  postingWorkerSource = null, evaluate = null, prepareActiveDemand = null, admitDemand = async () => {},
+  onSavePhase = null, beforeGenerateSave = null } = {}) {
   const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
   const routingCache = createBoundedCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
@@ -173,27 +175,37 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
   const refresh = async () => {
     if (refreshPromise) return refreshPromise;
     const run = async () => {
-      const state = getState(), token = revision;
-      if (!isReady() || !state.demandData?.popsMap) throw new Error('Wait for the World to finish loading.');
+      const requested = getState();
       await flush();
+      try { await admitDemand(); }
+      catch (failure) {
+        const current = getState();
+        if (disposed || !enabled || current.gameSessionId !== requested.gameSessionId || current.cityCode !== requested.cityCode) return false;
+        throw failure;
+      }
+      const state = getState(), token = revision;
+      if (disposed || !enabled || state.gameSessionId !== requested.gameSessionId || state.cityCode !== requested.cityCode) return false;
+      if (!isReady() || !state.demandData?.popsMap) throw new Error('Wait for the World to finish loading.');
       observeFrozenTrains(state);
       status = 'calculating'; notify();
       const initial = contextOf(state), begin = performance.now();
       const demand = prepareActiveDemand ? null : { points: values(state.demandData.points), pops: values(state.demandData.popsMap)
         .map(({ id, size, residenceId, jobId, drivingSeconds, drivingDistance, homeDepartureTime, workDepartureTime }) =>
           ({ id, size, residenceId, jobId, drivingSeconds, drivingDistance, homeDepartureTime, workDepartureTime })) };
-      const input = { worldId: state.gameSessionId, tileId: state.cityCode, includeAssignments: true,
-        networkProfile: game.captureCrossTileNetworkProfile(state.cityCode),
-        farePolicy: { fare: state.transitCost, fareGroups: state.fareGroups }, globalNativeState: state };
       let result;
       try {
+        const input = prepareActiveDemand ? null : { worldId: state.gameSessionId, tileId: state.cityCode, includeAssignments: true,
+          networkProfile: game.captureCrossTileNetworkProfile(state.cityCode),
+          farePolicy: { fare: state.transitCost, fareGroups: state.fareGroups }, globalNativeState: state };
         result = prepareActiveDemand ? await prepareActiveDemand({ assignments: true, tileId: state.cityCode })
           : evaluate ? await evaluate({ ...input, demand })
           : await worker.evaluate(new TextEncoder().encode(JSON.stringify(demand)), input)
             ?? evaluateOffTileNativeDemand({ ...input, demand, routingCache });
+        await admitDemand();
       } catch (failure) {
         const current = contextOf(getState());
         if (disposed || !enabled || revision !== token || initial.some((value, i) => value !== current[i])) return false;
+        if (failure?.code === DEMAND_DEFERRED_CODE) { await admitDemand(); return false; }
         throw failure;
       }
       const live = getState();

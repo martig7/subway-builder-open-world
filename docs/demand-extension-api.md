@@ -85,9 +85,23 @@ separate two edited branches loaded from one older checkpoint. Worker completion
 and staged finance publication check demand freshness before accepting results.
 
 Pending hot reload transfers only a captured snapshot whose live demand object,
-player World/session/tile and pre-mutation native checkpoint still match. A real
-native load replaces that object and discards the takeover. The old generation
-cannot stamp a newer generation's native state.
+player World/session/tile and pre-mutation native checkpoint still match.
+Explicit native authoritative loads discard pending takeover even when same-city
+loading retains that demand object. Prior owned scalar records survive provider
+replacement so an older checkpoint can retire newer owned points and pops,
+including an owner absent from the older manifest. Retirement checks exact prior
+IDs and scalar records and preflights unrelated point references before editing.
+This also retires proven prior-player ownership when a same-tile load retains
+live demand. Other native/mod populations are preserved. Generated restoration
+IDs are tracked before persistence yields, so a superseding rollback can retire
+them. The old generation cannot stamp a newer generation's native state.
+
+Cached preparation waits for context-fenced demand admission before capture and
+after evaluation. A temporary durability deferral retries automatically; a
+storage failure or replaced context does not masquerade as a temporary wait.
+Activation holds admission until restoration finishes, independently of an older
+mutation's completion. Empty manifests and ledger-only records require no demand
+editor until owned points or pops need restoration/reconciliation.
 
 Immutable records are retained to preserve arbitrary older native saves. Garbage
 collection requires an explicit retained-save reference inventory; this version

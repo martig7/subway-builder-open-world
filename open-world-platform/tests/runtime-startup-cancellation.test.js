@@ -152,7 +152,10 @@ for (const scenario of ['available', 'delayed', 'ended']) test(`transition compl
   t.mock.method(GeographicContextOverlayController.prototype, 'refresh', () => {});
   t.mock.method(WorldTileRuntime.prototype, 'getActiveTileId', () => activeTile);
   t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => ({ status: 'cached' }));
-  t.mock.method(WorldTileRuntime.prototype, 'completeStagedTransition', async tile => { activeTile = tile; });
+  t.mock.method(WorldTileRuntime.prototype, 'completeStagedTransition', async function (tile) {
+    activeTile = tile;
+    await this.demandExtensions.activate({ worldId: this.getWorldId(), tileId: tile });
+  });
   t.mock.method(HashCityNavigationAdapter.prototype, 'pending', () => pending);
   t.mock.method(HashCityNavigationAdapter.prototype, 'complete', () => { pending = null; });
   const map = () => {
@@ -420,12 +423,13 @@ for (const { paused, failMapOnce = false } of [{ paused: true }, { paused: false
     state.setTimeConfig({ paused, timeSpeed: 'ultrafast', elapsedSeconds: 25000 });
     await controller.cachedSimulation.setEnabled(true);
     assert.equal(controller.cachedSimulation.snapshot().calculations, 1);
-    t.mock.method(WorldTileRuntime.prototype, 'completeStagedTransition', async (tile, options) => {
+    t.mock.method(WorldTileRuntime.prototype, 'completeStagedTransition', async function (tile, options) {
       nativeRestores++;
       assert.equal(options.deferNativeCommutes, true, 'cached destination preparation owns routing');
       activeTile = tile;
       state.gameSessionId = 'session-A';
       state.setTimeConfig({ paused: true }); // Native loadSave always starts paused.
+      await this.demandExtensions.activate({ worldId: this.getWorldId(), tileId: tile });
     });
     await grid.onTileSelect('JP_KANAGAWA_MAINLAND');
     hooks.get('onGameEnd')();
@@ -558,6 +562,7 @@ for (const { timeoutFirst = false, manualInstead = false } of [{}, { timeoutFirs
       destinationCityCode: tileId, sourceCityCode: 'JP_TOKYO_MAINLAND', snapshot, nativeNetwork: snapshot.data });
     assert.equal(proof.reused, true, JSON.stringify(proof));
     activeTile = tileId;
+    await this.demandExtensions.activate({ worldId: this.getWorldId(), tileId });
   });
   await harness(async ({ controller, api, state, hooks, idle, errors }) => {
     const map = { on() {}, off() {}, getSource: () => null, getLayer: () => null, isStyleLoaded: () => true };

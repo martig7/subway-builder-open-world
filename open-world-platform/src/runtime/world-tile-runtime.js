@@ -353,7 +353,7 @@ export class WorldTileRuntime {
     finishStartupStage('pause');
     try {
       const activeTile = this.world.tiles[this.world.activeTileId];
-      await this.demandExtensions?.activate({ worldId: this.world.worldId, tileId: this.world.activeTileId });
+      await this.demandExtensions?.activate({ worldId: this.world.worldId, tileId: this.world.activeTileId, nativeAuthoritativeLoad });
       // Unless a cross-tile handoff is pending, the native state that fired
       // onCityLoad is authoritative: it contains the difficulty's starting
       // balance for a new game, the loaded save, or the live hot-reload state.

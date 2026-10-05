@@ -648,7 +648,7 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v21');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v22');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -668,7 +668,7 @@ test('hot reload replaces the old save wrapper and restores the native generator
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v21');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v22');
   assert.equal(retired, 1);
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();

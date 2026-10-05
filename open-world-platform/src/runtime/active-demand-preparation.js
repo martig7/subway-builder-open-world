@@ -1,7 +1,7 @@
 import { sharedNativeDemandEvaluator } from './embedded-tile-package-adapter.js';
 import { deterministicNetworkProfile } from './off-tile-native-demand.js';
 
-export const ACTIVE_DEMAND_PREPARATION_VERSION = 'active-demand-preparation-v4';
+export const ACTIVE_DEMAND_PREPARATION_VERSION = 'active-demand-preparation-v5';
 const values = value => value instanceof Map ? value.values() : value ?? [];
 
 export function createActiveDemandPreparation({ game, getState, workerSource, evaluator = sharedNativeDemandEvaluator(workerSource),

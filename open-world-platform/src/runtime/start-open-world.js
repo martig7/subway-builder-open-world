@@ -340,7 +340,7 @@ export function startOpenWorld({
   });
   const activeDemandPreparation = workerSources.nativeDemandEvaluator ? createActiveDemandPreparation({ game,
     getState: () => game.callbacks.getState(), workerSource: workerSources.nativeDemandEvaluator,
-    admit: async () => { await demandExtensions.flush(); demandExtensions.assertSaveReady(); },
+    admit: () => demandExtensions.admit(),
     getDemandRevisionKey: tileId => demandExtensions.cacheKeyFor(tileId) }) : null;
   if (activeDemandPreparation) tilePackages.prepareActiveNativeDemand = activeDemandPreparation.prepare;
   let latestMap = api.utils?.getMap?.() ?? null;
@@ -755,6 +755,7 @@ export function startOpenWorld({
     game, api, getState: () => game.callbacks.getState(),
     workerSource: workerSources.nativeDemandEvaluator,
     prepareActiveDemand: activeDemandPreparation?.prepare,
+    admitDemand: () => demandExtensions.admit(),
     postingWorkerSource: workerSources.hourlyFinance,
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
