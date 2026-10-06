@@ -86,13 +86,15 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
   } else {
     const summary = c.model.summary(s.viewMode, s.selectedPointId);
     const movementView = s.viewMode === 'outboundMovements' || s.viewMode === 'inboundMovements';
-    const inboundView = s.viewMode === 'workers' || s.viewMode === 'inboundMovements';
+    const inboundView = s.viewMode === 'workers' || s.viewMode === 'inducedWorkers' || s.viewMode === 'inboundMovements';
+    const inducedView = s.viewMode === 'inducedResidents' || s.viewMode === 'inducedWorkers';
     const viewLabel = ({ residents: 'Residents', workers: 'Workers', outboundMovements: 'Trips from',
-      inboundMovements: 'Trips to' })[s.viewMode] ?? 'Residents';
+      inboundMovements: 'Trips to', inducedResidents: 'Induced Residents', inducedWorkers: 'Induced Workers' })[s.viewMode] ?? 'Residents';
     if (point) content.push(back('All cross-city demand', () => c.clearSelection()), heading(h, 'Demand point details'),
       h('p', { className: 'text-xs text-muted-foreground' }, c.tileName(point.point.tileId)));
     content.push(h('div', { className: 'grid grid-cols-2 gap-1' }, ...[['residents', 'Residents', 'home'], ['workers', 'Workers', 'work'],
-      ['outboundMovements', 'Trips from', 'home'], ['inboundMovements', 'Trips to', 'work']]
+      ['outboundMovements', 'Trips from', 'home'], ['inboundMovements', 'Trips to', 'work'],
+      ['inducedResidents', 'Induced Residents', 'home'], ['inducedWorkers', 'Induced Workers', 'work']]
       .filter(([view]) => s.viewModes.includes(view)).map(([view, label, glyph]) =>
       button(h, [icon(h, glyph), label], () => c.setViewMode(view), { key: view, 'aria-pressed': s.viewMode === view,
         className: `flex flex-1 items-center justify-center gap-2 rounded border py-2 text-xs ${s.viewMode === view ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}` }))),
@@ -100,7 +102,8 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
       !point && h('p', { className: 'text-xs text-muted-foreground' }, movementView
         ? 'Click a trip dot to inspect estimated one-way movements and destinations.'
         : 'Click a demand dot to inspect its commuters and destinations.'),
-      heading(h, point ? `${viewLabel} mode share` : movementView ? 'One-way movement stats' : 'Cross-city demand stats', 'people'),
+      heading(h, point ? `${viewLabel} mode share` : movementView ? 'One-way movement stats'
+        : inducedView ? 'Induced cross-city demand stats' : 'Cross-city demand stats', 'people'),
       modeRows(h, summary.modeChoice, summary.population, movementView ? 'movements' : 'commuters'));
     if (point) {
       content.push(heading(h, `${number(point.population)} ${viewLabel}${movementView ? '/day' : ''} (${number(point.popCount)} ${point.popCount === 1 ? 'pop' : 'pops'})`, inboundView ? 'work' : 'home'),
@@ -118,6 +121,7 @@ export function demandPanelContent({ h, controller: c, snapshot: s, point, pop, 
             : page + limit < point.popCount && button(h, 'Next 40', () => { setPage(page + limit); setLimit(40); })));
     } else content.push(h('p', { className: 'text-xs text-muted-foreground' }, movementView
       ? `${number(s.stats.oneWayMovements)} one-way movements per representative day`
+      : inducedView ? `${number(s.stats.inducedPopulation)} induced commuters across ${number(s.stats.inducedPoints)} locations`
       : `${number(s.stats.population)} commuters across ${number(s.stats.points)} locations`));
   }
   return h('div', { ref: panelRef, className: 'flex flex-col gap-3 p-2 text-sm', 'data-cross-demand-version': s.version,

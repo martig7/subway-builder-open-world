@@ -9,7 +9,7 @@ const raw = { schemaVersion: 1, gateways: ['g'], points: [
   ['home', 136.7, 35.1, 'a', 200, 0], ['work', 139.4, 35.3, 'b', 0, 200],
 ], pops: [['cross-pop', 200, 0, 1, 0, '07:30', '17:30', 13942, 320004]] };
 const choices = { 'cross-pop': { transit: 40, driving: 160, walking: 0 } };
-function setup(data = raw) {
+function setup(data = raw, modeChoices = choices) {
   const sources = new Map(), layers = new Map(), handlers = new Map(), writes = [];
   let loaded = true, resolveRoute, inspections = 0, requests = 0;
   const map = { isStyleLoaded: () => loaded, getSource: id => sources.get(id), getLayer: id => layers.get(id),
@@ -19,7 +19,7 @@ function setup(data = raw) {
     setPaintProperty(id, prop, value) { layers.get(id).paint[prop] = value; }, fitBounds(bounds, options) { this.fit = { bounds, options }; }, jumpTo(value) { this.camera = value; }, getZoom: () => 8,
   };
   const controller = new CrossDemandOverlayController({ api: {}, tileCatalog: { tiles: [{ id: 'a', name: 'Aichi' }, { id: 'b', name: 'Kanagawa' }] },
-    runtime: { getActiveTileId: () => 'b', view: () => ({ crossPopModeChoices: choices }), inspectCrossTileModeChoice() { inspections++; return { transitPath: { available: false } }; } },
+    runtime: { getActiveTileId: () => 'b', view: () => ({ crossPopModeChoices: modeChoices }), inspectCrossTileModeChoice() { inspections++; return { transitPath: { available: false } }; } },
     tilePackages: { loadCrossDemand: async () => data }, routePaths: { resolve() { requests++; return new Promise(resolve => { resolveRoute = resolve; }); } },
   });
   controller.attachMap(map);
@@ -35,12 +35,48 @@ function panelText(controller, point = null) {
   return text(tree);
 }
 
+test('induced row selects separate home and work dots, statistics and inbound cohort details', async () => {
+  const data = { ...raw, points: raw.points.map(row => [...row.slice(0, 4), row[4] ? 250 : 0, row[5] ? 250 : 0]),
+    pops: [...raw.pops, ['growth-record', 50, 0, 1, 0, '08:00', '18:00', 100, 1000],
+      ['one-way', 25, 0, 1, 0, '12:00', '', 1, 1, 'oneWay']], extensionPopIds: ['growth-record'] };
+  const s = setup(data, { ...choices, 'growth-record': { transit: 30, driving: 20, walking: 0 } });
+  await s.controller.open();
+  assert.match(panelText(s.controller), /Trips from.*Trips to.*Induced Residents.*Induced Workers/);
+  s.controller.setViewMode('inducedResidents');
+  assert.equal(s.controller.snapshot().viewMode, 'inducedResidents');
+  const residents = s.sources.get('kc-cross-demand-points-source').data.features;
+  assert.equal(residents.length, 1); assert.equal(residents[0].properties.id, 'home');
+  assert.equal(residents[0].properties.population, 50);
+  assert.match(panelText(s.controller), /50 induced commuters across 2 locations/);
+  assert.match(panelText(s.controller), /Transit 30 60\.0%/);
+  s.controller.setViewMode('inducedWorkers');
+  const workers = s.sources.get('kc-cross-demand-points-source').data.features;
+  assert.equal(workers.length, 1); assert.equal(workers[0].properties.id, 'work');
+  assert.equal(workers[0].properties.population, 50);
+  s.controller.selectPoint('work');
+  const details = s.controller.pointDetails();
+  assert.equal(details.popCount, 1); assert.equal(details.pops[0].id, 'growth-record');
+  assert.match(panelText(s.controller, details), /From Aichi/);
+  s.controller.selectPop(details.pops[0].index);
+  assert.equal(s.counts().requests, 1, 'cohort routes are still loaded only on selection');
+});
+
+test('induced buttons remain available with an empty bank and show zero rather than packaged demand', async () => {
+  const s = setup(); await s.controller.open();
+  assert.match(panelText(s.controller), /Induced Residents.*Induced Workers/);
+  s.controller.setViewMode('inducedWorkers');
+  assert.equal(s.controller.snapshot().viewMode, 'inducedWorkers');
+  assert.equal(s.sources.get('kc-cross-demand-points-source').data.features.length, 0);
+  assert.match(panelText(s.controller), /0 induced commuters across 0 locations/);
+  assert.deepEqual(s.counts(), { inspections: 0, requests: 0 });
+});
+
 test('commute-only NEC-style demand hides trip views globally and for a selected point', async () => {
   // NEC LODES packages omit the optional trip type; zero-mass one-way records
   // also cannot produce any qualifying trip dots.
   const s = setup({ ...raw, pops: [...raw.pops, ['empty-trip', 0, 0, 1, 0, '12:00', '', 1, 1, 'oneWay']] });
   await s.controller.open();
-  assert.deepEqual(s.controller.snapshot().viewModes, ['residents', 'workers']);
+  assert.deepEqual(s.controller.snapshot().viewModes, ['residents', 'workers', 'inducedResidents', 'inducedWorkers']);
   assert.match(panelText(s.controller), /Residents.*Workers/);
   assert.doesNotMatch(panelText(s.controller), /Trips from|Trips to/);
   s.controller.selectPoint('home');
@@ -83,7 +119,7 @@ test('summaries conserve cached mode counts; map filters use assigned modes', ()
   const withLocations = new CrossDemandModel({ ...raw, points: [...raw.points,
     ...Array.from({ length: 8 }, (_, i) => [`location-${i}`, 139, 35, 'b', 0, 0])] }, {}, choices);
   for (let i = 0; i < 8; i++) withLocations.summary('residents', `location-${i}`);
-  assert.equal(withLocations.summaryCache.size, 4);
+  assert.equal(withLocations.summaryCache.size, 6);
 });
 
 test('one-way trips have their own origin and destination dots without inflating resident or worker stock', () => {

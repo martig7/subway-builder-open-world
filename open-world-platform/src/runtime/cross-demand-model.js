@@ -1,7 +1,10 @@
 const VIEW_FIELDS = Object.freeze({ residents: 'residents', workers: 'workers',
+  inducedResidents: 'inducedResidents', inducedWorkers: 'inducedWorkers',
   outboundMovements: 'outboundMovements', inboundMovements: 'inboundMovements' });
 const VIEW_MODES = Object.freeze({
   residents: ['homePops', 'residentModes'], workers: ['workPops', 'workerModes'],
+  inducedResidents: ['inducedHomePops', 'inducedResidentModes'],
+  inducedWorkers: ['inducedWorkPops', 'inducedWorkerModes'],
   outboundMovements: ['outboundPops', 'outboundModes'],
   inboundMovements: ['inboundPops', 'inboundModes'],
 });
@@ -93,7 +96,7 @@ export function demandPointRadius(population, viewMode = 'residents') {
   // Match the game's normal (non-experimental) demand bubble curve. Radius is
   // proportional to sqrt(population), so the circle's area represents mass.
   // Native worker bubbles use a smaller multiplier than resident bubbles.
-  const scale = viewMode === 'workers' || viewMode === 'inboundMovements' ? 2.5 : 6.5;
+  const scale = viewMode === 'workers' || viewMode === 'inducedWorkers' || viewMode === 'inboundMovements' ? 2.5 : 6.5;
   return Math.sqrt(population / Math.PI) * scale;
 }
 
@@ -107,7 +110,14 @@ export class CrossDemandModel {
     this.summaryCache = new Map();
     this.globalSummary = emptySummary();
     this.globalMovementSummary = emptySummary();
-    this.statistics = { points: raw.points.length, pops: raw.pops.length, population: 0 };
+    this.globalInducedSummary = emptySummary();
+    this.statistics = { points: raw.points.length, pops: raw.pops.length, population: 0,
+      inducedPopulation: 0, inducedPops: 0, inducedPoints: 0 };
+    // Membership comes from the selected immutable extension projection. IDs
+    // belonging to packaged demand can resemble extension IDs, so prefixes do
+    // not establish ownership.
+    const extensionPopIds = new Set(raw.extensionPopIds ?? []);
+    const inducedPointIndexes = new Set();
     this.popModeChoices = popModeChoices ?? {};
     this.flowModes = new Map();
     for (const entry of Object.values(gatewayLedger)) {
@@ -117,9 +127,12 @@ export class CrossDemandModel {
     }
     this.points = raw.points.map(([id, longitude, latitude, tileId, residents, workers], index) => ({
       id, index, location: [longitude, latitude], tileId, residents, workers,
+      inducedResidents: 0, inducedWorkers: 0,
       outboundMovements: 0, inboundMovements: 0,
       residentModes: emptyModes(), workerModes: emptyModes(), outboundModes: emptyModes(), inboundModes: emptyModes(),
+      inducedResidentModes: emptyModes(), inducedWorkerModes: emptyModes(),
       homePops: [], workPops: [], outboundPops: [], inboundPops: [],
+      inducedHomePops: [], inducedWorkPops: [],
     }));
     this.pointById = new Map(this.points.map((point) => [point.id, point]));
     this.rawPops.forEach((pop, popIndex) => {
@@ -141,9 +154,25 @@ export class CrossDemandModel {
         addModes(this.points[workIndex].workerModes, modes);
         this.statistics.population += mass;
         addSummary(this.globalSummary, pop, modes);
+        if (extensionPopIds.has(pop[0])) {
+          const home = this.points[homeIndex], work = this.points[workIndex];
+          home.inducedResidents += mass;
+          work.inducedWorkers += mass;
+          home.inducedHomePops.push(popIndex);
+          work.inducedWorkPops.push(popIndex);
+          addModes(home.inducedResidentModes, modes);
+          addModes(work.inducedWorkerModes, modes);
+          addSummary(this.globalInducedSummary, pop, modes);
+          if (mass > 0) { inducedPointIndexes.add(homeIndex); inducedPointIndexes.add(workIndex); }
+        }
       }
     });
     this.statistics.oneWayMovements = this.globalMovementSummary.population;
+    this.statistics.inducedPopulation = this.globalInducedSummary.population;
+    this.statistics.inducedPops = this.globalInducedSummary.pops;
+    this.statistics.inducedPoints = inducedPointIndexes.size;
+    this.inducedResidentPoints = this.points.filter(point => point.inducedResidents > 0);
+    this.inducedWorkerPoints = this.points.filter(point => point.inducedWorkers > 0);
   }
 
   #popModes([id, mass, homeIndex, workIndex, gatewayIndex]) {
@@ -158,9 +187,11 @@ export class CrossDemandModel {
   pointFeatures(viewMode, selectedId = null, mode = 'all') {
     const massField = VIEW_FIELDS[viewMode] ?? VIEW_FIELDS.residents;
     const modeField = (VIEW_MODES[viewMode] ?? VIEW_MODES.residents)[1];
+    const points = viewMode === 'inducedResidents' ? this.inducedResidentPoints
+      : viewMode === 'inducedWorkers' ? this.inducedWorkerPoints : this.points;
     return {
       type: 'FeatureCollection',
-      features: this.points
+      features: points
         .filter((point) => point[massField] > 0 && (!selectedId || point.id === selectedId)
           && (mode === 'all' || point[modeField][mode] > 0))
         .map((point) => ({
@@ -208,7 +239,7 @@ export class CrossDemandModel {
   connections(pointId, viewMode) {
     const point = this.pointById.get(pointId);
     if (!point) return { type: 'FeatureCollection', features: [] };
-    const inbound = viewMode === 'workers' || viewMode === 'inboundMovements';
+    const inbound = viewMode === 'workers' || viewMode === 'inducedWorkers' || viewMode === 'inboundMovements';
     const indexes = point[(VIEW_MODES[viewMode] ?? VIEW_MODES.residents)[0]];
     const grouped = new Map();
     for (const popIndex of indexes) {
@@ -264,18 +295,21 @@ export class CrossDemandModel {
     return this.statistics;
   }
 
-  /** Four small summaries at most; no per-person expansion or route lookup. */
+  /** Six small point summaries at most; no per-person expansion or route lookup. */
   summary(viewMode, pointId = null) {
     const point = this.pointById.get(pointId);
-    if (!point) return viewMode === 'outboundMovements' || viewMode === 'inboundMovements'
-      ? this.globalMovementSummary : this.globalSummary;
+    if (!point) {
+      if (viewMode === 'outboundMovements' || viewMode === 'inboundMovements') return this.globalMovementSummary;
+      if (viewMode === 'inducedResidents' || viewMode === 'inducedWorkers') return this.globalInducedSummary;
+      return this.globalSummary;
+    }
     const key = `${viewMode}/${pointId ?? ''}`;
     if (this.summaryCache.has(key)) return this.summaryCache.get(key);
     const indexes = point[(VIEW_MODES[viewMode] ?? VIEW_MODES.residents)[0]];
     const value = emptySummary();
     for (const index of indexes) addSummary(value, this.rawPops[index], this.#popModes(this.rawPops[index]));
     this.summaryCache.set(key, value);
-    if (this.summaryCache.size > 4) this.summaryCache.delete(this.summaryCache.keys().next().value);
+    if (this.summaryCache.size > 6) this.summaryCache.delete(this.summaryCache.keys().next().value);
     return value;
   }
 }

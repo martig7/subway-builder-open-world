@@ -52,7 +52,7 @@ function setup() {
     runtime: { getActiveTileId: () => 'a', view: () => ({}) },
     tilePackages: { loadCrossDemand: async () => ({ schemaVersion: 1,
       points: [['home', 139, 35, 'a', 500, 0], ['work', 140, 36, 'b', 0, 500]],
-      pops: [['p', 500, 0, 1, 0]],
+      pops: [['p', 500, 0, 1, 0]], extensionPopIds: ['p'],
     }) },
   });
   controller.attachMap(map);
@@ -138,6 +138,15 @@ test('worker, logarithmic and selected-location radii use native curves; fade is
   assert.equal(s.layer().props.getPointRadius(s.layer().props.data[0]), 80);
   assert.equal(s.layer().props.getLineWidth(s.layer().props.data[0]), 20);
   assert.equal(s.layer().props.opacity, 0.33);
+});
+
+test('induced rows use the resident and worker native radius curves without starting route work', async () => {
+  const s = setup(); await s.controller.open();
+  s.controller.setViewMode('inducedResidents');
+  assert.equal(s.layer().props.getPointRadius(s.layer().props.data[0]), Math.sqrt(500 / Math.PI) * 6.5);
+  s.controller.setViewMode('inducedWorkers');
+  assert.equal(s.layer().props.getPointRadius(s.layer().props.data[0]), Math.sqrt(500 / Math.PI) * 2.5);
+  assert.equal(s.layer().props.data[0].properties.id, 'work');
 });
 
 test('native picking preserves construction-tool guards and a bounded small-dot tolerance', async () => {

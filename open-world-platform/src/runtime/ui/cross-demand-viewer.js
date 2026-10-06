@@ -3,10 +3,12 @@ import { demandPanelContent } from './cross-demand-presentation.js';
 import { nativeDemandIgnoresClick } from './native-demand-presentation.js';
 import { NativeDemandDeckOverlay } from './native-demand-deck.js';
 
-export const CROSS_DEMAND_PANEL_VERSION = 'available-trip-views-v2';
+export const CROSS_DEMAND_PANEL_VERSION = 'induced-commuter-views-v3';
 
 const COMMUTER_VIEWS = Object.freeze(['residents', 'workers']);
-const TRIP_VIEWS = Object.freeze([...COMMUTER_VIEWS, 'outboundMovements', 'inboundMovements']);
+const INDUCED_VIEWS = Object.freeze(['inducedResidents', 'inducedWorkers']);
+const STOCK_VIEWS = Object.freeze([...COMMUTER_VIEWS, ...INDUCED_VIEWS]);
+const TRIP_VIEWS = Object.freeze([...COMMUTER_VIEWS, 'outboundMovements', 'inboundMovements', ...INDUCED_VIEWS]);
 
 // Native GeoJsonLayer uses opacity 0.33, then deck gamma-adjusts the shader
 // uniform. MapLibre paint opacity is direct; copying 0.33 would still over-fade.
@@ -135,7 +137,8 @@ export class CrossDemandOverlayController {
   #syncNativeOverlay() {
     this.nativeOverlay.update({ data: this.pointsData,
       active: this.active && this.status === 'ready' && this.selectedPopIndex == null,
-      viewMode: this.viewMode, faded: this.faded });
+      viewMode: this.viewMode === 'inducedWorkers' ? 'workers'
+        : this.viewMode === 'inducedResidents' ? 'residents' : this.viewMode, faded: this.faded });
   }
   #emit() { for (const listener of this.listeners) listener(this.snapshot()); }
   snapshot() {
@@ -230,7 +233,7 @@ export class CrossDemandOverlayController {
   }
 
   availableViewModes() {
-    return this.model?.stats.oneWayMovements > 0 ? TRIP_VIEWS : COMMUTER_VIEWS;
+    return this.model?.stats.oneWayMovements > 0 ? TRIP_VIEWS : STOCK_VIEWS;
   }
 
   setViewMode(viewMode) {

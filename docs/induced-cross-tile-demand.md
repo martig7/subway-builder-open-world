@@ -21,3 +21,15 @@ Final checks pass 495 Induced Demand tests, 1,276 shared/KC tests, 7 Japan tests
 | Released NEC | 10,308,849 | `037E4B2E54E4C1D0DE8C399872B1F3781B1C797EF722D517A6F0B1491DC05E25` |
 
 The previous bundles and manifests are backed up under `C:\Users\darkd\AppData\Local\Temp\induced-cross-tile-227670c3bc9047639f99ce8cbeda136b`, each in its exact mod-ID directory. Only the three installed `index.js` files were replaced. Native saves, city data, installed manifests and simulation preferences were not changed. Source/runtime tests and disk verification pass; live viewer and foreground game behavior await the user's reload.
+
+## Dedicated induced-demand viewer row
+
+The Cross-city demand panel now has an additional two-button row: **Induced Residents** and **Induced Workers**. It appears below Trips from/to when those views are available, and remains selectable with a zero induced bank. These views show only checkpoint-owned induced cross cohorts: dots, transport shares, counts, point details and connections exclude packaged commutes and one-way movements. The ordinary resident/worker views retain their combined totals.
+
+Membership comes from the projected catalog's `extensionPopIds`. Subset indexes and global summaries are prepared once when the existing read model is built. Switching a view does not evaluate routes, read packages or simulate demand. Induced worker dots retain the native worker sizing curve and use inbound home endpoints in details.
+
+The viewer marker is `induced-commuter-views-v3`. All 1,283 shared/KC tests, 7 Japan tests and 18 NEC tests pass. This includes mixed same-endpoint packaged/induced mass, one-way exclusion, empty banks, transport shares, inbound direction, lazy route loading and native dot sizing. Read-only integration review found no remaining issue.
+
+Japan and released NEC were rebuilt and their exact installed `index.js` files replaced after backups. Japan is 25,871,314 bytes with SHA-256 `2F17B82A6C3DF79E6103F18E7619B232C6C06C876CB69FE84F607D996FBAFEAD`; NEC is 10,311,732 bytes with SHA-256 `25EE8EBBE70A09F0091252B16AE70FE22D47BAD4B81346DE72C6B5C95E14E1B3`. The previous files are under `C:\Users\darkd\AppData\Local\Temp\induced-viewer-row-ecf9dd2086d04515b8bdf4311d2fc37b`, separated by exact mod ID. Induced Demand itself did not change. Reload Open World to activate the new row; live screen verification follows that reload.
+
+This UI follow-up is on `codex/induced-demand-viewer-row`.

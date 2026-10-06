@@ -24,7 +24,8 @@ const ledger = {
 
 test('decodes compact cross demand and builds resident/worker projections', () => {
   const model = new CrossDemandModel(data, ledger);
-  assert.deepEqual(model.stats, { points: 3, pops: 2, population: 10, oneWayMovements: 0 });
+  assert.deepEqual(model.stats, { points: 3, pops: 2, population: 10, oneWayMovements: 0,
+    inducedPopulation: 0, inducedPops: 0, inducedPoints: 0 });
   assert.equal(model.pointFeatures('residents').features.length, 1);
   assert.equal(model.pointFeatures('workers').features.length, 2);
   assert.equal(model.pointDetails('home', 'residents').popCount, 2);
@@ -106,4 +107,103 @@ test('uses each pop mode choice instead of painting every pop with its gateway b
     transit: 6,
   });
   assert.equal(model.pointFeatures('residents').features[0].properties.color, '#333399');
+});
+
+function mixedInducedModel() {
+  const raw = {
+    schemaVersion: 1,
+    gateways: ['central'],
+    points: [
+      ['shared-home', -94.7, 39.1, 'KCW', 107, 2],
+      ['shared-work', -94.5, 39.1, 'KCE', 0, 110],
+      ['other-home', -94.6, 39.2, 'KCW', 5, 0],
+      ['movement-end', -94.4, 39.0, 'KCE', 0, 0],
+    ],
+    pops: [
+      ['induced-looking-packaged-id', 100, 0, 1, 0],
+      ['extension-cohort-a', 7, 0, 1, 0],
+      ['extension-cohort-b', 3, 2, 1, 0],
+      ['extension-cohort-c', 2, 2, 0, 0],
+      ['marked-one-way', 50, 0, 3, 0, 8, null, 60, 1000, 'oneWay'],
+    ],
+    extensionPopIds: ['extension-cohort-a', 'extension-cohort-b', 'extension-cohort-c', 'marked-one-way'],
+  };
+  const choices = {
+    'induced-looking-packaged-id': { driving: 100, walking: 0, transit: 0 },
+    'extension-cohort-a': { driving: 0, walking: 0, transit: 7 },
+    'extension-cohort-b': { driving: 0, walking: 3, transit: 0 },
+    'extension-cohort-c': { driving: 2, walking: 0, transit: 0 },
+    'marked-one-way': { driving: 50, walking: 0, transit: 0 },
+  };
+  return { model: new CrossDemandModel(raw, {}, choices), raw };
+}
+
+test('induced views isolate marked commute mass at shared endpoints and preserve the ordinary views', () => {
+  const { model } = mixedInducedModel();
+  assert.equal(model.stats.population, 112);
+  assert.equal(model.stats.oneWayMovements, 50);
+  assert.equal(model.stats.inducedPopulation, 12);
+  assert.equal(model.stats.inducedPops, 3);
+  assert.equal(model.stats.inducedPoints, 3);
+  assert.deepEqual(model.pointFeatures('inducedResidents').features.map(feature => [feature.properties.id, feature.properties.population]),
+    [['shared-home', 7], ['other-home', 5]]);
+  assert.deepEqual(model.pointFeatures('inducedWorkers').features.map(feature => [feature.properties.id, feature.properties.population]),
+    [['shared-home', 2], ['shared-work', 10]]);
+  assert.equal(model.pointDetails('shared-home', 'residents').population, 107);
+  assert.equal(model.pointDetails('shared-work', 'workers').population, 110);
+  assert.equal(model.pointDetails('shared-home', 'outboundMovements').population, 50);
+});
+
+test('induced details, mode filters, radius and direction include only induced commutes', () => {
+  const { model } = mixedInducedModel();
+  const details = model.pointDetails('shared-work', 'inducedWorkers');
+  assert.equal(details.population, 10);
+  assert.equal(details.popCount, 2);
+  assert.deepEqual(details.pops.map(pop => pop.id), ['extension-cohort-a', 'extension-cohort-b']);
+  assert.deepEqual(details.modeChoice, { driving: 0, walking: 3, transit: 7 });
+  assert.deepEqual(model.pointDetails('shared-work', 'inducedWorkers', 1, 1).pops.map(pop => pop.id), ['extension-cohort-b']);
+  assert.deepEqual(model.pointFeatures('inducedResidents', null, 'driving').features.map(feature => [feature.properties.id, feature.properties.population]),
+    [['other-home', 2]]);
+  assert.deepEqual(model.pointFeatures('inducedResidents', 'shared-home').features.map(feature => feature.properties.color), ['#0000ff']);
+  const workerDot = model.pointFeatures('inducedWorkers', 'shared-work', 'transit').features[0];
+  assert.equal(workerDot.properties.population, 7);
+  assert.equal(workerDot.properties.color, '#0000ff');
+  assert.equal(workerDot.properties.baseRadius, 80);
+  assert.equal(demandPointRadius(10, 'inducedWorkers'), demandPointRadius(10, 'workers'));
+  assert.equal(demandPointRadius(10, 'inducedResidents'), demandPointRadius(10, 'residents'));
+  assert.deepEqual(model.connections('shared-work', 'inducedWorkers').features.filter(feature => feature.properties.view === 'per-point-endpoint')
+    .map(feature => [feature.properties.id, feature.properties.kind, feature.properties.mass]),
+    [['shared-home', 'home', 7], ['other-home', 'home', 3]]);
+  assert.deepEqual(model.connections('shared-home', 'inducedResidents').features.filter(feature => feature.properties.view === 'per-point-endpoint')
+    .map(feature => [feature.properties.id, feature.properties.kind, feature.properties.mass]),
+    [['shared-work', 'work', 7]]);
+});
+
+test('induced global summaries and cached point summaries do not rescan commutes when switching views', () => {
+  const { model, raw } = mixedInducedModel();
+  const expected = { population: 12, pops: 3, modeChoice: { driving: 2, walking: 3, transit: 7 } };
+  assert.deepEqual(model.summary('inducedResidents'), expected);
+  assert.deepEqual(model.summary('inducedWorkers'), expected);
+  assert.deepEqual(model.summary('inducedResidents', 'shared-home'), { population: 7, pops: 1,
+    modeChoice: { driving: 0, walking: 0, transit: 7 } });
+  const cached = model.summary('inducedWorkers', 'shared-work');
+  raw.pops.forEach = () => { throw new Error('commute index must be prepared only once'); };
+  raw.pops[Symbol.iterator] = () => { throw new Error('no whole-catalog scan while switching views'); };
+  assert.equal(model.summary('inducedWorkers', 'shared-work'), cached);
+  for (let index = 0; index < 20; index++) {
+    assert.equal(model.pointFeatures(index % 2 ? 'inducedWorkers' : 'inducedResidents').features.length, 2);
+    assert.deepEqual(model.summary('inducedWorkers'), expected);
+  }
+});
+
+test('unmarked and empty induced subsets have no dots, connections or demand summary', () => {
+  const model = new CrossDemandModel(data, ledger);
+  for (const view of ['inducedResidents', 'inducedWorkers']) {
+    assert.deepEqual(model.pointFeatures(view).features, []);
+    assert.deepEqual(model.connections('home', view).features, []);
+    assert.equal(model.pointDetails('home', view).popCount, 0);
+    assert.deepEqual(model.summary(view), { population: 0, pops: 0, modeChoice: { driving: 0, walking: 0, transit: 0 } });
+  }
+  assert.equal(model.stats.inducedPopulation, 0);
+  assert.equal(model.stats.inducedPoints, 0);
 });
