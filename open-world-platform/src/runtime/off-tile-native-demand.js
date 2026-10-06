@@ -10,7 +10,7 @@ import {
   NATIVE_RIDERSHIP_RECORDING_VERSION,
 } from './native-finance-model.js';
 
-const EVALUATOR_SCHEMA_VERSION = 6;
+const EVALUATOR_SCHEMA_VERSION = 7;
 const POP_FIELDS = Object.freeze([
   'id', 'mass', 'homeIndex', 'workIndex', 'gatewayIndex',
   'drivingSeconds', 'drivingDistance', 'homeDepartureTime', 'workDepartureTime',
@@ -391,7 +391,7 @@ export const NATIVE_DEMAND_BATCH_SIZE = 128;
 // before requesting the next without retaining all native-shaped assignments.
 export function* nativeDemandEvaluationBatches(input) {
   const { tileId } = input;
-  const demand = mergeDemandExtensions(input.demand, input.demandExtensions ?? []);
+  const demand = mergeDemandExtensions(input.demand, input.demandExtensions ?? [], input.demandOwnership ?? null);
   if (!Array.isArray(demand?.pops) || !Array.isArray(demand?.points)) throw new Error(`Invalid native demand package: ${tileId}`);
   const size = Math.max(1, Math.min(4096, Math.floor(input.batchSize ?? NATIVE_DEMAND_BATCH_SIZE)));
   const pointById = new Map(demand.points.map(point => [String(point.id), point]));

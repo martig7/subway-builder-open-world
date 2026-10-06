@@ -117,7 +117,9 @@ export class CrossDemandOverlayController {
       onHover: info => { if (info.object) this.handleMouseEnter(); else this.handleMouseLeave(); },
     });
     this.unsubscribeRuntime = runtime.subscribe?.((event) => {
-      if (event?.type !== 'cross-mode-share' || !this.rawData) return;
+      if (!['cross-mode-share', 'cross-demand-change'].includes(event?.type) || !this.active || !this.rawData) return;
+      const key = this.runtime.getCrossDemandKey?.() ?? null;
+      if (key !== this.catalogKey) { void this.open(); return; }
       const view = this.runtime.view();
       this.model = new CrossDemandModel(this.rawData, view.gatewayLedger, view.crossPopModeChoices);
       this.modelRevision++; this.detailCache = null;
@@ -190,19 +192,32 @@ export class CrossDemandOverlayController {
 
   async open() {
     const request = ++this.openRequest;
+    const selectedPopId = this.model?.popDetails(this.selectedPopIndex)?.id;
+    const key = this.runtime.getCrossDemandKey?.() ?? null;
+    this.routeRequest++; this.selectedDrivingPath = null;
     this.active = true; this.status = 'loading'; this.error = null; this.#emit(); this.#refreshMap();
     try {
       const tileId = this.runtime.getActiveTileId();
-      const data = await this.tilePackages.loadCrossDemand(tileId);
+      const data = await (this.runtime.getCrossDemand?.(tileId) ?? this.tilePackages.loadCrossDemand(tileId));
       if (!this.active || request !== this.openRequest) return;
+      if (key !== (this.runtime.getCrossDemandKey?.() ?? null)) { void this.open(); return; }
       this.rawData = data;
+      this.catalogKey = key;
       const view = this.runtime.view();
       this.model = new CrossDemandModel(this.rawData, view.gatewayLedger, view.crossPopModeChoices);
+      if (this.selectedPointId && !this.model.pointById.has(this.selectedPointId)) this.selectedPointId = null;
+      const selectedIndex = selectedPopId == null ? -1 : data.pops.findIndex(pop => pop[0] === selectedPopId);
+      this.selectedPopIndex = selectedIndex >= 0 ? selectedIndex : null;
+      this.routeStatus = 'idle';
       this.modelRevision++; this.detailCache = null;
       if (!this.availableViewModes().includes(this.viewMode)) this.setViewMode('residents');
+      const routeRequest = this.selectedPopIndex != null && this.routePaths ? ++this.routeRequest : null;
+      if (routeRequest != null) this.routeStatus = 'loading';
       this.status = 'ready'; this.#emit(); this.#refreshMap();
+      if (routeRequest != null) void this.#loadDrivingPath(this.selectedPopIndex, routeRequest);
     } catch (error) {
       if (!this.active || request !== this.openRequest) return;
+      if (key !== (this.runtime.getCrossDemandKey?.() ?? null)) { void this.open(); return; }
       this.status = 'error'; this.error = error.message ?? String(error); this.#emit(); this.#refreshMap();
     }
   }

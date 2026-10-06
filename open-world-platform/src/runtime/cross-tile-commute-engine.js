@@ -111,7 +111,8 @@ function normalizeFlow(raw) {
   if (!Number.isInteger(departureHour) || departureHour < 0 || departureHour > 23) {
     throw new Error(`Invalid cross-tile departure hour: ${departureHour}`);
   }
-  return { id: raw.id, homeTileId, workTileId, gatewayId, mass, travelHours, tripType, departureHour };
+  return { id: raw.id, homeTileId, workTileId, gatewayId, mass, travelHours, tripType, departureHour,
+    ...(raw.extension === true ? { extension: true } : {}) };
 }
 
 export function createCommuteEntry(rawFlow) {
@@ -212,15 +213,62 @@ export function registerCommuteCatalog(world, rawCatalog) {
     world.commuteCatalogBuildHash = catalog.buildHash;
   } else {
     const known = new Set(catalog.flows.map((flow) => flow.id));
-    for (const id of Object.keys(world.gatewayLedger)) if (!known.has(id)) delete world.gatewayLedger[id];
+    for (const id of Object.keys(world.gatewayLedger)) if (!known.has(id) && !world.gatewayLedger[id]?.flow?.extension) delete world.gatewayLedger[id];
     for (const flow of catalog.flows) {
       const entry = world.gatewayLedger[flow.id];
       world.gatewayLedger[flow.id] = entry ? { ...migrateEntry(entry), flow } : createCommuteEntry(flow);
     }
   }
-  world.gatewayCatalog = catalog.gateways;
+  const extensionGateways = Object.fromEntries(Object.values(world.gatewayLedger)
+    .filter(entry => entry.flow.extension).map(entry => [entry.flow.gatewayId,
+      world.gatewayCatalog?.[entry.flow.gatewayId] ?? { id: entry.flow.gatewayId, capacityPerHour: Number.MAX_SAFE_INTEGER }]));
+  world.gatewayCatalog = { ...catalog.gateways, ...extensionGateways };
   world.commuteNextActivityHour = nextActivityHour(world, world.commuteLastProcessedHour);
   return true;
+}
+
+/** Reconcile checkpoint-owned cohorts at the already-settled clock. Static
+ * positions and earned/pending receipts are untouched; new people start home.
+ */
+export function reconcileExtensionCommuteFlows(world, flows = [], revisionKey = null) {
+  migrateCommuteLedger(world);
+  const desired = new Map(flows.map(raw => { const flow = normalizeFlow({ ...raw, extension: true }); return [flow.id, flow]; }));
+  for (const [id, entry] of Object.entries(world.gatewayLedger)) {
+    if (entry.flow.extension && !desired.has(id)) {
+      delete world.gatewayLedger[id];
+      delete world.gatewayCatalog[entry.flow.gatewayId];
+    }
+  }
+  for (const [id, flow] of desired) {
+    const entry = world.gatewayLedger[id];
+    if (entry && !entry.flow.extension) throw new Error(`Extension commute flow collides with packaged demand: ${id}`);
+    if (!entry) world.gatewayLedger[id] = createCommuteEntry(flow);
+    else if (entry.flow.mass !== flow.mass) {
+      const previousMass = entry.flow.mass;
+      if (flow.mass > previousMass) entry.atHome += flow.mass - previousMass;
+      else {
+        const balances = [
+          ...['atHome','queuedToWork','atWork','queuedToHome'].map(key => ({ object: entry, key })),
+          ...[...entry.toWork,...entry.toHome].map(event => ({ object:event, key:'mass' })),
+        ];
+        const ratio = previousMass > 0 ? flow.mass / previousMass : 0;
+        for (const { object, key } of balances) object[key] *= ratio;
+        const total = balances.reduce((sum, { object, key }) => sum + object[key], 0);
+        const largest = balances.reduce((best, item) => item.object[item.key] > best.object[best.key] ? item : best);
+        largest.object[largest.key] += flow.mass - total;
+      }
+      const modeRatio = previousMass > 0 ? flow.mass / previousMass : 0;
+      entry.modeChoice = Object.fromEntries(Object.entries(entry.modeChoice).map(([mode,mass]) => [mode,mass * modeRatio]));
+      const modeKeys = Object.keys(entry.modeChoice), largestMode = modeKeys.reduce((best, key) => entry.modeChoice[key] > entry.modeChoice[best] ? key : best);
+      entry.modeChoice[largestMode] += flow.mass - Object.values(entry.modeChoice).reduce((sum,mass) => sum + mass,0);
+      entry.flow = flow;
+      entry.settlementTemplate = compileSettlementTemplate(entry);
+    }
+    world.gatewayCatalog[flow.gatewayId] = { id:flow.gatewayId, capacityPerHour:Number.MAX_SAFE_INTEGER };
+  }
+  world.crossDemandRevisionKey = revisionKey;
+  world.commuteNextActivityHour = nextActivityHour(world, world.commuteLastProcessedHour);
+  assertCommuteLedger(world);
 }
 
 export function migrateCommuteLedger(world) {

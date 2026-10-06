@@ -1,6 +1,7 @@
 import { assertWorld, createWorld, deepCopy, migrateWorldTileSet } from './world-model.js';
+import { projectCrossDemandExtensions } from './cross-demand-extension-projection.js';
 import { createFrameBudget } from './frame-budget.js';
-import { advanceCommutesTo, applyModeShares, projectCommuteBacklogs, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog } from './cross-tile-commute-engine.js';
+import { advanceCommutesTo, applyModeShares, projectCommuteBacklogs, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog, reconcileExtensionCommuteFlows } from './cross-tile-commute-engine.js';
 import { calculateCrossTileModeShares, createNetworkProfile, inspectCrossTileModeChoice, inspectCrossTileTransitPath, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import {
   NetworkProjection,
@@ -33,6 +34,7 @@ const PASSIVE_RECALCULATION_REASONS = new Set(['startup', 'save-load', 'city-loa
 export const NATIVE_REVENUE_RECOVERY_VERSION = 'native-revenue-profile-retry-v1';
 const NATIVE_DEMAND_TILE_GUARD_METERS = 3_000;
 const CROSS_MODE_SHARE_SCHEMA_VERSION = 2;
+const DEMAND_OPERATION_KEYS = ['providerId','definitionId','resolvedWorldId','tileId','nativeSessionId','epoch','providerGeneration'];
 
 function localizedNativeNetworkState(globalState, tileId, tileIdsByRoute) {
   const routes = (globalState?.routes ?? []).filter((route) => (
@@ -107,7 +109,7 @@ function hashAuditValue(value) {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-export function crossModeShareContextKey(world) {
+export function crossModeShareContextKey(world, crossDemandRevisionKey = world.crossDemandRevisionKey ?? null) {
   const networkSignatures = Object.fromEntries(Object.entries(world.tiles ?? {})
     .map(([tileId, tile]) => [
       tileId,
@@ -119,6 +121,7 @@ export function crossModeShareContextKey(world) {
     routingVersion: CROSS_ROUTING_CACHE_VERSION,
     schemaVersion: CROSS_MODE_SHARE_SCHEMA_VERSION,
     commuteCatalogBuildHash: world.commuteCatalogBuildHash ?? null,
+    crossDemandRevisionKey,
     globalNetworkHash: world.globalNetwork?.hash ?? null,
     networkSignatures,
     farePolicy: world.farePolicy ?? null,
@@ -635,6 +638,68 @@ export class WorldTileRuntime {
     return deepCopy({ nativeNetworkMode: this.nativeNetworkMode, fullNativeNetworkEnabled: this.fullNativeNetworkEnabled, worldId: world.worldId, activeTileId: world.activeTileId, worldTime: world.worldTime, day: lineage.day, elapsedSeconds: world.elapsedSeconds, wallet: world.wallet, fare: lineage.fare, revision: world.revision, routeCount: lineage.routeCount, stationCount: lineage.stationCount, trainCount: lineage.trainCount, settlementAccountingSchemaVersion: world.settlementAccountingSchemaVersion, settlementFinanceQuarantine: world.settlementFinanceQuarantine ?? null, backgroundNativeFinance: world.backgroundNativeFinance, tiles, gatewayLedger: includeDemandDetails ? world.gatewayLedger : {}, crossPopModeChoices: includeDemandDetails ? world.crossPopModeChoices ?? {} : {}, crossModeShare: world.crossModeShare ?? null, crossTileFinancials: world.crossTileFinancials, projectionWarning: world.projectionWarning ?? null, projection: world.activeProjection ? { activeTileId: world.activeProjection.activeTileId, networkRevision: world.activeProjection.networkRevision, visibleTileIds: world.activeProjection.visibleTileIds ?? [], partialRouteIds, projectionHash: world.activeProjection.projectionHash } : null, partialRouteServices, commutes: commutesByTile[world.activeTileId], commutesByTile });
   }
   projectionOverlay() { return deepCopy((this.world ?? this.viewWorldFallback)?.projectionOverlay ?? { type: 'FeatureCollection', features: [] }); }
+  getCrossDemandKey() {
+    return JSON.stringify([this.world?.worldId ?? null, this.demandExtensions?.crossKeyFor?.() ?? null]);
+  }
+  #crossDemandOperation(isCurrent = () => true) {
+    const world = this.world, extensions = this.demandExtensions, key = this.getCrossDemandKey();
+    const hasContext = typeof extensions?.getContext === 'function', context = extensions?.getContext?.();
+    return () => {
+      if (this.world !== world || this.demandExtensions !== extensions || this.getCrossDemandKey() !== key || !isCurrent()) return false;
+      const next = extensions?.getContext?.();
+      return !hasContext || Boolean(context && next && DEMAND_OPERATION_KEYS.every(name => context[name] === next[name]));
+    };
+  }
+  ownsCrossPop(id) {
+    const cached = this.crossDemandCache;
+    return cached?.world === this.world && cached.key === this.getCrossDemandKey() && cached.extensionPopIds.has(id);
+  }
+  invalidateCrossDemand() {
+    const key = this.getCrossDemandKey();
+    if (key === this.lastNotifiedCrossDemandKey) return;
+    this.lastNotifiedCrossDemandKey = key;
+    this.crossDemandCache = null;
+    this.#notify({ type: 'cross-demand-change', key });
+  }
+  async getCrossDemand(tileId = this.getActiveTileId()) {
+    const world = this.world, extensions = this.demandExtensions, key = this.getCrossDemandKey();
+    const current = this.#crossDemandOperation();
+    const base = await this.tilePackages.loadCrossDemand?.(tileId);
+    if (!current()) throw new Error('Cross-demand context changed during read');
+    const cached = this.crossDemandCache;
+    if (cached?.world === world && cached.key === key && cached.basePoints === base?.points && cached.basePops === base?.pops) return cached.data;
+    const records = await extensions?.crossRecords?.() ?? [];
+    if (!current()) throw new Error('Cross-demand context changed during read');
+    const data = projectCrossDemandExtensions(base, records, key);
+    this.crossDemandCache = { world, key, basePoints: base?.points, basePops: base?.pops, data,
+      extensionPopIds: new Set(data?.extensionPopIds ?? []) };
+    return data;
+  }
+  async refreshCrossDemand({ isCurrent = () => true } = {}) {
+    this.#requireBooted();
+    const world = this.world, current = this.#crossDemandOperation(isCurrent);
+    return this.#enqueue(async () => {
+      if (!current()) return { status:'cancelled' };
+      await this.#captureAuthoritativeGlobals(world);
+      if (!current()) return { status:'cancelled' };
+      return this.#refreshCrossDemand(world, Math.floor(world.elapsedSeconds / 3600), current);
+    });
+  }
+  async #refreshCrossDemand(world, targetHour, current) {
+    if (!current()) return { status:'cancelled' };
+    const revisionKey = this.demandExtensions?.crossKeyFor?.() ?? null;
+    if ((world.crossDemandRevisionKey ?? null) === revisionKey) return { status:'already-current' };
+    // Close the prior cohort interval before admitting people at this clock;
+    // pending receipts belong to that interval even if a flow is retired.
+    const advancement = this.#advanceDraft(world, targetHour);
+    let data;
+    try { data = await this.getCrossDemand(world.activeTileId); }
+    catch (error) { if (!current()) return { status:'cancelled' }; throw error; }
+    if (!current()) return { status:'cancelled' };
+    reconcileExtensionCommuteFlows(world, data?.extensionFlows ?? [], revisionKey);
+    this.#notify({type:'cross-demand-change',key:this.getCrossDemandKey()});
+    return { status:'refreshed',cohorts:data?.extensionPopIds?.length ?? 0, advancement };
+  }
   subscribe(listener, { includeView = true } = {}) {
     this.eventOnlyListeners ??= new WeakSet();
     if (includeView) this.eventOnlyListeners.delete(listener);
@@ -956,14 +1021,13 @@ export class WorldTileRuntime {
   async recalculateCrossTileModeShare({ reason = 'manual', day = null, force = false,
     evaluateCrossModeShares = this.evaluateCrossModeShares, isCurrent = () => true } = {}) {
     this.#requireBooted();
-    const requestedWorld = this.world;
-    const current = () => this.world === requestedWorld && isCurrent();
+    const current = this.#crossDemandOperation(isCurrent);
     const cancelled = () => ({ status: 'cancelled', reason, day });
     return this.#enqueue(async () => {
       if (!current()) return cancelled();
       const rules = this.game.capturePathfindingRules?.();
       if (rules != null && this.world.backgroundNativeFinance?.routingRulesKey !== JSON.stringify(rules)) force = true;
-      const currentContextKey = crossModeShareContextKey(this.world);
+      const currentContextKey = crossModeShareContextKey(this.world, this.demandExtensions?.crossKeyFor?.() ?? null);
       const passiveCacheReady = this.world.crossModeShare?.schemaVersion === CROSS_MODE_SHARE_SCHEMA_VERSION
         && !this.nativeRevenueCompilation
         && this.world.crossModeShare?.contextKey === currentContextKey
@@ -978,7 +1042,8 @@ export class WorldTileRuntime {
         this.telemetry({ phase: 'cross-mode-share', ...result });
         return result;
       }
-      if (!force && !this.nativeRevenueCompilation && reason === 'daily' && day != null && this.world.crossModeShare?.day === day) {
+      if (!force && !this.nativeRevenueCompilation && reason === 'daily' && day != null && this.world.crossModeShare?.day === day
+        && this.world.crossModeShare?.contextKey === currentContextKey) {
         return { status: 'already-current', ...this.world.crossModeShare };
       }
       await this.#captureAuthoritativeGlobals(this.world);
@@ -1058,7 +1123,9 @@ export class WorldTileRuntime {
         } else await this.worldState.save(this.world);
         if (!current()) return cancelled();
       }
-      const crossDemand = await this.tilePackages.loadCrossDemand?.(tileId);
+      let crossDemand;
+      try { crossDemand = await this.getCrossDemand(tileId); }
+      catch (error) { if (!current()) return cancelled(); throw error; }
       if (!current()) return cancelled();
       if (!crossDemand) {
         return { status: 'no-cross-demand', reason, day, nativeFinanceProfile, backgroundFinance };
@@ -1075,6 +1142,7 @@ export class WorldTileRuntime {
         requestedDepartureSeconds: this.world.elapsedSeconds,
       });
       if (!current()) return cancelled();
+      reconcileExtensionCommuteFlows(this.world, crossDemand.extensionFlows ?? [], this.demandExtensions?.crossKeyFor?.() ?? null);
       const metadata = applyModeShares(this.world, calculated.totals, {
         reason,
         day,
@@ -1103,12 +1171,18 @@ export class WorldTileRuntime {
   }
   async settleCrossTileCommutes(reason = 'hourly') {
     this.#requireBooted();
+    const current = this.#crossDemandOperation();
     return this.#enqueue(async () => {
+      if (!current()) return { status:'cancelled',reason };
       const checkpoint = reason === 'cached-simulation' ? createFrameBudget() : async () => {};
       const previousRevenue = this.world.crossTileFinancials?.fareRevenue ?? 0;
       const nativeAuditChanged = await this.#captureAuthoritativeGlobals(this.world);
+      if (!current()) return { status:'cancelled',reason };
       await checkpoint();
+      if (!current()) return { status:'cancelled',reason };
       const targetHour = Math.floor(this.world.elapsedSeconds / 3600);
+      const crossDemand = await this.#refreshCrossDemand(this.world, targetHour, current);
+      if (!current() || crossDemand.status === 'cancelled') return { status:'cancelled',reason };
       const nativeFinanceProfile = this.revenueAccrual
         ? await this.#recoverNativeRevenueProfiles(this.world, targetHour)
         : await this.#recoverStaleNativeFinanceProfile(
@@ -1117,13 +1191,17 @@ export class WorldTileRuntime {
           reason,
         );
       await checkpoint();
+      if (!current()) return { status:'cancelled',reason };
       const advancement = this.#advanceDraft(this.world, targetHour);
       await checkpoint();
+      if (!current()) return { status:'cancelled',reason };
       const crossFinancialsPosted = await this.#syncCrossTileFinance(this.world);
       await checkpoint();
+      if (!current()) return { status:'cancelled',reason };
       const background = this.revenueAccrual
         ? await this.#postNativeRevenueHour(this.world, targetHour)
         : await this.#syncBackgroundNativeFinance(this.world, targetHour);
+      if (!current()) return { status:'cancelled',reason };
       const profileStatusChanged = ['recovered', 'partial', 'failed'].includes(nativeFinanceProfile.status);
       // NativeRevenueAccrual persists its deterministic receipt inside the
       // native financial history. It is intentionally not a sidecar write.
@@ -1139,8 +1217,8 @@ export class WorldTileRuntime {
       const fareRevenue = (this.world.crossTileFinancials?.fareRevenue ?? 0) - previousRevenue;
       const result = {
         status: 'settled', reason, worldTime: this.world.worldTime, fareRevenue, wallet: this.world.wallet,
-        activeHours: advancement.activeHours,
-        transitTrips: advancement.transitTrips,
+        activeHours: advancement.activeHours + (crossDemand.advancement?.activeHours ?? 0),
+        transitTrips: advancement.transitTrips + (crossDemand.advancement?.transitTrips ?? 0),
         backgroundRevenue: background.revenue,
         backgroundExpenses: background.expenses,
         nativeFinanceProfile,

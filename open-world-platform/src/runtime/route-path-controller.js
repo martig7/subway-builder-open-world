@@ -168,37 +168,52 @@ export function createOpenWorldRoutePaths({
   routeTiles = null,
   workerOptions = {},
   storedRouteLoader = null,
+  runtime = null,
+  getCrossDemand = runtime?.getCrossDemand?.bind(runtime),
+  getCrossDemandKey = runtime?.getCrossDemandKey?.bind(runtime),
+  ownsCrossPop = runtime?.ownsCrossPop?.bind(runtime),
 } = {}) {
   const tileIds = new Set((tileCatalog?.tiles ?? []).map((tile) => tile.id));
+  let stored = null;
   if (storedRouteLoader) {
     const matches = (popId, prefixes) => prefixes.some(prefix => String(popId).startsWith(prefix));
-    return createStoredRoutePaths({
+    stored = createStoredRoutePaths({
       owns: (city, popId) => tileIds.has(city) && (matches(popId, nativePopPrefixes) || matches(popId, crossPopPrefixes)),
       kind: popId => matches(popId, crossPopPrefixes) ? 'cross' : 'native',
       loadRecord: storedRouteLoader,
     });
+    if (!getCrossDemand || !ownsCrossPop) return stored;
   }
-  const workerClient = routeTiles ? null : createRoadRouteWorkerClient({
-    workerSource,
-    loadRoadBytes: (tileId) => tilePackages.loadRoadBytes(tileId),
-    ...workerOptions,
+  let workerClient = null, disposed = false;
+  const route = routeTiles ?? (request => {
+    workerClient ??= createRoadRouteWorkerClient({ workerSource,
+      loadRoadBytes: tileId => tilePackages.loadRoadBytes(tileId), ...workerOptions });
+    return workerClient?.route(request);
   });
-  const route = routeTiles ?? ((request) => workerClient?.route(request));
   const cache = new Map();
   let crossIndex = null;
   let crossIndexPromise = null;
+  let crossIndexKey = null;
   const diagnostics = { requests: 0, cacheHits: 0, roadRoutes: 0, fallbacks: 0, errors: 0, latest: null };
 
   const hasPrefix = (popId, prefixes) => prefixes.some((prefix) => String(popId).startsWith(prefix));
   const owns = (city, popId) => tileIds.has(city)
-    && (hasPrefix(popId, nativePopPrefixes) || hasPrefix(popId, crossPopPrefixes));
+    && (hasPrefix(popId, nativePopPrefixes) || hasPrefix(popId, crossPopPrefixes) || ownsCrossPop?.(popId) === true);
 
   async function endpoints(city, popId) {
     if (hasPrefix(popId, nativePopPrefixes)) return nativeEndpoints(getNativeDemand?.(), popId, city);
+    const key = getCrossDemandKey?.() ?? null;
+    if (key !== crossIndexKey) { crossIndex = null; crossIndexPromise = null; crossIndexKey = key; cache.clear(); }
     if (!crossIndex) {
-      crossIndexPromise ??= tilePackages.loadCrossDemand(city).then(crossEndpointIndex);
-      crossIndex = await crossIndexPromise;
+      crossIndexPromise ??= Promise.resolve(getCrossDemand ? getCrossDemand(city) : tilePackages.loadCrossDemand(city)).then(crossEndpointIndex);
+      const pending = crossIndexPromise;
+      let loaded;
+      try { loaded = await pending; }
+      catch (error) { if (crossIndexPromise === pending) crossIndexPromise = null; throw error; }
+      if (disposed || pending !== crossIndexPromise || key !== (getCrossDemandKey?.() ?? null)) return null;
+      crossIndex = loaded;
     }
+    if (disposed || key !== (getCrossDemandKey?.() ?? null)) return null;
     return crossIndex.get(popId) ?? null;
   }
 
@@ -227,9 +242,11 @@ export function createOpenWorldRoutePaths({
   }
 
   async function resolve(city, popId) {
-    if (!owns(city, popId)) return null;
+    if (disposed || !owns(city, popId)) return null;
+    if (stored?.owns(city, popId)) return stored.resolve(city, popId);
     diagnostics.requests++;
-    const key = `${city}/${popId}`;
+    const revision = getCrossDemandKey?.() ?? null;
+    const key = `${revision ?? ''}\0${city}/${popId}`;
     if (cache.has(key)) {
       diagnostics.cacheHits++;
       const value = cache.get(key);
@@ -237,6 +254,7 @@ export function createOpenWorldRoutePaths({
       return value;
     }
     const pending = calculate(city, popId).then((result) => {
+      if (disposed || revision !== (getCrossDemandKey?.() ?? null) || !owns(city,popId)) return null;
       diagnostics.latest = { city, popId, source: result?.source ?? 'unavailable' };
       return result;
     }).catch((error) => {
@@ -253,7 +271,7 @@ export function createOpenWorldRoutePaths({
   return {
     owns,
     resolve,
-    diagnostics: () => structuredClone(diagnostics),
-    dispose: () => { cache.clear(); workerClient?.dispose(); },
+    diagnostics: () => stored ? { ...stored.diagnostics(), dynamic:structuredClone(diagnostics) } : structuredClone(diagnostics),
+    dispose: () => { disposed = true; cache.clear(); crossIndex = null; crossIndexPromise = null; workerClient?.dispose(); stored?.dispose(); },
   };
 }

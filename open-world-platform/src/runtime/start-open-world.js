@@ -63,8 +63,11 @@ import { createRendererTileCacheBudget } from './renderer-tile-cache-budget.js';
 import { installNativeCommuteWorkerBudget } from './native-commute-worker-budget.js';
 import { NATIVE_RELIABILITY_SNAPSHOT_VERSION } from './native-reliability-snapshot.js';
 import { NATIVE_DIRECTED_TRACK_SEARCH_VERSION } from './native-directed-track-search.js';
+import { prepareTileOwnership } from './tile-ownership.js';
+import { prepareForeignGrowthCandidates } from './foreign-growth-candidates.js';
 
 export const RUNTIME_AUDIT_VERSION = 'runtime-audit-game-1.7.2-v1';
+export const INDUCED_CROSS_DEMAND_VERSION = 'open-world-induced-cross-demand-v1-2026-10-06';
 
 export const OPEN_WORLD_PLATFORM_RELEASE = 'open-world-platform-v1';
 export const STARTUP_MAP_RECOVERY_VERSION = 'startup-map-recovery-v1';
@@ -390,6 +393,7 @@ export function startOpenWorld({
   let tileSourceStyleHandler = null;
   let renderDistanceToolbarRegistered = false;
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
+    inducedCrossDemandVersion: INDUCED_CROSS_DEMAND_VERSION,
     activeDemandPreparation: activeDemandPreparation?.snapshot,
     nativeCommuteWorkers: nativeCommuteWorkers?.snapshot,
     prototypeSaveReadinessVersion: PROTOTYPE_SAVE_READINESS_VERSION,
@@ -596,9 +600,29 @@ export function startOpenWorld({
   let settlementReady = false;
   let demandContext = null;
   let loadEpoch = 0;
+  let tileOwnership = null, tileOwnershipPromise = null, foreignGrowthPromise = null;
+  const ensureOwnership = () => tileOwnershipPromise ??= prepareTileOwnership({
+    definition, catalogSource, ownershipGzipBase64: artifacts.tileOwnershipGzipBase64,
+  }, { sliceMs: 5, isCancelled: () => !isCurrent(), yieldFn: yieldBrowserPaint }).then(handle => {
+    if (!handle || !isCurrent()) throw new Error('Tile ownership preparation was superseded');
+    tileOwnership = handle;
+    diagnostics.tileOwnership = { version: handle.version, key: handle.key, status: 'ready' };
+    return handle;
+  });
+  const foreignGrowthCandidates = async (context, options) => {
+    const ownership = await ensureOwnership();
+    foreignGrowthPromise ??= prepareForeignGrowthCandidates({ tilePackages, tileId: context.tileId, ownership },
+      { sliceMs: 5, isCancelled: () => !isCurrent(), yieldFn: yieldBrowserPaint });
+    const candidates = await foreignGrowthPromise;
+    if (!candidates || !isCurrent()) throw new Error('Foreign growth preparation was superseded');
+    return candidates.query({ ...options, tileId: context.tileId });
+  };
+  let lastCrossDemandKey = null;
   const ownsCurrentCity = (cityCode = currentCityCode()) => registration.cities.includes(cityCode);
   const demandExtensions = createDemandExtensionRuntime({
     api, game, storage,
+    getOwnership: () => tileOwnership,
+    readGrowthCandidates: foreignGrowthCandidates,
     readContext: () => {
       const cityCode = currentCityCode();
       const tile = tileCatalog.tiles.find(tile => (tile.gameCityCode ?? tile.id) === cityCode);
@@ -607,13 +631,26 @@ export function startOpenWorld({
         providerId: definition.identity.manifestId, definitionId: definition.identity.worldId,
         resolvedWorldId: runtime.getWorldId(), tileId: tile.id, cityCode,
         nativeSessionId: api.gameState.getGameSessionId?.() ?? null, epoch: loadEpoch,
-        demandReady: ready && settlementReady && runtimeTileId() === cityCode && !tileSimulationHandoff.isPending(),
+        demandReady: ready && settlementReady && !!tileOwnership && runtimeTileId() === cityCode && !tileSimulationHandoff.isPending(),
         tileBounds: [...(tile.nativeMapBounds ?? tile.bounds)], basemapRevision: definition.map.basemapRevision,
         sources: globalThis.SubwayBuilderOpenWorld?.getContext?.()?.sources ?? [],
       };
     },
     onChanged: context => {
       demandContext?.refresh();
+      const crossKey = runtime.getCrossDemandKey();
+      const changed = lastCrossDemandKey !== crossKey;
+      lastCrossDemandKey = crossKey;
+      runtime.invalidateCrossDemand();
+      if (changed && ready) {
+        const selectedWorld = runtime.world;
+        void runtime.refreshCrossDemand().catch(error => {
+          if (isCurrent() && runtime.world === selectedWorld && runtime.getCrossDemandKey() === crossKey) {
+            console.warn(`${logLabel} cross demand refresh failed`, error);
+          }
+        });
+        queueCommuteRefresh('extension-cross-demand-change', false);
+      }
       if (context?.resolvedWorldId && runtime.world?.backgroundNativeFinance?.tileRevenueProfiles) {
         const profile = runtime.world.backgroundNativeFinance.tileRevenueProfiles[context.tileId];
         if (profile && (profile.demandRevisionKey ?? null) !== demandExtensions.cacheKeyFor(context.tileId)) {
@@ -874,7 +911,7 @@ export function startOpenWorld({
   function ensureSession() {
     if (session) return session;
     const routePaths = createOpenWorldRoutePaths({
-      tilePackages, tileCatalog,
+      tilePackages, tileCatalog, runtime,
       nativePopPrefixes: definition.demand.nativePopPrefixes,
       crossPopPrefixes: definition.demand.crossPopPrefixes,
       getNativeDemand: () => api.gameState.getDemandData?.()
@@ -1269,6 +1306,8 @@ export function startOpenWorld({
           }),
           nativeAuthoritativeLoad: !pending && typeof saveName === 'string' && Boolean(saveName),
         };
+        await ensureOwnership();
+        if (!ownsSession(startingSession)) return;
         if (replaceWorld) {
           await runtime.reloadFromSave(
             identity.worldId,

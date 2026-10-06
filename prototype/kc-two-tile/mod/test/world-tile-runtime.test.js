@@ -1149,16 +1149,8 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
   };
   for (const tileId of runtime.world.tileIds) {
     runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
-      schemaVersion: 5,
-      ridershipRecording: 'whole-person-ridership-v1',
-      source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 6,
-      contextKey: `${tileId}:context`,
-      evaluationKey: `${tileId}:cached`,
-      tileId,
-      hourly: Array.from({ length: 24 }, () => ({ revenue: 0, revenueByRoute: {} })),
-      transitPopulation: 0,
-      dailyRevenue: 0,
+      ...evaluateOffTileNativeDemand({tileId,demand:nativeDemand}).profile,
+      contextKey: `${tileId}:context`, evaluationKey: `${tileId}:cached`,
     };
   }
   runtime.world.backgroundNativeFinance.networkHash = runtime.world.globalNetwork?.hash ?? null;
@@ -1187,15 +1179,7 @@ test('passive mode-share cache invalidates when fare or timetable context change
     revision: 1,
   };
   for (const tileId of runtime.world.tileIds) {
-    runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = {
-      schemaVersion: 5,
-      ridershipRecording: 'whole-person-ridership-v1',
-      source: 'off-tile-estimator',
-      evaluatorSchemaVersion: 6,
-      contextKey: `${tileId}:context`,
-      evaluationKey: `${tileId}:cached`,
-      tileId,
-    };
+    runtime.world.backgroundNativeFinance.tileRevenueProfiles[tileId] = evaluateOffTileNativeDemand({tileId,demand:{points:[],pops:[]}}).profile;
   }
   runtime.world.backgroundNativeFinance.networkHash = runtime.world.globalNetwork?.hash ?? null;
 

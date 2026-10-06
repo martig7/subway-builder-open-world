@@ -7,6 +7,7 @@ import { routeGeometryArtifacts, packagedRouteGeometry } from './route-geometry-
 import { OPEN_WORLD_PLATFORM_RELEASE } from '../runtime/start-open-world.js';
 import { loadWorldVegetationArtifact } from './world-vegetation-artifact.js';
 import { packDisplayBoundaryOverlay } from './display-boundary-artifact.js';
+import { loadTileOwnershipArtifact } from './tile-ownership-artifact.js';
 import { TILE_DATA_FILES, WORLD_DATA_FILES, planArtifactFiles, applyArtifactFiles } from './artifact-files.js';
 
 const REQUIRED_MAP_FILES = ['buildings_index.bin.gz', 'roads.geojson.gz', 'runways_taxiways.geojson.gz', 'tiles.pmtiles', 'map-manifest.json'];
@@ -59,6 +60,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     '    commuteCatalog: __OPEN_WORLD_CROSS_COMMUTE_CATALOG__,',
     '    crossDemandGzipBase64: __OPEN_WORLD_CROSS_DEMAND_GZIP_BASE64__,',
     '    worldVegetationGzipBase64: __OPEN_WORLD_VEGETATION_GZIP_BASE64__,',
+    '    tileOwnershipGzipBase64: __OPEN_WORLD_TILE_OWNERSHIP_GZIP_BASE64__,',
     '    routeGeometry: __OPEN_WORLD_ROUTE_GEOMETRY__,',
     '  },',
     '  workerSources: {',
@@ -80,6 +82,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   const loaded = await loadWorldDefinition(worldRoot);
   const { definition, selectedTiles, worldDefinitionHash } = loaded;
   const worldVegetationGzipBase64 = await loadWorldVegetationArtifact(root, definition, worldRoot);
+  const tileOwnershipGzipBase64 = await loadTileOwnershipArtifact(definition, worldRoot, loaded.catalog);
   let packageRoot;
   let crossCommutesPath;
   let crossDemandPath;
@@ -240,6 +243,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
       __OPEN_WORLD_CROSS_COMMUTE_CATALOG__: crossCommutes,
       __OPEN_WORLD_CROSS_DEMAND_GZIP_BASE64__: JSON.stringify(crossDemandGzipBase64),
       __OPEN_WORLD_VEGETATION_GZIP_BASE64__: JSON.stringify(worldVegetationGzipBase64),
+      __OPEN_WORLD_TILE_OWNERSHIP_GZIP_BASE64__: JSON.stringify(tileOwnershipGzipBase64),
       __OPEN_WORLD_ROUTE_GEOMETRY__: JSON.stringify(routeGeometry),
       __OPEN_WORLD_NATIVE_DEMAND_EVALUATOR_WORKER_SOURCE__: JSON.stringify(workerSources.nativeDemandEvaluator),
       __OPEN_WORLD_ROAD_ROUTE_WORKER_SOURCE__: JSON.stringify(workerSources.roadRoute),
@@ -258,6 +262,11 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
   await writeFile(path.join(distPath, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(path.join(distPath, 'world-definition.json'), `${JSON.stringify(definition, null, 2)}\n`);
   await writeFile(path.join(distPath, 'world-definition.sha256'), `${worldDefinitionHash}\n`);
+  if (tileOwnershipGzipBase64) {
+    await writeFile(path.join(distPath, 'tile-ownership.bin.gz'), Buffer.from(tileOwnershipGzipBase64, 'base64'));
+  } else {
+    await rm(path.join(distPath, 'tile-ownership.bin.gz'), { force: true });
+  }
   await copyFile(path.join(root, 'SOURCES.md'), path.join(distPath, 'SOURCES.md'));
   if (definition.runtime.tileServerProvider === 'shared-native-v4') {
     // dist is reused across builds. Explicitly retire the old server artifacts

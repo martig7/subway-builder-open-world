@@ -1,10 +1,11 @@
 import { DemandExtensionStore, DEMAND_CHECKPOINT_FIELD, normalizeDemandExtension, remapDemandExtension,
-  sameDemandExtensionScalars } from './demand-extension-state.js';
+  sameDemandExtensionScalars, sameCrossDemandExtensionScalars, partitionDemandExtension, nativeDemandExtensionForTile } from './demand-extension-state.js';
 
 export const DEMAND_CONTEXT_VERSION = 1;
 export const DEMAND_CONTEXT_EVENT = 'subway-builder-open-world-demand-context';
 export const DEMAND_DEFERRED_CODE = 'OPEN_WORLD_DEMAND_DEFERRED';
 export const DEMAND_DAY_EVENTS_VERSION = 1;
+const copy = value => structuredClone(value);
 const CONTEXT_KEYS = ['providerId', 'resolvedWorldId', 'nativeSessionId', 'tileId', 'epoch'];
 const DAY_CONTEXT_KEYS = [...CONTEXT_KEYS, 'definitionId', 'cityCode', 'providerGeneration'];
 const DAY_PROVIDER_OWNER = Symbol('open-world.demand-day-provider');
@@ -15,11 +16,17 @@ const samePoint = (a, b) => Boolean(a && b && a.id === b.id && a.location?.[0] =
 export function demandContextRegistry(root = globalThis) {
   const existing = root.SubwayBuilderOpenWorldDemand;
   if (existing?.version === 1 && existing.dayEventsVersion === DEMAND_DAY_EVENTS_VERSION
-    && typeof existing.subscribeDayChange === 'function') return existing;
+    && typeof existing.subscribeDayChange === 'function' && existing.growthVersion === 1 && existing.ownershipVersion === 1) return existing;
   // An older frozen v1 registry may own an in-flight checkpoint or handoff.
   // Delegate its methods so upgrade preserves those closures and generations.
   const base = existing?.version === 1 ? existing : createDemandContextRegistry(root);
-  const listeners = new Set(), wrappedProviders = new WeakMap();
+  const listeners = new Set(), wrappedProviders = new WeakMap(), capabilityProviders = new Map();
+  const capability = expected => {
+    const context = base.getContext(), provider = capabilityProviders.get(expected?.providerId);
+    if (!provider || !context || context.providerGeneration !== expected?.providerGeneration
+      || DAY_CONTEXT_KEYS.some(key => context[key] !== expected?.[key])) throw new Error('Demand provider or context was replaced');
+    return provider;
+  };
   const getContext = () => {
     const context = base.getContext();
     if (!context) return null;
@@ -28,7 +35,21 @@ export function demandContextRegistry(root = globalThis) {
     return Object.freeze(publicContext);
   };
   const registry = Object.freeze({
-    ...base, getContext, dayEventsVersion: DEMAND_DAY_EVENTS_VERSION,
+    ...base, getContext, dayEventsVersion: DEMAND_DAY_EVENTS_VERSION, growthVersion: 1, ownershipVersion: 1,
+    getOwnership(expected) {
+      const provider = capability(expected);
+      if (typeof provider.getOwnership !== 'function') throw new Error('Demand ownership is unavailable');
+      // The handle owns immutable geometry. Fence acquisition once; sliced
+      // planning and its final operation fence validate the live save identity.
+      return provider.getOwnership(expected);
+    },
+    async readGrowthState(extensionId, expected, options) {
+      const provider = capability(expected);
+      if (typeof provider.readGrowthState !== 'function') throw new Error('Demand growth projection is unavailable');
+      const result = await provider.readGrowthState(extensionId, expected, options);
+      if (capability(expected) !== provider) throw new Error('Demand provider was replaced');
+      return result;
+    },
     subscribeDayChange(listener) {
       if (typeof listener !== 'function') throw new TypeError('Expected a demand day listener');
       listeners.add(listener); return () => listeners.delete(listener);
@@ -43,6 +64,7 @@ export function demandContextRegistry(root = globalThis) {
         wrappedProviders.set(provider, wrapped);
       }
       const owner = wrapped.owner = {};
+      capabilityProviders.set(providerId, provider);
       const handle = base.register(providerId, wrapped.provider);
       const owns = expected => {
         const current = base.getContext();
@@ -135,6 +157,7 @@ function createDemandContextRegistry(root) {
 
 /** Owns sparse durable demand state; native saves reference immutable manifests. */
 export function createDemandExtensionRuntime({ api, game, storage, readContext,
+  getOwnership: readOwnership = null, readGrowthCandidates = async () => [],
   onChanged = () => {}, onError = error => console.error('[OpenWorld] demand persistence failed', error),
   createId = () => globalThis.crypto.randomUUID() }) {
   const store = new DemandExtensionStore({ storage, createId });
@@ -143,11 +166,21 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
   let ownedScope = null, activationHold = null;
   const records = new Map(), saveHolds = new Set(), admissionWaiters = new Set();
   const state = () => game.callbacks.getState();
+  let keyedCheckpoint = null, crossKey = null;
+  const crossKeyFor = () => {
+    if (checkpoint !== keyedCheckpoint) {
+      keyedCheckpoint = checkpoint;
+      crossKey = checkpoint ? JSON.stringify([checkpoint.worldId,
+        Object.keys(checkpoint.tiles).sort().map(tileId => [tileId, checkpoint.tiles[tileId].crossRoutingKey ?? null])
+          .filter(([, key]) => key != null)]) : null;
+    }
+    return crossKey;
+  };
   const getContext = () => {
     if (disposed) return null;
     const context = readContext();
     if (!context) return null;
-    return Object.freeze({ ...context, version: 1,
+    return Object.freeze({ ...context, version: 1, crossKey: crossKeyFor(),
       demandRevision: checkpoint?.worldId === context.resolvedWorldId ? checkpoint.tiles[context.tileId]?.revision ?? 0 : 0,
       demandReady: Boolean(context.demandReady && checkpoint?.worldId === context.resolvedWorldId
         && hydratedTile === context.tileId && !busy && activationHold == null && !failure
@@ -190,7 +223,7 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
   };
   const persist = async operation => {
     const result = await store.commit(checkpoint, operation.tileId, operation.extensionId,
-      operation.payload, operation.mutationId, operation.receipts, { demandChanged: operation.demandChanged });
+      operation.payload, operation.mutationId, operation.receipts, { demandChanged: operation.demandChanged, crossChanged: operation.crossChanged });
     // Persisting an obsolete World must never stamp the newly loaded native save.
     if (operation.activationGeneration !== activationGeneration) throw new Error('Demand context changed; discard the stale mutation');
     matches(operation.expected, false);
@@ -201,6 +234,62 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
     publish();
     return getContext();
   };
+
+  const ownership = () => {
+    const handle = readOwnership?.();
+    if (handle?.version !== 1 || typeof handle.key !== 'string'
+      || typeof handle.ownerAt !== 'function' || typeof handle.contains !== 'function') throw new Error('Demand ownership is unavailable');
+    return handle;
+  };
+  const partition = (payload, tileId) => {
+    if (!readOwnership) return normalizeDemandExtension(payload);
+    const handle = ownership(), demand = api.gameState?.getDemandData?.();
+    return partitionDemandExtension(payload, { tileId, ownerAt: c => handle.ownerAt(c),
+      pointById: id => demand?.points?.get(id) });
+  };
+
+  const assertRetirementProof = (original, desired) => {
+    const demand = api.gameState?.getDemandData?.(), points = new Set(desired.points.map(point => point.id)),
+      pops = new Set(desired.pops.map(pop => pop.id));
+    for (const pop of original.pops) {
+      const live = demand?.popsMap?.get(pop.id);
+      if (!pops.has(pop.id) && live && !samePop(live, pop)) throw new Error('Foreign demand no longer matches extension ownership proof');
+    }
+    for (const point of original.points) {
+      const live = demand?.points?.get(point.id);
+      if (!points.has(point.id) && live && !samePoint(live, point)) throw new Error('Foreign demand point no longer matches extension ownership proof');
+    }
+  };
+
+  const retirePartition = (original, desired, assertCurrent) => {
+    assertRetirementProof(original, desired);
+    const demand = api.gameState?.getDemandData?.();
+    const pointIds = new Set(desired.points.map(point => point.id)), popIds = new Set(desired.pops.map(pop => pop.id));
+    const retiredPoints = original.points.filter(point => !pointIds.has(point.id) && samePoint(demand?.points?.get(point.id), point));
+    const retiredIds = new Set(retiredPoints.map(point => point.id));
+    const retiredPops = original.pops.filter(pop => samePop(demand?.popsMap?.get(pop.id), pop)
+      && (!popIds.has(pop.id) || retiredIds.has(pop.residenceId) || retiredIds.has(pop.jobId))).map(pop => pop.id);
+    const retiredPopIds = new Set(retiredPops);
+    if (retiredIds.size) for (const pop of demand.popsMap.values()) {
+      if (!retiredPopIds.has(pop.id) && (retiredIds.has(pop.residenceId) || retiredIds.has(pop.jobId))) {
+        throw new Error('An unrelated live pop still references a retired extension point');
+      }
+    }
+    if (retiredPops.length || retiredPoints.length) {
+      if (!api.demand?.removePops || !api.demand?.removeDemandPoint) throw new Error('The supported demand editor is unavailable during cross migration');
+      if (retiredPops.length) {
+        assertCurrent();
+        const result = api.demand.removePops(retiredPops);
+        if (!result.success) throw new Error(result.error);
+      }
+      for (const point of retiredPoints) {
+        assertCurrent();
+        const result = api.demand.removeDemandPoint(point.id);
+        if (!result.success) throw new Error(result.error);
+      }
+    }
+  };
+
   const capture = operation => {
     // Capture the result before validation: retrying malformed output must never
     // execute a successful native edit twice. A throwing editor may be retried
@@ -209,8 +298,14 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
       operation.rawPayload = operation.apply();
       operation.nativeDemand = api.gameState.getDemandData();
     }
-    operation.payload = normalizeDemandExtension(operation.rawPayload);
-    operation.demandChanged = !sameDemandExtensionScalars(operation.payload, operation.previousDemand);
+    const original = normalizeDemandExtension(operation.rawPayload);
+    const desired = partition(original, operation.tileId);
+    retirePartition(original, desired, () => matches(operation.expected, false));
+    operation.payload = desired;
+    operation.demandChanged = !sameDemandExtensionScalars(
+      { points: operation.payload.points, pops: operation.payload.pops },
+      { points: operation.previousDemand?.points, pops: operation.previousDemand?.pops });
+    operation.crossChanged = !sameCrossDemandExtensionScalars(operation.payload, operation.previousDemand);
     operation.apply = null;
   };
   const execute = operation => {
@@ -221,7 +316,52 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
     return serial;
   };
   const runtime = {
-    getContext,
+    getContext, crossKeyFor,
+    getOwnership(expected) {
+      matches(expected);
+      const handle = ownership();
+      return Object.freeze({ version: 1, key: handle.key,
+        ownerAt: c => handle.ownerAt(c),
+        contains: (tileId, c, clearanceM = 0) => handle.contains(tileId, c, clearanceM) });
+    },
+    async readGrowthState(extensionId, expected, options = {}) {
+      const context = matches(expected);
+      if (!context.demandReady) throw new Error('Native demand is not ready');
+      const handle = runtime.getOwnership(expected), selected = checkpoint;
+      const record = await readRecord(context.tileId, extensionId);
+      matches(expected);
+      const requested = Number(options.limit ?? 2048);
+      const limit = Number.isFinite(requested) ? Math.max(0, Math.min(2048, Math.floor(requested))) : 2048;
+      const candidates = limit === 0 ? [] : await readGrowthCandidates(context, { ...options, limit });
+      matches(expected);
+      if (checkpoint !== selected) throw new Error('Demand growth projection was superseded');
+      if (ownership().key !== handle.key) throw new Error('Demand ownership changed');
+      if (!Array.isArray(candidates)) throw new Error('Invalid growth candidates');
+      const bounded = [];
+      for (const endpoint of candidates) {
+        const normalized = normalizeDemandExtension({ ledger: '{}', endpoints: [endpoint] }).endpoints[0];
+        if (handle.ownerAt(normalized.location) !== normalized.tileId) throw new Error('Growth endpoint ownership mismatch');
+        if (normalized.tileId === context.tileId || !(normalized.jobs > 0)) continue;
+        bounded.push(normalized);
+        if (bounded.length >= limit) break;
+      }
+      return { ledger: record?.ledger ?? null, endpoints: copy(record?.endpoints ?? []),
+        crossPops: copy(record?.crossPops ?? []), candidates: bounded, crossKey: crossKeyFor() };
+    },
+    async crossRecords() {
+      const owner = checkpoint, generation = activationGeneration;
+      if (!owner) return [];
+      const result = [];
+      for (const tileId of Object.keys(owner.tiles).sort()) {
+        for (const extensionId of Object.keys(owner.tiles[tileId].extensions ?? {}).sort()) {
+          const recordKey = owner.tiles[tileId].extensions[extensionId];
+          const payload = tileId === hydratedTile ? await readRecord(tileId, extensionId) : await store.readRecord(recordKey);
+          if (disposed || owner !== checkpoint || generation !== activationGeneration) throw new Error('Demand cross checkpoint changed during read');
+          if (payload?.crossPops?.length) result.push({ tileId, extensionId, recordKey, payload: copy(payload) });
+        }
+      }
+      return result;
+    },
     async readState(extensionId, expected) {
       const context = matches(expected);
       if (!context.demandReady) throw new Error('Native demand is not ready');
@@ -286,17 +426,22 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
           const operation = takeover.operation;
           if (!Object.hasOwn(operation, 'rawPayload')) throw new Error('Uncaptured native demand mutation cannot survive a hot reload');
           const result = await store.commit(takeover.checkpoint, tileId, operation.extensionId,
-            normalizeDemandExtension(operation.rawPayload), operation.mutationId, operation.receipts,
-            { demandChanged: operation.demandChanged });
+            operation.payload ?? partition(operation.rawPayload, tileId), operation.mutationId, operation.receipts,
+            { demandChanged: operation.demandChanged, crossChanged: operation.crossChanged });
           assertCurrent(); stamp(result.marker); restoredCheckpoint = result.checkpoint;
         } else restoredCheckpoint = await store.readCheckpoint(marker, worldId);
         assertCurrent();
-        const restoredRecords = new Map();
+        const restoredRecords = new Map(), migrations = new Map();
         const ids = Object.keys(restoredCheckpoint.tiles[tileId]?.extensions ?? {});
         for (const extensionId of ids) {
           const record = await store.readRecord(restoredCheckpoint.tiles[tileId].extensions[extensionId]);
           assertCurrent();
-          restoredRecords.set(keyFor(tileId, extensionId), record);
+          const desired = partition(record, tileId);
+          if (!sameDemandExtensionScalars(record, desired)) {
+            assertRetirementProof(record, desired);
+            migrations.set(extensionId, { original: record, desired });
+          }
+          restoredRecords.set(keyFor(tileId, extensionId), { ...desired, receipts: record.receipts });
         }
         // Reconcile only IDs proven owned by the preceding active extension
         // records. Same-city native loadSave can retain newer demand in memory.
@@ -309,6 +454,7 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
             prior.push(normalizeDemandExtension(operation.rawPayload));
           }
         }
+        prior.push(...[...migrations.values()].map(migration => migration.original));
         const previousPops = new Map(), previousPoints = new Map(), desiredPops = new Map(), desiredPoints = new Map();
         for (const record of prior) {
           for (const pop of record.pops) previousPops.set(pop.id, pop);
@@ -348,6 +494,13 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
             const removed = api.demand.removeDemandPoint(point.id);
             if (!removed.success) throw new Error(removed.error);
           }
+        }
+        for (const [extensionId, { desired, original }] of migrations) {
+          assertCurrent();
+          const result = await store.commit(restoredCheckpoint, tileId, extensionId, desired, `ownership-migration:${createId()}`, original.receipts,
+            { demandChanged: true, crossChanged: !sameCrossDemandExtensionScalars(original, desired) });
+          assertCurrent(); restoredCheckpoint = result.checkpoint; stamp(result.marker);
+          restoredRecords.set(keyFor(tileId, extensionId), { ...desired, receipts: result.receipts });
         }
         for (const extensionId of ids) {
           const record = restoredRecords.get(keyFor(tileId, extensionId));
@@ -415,7 +568,9 @@ export function createDemandExtensionRuntime({ api, game, storage, readContext,
       const result = await Promise.all(ids.map(id => tileId === hydratedTile
         ? readRecord(tileId, id) : store.readRecord(owner.tiles[tileId].extensions[id])));
       if (owner !== checkpoint || generation !== activationGeneration) throw new Error('Demand extension checkpoint changed during read');
-      return result;
+      if (!readOwnership) return result;
+      const handle = ownership();
+      return result.map(payload => nativeDemandExtensionForTile(payload, { tileId, ownerAt: c => handle.ownerAt(c) }));
     },
     revisionFor(tileId) { return checkpoint?.tiles[tileId]?.revision ?? 0; },
     cacheKeyFor(tileId) {

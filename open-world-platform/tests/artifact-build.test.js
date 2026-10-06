@@ -18,7 +18,16 @@ test('rebuilding a synthetic consumer reuses packages and stores world data only
   const artifactsRoot = path.join(root, 'artifacts');
   await mkdir(path.join(worldRoot, 'geography'), { recursive: true });
   await mkdir(modRoot);
-  await writeFile(path.join(worldRoot, 'world.json'), JSON.stringify(definition));
+  const ownedDefinition = structuredClone(definition);
+  ownedDefinition.tileViews.ownershipBoundary = 'geography/ownership.geojson';
+  await writeFile(path.join(worldRoot, 'world.json'), JSON.stringify(ownedDefinition));
+  await writeFile(path.join(worldRoot, 'geography/ownership.geojson'), JSON.stringify({ type: 'FeatureCollection',
+    features: catalog.tiles.filter(tile => tile.status === 'selected').map(tile => {
+      const [x1, y1, x2, y2] = tile.bounds;
+      return { type: 'Feature', properties: { tile_id: tile.id }, geometry: { type: 'Polygon',
+        coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]] } };
+    }),
+  }));
   await writeFile(path.join(worldRoot, definition.tileViews.catalog), JSON.stringify(catalog));
   await writeFile(path.join(worldRoot, definition.tileViews.boundaryOverlay), JSON.stringify(boundary));
   const worldDataRoot = path.join(artifactsRoot, 'demand', 'world');
@@ -38,6 +47,8 @@ test('rebuilding a synthetic consumer reuses packages and stores world data only
   }
   const options = { repositoryRoot: path.resolve(import.meta.dirname, '../..'), worldRoot, modRoot, artifactsRoot };
   const built = await buildWorldMod(options);
+  await access(path.join(built.distPath, 'tile-ownership.bin.gz'));
+  assert.match(await readFile(path.join(built.distPath, 'index.js'), 'utf8'), /tileOwnershipGzipBase64/);
   const archive = path.join(built.packageRoot, definition.tileViews.initialTileId, 'tiles.pmtiles');
   const before = await stat(archive, { bigint: true });
   const beforeLimits = JSON.parse(await readFile(path.join(built.distPath, 'render-distance.json'), 'utf8'));
@@ -60,9 +71,12 @@ test('rebuilding a synthetic consumer reuses packages and stores world data only
   const manifest = JSON.parse(await readFile(path.join(built.packageRoot, 'package-manifest.json'), 'utf8'));
   assert.equal(manifest.schemaVersion, 2);
   assert.ok(manifest.artifactState[`${definition.tileViews.initialTileId}/tiles.pmtiles`].source.sha256);
+  // Reusing dist for an undeclared rectangular World retires the polygon archive.
+  await writeFile(path.join(worldRoot, 'world.json'), JSON.stringify(definition));
   // Release builds can consume the newly staged layout, while old standalone
   // Tile Packages remain supported by the builder's per-tile fallback.
   await buildWorldMod({ ...options, packagedTileRoot: built.packageRoot });
+  await assert.rejects(access(path.join(built.distPath, 'tile-ownership.bin.gz')), { code: 'ENOENT' });
   const initial = path.join(built.packageRoot, definition.tileViews.initialTileId);
   for (const filename of ['cross_commutes.json', 'cross_demand.json.gz']) {
     await copyFile(path.join(built.packageRoot, filename), path.join(initial, filename));
