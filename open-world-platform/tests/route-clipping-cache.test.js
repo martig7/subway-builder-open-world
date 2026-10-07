@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   installMovementDeckVisibilityGuard,
+  MOVEMENT_DECK_GUARD_VERSION,
 } from '../src/runtime/ui/geographic-context-overlay.js';
 
 class Layer {
@@ -122,6 +123,75 @@ function clipCount() {
   return globalThis.__OPEN_WORLD_MAP_MOVE_PERF_DEBUG_STATE_V4
     ?.stages?.['deck.interlining.clip']?.count ?? 0;
 }
+
+test('Portolan clipping rejects a remote long path before materializing vertex arrays', () => {
+  const f = fixture();
+  const remote = Array.from({ length: 20_000 }, (_, index) => [10 + index / 20_000, 10]);
+  const source = binaryFromPaths([
+    remote,
+    [[-76, 40.5], [-74, 40.5], [-72, 40.5]],
+  ]);
+  let remoteVertexArrays = 0;
+  const nativePush = Array.prototype.push;
+  Array.prototype.push = function countRemoteVertices(...items) {
+    for (const item of items) {
+      if (Array.isArray(item) && item.length === 2 && item[0] >= 10 && item[1] >= 10) remoteVertexArrays++;
+    }
+    return nativePush.apply(this, items);
+  };
+  try {
+    f.deck.setProps({ layers: [new Layer('portolan-ribbons', source)] });
+  } finally {
+    Array.prototype.push = nativePush;
+  }
+  assert.equal(remoteVertexArrays, 0, 'remote paths must not allocate per-vertex coordinate arrays');
+  const layer = f.deck.props.layers[0];
+  assert.equal(layer.props.data.length, 1);
+  assert.deepEqual([...layer.props.data.attributes.getPath.value], [
+    -75.5, 40.5, -74, 40.5, -73.5, 40.5,
+  ]);
+  assert.equal(layer.getPickingInfo({ info: { index: 0 } }).index, 1);
+  assert.equal(source.length, 2, 'the full native source remains untouched');
+  assert.equal(source.attributes.getPath.value[0], 10);
+});
+
+test('remote-path rejection preserves boundary contacts, disjoint halos and malformed vertices', () => {
+  const f = fixture();
+  f.virtualization.signature = 'remote-rejection-edge-cases';
+  f.virtualization.haloBounds = [[0, 0, 1, 1], [2, 0, 3, 1]];
+  const source = binaryFromPaths([
+    [[1, 0.1], [1, 0.9]],
+    [[2.2, 0.5], [2.8, 0.5]],
+    [[10, 10], [Number.NaN, 0.5], [0.1, 0.5], [0.9, 0.5]],
+  ]);
+  f.deck.setProps({ layers: [new Layer('portolan-ribbons', source)] });
+  const layer = f.deck.props.layers[0];
+  assert.equal(layer.props.data.length, 3);
+  assert.deepEqual([...layer.props.data.attributes.getPath.value], [
+    1, 0.1, 1, 0.9,
+    2.2, 0.5, 2.8, 0.5,
+    0.1, 0.5, 0.9, 0.5,
+  ]);
+  assert.deepEqual([0, 1, 2].map(index => layer.getPickingInfo({ info: { index } }).index), [0, 1, 2]);
+});
+
+test('binary rejection generation replaces a retained generation 37 guard and wrapper', () => {
+  const source = binaryPaths();
+  const layers = [new Layer('portolan-ribbons', source)];
+  const originalSetProps = function setProps(next) { this.props = { ...this.props, ...next }; return this; };
+  const oldWrapper = function generation37SetProps() { throw new Error('retired wrapper was called'); };
+  const deck = { props: { layers }, setProps: oldWrapper };
+  const previous = deck.__openWorldMovementDeckVisibilityGuard = {
+    version: 37, nativeLayers: layers, originalSetProps, wrapper: oldWrapper, owners: new Set(),
+  };
+  const map = { __deck: deck, getZoom: () => 12, getStyle: () => ({ layers: [] }) };
+  const virtualization = { signature: 'generation-fixture', haloBounds: [[-75.5, 40, -73.5, 41]] };
+  installMovementDeckVisibilityGuard(map, { map }, () => virtualization, () => 1);
+  assert.ok(MOVEMENT_DECK_GUARD_VERSION > 37);
+  assert.notStrictEqual(deck.__openWorldMovementDeckVisibilityGuard, previous);
+  assert.notStrictEqual(deck.setProps, oldWrapper);
+  assert.equal(deck.__openWorldMovementDeckVisibilityGuard.version, MOVEMENT_DECK_GUARD_VERSION);
+});
 
 test('Portolan binary clipping survives overview zoom crossings for a fixed render mask', () => {
   const originalInfo = console.info;

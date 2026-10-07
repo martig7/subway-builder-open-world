@@ -59,7 +59,7 @@ const SPATIAL_SOURCE_IDS = Object.freeze([
   'all-nodes-source',
 ]);
 const MOVEMENT_DECK_GUARD_KEY = '__openWorldMovementDeckVisibilityGuard';
-export const MOVEMENT_DECK_GUARD_VERSION = 37;
+export const MOVEMENT_DECK_GUARD_VERSION = 38;
 export const RAIL_RENDER_CACHE_VERSION = 'rail-render-bounded-static-snapshots-v34';
 const RENDERER_VIRTUALIZATION_AUTHORITY_VERSION = 'renderer-authority-distance-km-v2';
 const GEOGRAPHIC_CONTEXT_CONTROLLER_KEY = Symbol.for('open-world.geographic-context-controller');
@@ -68,7 +68,7 @@ const SPATIAL_SOURCE_GUARD_KEY = '__openWorldSpatialSourceVisibilityGuard';
 const VOLATILE_RAIL_LAYER_ID_RE = /^(?:interlined-routes|portolan-ribbons)(?:-under)?$/i;
 const PORTOLAN_RIBBON_LAYER_ID_RE = /^portolan-ribbons(?:-under)?$/i;
 const STATION_DECK_LAYER_ID_RE = /^(?:station-marker-(?:dots|labels)|portolan-station-pills)$/i;
-const RAIL_CLIP_DIAGNOSTIC_VERSION = 'portolan-binary-v7';
+const RAIL_CLIP_DIAGNOSTIC_VERSION = 'portolan-binary-bbox-rejection-v8';
 const RAIL_CLIP_DEBUG_FLAG = '__OPEN_WORLD_RAIL_CLIP_DEBUG';
 const RAIL_CLIP_DEBUG_STATE = '__OPEN_WORLD_RAIL_CLIP_DEBUG_STATE';
 const RAIL_CLIP_DEBUG_PREFIX = '[DEBUG-railclip]';
@@ -1565,6 +1565,38 @@ function preservePortolanPickingIndices(layer, renderedData) {
   layer.getPickingInfo = wrapper;
 }
 
+function portolanBinaryPathOutsideHalo(binary, start, end, haloBounds) {
+  if (!haloBounds.length) return false;
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  for (let vertexIndex = start; vertexIndex < end; vertexIndex += 1) {
+    const x = Number(binary.path.value[vertexIndex * 2]);
+    const y = Number(binary.path.value[vertexIndex * 2 + 1]);
+    // Malformed paths keep the existing segment-level handling of breaks.
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+    west = Math.min(west, x);
+    south = Math.min(south, y);
+    east = Math.max(east, x);
+    north = Math.max(north, y);
+  }
+  for (const bounds of haloBounds) {
+    if (!Array.isArray(bounds) || bounds.length < 4) return false;
+    const haloWest = Number(bounds[0]);
+    const haloSouth = Number(bounds[1]);
+    const haloEast = Number(bounds[2]);
+    const haloNorth = Number(bounds[3]);
+    if (!Number.isFinite(haloWest) || !Number.isFinite(haloSouth)
+      || !Number.isFinite(haloEast) || !Number.isFinite(haloNorth)
+      || haloWest > haloEast || haloSouth > haloNorth) return false;
+    // Strict separation preserves boundary contacts. A circle is contained
+    // by this box, so rejection remains conservative for either shape.
+    if (!(east < haloWest || west > haloEast || north < haloSouth || south > haloNorth)) return false;
+  }
+  return true;
+}
+
 function clipPortolanBinaryPaths(binary, virtualization) {
   const haloBounds = virtualization?.haloBounds;
   if (!Array.isArray(haloBounds)) return binary.source;
@@ -1577,6 +1609,9 @@ function clipPortolanBinaryPaths(binary, virtualization) {
     const start = Number(binary.startIndices[featureIndex]);
     const end = Number(binary.startIndices[featureIndex + 1]);
     if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || end - start < 2) continue;
+    // National networks contain many remote ribbons. Reject them without
+    // materializing coordinates or interpolation inputs for every vertex.
+    if (portolanBinaryPathOutsideHalo(binary, start, end, haloBounds)) continue;
     const coordinates = [];
     const sourceIndices = [];
     for (let vertexIndex = start; vertexIndex < end; vertexIndex += 1) {
