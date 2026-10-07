@@ -1313,6 +1313,7 @@ test('replaces the previous movement Deck guard generation during a hot reload',
 
 test('shared deck guard composes cross demand without polluting native input or replaying camera layers', () => {
   const map = fixtureMap();
+  map.style = { getLayer: id => map.layers.get(id) };
   const native = fixtureDeckLayer('demand-points', { pointRadiusScale: 1 });
   const nativeTree = [native];
   map.__deck.props.layers = nativeTree;

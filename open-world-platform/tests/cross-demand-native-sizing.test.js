@@ -27,6 +27,7 @@ function setup() {
     updateTriggers: { data: [true, null, 0, 1] }, data: [],
   }, clone(overrides) { clones++; return { id: overrides.id, props: { ...this.props, ...overrides } }; } };
   const map = {
+    style: { getLayer: id => layers.get(id) },
     isStyleLoaded: () => true, getSource: id => sources.get(id), getLayer: id => layers.get(id),
     addSource(id, source) { sources.set(id, { ...source, setData(data) { this.data = data; } }); },
     addLayer(layer) { layers.set(layer.id, layer); layer.onAdd?.(map); },

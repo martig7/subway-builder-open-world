@@ -1,8 +1,10 @@
 import { findNativeDemandLayer, nativeDemandRadius, readNativeDemandPresentation } from './native-demand-presentation.js';
 
 export const CROSS_DEMAND_DECK_LAYER = 'open-world-cross-demand-points';
+export const NATIVE_DEMAND_DECK_CLEANUP_VERSION = 'destroyed-map-cleanup-v1';
 const OWNER = Symbol.for('open-world.cross-demand-deck');
 const EMPTY = Object.freeze([]);
+const hasLiveStyle = map => Boolean(map && !map._removed && map.style);
 const color = feature => {
   const hex = feature.properties.color;
   return [1, 3, 5].map(index => Number.parseInt(hex.slice(index, index + 2), 16)).concat(255);
@@ -32,6 +34,7 @@ export class NativeDemandDeckOverlay {
   }
 
   attachMap(map) {
+    globalThis.__openWorldNativeDemandDeckCleanupVersion = NATIVE_DEMAND_DECK_CLEANUP_VERSION;
     if (this.map === map) return;
     this.detachMap();
     map[OWNER]?.detachMap();
@@ -42,15 +45,19 @@ export class NativeDemandDeckOverlay {
 
   detachMap() {
     const map = this.map;
-    if (map?.[OWNER] === this) {
-      delete map[OWNER];
-      this.removeDrawLayer();
-      this.refresh();
+    try {
+      if (map?.[OWNER] === this) {
+        delete map[OWNER];
+        this.removeDrawLayer();
+        this.refresh();
+      }
+    } finally {
+      this.map = null;
+      this.drawLayer = null;
+      this.layer = null;
+      this.key = null;
+      this.data = EMPTY;
     }
-    this.map = null;
-    this.layer = null;
-    this.key = null;
-    this.data = EMPTY;
   }
 
   update({ data, active, viewMode, faded }) {
@@ -65,14 +72,16 @@ export class NativeDemandDeckOverlay {
 
   refresh() {
     if (!this.active || this.data.length === 0) this.removeDrawLayer();
+    if (!hasLiveStyle(this.map)) return;
     const deck = this.map?.__deck;
     const nativeLayers = deck?.__openWorldMovementDeckVisibilityGuard?.nativeLayers;
-    if (nativeLayers != null && !this.map?._removed) deck.setProps({ layers: nativeLayers });
+    if (nativeLayers != null) deck.setProps({ layers: nativeLayers });
   }
 
   ensureDrawLayer() {
-    const map = this.map, deck = map?.__deck;
-    if (!this.active || this.data.length === 0 || !map?.isStyleLoaded?.()) return;
+    const map = this.map;
+    if (!hasLiveStyle(map) || !this.active || this.data.length === 0 || !map.isStyleLoaded?.()) return;
+    const deck = map.__deck;
     const existing = map.getLayer?.(CROSS_DEMAND_DECK_LAYER);
     if (existing) { this.drawLayer = existing.implementation ?? existing; return; }
     const registrations = deck?.userData?.mapboxLayers;
@@ -87,15 +96,21 @@ export class NativeDemandDeckOverlay {
   }
 
   removeDrawLayer() {
-    const current = this.map?.getLayer?.(CROSS_DEMAND_DECK_LAYER);
-    if (current && (current.implementation ?? current) === this.drawLayer) {
-      this.map.removeLayer(CROSS_DEMAND_DECK_LAYER);
+    try {
+      // MapLibre removes its style before map-ready replaces this controller's
+      // map. Its public getLayer still exists but dereferences that dead style.
+      if (!hasLiveStyle(this.map)) return;
+      const current = this.map.getLayer?.(CROSS_DEMAND_DECK_LAYER);
+      if (current && (current.implementation ?? current) === this.drawLayer) {
+        this.map.removeLayer(CROSS_DEMAND_DECK_LAYER);
+      }
+    } finally {
+      this.drawLayer = null;
     }
-    this.drawLayer = null;
   }
 
   layerFor(nativeLayers) {
-    if (!this.active || this.data.length === 0) { this.layer = this.key = null; return null; }
+    if (!hasLiveStyle(this.map) || !this.active || this.data.length === 0) { this.layer = this.key = null; return null; }
     const native = findNativeDemandLayer(nativeLayers);
     if (typeof native?.clone !== 'function') { this.layer = this.key = null; return null; }
     this.ensureDrawLayer();
@@ -128,7 +143,7 @@ export class NativeDemandDeckOverlay {
   }
 
   pick(point) {
-    if (!point || !this.active || !this.map?.__deck?.pickMultipleObjects) return undefined;
+    if (!hasLiveStyle(this.map) || !point || !this.active || !this.map.__deck?.pickMultipleObjects) return undefined;
     return this.map.__deck.pickMultipleObjects({ x: point.x, y: point.y, radius: 4,
       depth: 16, layerIds: [CROSS_DEMAND_DECK_LAYER] }).map(info => info.object).filter(Boolean);
   }
