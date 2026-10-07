@@ -10,7 +10,8 @@ import {
   NATIVE_RIDERSHIP_RECORDING_VERSION,
 } from './native-finance-model.js';
 
-const EVALUATOR_SCHEMA_VERSION = 7;
+export const OFF_TILE_NATIVE_DEMAND_SCHEMA_VERSION = 7;
+const EVALUATOR_SCHEMA_VERSION = OFF_TILE_NATIVE_DEMAND_SCHEMA_VERSION;
 const POP_FIELDS = Object.freeze([
   'id', 'mass', 'homeIndex', 'workIndex', 'gatewayIndex',
   'drivingSeconds', 'drivingDistance', 'homeDepartureTime', 'workDepartureTime',

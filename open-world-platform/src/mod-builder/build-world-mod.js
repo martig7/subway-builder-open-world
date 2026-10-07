@@ -1,6 +1,9 @@
 import { precomputeRenderDistance } from '../runtime/render-distance.js';
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
+import { crossDemandHasCompleteDepartures } from '../runtime/derived-demand-cache.js';
 
 import { loadWorldDefinition } from '../contracts/load-world-definition.js';
 import { routeGeometryArtifacts, packagedRouteGeometry } from './route-geometry-artifact.js';
@@ -38,7 +41,7 @@ export function assertMapLabelPolicy(definition, manifest, tileId) {
   }
 }
 
-function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definition, worldDefinitionHash, nativeMapBounds, renderDistance }) {
+function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definition, worldDefinitionHash, nativeMapBounds, renderDistance, demandArtifactIdentities }) {
   const runtime = moduleSpecifier(consumerRoot, path.join(platformRoot, 'src', 'runtime', 'start-open-world.js'));
   const worldDefinition = moduleSpecifier(consumerRoot, path.join(worldRoot, 'world.json'));
   const catalog = moduleSpecifier(consumerRoot, path.join(worldRoot, definition.tileViews.catalog));
@@ -57,6 +60,7 @@ function generatedEntrySource({ consumerRoot, platformRoot, worldRoot, definitio
     '  boundaryOverlay,',
     '  artifacts: {',
     `    worldDefinitionHash: ${JSON.stringify(worldDefinitionHash)},`,
+    `    demandArtifactIdentities: ${JSON.stringify(demandArtifactIdentities)},`,
     '    commuteCatalog: __OPEN_WORLD_CROSS_COMMUTE_CATALOG__,',
     '    crossDemandGzipBase64: __OPEN_WORLD_CROSS_DEMAND_GZIP_BASE64__,',
     '    worldVegetationGzipBase64: __OPEN_WORLD_VEGETATION_GZIP_BASE64__,',
@@ -194,7 +198,23 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
     const bounds = manifest?.haloBounds ?? tile.bounds;
     if (Array.isArray(bounds) && bounds.length === 4 && bounds.every(Number.isFinite)) nativeMapBounds[tile.id] = bounds;
   }
-  const crossDemandGzipBase64 = (await readFile(crossDemandPath)).toString('base64');
+  const crossDemandBytes = await readFile(crossDemandPath);
+  const crossDemandGzipBase64 = crossDemandBytes.toString('base64');
+  // Demand byte identities let cold startup validate disposable routing
+  // results without inflating every Tile Package just to fingerprint it.
+  const nativeDemandPlan = await planArtifactFiles(selectedTiles.map(tile => ({
+    key: tile.id, source: path.join(packageRoot, tile.id, 'demand_data.json.gz'),
+    target: path.join(packageRoot, tile.id, 'demand_data.json.gz'),
+  })), { previous: Object.fromEntries(selectedTiles.map(tile => [tile.id, {
+    source: packageManifest.artifactState?.[`${tile.id}/demand_data.json.gz`]?.target,
+    target: packageManifest.artifactState?.[`${tile.id}/demand_data.json.gz`]?.target,
+  }])), repair });
+  const demandArtifactIdentities = {
+    nativeByTile: Object.fromEntries(nativeDemandPlan.files.map(file => [file.key, file.sourceIdentity.sha256])),
+    crossDemand: createHash('sha256').update(crossDemandBytes).digest('hex'),
+    commuteCatalog: createHash('sha256').update(crossCommutes).digest('hex'),
+    completeCrossDepartures: crossDemandHasCompleteDepartures(JSON.parse(gunzipSync(crossDemandBytes).toString('utf8'))),
+  };
 
   const esbuild = await loadEsbuild();
   const platformRoot = path.join(root, 'open-world-platform');
@@ -227,7 +247,7 @@ export async function buildWorldMod({ repositoryRoot, worldRoot, modRoot, artifa
       },
     }] : [],
     stdin: {
-      contents: generatedEntrySource({ consumerRoot, platformRoot, worldRoot: path.resolve(worldRoot), definition, worldDefinitionHash, nativeMapBounds, renderDistance }),
+      contents: generatedEntrySource({ consumerRoot, platformRoot, worldRoot: path.resolve(worldRoot), definition, worldDefinitionHash, nativeMapBounds, renderDistance, demandArtifactIdentities }),
       resolveDir: consumerRoot,
       sourcefile: 'open-world-entry.generated.js',
       loader: 'js',

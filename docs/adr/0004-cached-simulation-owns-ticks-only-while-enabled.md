@@ -56,6 +56,18 @@ SHA-256 keys include the session, exact compact demand (including departures),
 configured routing network, rules and fares. Moving train anchors do not enter
 this deterministic estimator's key. Cache failures permit bounded recomputation.
 
+Cross-network travel choices and off-tile native revenue forecasts also use a
+bounded, compressed, disposable IndexedDB cache. Its versioned keys validate
+the World and native session, packaged demand and catalog hashes, demand
+extensions, and the service, routing rules, fares, and departure context used by
+each evaluator. Numeric seconds and valid `HH:MM` values both define explicit
+packaged departure times and permit reuse within the same service day as the
+native clock advances; demand that falls back to the current clock includes that
+clock in its key. Cache adoption restores only calculated results, never money,
+financial history, receipts, or settlement cursors. World Records continue to
+exclude finance state. Missing, corrupt, unavailable, or oversized cache entries
+fall back to calculation, and a replaced session rejects late results.
+
 Enabling the mode reads valid assignments from disk or prepares them immediately.
 A changed save, Tile
 View, or demand set cannot reuse another context's assignments until midnight.

@@ -435,6 +435,17 @@ export class EmbeddedTilePackageAdapter {
     this.nativeDemand = new Map();
   }
   tileIds() { return [...this.catalogTileIds]; }
+  nativeDemandCacheIdentity(tileId) {
+    this.#assertTile(tileId);
+    return this.embeddedData?.demandArtifactIdentities?.nativeByTile?.[tileId] ?? null;
+  }
+  crossDemandCacheIdentity() {
+    const identity = this.embeddedData?.demandArtifactIdentities;
+    return identity?.crossDemand && identity?.commuteCatalog
+      ? { crossDemand: identity.crossDemand, commuteCatalog: identity.commuteCatalog,
+        completeDepartures: identity.completeCrossDepartures === true,
+        worldDefinition: this.embeddedData.worldDefinitionHash ?? null } : null;
+  }
   canSkipNativeDemandForUnservedTile(tileId) {
     this.#assertTile(tileId);
     // Every installed Tile View has a native demand package. A tile with no

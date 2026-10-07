@@ -49,6 +49,9 @@ test('rebuilding a synthetic consumer reuses packages and stores world data only
   const built = await buildWorldMod(options);
   await access(path.join(built.distPath, 'tile-ownership.bin.gz'));
   assert.match(await readFile(path.join(built.distPath, 'index.js'), 'utf8'), /tileOwnershipGzipBase64/);
+  const bundle = await readFile(path.join(built.distPath, 'index.js'), 'utf8');
+  assert.match(bundle, /demandArtifactIdentities/);
+  assert.ok(/"?completeCrossDepartures"?: true/.test(bundle), 'builder embeds complete-departure metadata');
   const archive = path.join(built.packageRoot, definition.tileViews.initialTileId, 'tiles.pmtiles');
   const before = await stat(archive, { bigint: true });
   const beforeLimits = JSON.parse(await readFile(path.join(built.distPath, 'render-distance.json'), 'utf8'));

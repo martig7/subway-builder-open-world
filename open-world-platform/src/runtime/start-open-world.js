@@ -19,6 +19,7 @@ import { registerNetworkProjectionOverlay } from './ui/network-projection-overla
 import { EmbeddedTilePackageAdapter, resolveRendererDataUrl, assertNativeDemandMemoryBudget } from './embedded-tile-package-adapter.js';
 import { createStartupDemandSettlement } from './startup-demand-settlement.js';
 import { createActiveDemandPreparation } from './active-demand-preparation.js';
+import { createDerivedDemandCache, createDerivedDemandDiskStore, STARTUP_DERIVED_DEMAND_CACHE_VERSION } from './derived-demand-cache.js';
 import { createOpenWorldCatalog } from './open-world-catalog.js';
 import { createOpenWorldCityRegistration } from './open-world-city-registration.js';
 import { createDailyModeShareInvalidation, registerCrossTileClockHooks, registerModeShareInvalidationHooks } from './mode-share-hook-policy.js';
@@ -345,6 +346,7 @@ export function startOpenWorld({
     resolveDataUrl: (path) => resolveRendererDataUrl(path),
     nativeDemandWorkerSource: workerSources.nativeDemandEvaluator ?? null,
   });
+  const derivedDemandCache = createDerivedDemandCache({ store: createDerivedDemandDiskStore({ namespace: definition.identity.manifestId }) });
   const activeDemandPreparation = workerSources.nativeDemandEvaluator ? createActiveDemandPreparation({ game,
     getState: () => game.callbacks.getState(), workerSource: workerSources.nativeDemandEvaluator,
     admit: () => demandExtensions.admit(),
@@ -395,6 +397,8 @@ export function startOpenWorld({
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
     inducedCrossDemandVersion: INDUCED_CROSS_DEMAND_VERSION,
     activeDemandPreparation: activeDemandPreparation?.snapshot,
+    derivedDemandCacheVersion: STARTUP_DERIVED_DEMAND_CACHE_VERSION,
+    derivedDemandCache: derivedDemandCache.snapshot,
     nativeCommuteWorkers: nativeCommuteWorkers?.snapshot,
     prototypeSaveReadinessVersion: PROTOTYPE_SAVE_READINESS_VERSION,
     intercityTrains,
@@ -505,6 +509,8 @@ export function startOpenWorld({
     tileCatalog,
     worldState,
     revenueAccrual,
+    derivedDemandCache,
+    getNativeSessionId: () => api.gameState.getGameSessionId?.() ?? null,
     // Subway Builder's canonical native topology remains loaded across Open World
     // tiles and is the sole authority for every operating/infrastructure cost.
     backgroundNativeExpenses: false,

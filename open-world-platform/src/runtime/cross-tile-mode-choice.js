@@ -2,7 +2,8 @@ import { RoutingLRU, indexRoutingGraph, compileRoutingCorridors } from './routin
 
 import { createBoundedModeChooser } from './bounded-mode-choice.js';
 import { createBoundedTransitSearch } from './transit-search/index.js';
-export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v3-bounded';
+import { demandDepartureSeconds } from './demand-departure-time.js';
+export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v4-packaged-departures';
 const EARTH_RADIUS_M = 6_371_000;
 // Subway Builder's straight-line station catchment uses RULES.WALKING_SPEED
 // (1 m/s), not WALKING_SPEED_ACCURATE_PATH (1.5 m/s).
@@ -63,7 +64,7 @@ function popFields(raw) {
 
 function popDepartureSeconds(pop, fields, worldSeconds) {
   if (!pop) return worldSeconds;
-  const departure = pop[fields.get('homeDepartureTime')];
+  const departure = demandDepartureSeconds(pop[fields.get('homeDepartureTime')]);
   if (!Number.isFinite(departure)) return worldSeconds;
   return Math.floor(worldSeconds / DAY_SECONDS) * DAY_SECONDS
     + ((departure % DAY_SECONDS) + DAY_SECONDS) % DAY_SECONDS;
