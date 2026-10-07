@@ -1,5 +1,6 @@
 import { RENDER_DISTANCE } from './renderer-virtualization.js';
 import { prototypeSaveProgressText } from '../prototype-save-progress.js';
+import { stationNameRepairText } from '../station-name-repair.js';
 
 export const RENDER_DISTANCE_CONTROL_VERSION = 'open-world-render-distance-km-v4';
 
@@ -16,7 +17,7 @@ export function renderDistanceLabel(value) {
 const mebibytes = bytes => `${(bytes / 1048576).toFixed(1)} MiB`;
 const seconds = ms => `${(ms / 1000).toFixed(1)} s`;
 
-export function RenderDistancePanel({ React, controller, simulation, saveWriter }) {
+export function RenderDistancePanel({ React, controller, simulation, saveWriter, stationNames }) {
   const h = React.createElement;
   const [settings, setSettings] = React.useState({ distance: controller.getRenderDistance(), shape: controller.getRenderShape?.() ?? 'circle' });
   const { distance, shape } = settings;
@@ -25,6 +26,8 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
   React.useEffect(() => simulation?.subscribe(setSimulationState), [simulation]);
   const [saveState, setSaveState] = React.useState(() => saveWriter?.snapshot());
   React.useEffect(() => saveWriter?.subscribe(setSaveState), [saveWriter]);
+  const [stationNameState, setStationNameState] = React.useState(() => stationNames?.snapshot());
+  React.useEffect(() => stationNames?.subscribe(setStationNameState), [stationNames]);
   React.useEffect(() => {
     // Re-probe when the panel opens while unconfigured (e.g. the writer
     // started after the mod loaded). The controller throttles attempts so
@@ -73,6 +76,14 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter 
     shape === 'circle' ? 'Radius from the selected tile center.' : 'Half the side length, centered on the selected tile.'),
   h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
     'Higher distances draw more neighboring tiles and may reduce map performance.'),
+  stationNames && h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
+    h('button', { type: 'button', className: 'rounded-md border px-2 py-1 text-sm disabled:opacity-50',
+      disabled: stationNameState?.status === 'running' || !stationNames.snapshot().available,
+      onClick: () => { void stationNames.run(); } },
+    stationNameState?.status === 'running' ? 'Filling station names…' : 'Fill blank station names'),
+    h('div', { role: 'status', className: 'text-xs', 'aria-live': 'polite' }, stationNameRepairText(stationNameState)),
+    h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
+      'Fills empty names and “Station” using nearby loaded roads. For stations still unnamed outside this tile, switch to their tile and run again.')),
   simulation && h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
     h('label', { className: 'flex items-center gap-2 text-sm font-medium' },
       h('input', { type: 'checkbox', role: 'switch', id: 'open-world-cached-simulation',
@@ -116,6 +127,7 @@ export function registerRenderDistanceToolbar({
   controller,
   simulation,
   saveWriter,
+  stationNames,
   panelId = 'open-world-render-distance',
 } = {}) {
   if (typeof api?.ui?.addToolbarPanel !== 'function') return null;
@@ -128,7 +140,7 @@ export function registerRenderDistanceToolbar({
     tooltip: 'Map rendering',
     title: 'Map rendering',
     width: 340,
-    render: () => React.createElement(RenderDistancePanel, { React, controller, simulation, saveWriter }),
+    render: () => React.createElement(RenderDistancePanel, { React, controller, simulation, saveWriter, stationNames }),
   });
   return { registration, panelId };
 }

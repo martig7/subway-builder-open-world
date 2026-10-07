@@ -31,6 +31,7 @@ import { relaxMapZoomLimits } from './map-zoom-limits.js';
 import { registerGeographicContextOverlay } from './ui/geographic-context-overlay.js';
 import { createWorldVegetationLoader } from './ui/world-vegetation.js';
 import { registerRenderDistanceToolbar } from './ui/render-distance-panel.js';
+import { createStationNameRepair } from './station-name-repair.js';
 import {
   refreshCityScopedMapArtifacts,
   syncCityScopedMapControllers,
@@ -902,6 +903,12 @@ export function startOpenWorld({
     },
   });
   diagnostics.prototypeSaveWriter = prototypeSaveWriter;
+  const stationNames = createStationNameRepair({ game,
+    isReady: () => ready && isCurrent() && ownsCurrentCity() && !tileSimulationHandoff.isPending()
+      && prototypeSaveWriter.snapshot().status !== 'saving',
+    getContextKey: () => loadEpoch,
+  });
+  diagnostics.stationNames = stationNames;
   // The experimental writer is a native part of the mod: connect without the
   // manual per-session pairing step. The standalone prototype port comes first
   // so the happy path is a single silent success; the world's tile server
@@ -989,6 +996,7 @@ export function startOpenWorld({
         controller: geographicContextController,
         simulation: simulationControls,
         saveWriter: prototypeSaveWriter,
+        stationNames,
         panelId: `${namespace}-render-distance`,
       }));
     }
@@ -2080,6 +2088,7 @@ export function startOpenWorld({
   const controller = Object.freeze({
     cachedSimulation,
     simulationControls,
+    stationNames,
     modePreferences,
     platformRelease: OPEN_WORLD_PLATFORM_RELEASE,
     definition,
@@ -2103,6 +2112,7 @@ export function startOpenWorld({
       demandContext.dispose();
       void cachedSimulation.dispose();
       prototypeSaveWriter.dispose();
+      stationNames.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {
         try { unsubscribe(); } catch {}
       }

@@ -7,6 +7,7 @@ import { armTileRenderingRetirement } from '../tile-rendering-retirement.js';
 import { createNetworkProfile } from '../cross-tile-mode-choice.js';
 import { NativeCommuteIndex } from '../native-commute-index.js';
 import { readDriveToStationAccess } from '../native-routing-settings.js';
+import { isBlankStationName } from '../station-name-repair.js';
 import {
   CANONICAL_NATIVE_NETWORK_MODE,
   mergeSharedTransitNetworkState,
@@ -2184,6 +2185,54 @@ export class SubwayBuilderGameAdapter {
 
   readLoadedCityCode() {
     return readLiveSubwayBuilderCityCode({ api: this.api, callbacks: this.callbacks });
+  }
+
+  beginStationNameRepair() {
+    const initial = this.#state();
+    if (typeof initial.updateStationName !== 'function' || typeof initial.roadsIndex?.search !== 'function') {
+      throw new Error('Automatic station naming is unavailable. Wait for the tile to finish loading.');
+    }
+    const sessionId = this.api.gameState?.getGameSessionId?.();
+    const groupById = new Map((initial.trackGroups ?? []).map(group => [group.id, group]));
+    const isCurrent = () => {
+      const live = this.#state();
+      return live.cityCode === initial.cityCode && live.roadsIndex === initial.roadsIndex
+        && live.trackGroups === initial.trackGroups && this.api.gameState?.getGameSessionId?.() === sessionId;
+    };
+    return {
+      stationIds: (initial.stations ?? []).filter(station => isBlankStationName(station.name)).map(station => station.id),
+      isCurrent,
+      refresh: id => {
+        const live = this.#state();
+        const station = live.stationsMap?.get(id) ?? live.stations.find(candidate => candidate.id === id);
+        // A player may rename or delete a station between browser tasks.
+        if (!station || !isBlankStationName(station.name)) return 'skipped';
+        const centerLine = groupById.get(station.trackGroupId)?.centerLine;
+        if (station.name?.trim() === 'Station' && centerLine?.length >= 2
+          && centerLine.every(coords => Array.isArray(coords) && coords.length >= 2 && coords.slice(0, 2).every(Number.isFinite))) {
+          // Native naming searches at most 0.01 degrees from the platform
+          // midpoint. The full platform bounds are a conservative superset.
+          // Empty results cannot produce a name, so avoid a needless native
+          // station/group rebuild for distant off-tile placeholders. Empty
+          // string names still go through native fallback naming unchanged.
+          const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+          for (const [x, y] of centerLine) {
+            bounds.minX = Math.min(bounds.minX, x - 0.01);
+            bounds.minY = Math.min(bounds.minY, y - 0.01);
+            bounds.maxX = Math.max(bounds.maxX, x + 0.01);
+            bounds.maxY = Math.max(bounds.maxY, y + 0.01);
+          }
+          if (live.roadsIndex.search(bounds).length === 0) return 'unresolved';
+        }
+        // Same native action as the station panel's refresh button. It selects
+        // street/intersection names, applies formatting and updates groups/saves.
+        // It can also name off-tile stations covered by the loaded roads index.
+        live.updateStationName(id, { type: 'auto' });
+        const after = this.#state();
+        const renamed = after.stationsMap?.get(id) ?? after.stations.find(candidate => candidate.id === id);
+        return renamed && !isBlankStationName(renamed.name) ? 'renamed' : 'unresolved';
+      },
+    };
   }
 
   reassertLoadedCityCode(cityCode) {
