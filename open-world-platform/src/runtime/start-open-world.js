@@ -55,6 +55,7 @@ import { storedRouteLoader } from './stored-route-paths.js';
 import { createCrossModeShareEvaluator } from './cross-mode-share-evaluator.js';
 import { monitorSharedTileServerHealth } from './tile-server-health.js';
 import { createCachedSimulation } from './cached-simulation.js';
+import { NATIVE_EXPENSE_LENGTH_VERSION } from './native-finance-model.js';
 import { createTileSimulationHandoff, TILE_SIMULATION_HANDOFF_VERSION } from './tile-simulation-handoff.js';
 import { createRuntimeModePreferences } from './runtime-mode-preferences.js';
 import { createNativeRoadLabelSourceGuard } from './native-road-label-source.js';
@@ -413,6 +414,7 @@ export function startOpenWorld({
   let tileSourceStyleHandler = null;
   let renderDistanceToolbarRegistered = false;
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
+    nativeExpenseLengthVersion: NATIVE_EXPENSE_LENGTH_VERSION,
     inducedCrossDemandVersion: INDUCED_CROSS_DEMAND_VERSION,
     activeDemandPreparation: activeDemandPreparation?.snapshot,
     derivedDemandCacheVersion: STARTUP_DERIVED_DEMAND_CACHE_VERSION,

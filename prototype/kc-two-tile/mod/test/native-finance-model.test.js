@@ -161,6 +161,41 @@ test('global expense profile prefers live public train-type prices', () => {
   assert.equal(profile.routeHourly.R[7], 2 * (10 + 3 * 2) * 365);
 });
 
+test('service expense refresh uses stored track lengths without traversing geometry', () => {
+  let geometryReads = 0;
+  const tracks = Array.from({ length: 1600 }, (_, i) => ({
+    id: `track-${i}`, buildType: 'constructed', trackType: 'commuter-rail', length: 100,
+    get coords() { geometryReads++; return [[139, 35], [139.1, 35.1]]; },
+  }));
+  const state = {
+    routes: [{ id: 'R', trainType: 'commuter-rail', trainSchedule: { highDemand: 2 } }],
+    tracks, trackGroups: tracks.map(track => ({ id: track.id, type: 'track', trackIds: [track.id] })),
+  };
+  const before = calculateGlobalExpenseProfile(state);
+  const after = calculateGlobalExpenseProfile({ ...state,
+    routes: [{ ...state.routes[0], trainSchedule: { highDemand: 3 } }],
+  });
+  assert.equal(geometryReads, 0);
+  assert.deepEqual(after.infrastructureItems, before.infrastructureItems);
+  assert.equal(after.routeHourly.R[7], before.routeHourly.R[7] * 1.5);
+  assert.equal(after.infrastructureItems[0].hourlyCost, 100 * 300 / 24);
+});
+
+test('infrastructure expenses still derive missing or invalid lengths from geometry', () => {
+  let geometryReads = 0;
+  const tracks = [undefined, NaN, Infinity, 'invalid'].map((length, i) => ({
+    id: `fallback-${i}`, buildType: 'constructed', trackType: 'commuter-rail', length,
+    get coords() { geometryReads++; return [[139, 35], [139.001, 35]]; },
+  }));
+  const profile = calculateGlobalExpenseProfile({ tracks,
+    trackGroups: tracks.map(track => ({ id: track.id, type: 'track', trackIds: [track.id] })),
+  });
+  assert.equal(geometryReads, tracks.length);
+  const costs = profile.infrastructureItems.map(item => item.hourlyCost);
+  assert.ok(costs[0] > 1000 && costs[0] < 1200);
+  assert.ok(costs.every(cost => cost === costs[0]));
+});
+
 test('global expense profile accepts explicit owned tracks without removing their groups', () => {
   const profile = calculateGlobalExpenseProfile({
     routes: [],

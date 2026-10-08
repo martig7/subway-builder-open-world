@@ -7,6 +7,7 @@ const NATIVE_ANNUALIZATION = 365;
 const NATIVE_REVENUE_PROFILE_SCHEMA_VERSION = 5;
 const COMMUTE_DIRECTIONS = Object.freeze(['homeToWork', 'workToHome']);
 export const NATIVE_RIDERSHIP_RECORDING_VERSION = 'whole-person-ridership-v1';
+export const NATIVE_EXPENSE_LENGTH_VERSION = 'native-expense-stored-length-v1';
 
 /**
  * Finance ownership is deliberately independent from the topology sidecar.
@@ -461,6 +462,13 @@ export function calculateNativeRevenueProfile(pops = [], {
   };
 }
 
+function trackMaintenanceLengthMeters(track) {
+  const stored = Number(track.length);
+  // Service edits do not change geometry. Evaluating a fallback as a function
+  // argument would walk every track even when the native length is valid.
+  return Math.max(0, Number.isFinite(stored) ? stored : lineLengthMeters(track.coords));
+}
+
 /** Build global operating and infrastructure costs once per network update. */
 export function calculateGlobalExpenseProfile(
   nativeState = {},
@@ -517,7 +525,7 @@ export function calculateGlobalExpenseProfile(
       continue;
     }
     for (const track of tracks) {
-      const length = Math.max(0, finite(track.length, lineLengthMeters(track.coords)));
+      const length = trackMaintenanceLengthMeters(track);
       infrastructureItems.push({
         id: `track:${track.id}`,
         category: 'trackMaintenance',
