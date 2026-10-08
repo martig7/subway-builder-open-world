@@ -229,3 +229,52 @@ Raw captures and machine-local helpers remain Git-ignored under `.analysis/`:
 `perf-native-roadworker-replay.json`, `perf-memory-package-census.json`, and
 `perf-instrumented-check.json`. Initial unmatched after-reload captures were
 retained for transparency but excluded from the comparison table.
+
+## Follow-up: retain visible markers during zoom
+
+`native-zoom-refresh-v1` coalesces the native React zoom notification until
+250 ms after a gesture ends. MapLibre and Deck keep moving their camera and
+rendering the existing station dots and labels. The game then rebuilds its
+marker model at the exact final zoom; its own 200 ms debounce can also apply
+to small zoom changes. Other native detail changes using the same React zoom
+value are deferred too. This removes repeated work during the gesture, while
+the final full native rebuild can still cause a pause.
+
+Construction, route editing, annotations, unknown interaction state, and
+immediate camera jumps retain native behavior. Discovery checks the mounted
+React map binding and callback shape, rather than importing a hashed native
+bundle. Unsupported bindings keep native behavior. Pending work is canceled
+on session/tile changes, map removal, and runtime disposal; reattachment
+replaces the previous guard and wrapper.
+
+The guard retains only current props/callbacks, one pending event, and one
+timer. It adds no station-model cache or worker. A weak reference to the native
+UI state queue avoids retaining its React component tree. A bounded Node GC
+regression verifies collection of replaced props, callbacks, event payloads,
+and the old UI tree while the guard remains installed. No live game GC or
+heap snapshot was used for this follow-up.
+
+The installed Japan runtime reports generation 4 and `native-zoom-refresh-v1`.
+In live checks at zoom 14.4 and 16.2, each 42-notification burst produced one
+refresh. Both station layers remained enabled and visible, and the prior native
+model remained in use during the gesture. Final dots, labels, picking metadata,
+and candidate positions/importance matched the native rendering signatures at
+both zoom levels, including the grouped/individual station transition.
+
+The camera, layer settings, paused clock, cached simulation mode, and counts of
+1,462 stations, 277 routes, 9,324 tracks, and 1,287 trains were restored/preserved.
+The renderer was background-throttled during these checks, so no new FPS or
+frame-time improvement is claimed. Foreground timing remains a separate check.
+
+- Platform/fixture tests: **1,333 passed**; Japan tests: **7 passed**.
+- Built from `prototype/japan/mod`; installed `local.japan-open-world` only.
+- Built/installed SHA-256:
+  `0ED23DC7F9583FB4599E6EDD4F9FBC1ECDD9DB0C7A73F0FF5758E132A5C1C52D`.
+- Matching bundle timestamp: `2026-10-08T00:44:03.6772595Z`.
+- PMTiles port 8799: HTTP 200, `native-pmtiles-directory-v4`.
+- Map-move diagnostics were reset before each gesture check, then disabled.
+
+`__japanDiagnostics__.nativeZoomRefresh` exposes `snapshot()`, `reset()`, and a
+temporary `setEnabled(boolean)` bypass for matched foreground comparisons.
+The guard is enabled in the final running game. Raw follow-up captures remain
+Git-ignored under `.analysis/native-zoom-*.json`.

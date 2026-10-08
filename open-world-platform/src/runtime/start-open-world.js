@@ -47,6 +47,7 @@ import { NativeRevenueAccrual } from './native-revenue-accrual.js';
 import { stageNativeRecovery } from './native-reload-recovery.js';
 import { installNativeSavedReloadGuard } from './native-saved-reload-guard.js';
 import { findNativeAutosaveRef, installNativeAutosaveIdleGuard } from './native-autosave-idle-guard.js';
+import { findNativeZoomBinding, installNativeZoomRefreshGuard } from './native-zoom-refresh-guard.js';
 import { createPrototypeSaveController } from './prototype-save-controller.js';
 import { PROTOTYPE_SAVE_READINESS_VERSION, prototypeSaveBusyReason } from './prototype-save-readiness.js';
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
@@ -354,6 +355,22 @@ export function startOpenWorld({
     getDemandRevisionKey: tileId => demandExtensions.cacheKeyFor(tileId) }) : null;
   if (activeDemandPreparation) tilePackages.prepareActiveNativeDemand = activeDemandPreparation.prepare;
   let latestMap = api.utils?.getMap?.() ?? null;
+  let nativeZoomRefreshGuard = null, nativeZoomRefreshMap = null;
+  function detachNativeZoomRefreshGuard() {
+    nativeZoomRefreshGuard?.dispose();
+    nativeZoomRefreshGuard = null;
+    nativeZoomRefreshMap = null;
+  }
+  function attachNativeZoomRefreshGuard() {
+    const map = latestMap;
+    if (!map || map._removed || !isCurrent() || !ownsCurrentCity()) return;
+    if (nativeZoomRefreshGuard?.installed && nativeZoomRefreshMap === map) return;
+    detachNativeZoomRefreshGuard();
+    nativeZoomRefreshGuard = installNativeZoomRefreshGuard({ ...findNativeZoomBinding(map), map,
+      getIdentity: () => isCurrent() && latestMap === map && ownsCurrentCity()
+        ? `${api.gameState.getGameSessionId?.()}:${currentCityCode()}:${loadEpoch}` : null });
+    nativeZoomRefreshMap = map;
+  }
   let autosaveIdleGuard = null, autosaveIdleMap = null;
   const noteAutosaveMapMovement = () => autosaveIdleGuard?.noteMovement?.();
   const noteMapMoveStart = () => rendererMemory.recordActivity('map.move.start', { tileId: currentCityCode() });
@@ -1893,6 +1910,7 @@ export function startOpenWorld({
   async function ensureLifecyclePanel() {
     if (!isCurrent()) return;
     attachAutosaveIdleGuard();
+    attachNativeZoomRefreshGuard();
     const loadedCityCode = currentCityCode();
     if (!registration.cities.includes(loadedCityCode)) return;
     if (!gameLoadObserved) {
@@ -1986,6 +2004,7 @@ export function startOpenWorld({
     roadLabelSourceGuard.attach(map);
     if (!ownsLoadedCity) {
       detachAutosaveIdleGuard();
+      detachNativeZoomRefreshGuard();
       tileCacheBudget.attach(null);
       tileSourceStyleHandler = null;
       return;
@@ -2019,6 +2038,7 @@ export function startOpenWorld({
   ownedHooks.onGameEnd(() => {
     if (!isCurrent()) return;
     detachAutosaveIdleGuard();
+    detachNativeZoomRefreshGuard();
     tileCacheBudget.attach(null);
     rendererMemory.recordActivity('game.end', { tileId: currentCityCode() });
     const pending = navigation.pending();
@@ -2072,6 +2092,11 @@ export function startOpenWorld({
     snapshot: () => nativeReloadRecovery.snapshot?.() ?? null,
   };
   diagnostics.nativeAutosaveIdle = { snapshot: () => autosaveIdleGuard?.snapshot?.() ?? { installed: false } };
+  diagnostics.nativeZoomRefresh = {
+    snapshot: () => nativeZoomRefreshGuard?.snapshot?.() ?? { installed: false },
+    reset: () => nativeZoomRefreshGuard?.reset?.(),
+    setEnabled: value => nativeZoomRefreshGuard?.setEnabled?.(value),
+  };
   console.info(`${logLabel} registered`, registration);
   schematicContext = registerSchematicContext({
     definition, tileCatalog, tileUrl: city => tileUrl(city, tileBase), loadVegetation: worldVegetationLoader,
@@ -2120,6 +2145,7 @@ export function startOpenWorld({
       nativeReloadRecovery.dispose();
       roadLabelSourceGuard.dispose();
       detachAutosaveIdleGuard();
+      detachNativeZoomRefreshGuard();
       tileCacheBudget.dispose();
       rendererMemory.dispose();
       rendererRecorder?.dispose();
@@ -2135,5 +2161,6 @@ export function startOpenWorld({
   globalThis[activeRuntimeKey] = controller;
   roadLabelSourceGuard.attach(latestMap);
   attachAutosaveIdleGuard();
+  attachNativeZoomRefreshGuard();
   return controller;
 }
