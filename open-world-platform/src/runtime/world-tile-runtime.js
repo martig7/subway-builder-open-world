@@ -1,3 +1,4 @@
+import { beginCapacityEvaluation } from './transit-capacity.js';
 import { assertWorld, createWorld, deepCopy, migrateWorldTileSet } from './world-model.js';
 import { projectCrossDemandExtensions } from './cross-demand-extension-projection.js';
 import { createFrameBudget } from './frame-budget.js';
@@ -37,12 +38,12 @@ const NATIVE_FINANCE_AUDIT_SCHEMA_VERSION = 3;
 const PASSIVE_RECALCULATION_REASONS = new Set(['startup', 'save-load', 'city-load', 'tile-transition']);
 export const NATIVE_REVENUE_RECOVERY_VERSION = 'native-revenue-profile-retry-v1';
 const NATIVE_DEMAND_TILE_GUARD_METERS = 3_000;
-const CROSS_MODE_SHARE_SCHEMA_VERSION = 2;
+const CROSS_MODE_SHARE_SCHEMA_VERSION = 3;
 const DEMAND_OPERATION_KEYS = ['providerId','definitionId','resolvedWorldId','tileId','nativeSessionId','epoch','providerGeneration'];
 const DERIVED_PROFILE_FIELDS = ['schemaVersion', 'ridershipRecording', 'hourly', 'transitPopulation', 'dailyRevenue',
   'revenueOwnership', 'commuteModel', 'customCrossTileRevenue', 'nativeRevenue', 'accountingOwnership', 'tileId',
   'source', 'evaluatorSchemaVersion', 'contextKey', 'evaluationKey', 'networkSignature', 'evaluatedPops',
-  'skippedPops', 'transitViablePops', 'modeChoicePopulation', 'ridershipByRoute', 'routingStats', 'demandRevisionKey'];
+  'skippedPops', 'transitViablePops', 'modeChoicePopulation', 'ridershipByRoute', 'routingStats', 'demandRevisionKey', 'capacityVersion', 'capacityReservations', 'capacityStats'];
 
 function disposableProfile(profile) {
   return Object.fromEntries(DERIVED_PROFILE_FIELDS.filter(key => Object.hasOwn(profile, key)).map(key => [key, deepCopy(profile[key])]));
@@ -780,6 +781,7 @@ export class WorldTileRuntime {
       };
     }
     const results = { evaluated: 0, cached: 0, unavailable: [], failed: [] };
+    const trainTypes = this.game.captureTrainTypes?.() ?? [];
     const pathfindingRules = this.game.capturePathfindingRules?.() ?? networkProfile?.pathfindingRules ?? {};
     finance.routingRulesKey = JSON.stringify(pathfindingRules);
     const globalState = world.globalNetwork?.nativeState ?? null;
@@ -811,7 +813,7 @@ export class WorldTileRuntime {
               tileId: candidateTileId,
               stations: localized.stations,
               routes: localized.routes,
-              trains: localized.trains,
+              trains: localized.trains, trainTypes,
               pathfindingRules,
             })
             : globalState
@@ -819,11 +821,12 @@ export class WorldTileRuntime {
                 tileId: candidateTileId,
                 stations: globalState.stations ?? [],
                 routes: globalState.routes ?? [],
-                trains: globalState.trains ?? [],
+                trains: globalState.trains ?? [], trainTypes,
                 pathfindingRules,
               })
             : (candidateTileId === tileId ? networkProfile : world.tiles?.[candidateTileId]?.networkProfile);
           if (!candidateProfile) { results.unavailable.push(candidateTileId); continue; }
+          world.tiles[candidateTileId].networkProfile = candidateProfile;
           const candidateRouteIds = localized?.routeIds
             ?? new Set((candidateProfile.routes ?? []).map((route) => String(route.id)));
           const localFinanceOwnedRouteIds = financeOwnedRouteIds.filter((routeId) => (
@@ -831,7 +834,12 @@ export class WorldTileRuntime {
           ));
           const localFarePolicy = localizedFarePolicy(world.farePolicy, globalState, candidateRouteIds);
           const demandRevisionKey = this.demandExtensions?.cacheKeyFor(candidateTileId) ?? null;
+          const capacityTransaction = beginCapacityEvaluation({ worldId: world.worldId,
+            capacityScope: `open-world:${this.getNativeSessionId() ?? world.worldId}`,
+            tileId: candidateTileId, networkProfile: candidateProfile });
+          const capacityBudget = capacityTransaction.input.capacityBudget;
           const contextKey = offTileNativeDemandContextKey({
+            capacityBudget,
             tileId: candidateTileId,
             networkProfile: candidateProfile,
             farePolicy: localFarePolicy,
@@ -844,7 +852,7 @@ export class WorldTileRuntime {
             ? await derivedDemandContextKey({ kind: 'native-profile', version: STARTUP_DERIVED_DEMAND_CACHE_VERSION,
               evaluatorSchemaVersion: OFF_TILE_NATIVE_DEMAND_SCHEMA_VERSION, routingVersion: CROSS_ROUTING_CACHE_VERSION,
               worldId: world.worldId, nativeSessionId: this.getNativeSessionId(), tileId: candidateTileId,
-              artifactIdentity, network: cacheNetworkProfile(candidateProfile, true), farePolicy: localFarePolicy,
+              capacityBudget, artifactIdentity, network: cacheNetworkProfile(candidateProfile, true), farePolicy: localFarePolicy,
               financeOwnedRouteIds: [...localFinanceOwnedRouteIds].map(String).sort(), demandRevisionKey }) : null;
           if (!isCurrent()) return results;
           if (diskKey && (!isCurrentOffTileNativeDemandProfile(existingProfile) || existingProfile.contextKey !== contextKey)) {
@@ -863,6 +871,7 @@ export class WorldTileRuntime {
           }
           if (isCurrentOffTileNativeDemandProfile(existingProfile)
             && existingProfile.contextKey === contextKey) {
+            capacityTransaction.commit({ profile: existingProfile });
             results.cached++;
             this.telemetry({
               phase: 'off-tile-native-demand',
@@ -885,6 +894,7 @@ export class WorldTileRuntime {
             && existingProfile == null
             && this.tilePackages.canSkipNativeDemandForUnservedTile?.(candidateTileId) === true;
           const evaluationInput = {
+            capacityBudget, capacityScope: `open-world:${this.getNativeSessionId() ?? world.worldId}`,
             worldId: world.worldId,
             tileId: candidateTileId,
             networkProfile: candidateProfile,
@@ -922,6 +932,7 @@ export class WorldTileRuntime {
             }
             result = evaluateOffTileNativeDemand({ ...evaluationInput, demand });
           }
+          capacityTransaction.commit(result);
           finance.tileRevenueProfiles[candidateTileId] = deepCopy(result.profile);
           if (diskKey && isCurrentOffTileNativeDemandProfile(result.profile)) {
             try { await this.derivedDemandCache.write(diskKey, { version: STARTUP_DERIVED_DEMAND_CACHE_VERSION,
@@ -1086,6 +1097,16 @@ export class WorldTileRuntime {
           this.world.backgroundNativeFinance?.tileRevenueProfiles?.[tileId],
           { activeTile: tileId === this.world.activeTileId },
       ));
+      if (passiveCacheReady) {
+        const capacityScope = `open-world:${this.getNativeSessionId() ?? this.world.worldId}`;
+        for (const [id, tile] of Object.entries(this.world.tiles)) {
+          const transaction = beginCapacityEvaluation({ worldId: this.world.worldId, capacityScope,
+            tileId: id, networkProfile: tile.networkProfile });
+          transaction.commit({ profile: this.world.backgroundNativeFinance.tileRevenueProfiles[id] });
+        }
+        const profiles = Object.fromEntries(Object.entries(this.world.tiles).map(([id,t]) => [id,t.networkProfile]));
+        beginCapacityEvaluation({ worldId: this.world.worldId, capacityScope, networkProfiles: profiles }, 'cross').commit(this.world.crossModeShare);
+      }
       if (!force && PASSIVE_RECALCULATION_REASONS.has(reason) && passiveCacheReady) {
         const result = { ...this.world.crossModeShare, status: 'cached', reason, day };
         this.telemetry({ phase: 'cross-mode-share', ...result });
@@ -1178,9 +1199,12 @@ export class WorldTileRuntime {
       if (!current()) return cancelled();
       const completeDepartures = crossIdentity?.completeDepartures === true
         && extensionRecords.every(record => (record.payload?.crossPops ?? []).every(pop => demandDepartureSeconds(pop.homeDepartureTime) != null));
+      const capacityTransaction = beginCapacityEvaluation({ worldId: this.world.worldId,
+        capacityScope: `open-world:${this.getNativeSessionId() ?? this.world.worldId}`, networkProfiles }, 'cross');
+      const capacityBudget = capacityTransaction.input.capacityBudget;
       const diskKey = this.derivedDemandCache && this.getNativeSessionId() && crossIdentity
         ? await derivedDemandContextKey({ kind: 'cross-choices', version: STARTUP_DERIVED_DEMAND_CACHE_VERSION,
-          routingVersion: CROSS_ROUTING_CACHE_VERSION, modeShareSchemaVersion: CROSS_MODE_SHARE_SCHEMA_VERSION,
+          routingVersion: CROSS_ROUTING_CACHE_VERSION, modeShareSchemaVersion: CROSS_MODE_SHARE_SCHEMA_VERSION, capacityBudget,
           worldId: this.world.worldId, nativeSessionId: this.getNativeSessionId(), crossIdentity,
           networkProfiles: Object.fromEntries(Object.entries(networkProfiles).map(([id, network]) => [id, cacheNetworkProfile(network)])),
           farePolicy: this.world.farePolicy, gatewayCatalog: this.world.gatewayCatalog,
@@ -1217,6 +1241,8 @@ export class WorldTileRuntime {
             this.world.crossDemandRevisionKey = staged.crossDemandRevisionKey;
             this.world.commuteNextActivityHour = staged.commuteNextActivityHour;
             this.world.commuteLedgerSchemaVersion = staged.commuteLedgerSchemaVersion;
+            Object.assign(this.world.crossModeShare, { capacityReservations: cached.capacityReservations });
+            capacityTransaction.commit(cached);
             const result = { status: 'cached', tileId, nativeFinanceProfile, backgroundFinance, ...metadata,
               diskCache: 'hit', derivedDemandCacheVersion: STARTUP_DERIVED_DEMAND_CACHE_VERSION };
             this.telemetry({ phase: 'cross-mode-share', ...result });
@@ -1233,6 +1259,7 @@ export class WorldTileRuntime {
         return { status: 'no-cross-demand', reason, day, nativeFinanceProfile, backgroundFinance };
       }
       const calculated = await evaluateCrossModeShares({
+        capacityBudget, capacityScope: `open-world:${this.getNativeSessionId() ?? this.world.worldId}`,
         worldId: this.world.worldId,
         crossDemand,
         networkProfiles,
@@ -1243,6 +1270,7 @@ export class WorldTileRuntime {
         requestedDepartureSeconds: this.world.elapsedSeconds,
       });
       if (!current()) return cancelled();
+      capacityTransaction.commit(calculated);
       reconcileExtensionCommuteFlows(this.world, crossDemand.extensionFlows ?? [], this.demandExtensions?.crossKeyFor?.() ?? null);
       const metadata = applyModeShares(this.world, calculated.totals, {
         reason,
@@ -1253,8 +1281,10 @@ export class WorldTileRuntime {
         transitJourneys: calculated.transitJourneys,
         contextKey: crossModeShareContextKey(this.world),
       });
+      Object.assign(this.world.crossModeShare, { capacityReservations: calculated.capacityReservations });
       if (diskKey) {
         try { await this.derivedDemandCache.write(diskKey, { version: STARTUP_DERIVED_DEMAND_CACHE_VERSION,
+          capacityReservations: calculated.capacityReservations, capacityVersion: calculated.capacityVersion,
           kind: 'cross-choices', totals: [...calculated.totals], transitJourneys: [...calculated.transitJourneys],
           popModeChoices: calculated.popModeChoices, evaluatedPops: calculated.evaluatedPops,
           transitViablePops: calculated.transitViablePops, extensionFlows: crossDemand.extensionFlows ?? [] }); }

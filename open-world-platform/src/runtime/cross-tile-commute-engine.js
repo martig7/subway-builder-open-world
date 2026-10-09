@@ -361,7 +361,7 @@ export function applyModeShares(world, totals, {
     Object.entries(popModeChoices).map(([popId, modes]) => [popId, { ...modes }]),
   );
   world.crossModeShare = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     contextKey,
     day,
     reason,

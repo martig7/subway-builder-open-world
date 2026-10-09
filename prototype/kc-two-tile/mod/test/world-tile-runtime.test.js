@@ -1143,7 +1143,7 @@ test('cached native demand is not recalculated by startup, save-load, or tile li
   });
   await runtime.boot('passive-lifecycle-cache', 'KCW');
   runtime.world.crossModeShare = {
-    schemaVersion: 2, day: 1, reason: 'midnight-change', calculatedAtHour: 24,
+    schemaVersion: 3, day: 1, reason: 'midnight-change', calculatedAtHour: 24,
     evaluatedPops: 0, transitViablePops: 0, changedFlows: 0, revision: 1,
     contextKey: crossModeShareContextKey(runtime.world),
   };
@@ -1174,7 +1174,7 @@ test('passive mode-share cache invalidates when fare or timetable context change
   });
   await runtime.boot('passive-context-cache', 'KCW');
   runtime.world.crossModeShare = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     contextKey: crossModeShareContextKey(runtime.world),
     revision: 1,
   };

@@ -1,7 +1,7 @@
 // These are disposable routing outputs. Native Saves and World Records never
 // depend on this database, and no balance, receipt or settlement cursor enters it.
 import { demandDepartureSeconds } from './demand-departure-time.js';
-export const STARTUP_DERIVED_DEMAND_CACHE_VERSION = 'startup-derived-demand-cache-v1';
+export const STARTUP_DERIVED_DEMAND_CACHE_VERSION = 'startup-derived-demand-cache-v2-capacity';
 const MAX_ENTRY_BYTES = 32 * 1024 ** 2;
 const MAX_RAW_ENTRY_BYTES = 128 * 1024 ** 2;
 const MAX_TOTAL_BYTES = 128 * 1024 ** 2;

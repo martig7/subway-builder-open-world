@@ -1,7 +1,7 @@
 {
   "name": "subway-builder-ultra-speed-mod",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "build": "node scripts/build-mod.mjs",

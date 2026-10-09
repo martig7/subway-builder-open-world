@@ -3680,6 +3680,8 @@ export class SubwayBuilderGameAdapter {
     };
   }
 
+  captureTrainTypes() { return this.api?.trains?.getTrainTypes?.() ?? []; }
+
   captureCrossTileNetworkProfile(tileId = this.loadedCityCode) {
     const gameState = this.api?.gameState;
     if (!gameState || typeof gameState.getStations !== 'function' || typeof gameState.getRoutes !== 'function' || typeof gameState.getTrains !== 'function') {
@@ -3690,6 +3692,7 @@ export class SubwayBuilderGameAdapter {
       stations: gameState.getStations(),
       routes: gameState.getRoutes(),
       trains: gameState.getTrains(),
+      trainTypes: this.captureTrainTypes(),
       pathfindingRules: this.capturePathfindingRules(),
     });
   }

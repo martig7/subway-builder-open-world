@@ -5,7 +5,7 @@ import { createRuntimeModePreferences } from './runtime-mode-preferences.js';
 import { ultraSpeedWorldOwner, subscribeUltraSpeedOwnership } from './ultra-speed-ownership.js';
 import { UltraSpeedControl } from './ui/ultra-speed-control.js';
 
-export const ULTRA_SPEED_STANDALONE_VERSION = 'ultra-speed-standalone-v3';
+export const ULTRA_SPEED_STANDALONE_VERSION = 'ultra-speed-standalone-v4-capacity';
 export const ULTRA_SPEED_MOD_ID = 'gcm.ultra-speed';
 const KEY = '__subwayBuilderUltraSpeedModV1__';
 const PANEL = 'ultra-speed-controls';

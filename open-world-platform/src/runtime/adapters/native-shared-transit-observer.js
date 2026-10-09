@@ -1,7 +1,7 @@
 const NATIVE_SHARED_TRANSIT_OBSERVER = Symbol.for('open-world.native-shared-transit-observer');
 const NATIVE_SHARED_TRANSIT_OBSERVER_VERSION = Symbol.for('open-world.native-shared-transit-observer-version');
 const NATIVE_SHARED_TRANSIT_OBSERVER_ORIGINAL = Symbol.for('open-world.native-shared-transit-observer-original');
-const CURRENT_NATIVE_SHARED_TRANSIT_OBSERVER_VERSION = 4;
+const CURRENT_NATIVE_SHARED_TRANSIT_OBSERVER_VERSION = 5;
 export const TRAIN_STATE_BOUNDARIES_VERSION = 'native-derived-state-lazy-v1';
 
 // Hot reload can retain wrappers from older observer generations. Keep the
@@ -37,6 +37,9 @@ const LEGACY_OBSERVED_ACTIONS = Object.freeze([
 const SERVICE_ROUTE_PROPERTIES = new Set([
   'idealTrainCount',
   'trainSchedule',
+  'timetableSchedule',
+  'carsPerTrain',
+  'trainType',
   'schedule',
   'frequency',
   'timetable',

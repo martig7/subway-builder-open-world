@@ -7,7 +7,7 @@ import { createHourlyPostingPreparation } from './hourly-posting-preparation.js'
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 import { DEMAND_DEFERRED_CODE } from './demand-context.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v23';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v24-capacity';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -105,6 +105,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       native: nativeWork.size, cached: Boolean(busy || refreshPromise || starting || stopping || isSuspended()) },
     saveReferenceSharing: NATIVE_SAVE_REFERENCE_SHARING_VERSION,
     ...counters, preparation: { ...preparation.snapshot(), native: game.nativeFinancePreparationStats },
+    capacity: cache?.profile.capacityStats ?? null,
     assignedPops: cache?.assignedPops ?? 0, dailyRevenue: cache?.profile.dailyRevenue ?? 0,
     dailyRidership: cache?.profile.hourly.reduce((sum, hour) => sum + (hour.completedCommutes ?? []).reduce((n, c) => n + c.size, 0), 0) ?? 0 });
   const notify = () => { for (const listener of listeners) listener(snapshot()); };
@@ -194,7 +195,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
           ({ id, size, residenceId, jobId, drivingSeconds, drivingDistance, homeDepartureTime, workDepartureTime })) };
       let result;
       try {
-        const input = prepareActiveDemand ? null : { worldId: state.gameSessionId, tileId: state.cityCode, includeAssignments: true,
+        const input = prepareActiveDemand ? null : { capacityScope: `standalone:${state.gameSessionId}`, worldId: state.gameSessionId, tileId: state.cityCode, includeAssignments: true,
           networkProfile: game.captureCrossTileNetworkProfile(state.cityCode),
           farePolicy: { fare: state.transitCost, fareGroups: state.fareGroups }, globalNativeState: state };
         result = prepareActiveDemand ? await prepareActiveDemand({ assignments: true, tileId: state.cityCode })

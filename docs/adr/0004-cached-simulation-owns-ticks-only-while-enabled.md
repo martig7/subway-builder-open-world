@@ -124,8 +124,21 @@ inventory and physical positions. Previously accrued native operating costs
 remain payable; time already accounted for by this mode is excluded.
 
 This is an estimate, not an equivalent execution of the native simulator.
-Capacity, congestion caused by trains, missed connections, signal delays and
-reliability are not simulated. Infrastructure expenses use the shared estimate
+Scheduled capacity is reserved per vehicle departure and directed segment, using
+native train-type capacity, car count, and time-of-day service. Boarding groups
+can split across departures. Queue waits use the native waiting-time penalty;
+transfers move to a later departure when a connection is missed. A bounded
+alternative route search and renewed mode choice can move excess demand to
+another route, driving, or walking. Only carried portions become completed
+journeys and fare revenue. Native batches share one chronological allocation
+for both directions. A disposable session budget also shares seats across
+native tile and cross-demand jobs, replacing each source's previous allocation
+rather than adding it twice. Profile/disk caches include that budget context.
+
+This remains an approximation: whole-person cohorts can split, native tile
+sources are admitted in calculation order, and signal delays, physical train
+congestion, and reliability are not simulated. Unknown legacy profiles retain
+their previous estimate and expose missing capacity in diagnostics. Infrastructure expenses use the shared estimate
 and native train-type prices, including constructed grade crossings. Native
 simulation returns when the toggle is disabled. Loading/reloading initially
 disables execution, then restores the remembered choice after network and

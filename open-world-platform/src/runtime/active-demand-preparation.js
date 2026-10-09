@@ -1,7 +1,7 @@
 import { sharedNativeDemandEvaluator } from './embedded-tile-package-adapter.js';
 import { deterministicNetworkProfile } from './off-tile-native-demand.js';
 
-export const ACTIVE_DEMAND_PREPARATION_VERSION = 'active-demand-preparation-v5';
+export const ACTIVE_DEMAND_PREPARATION_VERSION = 'active-demand-preparation-v6-capacity';
 const values = value => value instanceof Map ? value.values() : value ?? [];
 
 export function createActiveDemandPreparation({ game, getState, workerSource, evaluator = sharedNativeDemandEvaluator(workerSource),
@@ -17,7 +17,7 @@ export function createActiveDemandPreparation({ game, getState, workerSource, ev
     // The raw signature includes moving train anchors that this evaluator
     // deliberately replaces with configured service. Do not key on that clock.
     delete networkProfile.signature;
-    const input = { worldId: state.gameSessionId, tileId, includeAssignments: true,
+    const input = { capacityScope: `open-world:${state.gameSessionId}`, worldId: state.gameSessionId, tileId, includeAssignments: true,
       networkProfile,
       farePolicy: { fare: state.transitCost, fareGroups: state.fareGroups }, globalNativeState: state, demandRevisionKey };
     // Construct only compact scalar input after the shared worker admits the

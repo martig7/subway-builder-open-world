@@ -222,6 +222,8 @@ export function createIncrementalNativeDemandProfileMerger({ maxRecords = MAX_CO
     if (!target) return ownInitialProfile(profile);
     for (const key of ['transitPopulation', 'dailyRevenue', 'customCrossTileRevenue', 'nativeRevenue',
       'evaluatedPops', 'skippedPops', 'transitViablePops']) target[key] += profile[key];
+    if (profile.capacityReservations?.length) target.capacityReservations = [...(target.capacityReservations ?? []), ...profile.capacityReservations];
+    if (profile.capacityStats) target.capacityStats = { ...profile.capacityStats };
     add(target.modeChoicePopulation, profile.modeChoicePopulation);
     add(target.ridershipByRoute, profile.ridershipByRoute);
     const retained = Math.max(target.routingStats.retainedSearchLabels ?? 0, profile.routingStats.retainedSearchLabels ?? 0);

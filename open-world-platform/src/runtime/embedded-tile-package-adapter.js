@@ -1,3 +1,4 @@
+import { beginCapacityEvaluation } from './transit-capacity.js';
 import { projectOffTileNativeDemandTransferInput } from './off-tile-native-demand.js';
 import { runRoutingJob } from './routing-job-queue.js';
 
@@ -308,7 +309,9 @@ export function createOffMainThreadNativeDemandEvaluator({
         };
         activity('demand.worker.start');
         try {
-          const value = await run(bytes, compactInput, options);
+          const transaction = compactInput.capacityBudget ? null : beginCapacityEvaluation(compactInput);
+          const value = await run(bytes, transaction?.input ?? compactInput, options);
+          if (token === generation) transaction?.commit(value);
           activity('demand.worker.end', { status: value?.diskCache ?? value?.status,
             rows: value?.profile?.evaluatedPops, bytes: value?.cacheBytes });
           return value;

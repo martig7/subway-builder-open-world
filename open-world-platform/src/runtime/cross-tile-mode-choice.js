@@ -3,7 +3,9 @@ import { RoutingLRU, indexRoutingGraph, compileRoutingCorridors } from './routin
 import { createBoundedModeChooser } from './bounded-mode-choice.js';
 import { createBoundedTransitSearch } from './transit-search/index.js';
 import { demandDepartureSeconds } from './demand-departure-time.js';
-export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v4-packaged-departures';
+import { trainCountTimetable, serviceHeadway } from './scheduled-transit-service.js';
+import { createTransitCapacityLedger, TRANSIT_CAPACITY_VERSION } from './transit-capacity.js';
+export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v5-capacity';
 const EARTH_RADIUS_M = 6_371_000;
 // Subway Builder's straight-line station catchment uses RULES.WALKING_SPEED
 // (1 m/s), not WALKING_SPEED_ACCURATE_PATH (1.5 m/s).
@@ -105,7 +107,7 @@ function stableNetworkSignature(profile) {
     pathfindingRules: profile.pathfindingRules,
     tileId: profile.tileId,
     stations: profile.stations.map((station) => [station.id, station.coords, station.stNodeIds, station.nearbyStations]),
-    routes: profile.routes.map((route) => [route.id, route.stNodeIds, route.serviceCount, route.stComboTimings, route.timetableSchedule, route.departureAnchorsByNode]),
+    routes: profile.routes.map((route) => [route.id, route.stNodeIds, route.serviceCount, route.stComboTimings, route.timetableSchedule, route.capacityPerTrain, route.departureAnchorsByNode]),
     activeRouteIds: profile.activeRouteIds,
   });
 }
@@ -117,13 +119,13 @@ function structuralNetworkSignature(profile) {
     stations: profile.stations.map((station) => [station.id, station.coords, station.stNodeIds, station.nearbyStations]),
     routes: profile.routes.map((route) => [
       route.id, route.stNodeIds, route.configuredServiceCount,
-      route.stComboTimings, route.timetableSchedule,
+      route.stComboTimings, route.timetableSchedule, route.capacityPerTrain,
     ]),
   });
 }
 
 /** Produce a small serializable graph snapshot for an active native tile. */
-export function createNetworkProfile({ tileId, stations = [], routes = [], trains = [], pathfindingRules = {} }) {
+export function createNetworkProfile({ tileId, stations = [], routes = [], trains = [], trainTypes = [], pathfindingRules = {} }) {
   const parentByRoute = new Map(routes.map((route) => [route.id, route.tempParentId ?? route.id]));
   const liveTrainCounts = new Map();
   for (const train of trains) {
@@ -165,10 +167,18 @@ export function createNetworkProfile({ tileId, stations = [], routes = [], train
       const configuredIdealTrainCount = route.openWorldGlobalIdealTrainCount ?? route.idealTrainCount;
       const configuredServiceCount = Math.max(
         0,
-        finite(configuredTrainSchedule?.highDemand, finite(configuredIdealTrainCount, 0)),
+        ...Object.values(configuredTrainSchedule ?? {}).filter(Number.isFinite),
+        finite(configuredIdealTrainCount, 0),
       );
+      const type = trainTypes.find(t => t.id === route.trainType);
+      const carsPerTrain = Math.max(1, finite(route.carsPerTrain, finite(type?.stats?.carsPerCarSet, 1)));
+      const liveTrain = trains.find(t => (parentByRoute.get(t.routeId) ?? t.routeId) === route.id);
+      const perCar = finite(type?.stats?.capacityPerCar, finite(liveTrain?.stats?.capacityPerCar, null));
+      const capacityPerTrain = perCar > 0 ? carsPerTrain * perCar
+        : finite(liveTrain?.stats?.capacity, finite(liveTrain?.capacity, null));
       return {
         id: route.id,
+        trainType: route.trainType ?? null, carsPerTrain, capacityPerTrain,
         bullet: route.bullet ?? null,
         name: route.name ?? null,
         fullName: route.fullName ?? null,
@@ -184,7 +194,7 @@ export function createNetworkProfile({ tileId, stations = [], routes = [], train
             headwaySeconds: Math.max(0, finite(period.headwaySeconds, 0)),
           })),
         }
-        : null,
+        : trainCountTimetable(configuredTrainSchedule, finite(configuredIdealTrainCount, 0), cycleTimeSeconds),
       configuredServiceCount,
       serviceCount: Math.max(
         0,
@@ -209,7 +219,7 @@ export function createNetworkProfile({ tileId, stations = [], routes = [], train
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
   const profile = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     tileId,
     stations: normalizedStations,
     routes: normalizedRoutes,
@@ -232,16 +242,7 @@ function periodContains(period, hour) {
   return start <= end ? hour >= start && hour < end : hour >= start || hour < end;
 }
 
-function routeHeadwaySeconds(route, timeSeconds) {
-  if (route.timetableSchedule?.mode === 'timetable') {
-    const hour = ((timeSeconds % 86_400) + 86_400) % 86_400 / 3_600;
-    const period = route.timetableSchedule.periods?.find((candidate) => periodContains(candidate, hour));
-    return Math.max(0, finite(period?.headwaySeconds, 0));
-  }
-  return route.cycleTimeSeconds > 0 && route.serviceCount > 0
-    ? route.cycleTimeSeconds / route.serviceCount
-    : 0;
-}
+function routeHeadwaySeconds(route, timeSeconds) { return serviceHeadway(route, timeSeconds); }
 
 function nextScheduledDeparture(route, departureNodeId, departureOffsetSeconds, readySeconds) {
   const headwaySeconds = routeHeadwaySeconds(route, readySeconds);
@@ -275,6 +276,9 @@ function mergeRoute(existing, candidate) {
     bullet: preferred.bullet ?? alternate.bullet ?? null,
     name: preferred.name ?? alternate.name ?? null,
     fullName: preferred.fullName ?? alternate.fullName ?? null,
+    capacityPerTrain: preferred.capacityPerTrain ?? alternate.capacityPerTrain ?? null,
+    carsPerTrain: preferred.carsPerTrain ?? alternate.carsPerTrain ?? null,
+    trainType: preferred.trainType ?? alternate.trainType ?? null,
     serviceCount: Math.max(existing.serviceCount ?? 0, candidate.serviceCount ?? 0),
     configuredServiceCount: Math.max(existing.configuredServiceCount ?? 0, candidate.configuredServiceCount ?? 0),
     departureAnchorsByNode: anchors,
@@ -424,6 +428,7 @@ function buildGlobalRouter(networkProfiles) {
           routeStateId: `${route.id}:forward`,
           departureNodeId: left.nodeId,
           departureOffsetSeconds: fromTiming.departureTime,
+          capacitySegmentIndex: left.routeIndex,
           dwellSeconds: Math.max(0, finite(fromTiming.departureTime, 0) - finite(fromTiming.arrivalTime, 0)),
           inVehicleSeconds,
         });
@@ -630,6 +635,7 @@ function finishRouteLeg(router, bestLabel, egressWalkSeconds, preferredTileId, r
     edges.push(edge);
     nativeSegments.push({
       routeId: edge.type === 'ride' ? edge.route.id : 'walking',
+      capacitySegmentIndex: edge.capacitySegmentIndex, serviceOffsetSeconds: edge.departureOffsetSeconds,
       fromStopId: label.parent.stationId, toStopId: label.stationId,
       fromStopCoords: router.stationById.get(label.parent.stationId)?.coords,
       toStopCoords: router.stationById.get(label.stationId)?.coords,
@@ -1272,6 +1278,16 @@ export function inspectCrossTileModeChoice({ crossDemand, popIndex, networkProfi
 function batchContext({ crossDemand, networkProfiles, gatewayCatalog, tileCatalog, fare = 0, journeyFare = null, requestedDepartureSeconds = 0, worldId, routingCache = createCrossTileRoutingCache(), routingSnapshot = null }) {
   if (crossDemand?.schemaVersion !== 1) throw new Error('Unsupported cross-demand data');
   const points = crossDemand.points.map(([id, longitude, latitude, tileId]) => ({ id, coords: [longitude, latitude], tileId }));
+  // Daily capacity forecasts use configured departures, independent of the
+  // positions/phases of trains currently visible in the native simulation.
+  if (Object.values(networkProfiles ?? {}).some(p => p?.routes?.some(r => r.capacityPerTrain > 0 && Object.keys(r.departureAnchorsByNode ?? {}).length))) {
+    networkProfiles = Object.fromEntries(Object.entries(networkProfiles).map(([id,p]) => [id, { ...p,
+      routes: p.routes.map(r => r.capacityPerTrain > 0 ? { ...r, departureAnchorsByNode: {}, serviceCount: r.configuredServiceCount ?? r.serviceCount } : r) }]));
+    routingSnapshot = null;
+  }
+  if (Object.values(networkProfiles ?? {}).some(p => p?.routes?.some(r => r.capacityPerTrain > 0))) {
+    requestedDepartureSeconds = ((requestedDepartureSeconds % DAY_SECONDS) + DAY_SECONDS) % DAY_SECONDS;
+  }
   const routers = routingCache.getRouter(networkProfiles,worldId,routingSnapshot);
   const catalogKey = JSON.stringify(tileCatalog?.tiles?.map(t=>[t.id,t.bounds,t.neighbors?.map(n=>n.tileId)]));
   if (routers.catalogKey !== catalogKey) { routers.gatewayChains.clear(); routers.catalogKey = catalogKey; }
@@ -1286,49 +1302,155 @@ function emptyModeShareResult() {
   return { totals: new Map(), transitJourneys: new Map(), popModeChoices: {}, evaluatedPops: 0, transitViablePops: 0 };
 }
 
-function addPreparedModeChoice(result, prepared, fareQuote = prepared.fareQuote, modeChooser = directModeChooser) {
+function capacitySegments(path) {
+  if (path.capacitySegments) return path.capacitySegments;
+  return path.continuousLeg?._nativeSegments
+    ?? [path.homeLeg, path.intermediateLeg, path.workLeg].flatMap(l => l?._nativeSegments ?? []);
+}
+function alternateContext(context, routeId) {
+  const root = context.routers;
+  root.capacityAlternatives ??= new RoutingLRU(4);
+  let routers = root.capacityAlternatives.get(routeId);
+  if (!routers) {
+    routers = { ...root, cacheEnabled: false, searchKernel: null,
+      networkSignature: `${root.networkSignature}:without:${routeId}`,
+      routeById: new Map([...root.routeById].filter(([id]) => id !== routeId)),
+      adjacency: new Map([...root.adjacency].map(([id, edges]) => [id, edges.filter(e => e.route?.id !== routeId)])),
+      gatewayPathCache: new RoutingLRU(128), endpointPathCache: new RoutingLRU(128),
+      gatewayChains: new RoutingLRU(128), exactPaths: new RoutingLRU(128), capacityAlternatives: null,
+    };
+    root.capacityAlternatives.set(routeId, routers);
+  }
+  return { ...context, routers };
+}
+function alternativesFor(context, pop, popIndex) {
+  const cache = new Map();
+  return routeId => {
+    if (!routeId || context.routers.routeById.size < 2) return null;
+    if (!cache.has(routeId)) {
+      const alt = preparePopModeChoice({ ...alternateContext(context, routeId), pop, popIndex });
+      alt.excludedRouteId = routeId; cache.set(routeId, alt);
+    }
+    return cache.get(routeId);
+  };
+}
+function allocatePrepared(prepared, fareQuote, ledger, chooser, alternative = () => null) {
+  const raw = { ...prepared.rawInputs, transitCost: fareQuote?.total ?? prepared.rawInputs.transitCost };
+  const choose = time => chooseModesFromMetrics(prepared.population, raw.pathfindingRules,
+    modeChoiceMetrics({ ...raw, transitTime: time, rules: raw.pathfindingRules }), chooser);
+  const baseline = choose(raw.transitTime), portions = [];
+  const segments = capacitySegments(prepared.transitPath);
+  let served = 0;
+  if (ledger && prepared.transitPath.available && segments.length && baseline.transit > 0) {
+    while (served < baseline.transit) {
+      let selected = prepared, quote = fareQuote;
+      let offer = ledger.nextOffer(segments);
+      if (!offer || offer.queueSeconds > 0) {
+        const blocked = offer?.blockedRouteId ?? segments.find(s => !s.isWalking && !s.isDriving)?.routeId;
+        const alt = alternative(blocked);
+        if (alt?.transitPath.available) {
+          const altOffer = ledger.nextOffer(capacitySegments(alt.transitPath));
+          const value = incomeForPerson(Math.floor((prepared.population - 1) / 2), prepared.population, raw.pathfindingRules)
+            / raw.pathfindingRules.HOURS_WORKED_PER_YEAR / 3600;
+          const cost = (p,q,o) => o ? (p.rawInputs.transitTime + o.queueSeconds * raw.pathfindingRules.PERCEIVED_TIME.WAIT_MULTIPLIER) * value
+            + (q?.total ?? p.rawInputs.transitCost) : Infinity;
+          if (cost(alt, alt.fareQuote, altOffer) < cost(prepared, fareQuote, offer)) {
+            selected = alt; quote = alt.fareQuote; offer = altOffer;
+          }
+        }
+      }
+      if (!offer) break;
+      const eligible = chooseModes({ ...selected.rawInputs, transitCost: quote?.total ?? selected.rawInputs.transitCost,
+        transitTime: selected.rawInputs.transitTime + offer.queueSeconds * raw.pathfindingRules.PERCEIVED_TIME.WAIT_MULTIPLIER }).transit;
+      const mass = Math.min(offer.seats, eligible - served, baseline.transit - served);
+      if (!(mass > 0)) break;
+      ledger.commit(offer, mass); served += mass;
+      portions.push({ mass, queueSeconds: offer.queueSeconds, departureTimes: offer.departureTimes,
+        ...(selected.excludedRouteId ? { excludedRouteId: selected.excludedRouteId } : {}) });
+    }
+  } else if (baseline.transit > 0) {
+    served = baseline.transit; portions.push({ mass: served, queueSeconds: 0 });
+  }
+  const modes = { ...baseline, transit: served };
+  const lost = baseline.transit - served;
+  if (lost > 0) {
+    const fallback = chooseModes({ ...raw, population: lost, transitTime: Infinity });
+    modes.driving += fallback.driving; modes.walking += fallback.walking; modes.unknown += fallback.unknown;
+    if (ledger) ledger.stats.unservedPeople += lost;
+  }
+  return { modes, portions };
+}
+function queuedLeg(leg, portion, rules) {
+  if (!leg) return null;
+  const queue = portion.queueSeconds;
+  return { ...leg, totalSeconds: leg.totalSeconds + queue * rules.PERCEIVED_TIME.WAIT_MULTIPLIER,
+    totalClockSeconds: leg.totalClockSeconds + queue, waitSeconds: leg.waitSeconds + queue,
+    segments: (leg._nativeSegments ?? leg.segments ?? []).map((s,i) => {
+      const departureTime = portion.departureTimes?.[i] ?? s.departureTime + queue;
+      return { ...s, departureTime, arrivalTime: departureTime + s.arrivalTime - s.departureTime };
+    }) };
+}
+function addPreparedModeChoice(result, prepared, fareQuote = prepared.fareQuote, modeChooser = directModeChooser, outcome = null, alternative = () => null) {
   const { rawInputs, stationRoutes } = prepared;
   const transitFare = Number.isFinite(fareQuote?.total) && fareQuote.total >= 0 ? fareQuote.total : rawInputs.transitCost;
-  const rules = rawInputs.pathfindingRules;
-  const metrics = modeChoiceMetrics({ ...rawInputs, transitCost: transitFare, rules });
-  const modes = chooseModesFromMetrics(prepared.population, rules, metrics, modeChooser);
+  outcome ??= allocatePrepared(prepared, fareQuote, null, modeChooser);
+  const modes = outcome.modes;
   result.popModeChoices[prepared.popId] = modes;
   const key = `${prepared.homeTileId}|${prepared.workTileId}|${prepared.gatewayId}`;
   const total = result.totals.get(key) ?? { driving: 0, walking: 0, transit: 0, unknown: 0 };
   for (const mode of Object.keys(total)) total[mode] += modes[mode];
-  result.totals.set(key, total);
-  result.evaluatedPops++;
+  result.totals.set(key, total); result.evaluatedPops++;
   if (modes.transit > 0 && prepared.transitPath.available && stationRoutes.length > 0) {
     const journeys = result.transitJourneys.get(key) ?? [];
-    journeys.push({ popId: prepared.popId, transitMass: modes.transit, stationRoutes,
-      totalClockSeconds: prepared.transitPath.totalClockSeconds,
-      fare: transitFare, revenueByRoute: fareQuote?.revenueByRoute,
-    });
+    for (const portion of outcome.portions) {
+      const selected = portion.excludedRouteId ? alternative(portion.excludedRouteId) : prepared;
+      const quote = portion.excludedRouteId ? selected.fareQuote : fareQuote;
+      journeys.push({ popId: prepared.popId, transitMass: portion.mass, stationRoutes: selected.stationRoutes,
+        totalClockSeconds: selected.transitPath.totalClockSeconds + portion.queueSeconds,
+        fare: quote?.total ?? transitFare, revenueByRoute: quote?.revenueByRoute, queueSeconds: portion.queueSeconds });
+    }
     result.transitJourneys.set(key, journeys);
   }
-  if (Number.isFinite(metrics.transit.perceivedSeconds)) result.transitViablePops++;
+  if (Number.isFinite(rawInputs.transitTime)) result.transitViablePops++;
 }
 
-/** Bulk computation shares routing and mode formulas without building inspector explanations. */
+/** Bulk computation reserves scheduled seats in chronological departure order. */
 export function calculateCrossTileModeShares(input) {
   const context = batchContext(input);
+  const ledger = input.capacityLedger ?? (input.capacityOutcomes ? null : createTransitCapacityLedger({
+    networkProfiles: input.networkProfiles, reservations: input.capacityBudget?.reservations }));
   const result = emptyModeShareResult();
+  if (input.capacityOnly) result.capacityOutcomes = {};
   if (input.includeJourneyDetails) { result.journeyDetails = {}; result.choiceInputs = {}; }
-  for (const [popIndex, pop] of input.crossDemand.pops.entries()) {
+  const pops = input.crossDemand.pops.map((pop, popIndex) => ({ pop, popIndex,
+    departure: popDepartureSeconds(pop, context.popFields, context.requestedDepartureSeconds) }));
+  pops.sort((a,b) => a.departure - b.departure || String(a.pop[0]).localeCompare(String(b.pop[0])));
+  for (const { popIndex, pop } of pops) {
     const prepared = preparePopModeChoice({ ...context, pop, popIndex });
-    addPreparedModeChoice(result, prepared, prepared.fareQuote, context.routers.modeChooser);
+    const alternative = alternativesFor(context, pop, popIndex);
+    const outcome = input.capacityOutcomes?.[prepared.popId]
+      ?? allocatePrepared(prepared, prepared.fareQuote, ledger, context.routers.modeChooser, alternative);
+    if (input.capacityOnly) { result.capacityOutcomes[prepared.popId] = outcome; continue; }
+    addPreparedModeChoice(result, prepared, prepared.fareQuote, context.routers.modeChooser, outcome, alternative);
     if (input.includeJourneyDetails) result.choiceInputs[prepared.popId] = {
       walkingTime: prepared.rawInputs.walkTime, walkingDistance: prepared.rawInputs.walkTime * WALK_SPEED_MPS,
       drivingTimeMultiplier: prepared.rawInputs.drivingTimeMultiplier,
     };
     const leg = prepared.transitPath.continuousLeg;
-    if (input.includeJourneyDetails && leg?.available) {
-      result.journeyDetails[prepared.popId] = {
-        ...leg, segments: leg._nativeSegments, fare: prepared.fareQuote?.total ?? prepared.rawInputs.transitCost,
-      };
+    if (input.includeJourneyDetails && leg?.available && outcome.portions.length) {
+      const portions = outcome.portions.map(p => {
+        const selected = p.excludedRouteId ? alternative(p.excludedRouteId) : prepared;
+        return { mass: p.mass, ...queuedLeg(selected.transitPath.continuousLeg, p, prepared.rawInputs.pathfindingRules),
+          fare: selected.fareQuote?.total ?? prepared.rawInputs.transitCost };
+      });
+      const weighted = field => portions.reduce((n,p) => n + p[field] * p.mass,0) / outcome.modes.transit;
+      result.journeyDetails[prepared.popId] = { ...portions[0], portions,
+        totalSeconds: weighted('totalSeconds'), totalClockSeconds: weighted('totalClockSeconds'), waitSeconds: weighted('waitSeconds'), fare: weighted('fare') };
     }
   }
-  return { ...result, routingStats: { ...context.routers.routingStats } };
+  return { ...result, capacityVersion: TRANSIT_CAPACITY_VERSION,
+    capacityReservations: ledger?.reservations() ?? [], capacityStats: ledger ? { ...ledger.stats } : null,
+    routingStats: { ...context.routers.routingStats } };
 }
 
 /** Route in the worker first; the host supplies authoritative native fare totals in one batch. */
@@ -1339,20 +1461,26 @@ export function prepareCrossTileModeShares(input) {
   const stationIds = new Set();
   for (const [popIndex, pop] of input.crossDemand.pops.entries()) {
     const prepared = preparePopModeChoice({ ...context, pop, popIndex });
-    if (prepared.transitPath.available && prepared.stationRoutes.length > 0) {
-      prepared.fareKey = JSON.stringify(prepared.stationRoutes);
-      if (!requests.has(prepared.fareKey)) {
-        requests.set(prepared.fareKey, { key: prepared.fareKey, stationRoutes: prepared.stationRoutes });
-        for (const route of prepared.stationRoutes) {
-          stationIds.add(route.stationIds[0]); stationIds.add(route.stationIds.at(-1));
+    const alternate = alternativesFor(context, pop, popIndex);
+    prepared.alternatives = [...new Set(capacitySegments(prepared.transitPath).map(s => s.routeId)
+      .filter(id => context.routers.routeById.get(id)?.capacityPerTrain > 0))].slice(0, 2).map(alternate).filter(Boolean);
+    for (const candidate of [prepared, ...prepared.alternatives]) {
+      if (candidate.transitPath.available && candidate.stationRoutes.length > 0) {
+        candidate.fareKey = JSON.stringify(candidate.stationRoutes);
+        if (!requests.has(candidate.fareKey)) {
+          requests.set(candidate.fareKey, { key: candidate.fareKey, stationRoutes: candidate.stationRoutes });
+          for (const route of candidate.stationRoutes) {
+            stationIds.add(route.stationIds[0]); stationIds.add(route.stationIds.at(-1));
+          }
         }
       }
     }
-    // Keep only the fields settlement needs while waiting for fare quotes.
-    prepared.transitPath = { available: prepared.transitPath.available, totalClockSeconds: prepared.transitPath.totalClockSeconds };
+    for (const candidate of [prepared, ...prepared.alternatives]) candidate.transitPath = {
+      available: candidate.transitPath.available, totalClockSeconds: candidate.transitPath.totalClockSeconds, capacitySegments: capacitySegments(candidate.transitPath) };
     entries.push(prepared);
   }
-  const preparedBatch = { entries, fareRequests: [...requests.values()],
+  entries.sort((a,b) => a.requestedDepartureSeconds - b.requestedDepartureSeconds || String(a.popId).localeCompare(String(b.popId)));
+  const preparedBatch = { entries, networkProfiles: input.networkProfiles, capacityBudget: input.capacityBudget, fareRequests: [...requests.values()],
     stations: [...stationIds].map(id => { const station = context.routers.stationById.get(id); return [id, { id, coords: station.coords }]; }),
     routingStats: { ...context.routers.routingStats },
   };
@@ -1362,6 +1490,14 @@ export function prepareCrossTileModeShares(input) {
 
 export function finishCrossTileModeShares(prepared, fareQuotes = new Map()) {
   const result = emptyModeShareResult();
-  for (const entry of prepared.entries) addPreparedModeChoice(result, entry, fareQuotes.get(entry.fareKey) ?? entry.fareQuote, prepared.modeChooser);
-  return { ...result, routingStats: prepared.routingStats };
+  const ledger = createTransitCapacityLedger({ networkProfiles: prepared.networkProfiles, reservations: prepared.capacityBudget?.reservations });
+  for (const entry of prepared.entries) {
+    const quote = fareQuotes.get(entry.fareKey) ?? entry.fareQuote;
+    for (const alt of entry.alternatives ?? []) alt.fareQuote = fareQuotes.get(alt.fareKey) ?? alt.fareQuote;
+    const alternative = id => entry.alternatives?.find(alt => alt.excludedRouteId === id);
+    const outcome = allocatePrepared(entry, quote, ledger, prepared.modeChooser, alternative);
+    addPreparedModeChoice(result, entry, quote, prepared.modeChooser, outcome, alternative);
+  }
+  return { ...result, capacityVersion: TRANSIT_CAPACITY_VERSION, capacityReservations: ledger.reservations(),
+    capacityStats: { ...ledger.stats }, routingStats: prepared.routingStats };
 }

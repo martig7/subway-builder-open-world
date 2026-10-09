@@ -242,3 +242,27 @@ test('route count observation does not serialize unrelated route payloads', () =
 
   disposeObserver();
 });
+
+
+test('capacity edits replace a retained generation-four observer and invalidate service', () => {
+  const { state, callbacks } = fixture();
+  const original = state.updateRouteProperty;
+  const old = function obsoleteCapacityObserver(...args) { return original.apply(this,args); };
+  const marker = Symbol.for('open-world.native-shared-transit-observer');
+  const generation = Symbol.for('open-world.native-shared-transit-observer-version');
+  Object.defineProperties(old, {
+    [marker]: { value: true }, [generation]: { value: 4 },
+    [Symbol.for('open-world.native-shared-transit-observer-original')]: { value: original },
+  });
+  state.updateRouteProperty = old;
+  const changes = [];
+  const dispose = new SubwayBuilderGameAdapter({ callbacks, api: {} }).observeSharedTransitChanges(c=>changes.push(c));
+  assert.notEqual(state.updateRouteProperty, old);
+  assert.equal(state.updateRouteProperty[generation], 5);
+  for (const [key,value] of [['carsPerTrain',4],['trainType','light-metro'],['timetableSchedule',{mode:'timetable',periods:[]}]]) {
+    state.updateRouteProperty('route-pb',key,value);
+  }
+  assert.equal(changes.length,3);
+  assert.ok(changes.every(c=>c.reason==='route-service-change'));
+  dispose(); assert.equal(state.updateRouteProperty,original);
+});

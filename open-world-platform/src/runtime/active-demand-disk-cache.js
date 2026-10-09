@@ -1,6 +1,6 @@
 // Disposable derived data, separate from World Records and Native Saves. One
 // committed generation replaces the previous one; chunks keep IDB clones small.
-export const ACTIVE_DEMAND_DISK_CACHE_VERSION = 'active-demand-disk-cache-v2';
+export const ACTIVE_DEMAND_DISK_CACHE_VERSION = 'active-demand-disk-cache-v3-capacity';
 // Keep the same database so the next generation clears old uncompressed chunks.
 const DATABASE_NAME = 'active-demand-disk-cache-v1';
 export function createActiveDemandDiskStore(indexedDB = globalThis.indexedDB) {

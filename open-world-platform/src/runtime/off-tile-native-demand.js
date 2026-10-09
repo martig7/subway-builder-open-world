@@ -1,3 +1,4 @@
+import { createTransitCapacityLedger, TRANSIT_CAPACITY_VERSION, beginCapacityEvaluation } from './transit-capacity.js';
 import { calculateCrossTileModeShares, createBoundedCrossTileRoutingCache, createRoutingSnapshot, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import { aggregateCompletedCommutes } from './completed-commute-aggregation.js';
 import { fareSegmentsFromStationRoutes, quoteJourneyFare, createJourneyFareQuote } from './journey-fare.js';
@@ -10,7 +11,7 @@ import {
   NATIVE_RIDERSHIP_RECORDING_VERSION,
 } from './native-finance-model.js';
 
-export const OFF_TILE_NATIVE_DEMAND_SCHEMA_VERSION = 7;
+export const OFF_TILE_NATIVE_DEMAND_SCHEMA_VERSION = 8;
 const EVALUATOR_SCHEMA_VERSION = OFF_TILE_NATIVE_DEMAND_SCHEMA_VERSION;
 const POP_FIELDS = Object.freeze([
   'id', 'mass', 'homeIndex', 'workIndex', 'gatewayIndex',
@@ -112,6 +113,7 @@ export function offTileNativeDemandContextKey({
   farePolicy = {},
   financeOwnedRouteIds = [],
   demandRevisionKey = null,
+  capacityBudget = null,
 }) {
   const network = deterministicNetworkProfile(networkProfile ?? {
     schemaVersion: 1, tileId, stations: [], routes: [], activeRouteIds: [], pathfindingRules: {},
@@ -123,6 +125,7 @@ export function offTileNativeDemandContextKey({
     evaluatorSchemaVersion: EVALUATOR_SCHEMA_VERSION,
     tileId,
     demandRevisionKey,
+    capacityBudget,
     network: network.structuralSignature ?? network.signature ?? null,
     pathfindingRules: network.pathfindingRules ?? {},
     farePolicy: scopedFarePolicy(farePolicy, network),
@@ -205,26 +208,17 @@ function fareQuoteFor({ stationRoutes, stationById, farePolicy, globalNativeStat
 }
 
 function* syntheticNativePops(calculated, sourceById, returnCalculated) {
-  const commutes = result => {
-    const byId = new Map();
-    for (const journeys of result.transitJourneys.values()) for (const journey of journeys) byId.set(String(journey.popId), {
-      modeChoice: result.popModeChoices[journey.popId] ?? { transit: journey.transitMass },
-      transitCost: journey.fare,
-      transitTime: journey.totalClockSeconds,
-      transitPaths: [{
-        fareCost: journey.fare,
-        segments: journey.stationRoutes.map(({ routeId, stationIds }) => ({ routeId, stationIds })),
-      }],
-    });
-    return byId;
-  };
-  const outward = commutes(calculated), homeward = commutes(returnCalculated);
-  for (const id of new Set([...outward.keys(), ...homeward.keys()])) yield {
-    id, ...sourceById.get(id), commutes: {
-      homeToWork: outward.get(id) ?? { modeChoice: { transit: 0 } },
-      workToHome: homeward.get(id) ?? { modeChoice: { transit: 0 } },
-    },
-  };
+  for (const [direction, result] of [['homeToWork', calculated], ['workToHome', returnCalculated]]) {
+    for (const journeys of result.transitJourneys.values()) for (const journey of journeys) yield {
+      id: String(journey.popId), ...sourceById.get(String(journey.popId)), commutes: {
+        [direction]: { modeChoice: { transit: journey.transitMass }, transitCost: journey.fare,
+          transitTime: journey.totalClockSeconds,
+          transitPaths: [{ fareCost: journey.fare, totalTime: journey.totalClockSeconds,
+            segments: journey.stationRoutes.map(({ routeId, stationIds }) => ({ routeId, stationIds })) }],
+        },
+      },
+    };
+  }
 }
 
 function ridershipByRoute(calculated) {
@@ -276,7 +270,9 @@ function evaluateBatch({
   }
 
   const normalized = normalizeDemand(tileId, demand, includeAssignments, pointData);
-  const evaluateDirection = crossDemand => calculateCrossTileModeShares({
+  const evaluateDirection = (crossDemand, direction) => calculateCrossTileModeShares({
+    capacityLedger: prepared?.capacityLedger,
+    capacityOutcomes: prepared?.capacityOutcomes ? Object.fromEntries(crossDemand.pops.map(p => [p[0], prepared.capacityOutcomes[`${direction}:${p[0]}`]])) : null,
     worldId, routingCache,
     includeJourneyDetails: includeAssignments,
     crossDemand,
@@ -290,14 +286,14 @@ function evaluateBatch({
       stationRoutes, stationById, farePolicy, globalNativeState,
     }),
   });
-  const calculated = evaluateDirection(normalized.demand);
+  const calculated = evaluateDirection(normalized.demand, 'out');
   // Native 1.7 permits driving to the first station in either direction but
   // never driving from the final station. Reusing the outward choice for the
   // return journey invents riders when the home is beyond walking catchment.
   const returnCalculated = evaluateDirection({ ...normalized.demand,
     pops: normalized.demand.pops.map(([id,mass,home,work,gateway,seconds,distance,hd,wd]) =>
       [id,mass,work,home,gateway,seconds,distance,wd,hd]),
-  });
+  }, 'return');
   const revenue = calculateNativeRevenueProfile(
     syntheticNativePops(calculated, normalized.sourceById, returnCalculated),
     {
@@ -310,6 +306,8 @@ function evaluateBatch({
   );
   const profile = {
     ...revenue,
+    transitPopulation: Object.keys(calculated.popModeChoices).reduce((n,id) => n + Math.max(calculated.popModeChoices[id].transit, returnCalculated.popModeChoices[id]?.transit ?? 0),0),
+    capacityVersion: TRANSIT_CAPACITY_VERSION, capacityReservations: [],
     tileId,
     source: 'off-tile-estimator',
     evaluatorSchemaVersion: EVALUATOR_SCHEMA_VERSION,
@@ -343,48 +341,52 @@ function nativeDemandAssignments(demand, sources, outward, homeward, points) {
       const leg = result.journeyDetails?.[pop.id];
       const choiceInputs = result.choiceInputs?.[pop.id];
       const departure = source[home ? 'homeDepartureTime' : 'workDepartureTime'] ?? 0;
-      const segments = [];
-      for (const segment of leg?.segments ?? []) {
-        const previous = segments.at(-1);
-        if (previous && !segment.isWalking && !segment.isDriving && previous.routeId === segment.routeId
-          && previous.toStopId === segment.fromStopId) {
-          previous.toStopId = segment.toStopId;
-          previous.toStopCoords = segment.toStopCoords;
-          previous.arrivalTime = segment.arrivalTime;
-          previous.stationIds.push(segment.toStopId);
-        } else segments.push({ ...segment, stationIds: [segment.fromStopId, segment.toStopId] });
-      }
-      if (segments.length) {
-        const first = segments[0], last = segments.at(-1);
-        const access = leg.accessDriveSeconds || leg.accessWalkSeconds;
-        segments.unshift({ routeId: leg.accessDriveSeconds ? 'driving' : 'walking',
-          fromStopId: 'origin', toStopId: first.fromStopId,
-          fromStopCoords: origin, toStopCoords: first.fromStopCoords,
-          departureTime: departure, arrivalTime: departure + access,
-          isWalking: !leg.accessDriveSeconds, isDriving: Boolean(leg.accessDriveSeconds) });
-        segments.push({ routeId: 'walking', fromStopId: last.toStopId, toStopId: 'destination',
-          fromStopCoords: last.toStopCoords, toStopCoords: destination,
-          departureTime: last.arrivalTime, arrivalTime: last.arrivalTime + leg.egressWalkSeconds,
-          isWalking: true, isDriving: false });
-      }
+      const paths = (leg?.portions ?? (leg ? [leg] : [])).map(portion => {
+        const segments = [];
+        for (const segment of portion?.segments ?? []) {
+          const previous = segments.at(-1);
+          if (previous && !segment.isWalking && !segment.isDriving && previous.routeId === segment.routeId
+            && previous.toStopId === segment.fromStopId) {
+            previous.toStopId = segment.toStopId;
+            previous.toStopCoords = segment.toStopCoords;
+            previous.arrivalTime = segment.arrivalTime;
+            previous.stationIds.push(segment.toStopId);
+          } else segments.push({ ...segment, stationIds: [segment.fromStopId, segment.toStopId] });
+        }
+        if (segments.length) {
+          const first = segments[0], last = segments.at(-1);
+          const access = portion.accessDriveSeconds || portion.accessWalkSeconds;
+          segments.unshift({ routeId: portion.accessDriveSeconds ? 'driving' : 'walking',
+            fromStopId: 'origin', toStopId: first.fromStopId,
+            fromStopCoords: origin, toStopCoords: first.fromStopCoords,
+            departureTime: departure, arrivalTime: departure + access,
+            isWalking: !portion.accessDriveSeconds, isDriving: Boolean(portion.accessDriveSeconds) });
+          segments.push({ routeId: 'walking', fromStopId: last.toStopId, toStopId: 'destination',
+            fromStopCoords: last.toStopCoords, toStopCoords: destination,
+            departureTime: last.arrivalTime, arrivalTime: last.arrivalTime + portion.egressWalkSeconds,
+            isWalking: true, isDriving: false });
+        }
+        return { segments, population: portion.mass,
+          totalTime: portion.totalClockSeconds, perceivedTime: portion.totalSeconds, fareCost: portion.fare,
+          transfers: Math.max(0, portion.stationRoutes.length - 1),
+          timeBreakdown: { inVehicle: portion.networkSeconds,
+            walk: portion.accessWalkSeconds + portion.transferWalkSeconds + portion.egressWalkSeconds,
+            drive: portion.accessDriveSeconds, wait: portion.waitSeconds, departureShift: portion.departureShiftSeconds },
+        };
+      }).filter(path => path.segments.length);
       commutes[direction] = {
         modeChoice: result.popModeChoices[pop.id] ?? { walking: 0, driving: 0, transit: 0, unknown: pop.size },
         walking: { time: choiceInputs?.walkingTime ?? 0, distance: choiceInputs?.walkingDistance ?? 0 },
         transitTime: leg?.totalSeconds ?? null, transitCost: leg?.fare ?? null,
         drivingTimeMultiplier: choiceInputs?.drivingTimeMultiplier ?? 1,
-        transitPaths: segments.length ? [{ segments, totalTime: leg.totalClockSeconds,
-          perceivedTime: leg.totalSeconds, fareCost: leg.fare,
-          transfers: Math.max(0, leg.stationRoutes.length - 1),
-          timeBreakdown: { inVehicle: leg.networkSeconds, walk: leg.accessWalkSeconds + leg.transferWalkSeconds + leg.egressWalkSeconds,
-            drive: leg.accessDriveSeconds, wait: leg.waitSeconds, departureShift: leg.departureShiftSeconds },
-        }] : [],
+        transitPaths: paths,
       };
     }
     return { id: pop.id, homeDepartureTime: source.homeDepartureTime, workDepartureTime: source.workDepartureTime, commutes };
   });
 }
 
-export const NATIVE_DEMAND_BATCH_VERSION = 'native-demand-batches-v1';
+export const NATIVE_DEMAND_BATCH_VERSION = 'native-demand-batches-v2-capacity';
 export const NATIVE_DEMAND_BATCH_SIZE = 128;
 
 // One graph and point index, but only one small batch of direction results,
@@ -399,7 +401,7 @@ export function* nativeDemandEvaluationBatches(input) {
   const routingCache = input.routingCache ?? createBoundedCrossTileRoutingCache();
   try {
     const contextKey = offTileNativeDemandContextKey(input);
-    const evaluationKey = hashText(JSON.stringify(stableValue({ contextKey, demand: demandFingerprint(demand) })));
+    const evaluationKey = hashText(JSON.stringify(stableValue({ contextKey, demand: demandFingerprint(demand), capacityBudget: input.capacityBudget ?? null })));
     const prepared = { contextKey, evaluationKey,
       network: input.networkProfile ? deterministicNetworkProfile(input.networkProfile) : null };
     if (prepared.network) prepared.routingSnapshot = createRoutingSnapshot({ [tileId]: prepared.network });
@@ -415,6 +417,23 @@ export function* nativeDemandEvaluationBatches(input) {
       yield { status: 'cached', profile: structuredClone(input.existingProfile) };
       return;
     }
+    prepared.capacityLedger = createTransitCapacityLedger({ networkProfiles: prepared.routingSnapshot?.profiles,
+      reservations: input.capacityBudget?.reservations });
+    if (prepared.network?.routes?.some(r => r.capacityPerTrain > 0)) {
+      // First pass retains only modes and compact departure times. Both commute
+      // directions compete chronologically before bounded assignment batches.
+      const normalized = normalizeDemand(tileId, demand, input.includeAssignments);
+      const events = normalized.demand.pops.flatMap(p => [
+        [`out:${p[0]}`, ...p.slice(1)],
+        [`return:${p[0]}`, p[1], p[3], p[2], p[4], p[5], p[6], p[8], p[7]],
+      ]);
+      const allocations = calculateCrossTileModeShares({ worldId: input.worldId, routingCache,
+        crossDemand: { ...normalized.demand, pops: events }, networkProfiles: prepared.routingSnapshot.profiles,
+        routingSnapshot: prepared.routingSnapshot, capacityLedger: prepared.capacityLedger, capacityOnly: true,
+        fare: legacyFare, journeyFare: (stationRoutes, stationById) => prepared.routingFareQuote({
+          segments: fareSegmentsFromStationRoutes(stationRoutes, stationById) }), gatewayCatalog: {} });
+      prepared.capacityOutcomes = allocations.capacityOutcomes;
+    }
     for (let offset = 0; offset < Math.max(1, demand.pops.length); offset += size) {
       const pops = demand.pops.slice(offset, offset + size);
       const ids = new Set();
@@ -424,6 +443,10 @@ export function* nativeDemandEvaluationBatches(input) {
         demand: { points, pops } });
       result.profile.evaluationKey = evaluationKey;
       result.profile.demandRevisionKey = input.demandRevisionKey ?? null;
+      if (offset + size >= demand.pops.length) {
+        result.profile.capacityReservations = prepared.capacityLedger.reservations();
+        result.profile.capacityStats = { ...prepared.capacityLedger.stats };
+      }
       input.onBatch?.(pops.length);
       yield result;
     }
@@ -437,6 +460,8 @@ export function mergeNativeDemandProfiles(target, profile) {
   const add = (a, b) => { for (const [key, value] of Object.entries(b ?? {})) a[key] = (a[key] ?? 0) + value; };
   for (const key of ['transitPopulation', 'dailyRevenue', 'customCrossTileRevenue', 'nativeRevenue',
     'evaluatedPops', 'skippedPops', 'transitViablePops']) target[key] += profile[key];
+  if (profile.capacityReservations?.length) target.capacityReservations = [...(target.capacityReservations ?? []), ...profile.capacityReservations];
+  if (profile.capacityStats) target.capacityStats = { ...profile.capacityStats };
   add(target.modeChoicePopulation, profile.modeChoicePopulation);
   add(target.ridershipByRoute, profile.ridershipByRoute);
   const retainedSearchLabels = Math.max(target.routingStats.retainedSearchLabels ?? 0, profile.routingStats.retainedSearchLabels ?? 0);
@@ -465,6 +490,8 @@ export function mergeNativeDemandProfiles(target, profile) {
 }
 
 export function evaluateOffTileNativeDemand(input) {
+  const transaction = input.capacityBudget ? null : beginCapacityEvaluation(input);
+  input = transaction?.input ?? input;
   const merge = createIncrementalNativeDemandProfileMerger();
   const routingCache = input.routingCache ?? createBoundedCrossTileRoutingCache();
   let profile = null;
@@ -476,7 +503,9 @@ export function evaluateOffTileNativeDemand(input) {
     }
     const cached = !input.includeAssignments && input.existingProfile?.source === 'off-tile-estimator'
       && input.existingProfile.evaluationKey === profile.evaluationKey;
-    return { status: cached ? 'cached' : 'evaluated', profile: merge.finalize(profile), ...(assignments ? { assignments } : {}) };
+    const result = { status: cached ? 'cached' : 'evaluated', profile: merge.finalize(profile), ...(assignments ? { assignments } : {}) };
+    transaction?.commit(result);
+    return result;
   } finally { merge.dispose(); if (!input.routingCache) routingCache.clear(); }
 }
 

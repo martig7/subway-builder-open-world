@@ -99,7 +99,7 @@ test('release ZIP is self-contained and its bundled entry loads without city dat
       await mod.whenIdle();
       assert.equal(mod.snapshot().status, 'ready');
       assert.equal(mod.snapshot().worldOwner, null);
-      assert.equal(mod.snapshot().version, 'ultra-speed-standalone-v3');
+      assert.equal(mod.snapshot().version, 'ultra-speed-standalone-v4-capacity');
       // Native hot reload replays these in this order, without onGameLoaded
       // when the playable city is a fresh game rather than a loaded save.
       for (const name of ['onMapReady', 'onGameInit', 'onCityLoad']) {
@@ -111,6 +111,31 @@ test('release ZIP is self-contained and its bundled entry loads without city dat
       const before = state.timeConfig.elapsedSeconds;
       await state.handleIncrementGameState();
       assert.equal(state.timeConfig.elapsedSeconds, before + 240);
+      // Exercise capacity through the actual ZIP entry and embedded demand worker.
+      await mod.setEnabled(false);
+      state.stations = [{ id: 'A', coords: [0,0], buildType: 'constructed', stNodeIds: ['a'] },
+        { id: 'B', coords: [0.1,0], buildType: 'constructed', stNodeIds: ['b'] }];
+      state.routes = [{ id: 'R', trainType: 'fixture', carsPerTrain: 1, idealTrainCount: 1,
+        stNodes: [{id:'a'},{id:'b'},{id:'a'}], stComboTimings: [
+          {stNodeIndex:0,arrivalTime:0,departureTime:20},
+          {stNodeIndex:1,arrivalTime:580,departureTime:600},
+          {stNodeIndex:2,arrivalTime:1180,departureTime:1200} ] }];
+      sandbox.SubwayBuilderAPI.trains.getTrainTypes = () => [{id:'fixture',stats:{capacityPerCar:50,carsPerCarSet:1}}];
+      state.demandData = { points: new Map([['h',{id:'h',location:[0,0]}],['w',{id:'w',location:[0.1,0]}]]),
+        popsMap: new Map(Array.from({length:160},(_,i)=>[`P${i}`,{id:`P${i}`,size:25,residenceId:'h',jobId:'w',
+          drivingSeconds:2400,drivingDistance:15000,homeDepartureTime:28800,workDepartureTime:61200}])) };
+      await mod.setEnabled(true);
+      assert.equal(mod.snapshot().error,null);
+      assert.equal(mod.snapshot().assignedPops,160);
+      assert.equal(mod.snapshot().capacity.version,'scheduled-segment-capacity-v1');
+      assert.ok(mod.snapshot().dailyRidership < 1000);
+      assert.ok(mod.snapshot().capacity.unservedPeople > 0);
+      assert.equal(mod.snapshot().dailyRidership,mod.snapshot().capacity.carriedPeople);
+      const small = mod.snapshot().dailyRidership;
+      await mod.setEnabled(false);
+      state.routes = [{...state.routes[0],carsPerTrain:10}];
+      await mod.setEnabled(true);
+      assert.ok(mod.snapshot().dailyRidership > small,'published worker responds to larger consists');
     } finally { await mod.dispose(); }
 
   } finally { await rm(modRoot, { recursive: true, force: true }); }

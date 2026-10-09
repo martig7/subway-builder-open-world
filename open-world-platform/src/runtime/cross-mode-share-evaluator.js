@@ -1,3 +1,4 @@
+import { beginCapacityEvaluation } from './transit-capacity.js';
 import { calculateCrossTileModeShares, createBoundedCrossTileRoutingCache, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import { runRoutingJob } from './routing-job-queue.js';
 import { assertNativeDemandMemoryBudget } from './embedded-tile-package-adapter.js';
@@ -112,7 +113,12 @@ export function createCrossModeShareEvaluator({
   };
   return {
     evaluate: input => runRoutingJob(async () => {
-      try { return await evaluate(input); }
+      try {
+        const transaction = input.capacityBudget ? null : beginCapacityEvaluation(input, 'cross');
+        const result = await evaluate(transaction?.input ?? input);
+        if (!disposed) transaction?.commit(result);
+        return result;
+      }
       finally {
         // Return committed pages before handing the allocation slot to another job.
         if (!pending.size) release();
