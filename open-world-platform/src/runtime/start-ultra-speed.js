@@ -5,7 +5,7 @@ import { createRuntimeModePreferences } from './runtime-mode-preferences.js';
 import { ultraSpeedWorldOwner, subscribeUltraSpeedOwnership } from './ultra-speed-ownership.js';
 import { UltraSpeedControl } from './ui/ultra-speed-control.js';
 
-export const ULTRA_SPEED_STANDALONE_VERSION = 'ultra-speed-standalone-v1';
+export const ULTRA_SPEED_STANDALONE_VERSION = 'ultra-speed-standalone-v2';
 export const ULTRA_SPEED_MOD_ID = 'gcm.ultra-speed';
 const KEY = '__subwayBuilderUltraSpeedModV1__';
 const PANEL = 'ultra-speed-controls';
@@ -13,7 +13,7 @@ const PANEL = 'ultra-speed-controls';
 /** A native-city consumer of the shared estimator; no World or Tile Packages. */
 export async function startUltraSpeed({ api = globalThis.SubwayBuilderAPI,
   callbacks = globalThis.__subwayBuilder_storeCallbacks__, workerSources = {}, storage,
-  game = null } = {}) {
+  game = null, eventTarget = globalThis.window } = {}) {
   if (!api || typeof callbacks?.getState !== 'function') throw new Error('Ultra speed requires Subway Builder Mod API 1.0.0.');
   await globalThis[KEY]?.dispose?.();
   const preferences = createRuntimeModePreferences({ modId: ULTRA_SPEED_MOD_ID, storage });
@@ -24,11 +24,11 @@ export async function startUltraSpeed({ api = globalThis.SubwayBuilderAPI,
   let disposal = null;
   // World controllers survive leaving their city. Reserve the entire native
   // store while a World consumer is enabled, including dormant consumers.
-  const owner = () => ultraSpeedWorldOwner();
+  const owner = () => ultraSpeedWorldOwner(null, api.mods);
   const loaded = () => available && getState()?.gameSessionId && getState()?.cityCode
     && getState()?.demandData?.popsMap instanceof Map && getState()?.demandData?.points instanceof Map;
-  const snapshot = () => ({ version: ULTRA_SPEED_STANDALONE_VERSION,
-    ...(simulation?.snapshot() ?? {}), enabled: preferences.snapshot().ultraHighSpeed,
+  const snapshot = () => ({ ...(simulation?.snapshot() ?? {}),
+    version: ULTRA_SPEED_STANDALONE_VERSION, simulationVersion: simulation?.snapshot().version ?? null, enabled: preferences.snapshot().ultraHighSpeed,
     status: owner() ? 'open-world' : !loaded() ? 'unavailable'
       : simulation?.snapshot().status ?? 'restoring', worldOwner: owner(), error: error ?? simulation?.snapshot().error ?? null });
   const notify = () => { for (const listener of listeners) listener(snapshot()); };
@@ -45,7 +45,10 @@ export async function startUltraSpeed({ api = globalThis.SubwayBuilderAPI,
     notify();
     pending = pending.catch(() => {}).then(async () => {
       await teardown;
-      if (disposed || token !== epoch || owner() || !loaded()) return;
+      if (disposed || token !== epoch) return;
+      // A World may become visible in the host registry after its synchronous
+      // registration callback, while this reconciliation waits for teardown.
+      if (owner() || !loaded()) { retire(); notify(); await teardown; return; }
       if (!simulation) {
         game ??= new SubwayBuilderGameAdapter({ api, callbacks });
         await game.assertSupported();
@@ -100,6 +103,11 @@ export async function startUltraSpeed({ api = globalThis.SubwayBuilderAPI,
     hook(name, () => simulation?.invalidate());
   }
   unsubscribers.push(subscribeUltraSpeedOwnership(() => { void reconcile(); }));
+  if (eventTarget?.addEventListener) {
+    const onReload = () => { void reconcile(); };
+    eventTarget.addEventListener('modding-api-reload-complete', onReload);
+    unsubscribers.push(() => eventTarget.removeEventListener('modding-api-reload-complete', onReload));
+  }
   const React = api.utils?.React;
   if (React?.createElement && api.ui?.addToolbarPanel) {
     api.ui.unregisterComponent?.('top-bar', PANEL);

@@ -68,6 +68,13 @@ test('release ZIP is self-contained and its bundled entry loads without city dat
       cities: { setCityDataFiles() { throw new Error('Unexpected city registration'); } }, trains: { getTrainTypes: () => [] },
       gameState: { getStations: () => state.stations, getRoutes: () => state.routes, getTrains: () => state.trains } });
     sandbox.SubwayBuilderAPI.utils.getPathfindingRules = () => ({});
+    // Native reload leaves an old World lease in the renderer even when that
+    // consumer is disabled. Verify the published bundle ignores that lease.
+    sandbox.__openWorldUltraSpeedOwnershipV1__ = {
+      worlds: new Map([['local.world', { cities: new Set(['OTHER_CITY']) }]]), listeners: new Set() };
+    let loadedMods = [];
+    sandbox.SubwayBuilderAPI.mods = { getLoadedMods: () => loadedMods };
+    sandbox.window = new EventTarget();
     vm.runInNewContext(files.get('index.js').toString(), sandbox);
     await new Promise(resolve => setImmediate(resolve));
     const mod = sandbox.__subwayBuilderUltraSpeedModV1__;
@@ -79,6 +86,17 @@ test('release ZIP is self-contained and its bundled entry loads without city dat
       assert.ok(workers.includes('finance'));
       await state.handleIncrementGameState(); assert.equal(state.timeConfig.elapsedSeconds, 25240);
       assert.equal(state.generateSave().data.elapsedSeconds, 25240);
+      loadedMods = [{ id: 'local.world', name: 'Test Open World' }];
+      sandbox.window.dispatchEvent(new Event('modding-api-reload-complete'));
+      await mod.whenIdle();
+      assert.equal(mod.snapshot().status, 'open-world');
+      assert.equal(mod.snapshot().worldOwner, 'local.world');
+      loadedMods = [];
+      sandbox.window.dispatchEvent(new Event('modding-api-reload-complete'));
+      await mod.whenIdle();
+      assert.equal(mod.snapshot().status, 'ready');
+      assert.equal(mod.snapshot().worldOwner, null);
+      assert.equal(mod.snapshot().version, 'ultra-speed-standalone-v2');
     } finally { await mod.dispose(); }
 
   } finally { await rm(modRoot, { recursive: true, force: true }); }

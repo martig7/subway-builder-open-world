@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startUltraSpeed, ULTRA_SPEED_MOD_ID } from '../src/runtime/start-ultra-speed.js';
+import { startUltraSpeed, ULTRA_SPEED_MOD_ID, ULTRA_SPEED_STANDALONE_VERSION } from '../src/runtime/start-ultra-speed.js';
 import { registerWorldUltraSpeedOwner, ultraSpeedWorldOwner } from '../src/runtime/ultra-speed-ownership.js';
 import { createSubwayBuilderHostState } from '../testkit/subway-builder-host.js';
 
@@ -30,7 +30,7 @@ function fixture() {
     hooks: new Proxy({}, { get: (_target, key) => listener => {
       const set = hooks.get(key) ?? new Set(); hooks.set(key, set); set.add(listener); return () => set.delete(listener);
     } }), ui: { addToolbarPanel: panel => panels.push(panel), unregisterComponent() {} } };
-  return { api, callbacks, storage, state, saved, panels, nativeTicks: () => nativeTicks,
+  return { api, callbacks, storage, state, saved, panels, eventTarget: new EventTarget(), nativeTicks: () => nativeTicks,
     async emit(name) { await Promise.all([...(hooks.get(name) ?? [])].map(listener => listener())); } };
 }
 
@@ -144,5 +144,74 @@ test('a dormant World for a different city reserves its retained native controll
     assert.equal(mod.snapshot().worldOwner, 'local.different-world');
     await f.state.handleIncrementGameState(); assert.equal(f.nativeTicks(), 1);
     release(); await mod.whenIdle(); assert.equal(mod.snapshot().status, 'ready');
+  });
+});
+
+
+test('disabled Open World mods cannot block Ultra Speed through retained ownership records', async () => {
+  await withMod(async (f, initial) => {
+    await initial.dispose();
+    let loadedMods = [{ id: 'local.world', name: 'Test Open World' }];
+    f.api.mods = { getLoadedMods: () => loadedMods };
+    const release = registerWorldUltraSpeedOwner('local.world', ['OTHER_CITY']);
+    const mod = await startUltraSpeed(f);
+    try {
+      assert.equal(mod.snapshot().status, 'open-world');
+      const notifications = [];
+      mod.subscribe(state => notifications.push(state));
+      // Reload clears the host's loaded list but does not dispose disabled runtimes.
+      loadedMods = [];
+      f.eventTarget.dispatchEvent(new Event('modding-api-reload-complete'));
+      await mod.whenIdle();
+      assert.ok(notifications.length > 0, 'reload must notify the mounted panel');
+      assert.notEqual(notifications.at(-1).status, 'open-world', 'the mounted panel must refresh after reload');
+      assert.notEqual(mod.snapshot().status, 'open-world', 'a disabled mod with stale global registration must not block the toggle');
+      await mod.setEnabled(true);
+      assert.equal(mod.snapshot().status, 'ready');
+      assert.equal(mod.snapshot().assignedPops, 1);
+      assert.equal(mod.snapshot().version, ULTRA_SPEED_STANDALONE_VERSION);
+    } finally { release(); }
+  });
+});
+
+
+test('the live host registry controls ownership across both load orders and re-enabling', async () => {
+  for (const worldFirst of [true, false]) await withMod(async (f, initial) => {
+    await initial.dispose();
+    const loaded = new Map();
+    f.api.mods = { isLoaded: id => loaded.has(id) };
+    let release;
+    if (worldFirst) {
+      release = registerWorldUltraSpeedOwner('local.world', ['OTHER_CITY']);
+      loaded.set('local.world', {});
+    }
+    const mod = await startUltraSpeed(f);
+    try {
+      if (!worldFirst) {
+        await mod.setEnabled(true);
+        // Native loader registers a mod only after executing its script.
+        release = registerWorldUltraSpeedOwner('local.world', ['OTHER_CITY']);
+        loaded.set('local.world', {});
+        await mod.whenIdle();
+      }
+      assert.equal(mod.snapshot().status, 'open-world');
+      await f.state.handleIncrementGameState();
+      assert.equal(f.nativeTicks(), 1, 'standalone wrappers must be retired when an owner loads');
+      loaded.delete('local.world');
+      f.eventTarget.dispatchEvent(new Event('modding-api-reload-complete'));
+      await mod.whenIdle();
+      await mod.setEnabled(true);
+      assert.equal(mod.snapshot().status, 'ready');
+      loaded.set('local.world', {});
+      f.eventTarget.dispatchEvent(new Event('modding-api-reload-complete'));
+      await mod.whenIdle();
+      assert.equal(mod.snapshot().status, 'open-world');
+      await f.state.handleIncrementGameState();
+      assert.equal(f.nativeTicks(), 2, 're-enabling must yield the native store again');
+      await mod.dispose();
+      let calls = 0; mod.subscribe(() => calls++);
+      f.eventTarget.dispatchEvent(new Event('modding-api-reload-complete'));
+      assert.equal(calls, 0, 'disposed reload listeners must be removed');
+    } finally { release?.(); }
   });
 });

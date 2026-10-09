@@ -11,7 +11,7 @@ export function UltraSpeedControl({ React, simulation, id = 'open-world-cached-s
     h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
       `Uses calculated ridership and finances. Trains go out of service${hideTrains ? ' and disappear from the map' : ''}; trains, signals, crowds, and passenger movements stop simulating. Trains resume in native mode. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster. Your choice is remembered between sessions.`),
     h('div', { className: 'text-xs', role: 'status', 'aria-live': 'polite' },
-      state?.error ?? (state?.status === 'open-world' ? 'Ultra speed is included in Open World. Use its Map rendering panel.'
+      state?.error ?? (state?.status === 'open-world' ? `Open World (${state.worldOwner}) is loaded and includes Ultra speed. Use its Map rendering panel. For standalone play, disable Open World and click Reload Now.`
         : state?.status === 'unavailable' ? 'Load a city to use Ultra speed.'
         : state?.status === 'restoring' ? 'Restoring Ultra-high-speed mode after the network loads…'
         : state?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'
