@@ -2,7 +2,7 @@
   "id": "gcm.ultra-speed",
   "name": "Ultra Speed",
   "description": "Fast calculated ridership and finances for native Subway Builder cities, with a 10× Ultra clock. No external server required.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": { "name": "Giancarlo Martinelli (gcm)" },
   "main": "index.js"
 }

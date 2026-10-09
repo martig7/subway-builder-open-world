@@ -5,7 +5,7 @@ import { createRuntimeModePreferences } from './runtime-mode-preferences.js';
 import { ultraSpeedWorldOwner, subscribeUltraSpeedOwnership } from './ultra-speed-ownership.js';
 import { UltraSpeedControl } from './ui/ultra-speed-control.js';
 
-export const ULTRA_SPEED_STANDALONE_VERSION = 'ultra-speed-standalone-v2';
+export const ULTRA_SPEED_STANDALONE_VERSION = 'ultra-speed-standalone-v3';
 export const ULTRA_SPEED_MOD_ID = 'gcm.ultra-speed';
 const KEY = '__subwayBuilderUltraSpeedModV1__';
 const PANEL = 'ultra-speed-controls';
@@ -96,7 +96,9 @@ export async function startUltraSpeed({ api = globalThis.SubwayBuilderAPI,
     if (typeof unsubscribe === 'function') unsubscribers.push(unsubscribe);
   };
   for (const name of ['onGameInit', 'onGameLoaded']) hook(name, () => { available = true; return reconcile({ reset: true }); });
-  hook('onCityLoad', () => { available = false; return reconcile(); });
+  // Native city-load follows data loading and is replayed after map-ready
+  // during hot reload. It cannot be treated as the start of a pending load.
+  hook('onCityLoad', () => { available = true; return reconcile({ reset: true }); });
   hook('onMapReady', () => { available = true; return reconcile(); });
   hook('onGameEnd', () => { available = false; return reconcile(); });
   for (const name of ['onScheduleChange', 'onTicketPriceChanged', 'onFareGroupsChanged']) {

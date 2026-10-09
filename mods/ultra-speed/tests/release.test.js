@@ -25,11 +25,14 @@ test('release ZIP is self-contained and its bundled entry loads without city dat
     assert.deepEqual([...files.keys()].sort(), ['index.js', 'manifest.json']);
     assert.equal(JSON.parse(files.get('manifest.json')).id, 'gcm.ultra-speed');
     assert.deepEqual(files.get('index.js'), await readFile(path.join(result.distPath, 'index.js')));
-    const panels = []; let state = { cityCode: null, gameSessionId: null };
+    const panels = [], hooks = new Map(); let state = { cityCode: null, gameSessionId: null };
     const sandbox = { console, setTimeout, clearTimeout, performance, Map, TextEncoder, TextDecoder, structuredClone,
       fetch() { throw new Error('Standalone attempted network access'); },
       __subwayBuilder_storeCallbacks__: { getState: () => state },
-      SubwayBuilderAPI: { hooks: {}, utils: { React: { createElement() {} } },
+      SubwayBuilderAPI: { hooks: new Proxy({}, { get: (_target, name) => listener => {
+        const listeners = hooks.get(name) ?? new Set(); hooks.set(name, listeners); listeners.add(listener);
+        return () => listeners.delete(listener);
+      } }), utils: { React: { createElement() {} } },
         ui: { addToolbarPanel: panel => panels.push(panel), unregisterComponent() {} } } };
     vm.runInNewContext(files.get('index.js').toString(), sandbox);
     await new Promise(resolve => setImmediate(resolve));
@@ -96,7 +99,18 @@ test('release ZIP is self-contained and its bundled entry loads without city dat
       await mod.whenIdle();
       assert.equal(mod.snapshot().status, 'ready');
       assert.equal(mod.snapshot().worldOwner, null);
-      assert.equal(mod.snapshot().version, 'ultra-speed-standalone-v2');
+      assert.equal(mod.snapshot().version, 'ultra-speed-standalone-v3');
+      // Native hot reload replays these in this order, without onGameLoaded
+      // when the playable city is a fresh game rather than a loaded save.
+      for (const name of ['onMapReady', 'onGameInit', 'onCityLoad']) {
+        for (const listener of hooks.get(name) ?? []) listener();
+      }
+      sandbox.window.dispatchEvent(new Event('modding-api-reload-complete'));
+      await mod.whenIdle();
+      assert.equal(mod.snapshot().status, 'ready');
+      const before = state.timeConfig.elapsedSeconds;
+      await state.handleIncrementGameState();
+      assert.equal(state.timeConfig.elapsedSeconds, before + 240);
     } finally { await mod.dispose(); }
 
   } finally { await rm(modRoot, { recursive: true, force: true }); }

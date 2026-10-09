@@ -15,7 +15,7 @@ SubwayBuilderAPI.mods.getLoadedMods()
 globalThis.__subwayBuilderUltraSpeedModV1__?.snapshot()
 ```
 
-The snapshot should report `version: "ultra-speed-standalone-v2"` for 0.1.1. With all World consumers disabled and reloaded, `worldOwner` is `null`. If it names a manifest ID, that registered World is still present in the host's loaded-mod list.
+The snapshot should report `version: "ultra-speed-standalone-v3"` for 0.1.2. With all World consumers disabled and reloaded, `worldOwner` is `null`. If it names a manifest ID, that registered World is still present in the host's loaded-mod list.
 
 ## Build for publication
 
@@ -29,7 +29,7 @@ npm test
 npm run build
 ```
 
-Publish `dist/ultra-speed-0.1.1.zip`. The archive contains only `manifest.json` and `index.js` at its root, including embedded demand and finance workers. Its manifest ID is `gcm.ultra-speed`. Extract those two files into a mod folder for manual installation, or upload the ZIP to a platform accepting native Subway Builder mod archives.
+Publish `dist/ultra-speed-0.1.2.zip`. The archive contains only `manifest.json` and `index.js` at its root, including embedded demand and finance workers. Its manifest ID is `gcm.ultra-speed`. Extract those two files into a mod folder for manual installation, or upload the ZIP to a platform accepting native Subway Builder mod archives.
 
 The build does not install anything. It never reads World Definitions or generated geography, and includes no city data, tile server, native executable, or network service. It uses the demand already loaded by Subway Builder. Compatibility targets the inspected Subway Builder 1.7.2 and Mod API 1.0.0.
 

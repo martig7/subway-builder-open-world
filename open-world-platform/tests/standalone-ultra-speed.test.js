@@ -215,3 +215,21 @@ test('the live host registry controls ownership across both load orders and re-e
     } finally { release?.(); }
   });
 });
+
+
+test('native hot reload lifecycle replay keeps a playable built-in city ready', async () => {
+  await withMod(async (f, mod) => {
+    await mod.setEnabled(true);
+    // Native triggerPostReloadLifecycle replays map-ready, game-init, then
+    // city-load for an already playable city; fresh games have no loaded save.
+    await f.emit('onMapReady');
+    await f.emit('onGameInit');
+    await f.emit('onCityLoad');
+    f.eventTarget.dispatchEvent(new Event('modding-api-reload-complete'));
+    await mod.whenIdle();
+    assert.equal(mod.snapshot().status, 'ready', 'reload must not claim that an already playable city is unavailable');
+    const before = f.state.timeConfig.elapsedSeconds;
+    await f.state.handleIncrementGameState();
+    assert.equal(f.state.timeConfig.elapsedSeconds, before + 240);
+  });
+});
