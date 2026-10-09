@@ -8,6 +8,7 @@ const EVENING_DEPARTURE_HOUR = 17;
 // it to the wallet and route ledger (RULES.FARE_MULTIPLIER.default).
 const NATIVE_FARE_MULTIPLIER = 365;
 const COMMUTE_LEDGER_SCHEMA_VERSION = 4;
+export const CROSS_COMMUTE_SETTLEMENT_VERSION = 'finance-blind-commute-fare-v1';
 
 function finiteNonNegative(value, label) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}`);
@@ -408,6 +409,10 @@ function reversedStationRoutes(stationRoutes) {
 }
 
 function creditFareRevenue(world, entry, dispatchedMass, direction, hour) {
+  // Finance-blind World Records omit this transient counter even when the
+  // ledger schema is current. Initialize it on use without restoring money
+  // from storage or discarding an invalid retained value.
+  const previousFareRevenue = finiteNonNegative(entry.fareRevenue ?? 0, `fare revenue: ${entry.flow.id}`);
   const legacyFare = finiteNonNegative(Number(world.farePolicy?.fare ?? 0), 'cross-tile fare');
   const template = settlementTemplateFor(entry);
   const estimatedTransitMass = dispatchedMass * template.transitShare;
@@ -420,7 +425,7 @@ function creditFareRevenue(world, entry, dispatchedMass, direction, hour) {
     * NATIVE_FARE_MULTIPLIER);
   if (!Number.isFinite(world.wallet)) throw new Error('Invalid world wallet');
   entry.transitTrips += transitMass;
-  entry.fareRevenue += fareRevenue;
+  entry.fareRevenue = previousFareRevenue + fareRevenue;
   world.crossTileFinancials.transitTrips += transitMass;
   world.crossTileFinancials.fareRevenue += fareRevenue;
   world.crossTileFinancials.pendingNativeRevenue += fareRevenue;

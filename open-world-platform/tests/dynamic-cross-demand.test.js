@@ -10,6 +10,7 @@ import { createOpenWorldRoutePaths } from '../src/runtime/route-path-controller.
 import { applyModeShares, reconcileExtensionCommuteFlows, assertCommuteLedger } from '../src/runtime/cross-tile-commute-engine.js';
 import { DemandExtensionStore } from '../src/runtime/demand-extension-state.js';
 import { createDemandExtensionRuntime } from '../src/runtime/demand-context.js';
+import { NativeRevenueAccrual } from '../src/runtime/native-revenue-accrual.js';
 import { calculateCrossTileModeShares } from '../src/runtime/cross-tile-mode-choice.js';
 
 const base = { schemaVersion: 1,
@@ -20,17 +21,22 @@ const record = (size = 4, recordKey = 'r1') => ({ tileId: 'A', extensionId: 'ind
   payload: { endpoints: [{id:'home',location:[.001,0],tileId:'A'}, {id:'work',location:[.021,0],tileId:'B'}],
     crossPops: [{id:'owned',residenceId:'home',jobId:'work',size,homeDepartureTime:28800,
       workDepartureTime:61200,drivingSeconds:600,drivingDistance:2000}] } });
-async function fixture() {
+async function fixture({ financeBlind = false } = {}) {
   const packages = Object.fromEntries(['A','B'].map(tileId => [tileId, { manifest:{tileId,cityCode:tileId,schemaVersion:1,dataFiles:{}},
     demand: [], crossDemand: base, commuteCatalog: {buildHash:'base',gateways:[{id:'g',capacityPerHour:100}],
       buckets:[{id:'packaged-flow',homeTileId:'A',workTileId:'B',gatewayId:'g',mass:10,travelHours:1}]} }]));
   const game = new FakeGameAdapter();
-  const runtime = new WorldTileRuntime({game,tilePackages:new MemoryTilePackageAdapter(packages),
-    worldState:new ModStorageWorldStateAdapter(),initialWorld:{activeTileId:'A',wallet:100,cohorts:[]}});
+  const worldState = new ModStorageWorldStateAdapter({ financeMode: financeBlind ? 'blind' : 'legacy' });
+  const tilePackages = new MemoryTilePackageAdapter(packages);
+  const createRuntime = game => new WorldTileRuntime({ game, tilePackages, worldState,
+    ...(financeBlind ? { revenueAccrual: new NativeRevenueAccrual({ adapter: game }), backgroundNativeExpenses: false } : {}),
+    initialWorld:{activeTileId:'A',wallet:100,cohorts:[]} });
+  const runtime = createRuntime(game);
   await runtime.boot('cross-world','A');
   let records = [record()], key = 'cross-r1';
-  runtime.demandExtensions = {crossRecords:async()=>records,crossKeyFor:()=>key};
-  return {runtime,game,setRecords(value,nextKey){records=value;key=nextKey;}};
+  runtime.demandExtensions = { crossRecords:async()=>records, crossKeyFor:()=>key,
+    cacheKeyFor:()=>null, extensionsFor:async()=>[], activate:async()=>{}, flush:async()=>{}, assertSaveReady:()=>{} };
+  return {runtime,game,worldState,createRuntime,setRecords(value,nextKey){records=value;key=nextKey;}};
 }
 
 test('selected extension cohorts join packaged cross demand exactly once from either Tile View', async () => {
@@ -134,6 +140,68 @@ for (const reason of ['hourly','cached-simulation']) test(`virtual cross fares s
   await f.runtime.settleCrossTileCommutes(reason);
   assert.equal(f.game.native.wallet-wallet,2920,'a repeated hour cannot replay induced fares');
   assert.equal(f.runtime.world.gatewayLedger[flow.id].toWork[0].mass,4);
+});
+
+for (const reason of ['hourly', 'cached-simulation']) {
+  for (const transit of [0, 4]) test(`finance-blind reload settles ${transit ? 'transit' : 'driving'} extension commutes with ${reason}`, async () => {
+    const f = await fixture({ financeBlind: true });
+    await f.runtime.recalculateCrossTileModeShare({ force: true });
+    const data = await f.runtime.getCrossDemand('A'), flow = data.extensionFlows[0];
+    const key = `${flow.homeTileId}|${flow.workTileId}|${flow.gatewayId}`;
+    if (transit) applyModeShares(f.runtime.world, new Map([[key, { driving: 0, walking: 0, transit, unknown: 0 }]]), {
+      transitJourneys: new Map([[key, [{ popId: data.pops[1][0], transitMass: transit, totalClockSeconds: 600,
+        fare: 2, revenueByRoute: { r: 2 }, stationRoutes: [{ routeId: 'r', stationIds: ['h', 'w'] }] }]]]),
+    });
+    f.runtime.world.gatewayLedger[flow.id].fareRevenue = 123;
+    await f.worldState.save(f.runtime.world);
+    const persisted = await f.worldState.load('cross-world');
+    assert.equal('fareRevenue' in persisted.gatewayLedger[flow.id], false, 'World Records cannot retain native money');
+    assert.equal(persisted.commuteLedgerSchemaVersion, f.runtime.world.commuteLedgerSchemaVersion);
+
+    const reload = async native => {
+      const game = new FakeGameAdapter(); game.native = structuredClone(native);
+      const runtime = f.createRuntime(game);
+      runtime.demandExtensions = f.runtime.demandExtensions;
+      await runtime.boot('cross-world', 'A', { nativeAuthoritativeLoad: true });
+      return { runtime, game };
+    };
+    const first = await reload(f.game.native), wallet = first.game.native.wallet;
+    assert.equal(first.game.native.wallet, f.game.native.wallet, 'loading never restores the omitted fare total');
+    first.game.native.clock = 7 * 3600;
+    const settlement = await first.runtime.settleCrossTileCommutes(reason);
+    assert.equal(settlement.version, 'finance-blind-commute-fare-v1');
+    const expectedFare = transit * 2 * 365;
+    assert.equal(first.runtime.world.gatewayLedger[flow.id].fareRevenue, expectedFare);
+    assert.equal(first.game.native.wallet, wallet + expectedFare);
+    assert.equal(first.game.native.routeRevenueByRoute.r ?? 0, expectedFare);
+    await first.runtime.settleCrossTileCommutes(reason);
+    assert.equal(first.game.native.wallet, wallet + expectedFare, 'the same hour cannot credit fares twice');
+    first.game.native.clock = 8 * 3600;
+    await first.runtime.settleCrossTileCommutes(reason);
+    await f.worldState.save(first.runtime.world);
+
+    const second = await reload(first.game.native);
+    assert.equal(second.game.native.wallet, wallet + expectedFare, 'another reload retains only native receipts');
+    second.game.native.clock = 17 * 3600;
+    await second.runtime.settleCrossTileCommutes(reason);
+    assert.equal(second.runtime.world.gatewayLedger[flow.id].fareRevenue, expectedFare, 'the transient accumulator starts fresh on every restore');
+    assert.equal(second.game.native.wallet, wallet + 2 * expectedFare, 'only the new return trip is credited');
+    assertCommuteLedger(second.runtime.world);
+  });
+}
+
+test('invalid retained extension fare totals still fail strict validation', async () => {
+  for (const fareRevenue of [NaN, Infinity, -1]) {
+    const f = await fixture({ financeBlind: true });
+    await f.runtime.recalculateCrossTileModeShare({ force: true });
+    const entry = Object.values(f.runtime.world.gatewayLedger).find(entry => entry.flow.extension);
+    entry.fareRevenue = fareRevenue;
+    const wallet = f.game.native.wallet;
+    f.game.native.clock = 7 * 3600;
+    await assert.rejects(f.runtime.settleCrossTileCommutes('cached-simulation'), /Invalid fare revenue: extension:A\|B/);
+    assert.equal(f.game.native.wallet, wallet);
+    assert.equal(entry.fareRevenue, fareRevenue, 'a malformed total must not be silently reset');
+  }
 });
 
 test('shrinking and retiring dynamic flows preserves packaged positions and earned pending fares', async () => {

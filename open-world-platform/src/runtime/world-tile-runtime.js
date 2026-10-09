@@ -2,7 +2,7 @@ import { beginCapacityEvaluation } from './transit-capacity.js';
 import { assertWorld, createWorld, deepCopy, migrateWorldTileSet } from './world-model.js';
 import { projectCrossDemandExtensions } from './cross-demand-extension-projection.js';
 import { createFrameBudget } from './frame-budget.js';
-import { advanceCommutesTo, applyModeShares, projectCommuteBacklogs, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog, reconcileExtensionCommuteFlows } from './cross-tile-commute-engine.js';
+import { CROSS_COMMUTE_SETTLEMENT_VERSION, advanceCommutesTo, applyModeShares, projectCommuteBacklogs, projectCommutesByTile, projectCommutesForTile, rebaseCommutesTo, recordObservedDeparture, registerCommuteCatalog, reconcileExtensionCommuteFlows } from './cross-tile-commute-engine.js';
 import { calculateCrossTileModeShares, createNetworkProfile, inspectCrossTileModeChoice, inspectCrossTileTransitPath, CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import {
   NetworkProjection,
@@ -1355,7 +1355,7 @@ export class WorldTileRuntime {
       }
       const fareRevenue = (this.world.crossTileFinancials?.fareRevenue ?? 0) - previousRevenue;
       const result = {
-        status: 'settled', reason, worldTime: this.world.worldTime, fareRevenue, wallet: this.world.wallet,
+        status: 'settled', version: CROSS_COMMUTE_SETTLEMENT_VERSION, reason, worldTime: this.world.worldTime, fareRevenue, wallet: this.world.wallet,
         activeHours: advancement.activeHours + (crossDemand.advancement?.activeHours ?? 0),
         transitTrips: advancement.transitTrips + (crossDemand.advancement?.transitTrips ?? 0),
         backgroundRevenue: background.revenue,
