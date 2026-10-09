@@ -9,6 +9,15 @@ choice is remembered between sessions for each runnable mod, independently of
 Native Save selection. Lifecycle shutdowns and temporary tile handoff holds do
 not change that preference. New installations default to off; upgrading a live
 older runtime retains its current choice.
+The standalone Ultra Speed mod (`mods/ultra-speed`, manifest `gcm.ultra-speed`)
+bundles the same controller and UI for native cities. It is a publication shell,
+not a World consumer: it uses loaded native demand and ordinary native saves,
+with no tile server or World artifacts. Open World retains the feature directly
+and has no dependency on that mod. Enabled World consumers reserve the native store even
+when dormant or outside a registered city: their controller survives navigation.
+The standalone mod yields for that entire lifetime, preventing competing tick
+or ledger owners. Native-city standalone play uses Open World disabled. Each distribution keeps its own toggle preference.
+
 It replaces native train, signal, crowd and pop simulation with disposable
 calculated demand and finance profiles. The clock continues; Ultra speed uses
 ten times its ordinary clock increment. Other speed tiers keep their configured

@@ -63,7 +63,7 @@ test('registers the render-distance slider as a map rendering toolbar panel', ()
 test('map rendering exposes the cached simulation toggle and its calculation status', () => {
   let requested;
   const React = {
-    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    createElement: (type, props, ...children) => typeof type === 'function' ? type(props) : ({ type, props: props ?? {}, children: children.flat() }),
     useState: value => [typeof value === 'function' ? value() : value, () => {}],
     useEffect: effect => effect(),
   };

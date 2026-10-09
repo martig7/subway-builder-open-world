@@ -7,7 +7,7 @@ import { createHourlyPostingPreparation } from './hourly-posting-preparation.js'
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 import { DEMAND_DEFERRED_CODE } from './demand-context.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v22';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v23';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -86,7 +86,7 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
     if (disposed || !suspension) return false;
     try { return suspension.isCurrent(); } catch { return false; }
   };
-  let modeRequest = 0;
+  let modeRequest = 0, disposal = null;
   let revision = 0, cache = null, dependencies = null, settledAt = null, startedAt = null;
   let cacheContext = null, pendingMidnightRefresh = false;
   let sessionId = null, status = 'off', error = null;
@@ -483,12 +483,16 @@ export function createCachedSimulation({ game, api, getState, isReady = () => tr
       }
       state.setTimeConfig?.({});
     },
-    async dispose() {
-      await controller.setEnabled(false);
-      disposed = true; suspension = null; revision++;
-      const state = getState();
-      for (const [name, { original, wrapper }] of wrappers) if (state[name] === wrapper) state[name] = original;
-      preparation.dispose(); worker.dispose(); routingCache.clear(); listeners.clear(); state.setTimeConfig?.({});
+    dispose() {
+      if (disposal) return disposal;
+      disposal = (async () => {
+        await controller.setEnabled(false);
+        disposed = true; suspension = null; revision++;
+        const state = getState();
+        for (const [name, { original, wrapper }] of wrappers) if (state[name] === wrapper) state[name] = original;
+        preparation.dispose(); worker.dispose(); routingCache.clear(); listeners.clear(); state.setTimeConfig?.({});
+      })();
+      return disposal;
     },
   };
   const previousControllers = new Set([...NATIVE_ACTIONS, 'generateSave']

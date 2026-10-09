@@ -642,13 +642,13 @@ test('hot reload unwraps a previous generation and disposal restores the native 
   const original = previous[owner].original;
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete wrapper executed'); };
-  const oldPatch = { version: 'open-world-cached-simulation-v18', original };
+  const oldPatch = { version: 'open-world-cached-simulation-v22', original };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.handleIncrementGameState = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.handleIncrementGameState, obsolete);
   assert.notEqual(f.state.handleIncrementGameState[owner], oldPatch);
-  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v22');
+  assert.equal(f.state.handleIncrementGameState[owner].version, 'open-world-cached-simulation-v23');
   await f.state.handleIncrementGameState();
   assert.equal(f.native().nativeTicks, 1);
   await current.dispose();
@@ -662,13 +662,13 @@ test('hot reload replaces the old save wrapper and restores the native generator
   await f.controller.dispose();
   const obsolete = () => { throw new Error('obsolete save wrapper executed'); };
   let retired = 0;
-  const oldPatch = { version: 'open-world-cached-simulation-v20', original, controller: { dispose() { retired++; } } };
+  const oldPatch = { version: 'open-world-cached-simulation-v22', original, controller: { dispose() { retired++; } } };
   Object.defineProperty(obsolete, owner, { value: oldPatch });
   f.state.generateSave = obsolete;
   const current = createCachedSimulation({ game: f.game, api: { utils: {} }, getState: () => f.state });
   assert.notEqual(f.state.generateSave, obsolete);
   assert.notEqual(f.state.generateSave[owner], oldPatch);
-  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v22');
+  assert.equal(f.state.generateSave[owner].version, 'open-world-cached-simulation-v23');
   assert.equal(retired, 1);
   assert.deepEqual(f.state.generateSave(), original.call(f.state));
   await current.dispose();
@@ -820,4 +820,16 @@ test('cached accounting batches within an hour and flushes every remaining secon
   assert.equal(f.postings[1].targetElapsedSeconds, 29040);
   await f.controller.dispose();
   assert.equal(f.postings.length, 2);
+});
+
+
+test('simultaneous cached disposal from both mod owners settles and rebases only once', async () => {
+  const f = fixture(); await f.controller.setEnabled(true);
+  f.state.setTimeConfig({ paused: false }); await f.state.handleIncrementGameState();
+  const a = f.controller.dispose(), b = f.controller.dispose();
+  assert.equal(a, b); await Promise.all([a, b]);
+  assert.equal(f.postings.length, 1);
+  assert.equal(f.state.trains[0].timings[0].arrivalTime, 25240);
+  const native = f.state.handleIncrementGameState;
+  await f.controller.dispose(); assert.equal(f.postings.length, 1); assert.equal(f.state.handleIncrementGameState, native);
 });

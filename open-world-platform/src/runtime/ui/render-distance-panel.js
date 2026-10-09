@@ -1,3 +1,4 @@
+import { UltraSpeedControl } from './ultra-speed-control.js';
 import { RENDER_DISTANCE } from './renderer-virtualization.js';
 import { prototypeSaveProgressText } from '../prototype-save-progress.js';
 import { stationNameRepairText } from '../station-name-repair.js';
@@ -22,8 +23,6 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter,
   const [settings, setSettings] = React.useState({ distance: controller.getRenderDistance(), shape: controller.getRenderShape?.() ?? 'circle' });
   const { distance, shape } = settings;
   const limits = controller.getRenderDistanceLimits?.() ?? RENDER_DISTANCE;
-  const [simulationState, setSimulationState] = React.useState(() => simulation?.snapshot());
-  React.useEffect(() => simulation?.subscribe(setSimulationState), [simulation]);
   const [saveState, setSaveState] = React.useState(() => saveWriter?.snapshot());
   React.useEffect(() => saveWriter?.subscribe(setSaveState), [saveWriter]);
   const [stationNameState, setStationNameState] = React.useState(() => stationNames?.snapshot());
@@ -84,20 +83,7 @@ export function RenderDistancePanel({ React, controller, simulation, saveWriter,
     h('div', { role: 'status', className: 'text-xs', 'aria-live': 'polite' }, stationNameRepairText(stationNameState)),
     h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
       'Fills empty names and “Station” using nearby loaded roads. For stations still unnamed outside this tile, switch to their tile and run again.')),
-  simulation && h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
-    h('label', { className: 'flex items-center gap-2 text-sm font-medium' },
-      h('input', { type: 'checkbox', role: 'switch', id: 'open-world-cached-simulation',
-        checked: simulationState?.enabled ?? false,
-        onChange: event => { void simulation.setEnabled(event.target.checked); },
-        'aria-label': 'Ultra-high-speed cached simulation' }),
-      'Ultra-high-speed mode'),
-    h('p', { className: 'text-[11px] leading-4 text-muted-foreground' },
-      'Uses calculated ridership and finances. Trains go out of service and disappear from the map; trains, signals, crowds, and passenger movements stop simulating. Trains resume in native mode. Demand views keep assigned modes and routes. Delays and crowding are not modeled. Ultra speed advances time 10× faster. Your choice is remembered between sessions.'),
-    h('div', { className: 'text-xs', role: 'status', 'aria-live': 'polite' },
-      simulationState?.error ?? (simulationState?.status === 'restoring' ? 'Restoring Ultra-high-speed mode after the network loads…'
-        : simulationState?.status === 'calculating' ? 'Calculating journeys… Time waits for the cache.'
-        : simulationState?.enabled ? `${simulationState.assignedPops.toLocaleString()} pop groups assigned · ${Math.round(simulationState.dailyRidership).toLocaleString()} estimated daily rides`
-          : 'Native simulation'))),
+  simulation && h('div', { className: 'border-t pt-3' }, h(UltraSpeedControl, { React, simulation })),
   h('div', { className: 'flex flex-col gap-2 border-t pt-3' },
     h('label', { className: 'flex items-center gap-2 text-sm font-medium' },
       h('input', { type: 'checkbox', role: 'switch', checked: saveState?.enabled ?? false,

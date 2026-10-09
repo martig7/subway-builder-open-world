@@ -7,6 +7,7 @@ The centralized platform currently serves the Northeast Corridor, Tokyo–Kanaga
 ## What is here
 
 - `open-world-platform/` — the sole shared runtime, mod builder, verifier, installer, worker, and PMTiles-service implementation.
+- `mods/ultra-speed/` — an independent publication shell for the shared Ultra speed estimator; native-city players need no Open World or tile server. See [Ultra Speed](mods/ultra-speed/README.md).
 - `map-creator/` — the location-independent map/demand/routing stage graph, Runner adapters, content-addressed storage, and publication gates.
 - `worlds/` — validated declarative World Definitions, geography, demand configuration, and pinned source locks.
 - `prototype/{nec-corridor,tokyo-kanagawa,ny-state}/mod/` — runnable consumer shells and behavioral compatibility tests; their bundles are generated from the central platform.

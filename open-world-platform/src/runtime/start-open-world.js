@@ -1,3 +1,4 @@
+import { registerWorldUltraSpeedOwner } from './ultra-speed-ownership.js';
 import { registerSchematicContext } from './schematic-context.js';
 import { createDemandExtensionRuntime, demandContextRegistry } from './demand-context.js';
 import { LOAD_DIAGNOSTICS_VERSION, WorldTileRuntime } from './world-tile-runtime.js';
@@ -139,6 +140,7 @@ export function startOpenWorld({
     } : undefined),
   });
   previousRuntime?.dispose?.();
+  const releaseUltraSpeedOwner = registerWorldUltraSpeedOwner(definition.identity.manifestId, registration.cities);
   const startupCityCode = typeof initialAuthoritativeCityCode === 'string'
     && initialAuthoritativeCityCode
     ? initialAuthoritativeCityCode
@@ -150,6 +152,7 @@ export function startOpenWorld({
     let dormantController = null;
     let activeController = null;
     const dispose = () => {
+      releaseUltraSpeedOwner();
       for (const unsubscribe of subscriptions.splice(0)) {
         try { unsubscribe?.(); } catch {}
       }
@@ -2135,6 +2138,7 @@ export function startOpenWorld({
       void tileSimulationHandoff.cancel();
       game.cancelNativeTileHandoff();
       moduleDisposed = true;
+      releaseUltraSpeedOwner();
       schematicContext.dispose();
       demandContext.dispose();
       void cachedSimulation.dispose();
