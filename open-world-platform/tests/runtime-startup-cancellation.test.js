@@ -50,7 +50,7 @@ async function harness(run, { storage = new Map(), nativeDayTicks = false, initi
   const api = { version: '1.0.0', registerCity() {}, cities: { setCityDataFiles() {} }, map: { setTileURLOverride() {}, setDefaultLayerVisibility() {} },
     utils: { getCities: () => [], getCityCode: () => state.cityCode, getMap: () => null, getPathfindingRules: () => ({}), loadCityData: async () => ({ points: [], pops: [] }),
       React: { createElement: () => null }, components: { Button: () => null } },
-    trains: { getTrainTypes: () => [] }, gameState: { getGameSessionId: () => state.gameSessionId, getSaveName: () => state.saveName, getCurrentDay: () => 1,
+    trains: { getTrainTypes: () => ({}) }, gameState: { getGameSessionId: () => state.gameSessionId, getSaveName: () => state.saveName, getCurrentDay: () => 1,
       getStations: () => state.stations, getRoutes: () => state.routes, getTrains: () => state.trains },
     hooks: new Proxy({}, { get: (_target, key) => callback => {
       hooks.set(key, callback);
@@ -252,6 +252,43 @@ test('startup reports a nonmemory failure without scheduling another attempt', a
     assert.equal(attempts, 1); assert.equal(controller.diagnostics.startupDemandSettlement.status, 'failed');
     assert.equal(controller.diagnostics.startupDemandSettlement.error, 'Saved demand checkpoint is unavailable');
     assert.equal(globalThis.SubwayBuilderOpenWorldDemand.getContext().demandReady, false);
+  });
+});
+
+test('failed remembered Ultra restoration reports the startup error and retries on explicit enable', async t => {
+  let attempts = 0;
+  t.mock.method(WorldTileRuntime.prototype, 'recalculateCrossTileModeShare', async () => {
+    attempts++;
+    return attempts === 1 ? { status: 'recalculated', nativeFinanceProfile: { status: 'pending',
+      failed: [{ tileId: 'JP_TOKYO_MAINLAND', error: 'trainTypes.find is not a function', errorName: 'TypeError' }], unavailable: [] } }
+      : { status: 'cached' };
+  });
+  await harness(async ({ controller, idle, state }) => {
+    state.setDemandData = value => { state.demandData = value; };
+    state.setTrains = value => { state.trains = value; };
+    await controller.simulationControls.setEnabled(true);
+    const changes = [], unsubscribe = controller.simulationControls.subscribe(value => changes.push(value));
+    await controller.lifecycle.gameLoaded('save-A');
+    idle.shift()(); await new Promise(setImmediate);
+    assert.equal(controller.diagnostics.startupDemandSettlement.status, 'failed');
+    assert.equal(controller.cachedSimulation.snapshot().enabled, false);
+    const failed = controller.simulationControls.snapshot();
+    assert.equal(failed.enabled, true, 'the remembered user choice remains selected');
+    assert.equal(failed.status, 'error', 'a terminal preparation failure cannot display endless restoring');
+    assert.match(failed.error, /trainTypes.find is not a function/);
+    assert.equal(changes.at(-1).status, 'error', 'the visible control is notified when preparation fails');
+    await controller.simulationControls.setEnabled(false);
+    assert.equal(controller.simulationControls.snapshot().status, 'off');
+    const retry = controller.simulationControls.setEnabled(true);
+    await new Promise(setImmediate);
+    assert.equal(attempts, 1, 'retry uses the normal deferred startup admission');
+    idle.shift()(); await retry;
+    assert.equal(attempts, 2);
+    assert.equal(controller.diagnostics.startupDemandSettlement.status, 'ready');
+    assert.equal(controller.cachedSimulation.snapshot().enabled, true);
+    assert.equal(globalThis.SubwayBuilderOpenWorldDemand.getContext().demandReady, true);
+    assert.equal(controller.simulationControls.snapshot().error, null);
+    unsubscribe();
   });
 });
 

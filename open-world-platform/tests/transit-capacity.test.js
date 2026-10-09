@@ -6,7 +6,8 @@ import { serviceHeadway } from '../src/runtime/scheduled-transit-service.js';
 import { calculateCrossTileModeShares, prepareCrossTileModeShares, finishCrossTileModeShares, createNetworkProfile } from '../src/runtime/cross-tile-mode-choice.js';
 import { evaluateOffTileNativeDemand } from '../src/runtime/off-tile-native-demand.js';
 
-export function fixture({ cars = 1, departure = 28800, schedule = null, count = 160, batchSize = 128 } = {}) {
+export function fixture({ cars = 1, departure = 28800, schedule = null, count = 160, batchSize = 128,
+  trainTypes = [{ id: 'fixture', stats: { capacityPerCar: 50, carsPerCarSet: 1 } }] } = {}) {
   const networkProfile = createNetworkProfile({ tileId: 'T',
     stations: [{ id: 'A', coords: [0, 0], buildType: 'constructed', stNodeIds: ['a'] },
       { id: 'B', coords: [0.1, 0], buildType: 'constructed', stNodeIds: ['b'] }],
@@ -16,7 +17,7 @@ export function fixture({ cars = 1, departure = 28800, schedule = null, count = 
       stComboTimings: [{ stNodeIndex: 0, arrivalTime: 0, departureTime: 20 },
         { stNodeIndex: 1, arrivalTime: 580, departureTime: 600 },
         { stNodeIndex: 2, arrivalTime: 1180, departureTime: 1200 }] }],
-    trainTypes: [{ id: 'fixture', stats: { capacityPerCar: 50, carsPerCarSet: 1 } }], trains: [] });
+    trainTypes, trains: [] });
   const demand = { points: [{ id: 'home', location: [0, 0] }, { id: 'work', location: [0.1, 0] }],
     pops: Array.from({ length: count }, (_, i) => ({ id: `P${String(i).padStart(4, '0')}`, size: 25,
       residenceId: 'home', jobId: 'work', drivingSeconds: 2400, drivingDistance: 15000,
@@ -25,6 +26,18 @@ export function fixture({ cars = 1, departure = 28800, schedule = null, count = 
     farePolicy: { fare: 2 }, demand, batchSize };
 }
 const outward = r => r.assignments.reduce((n, p) => n + p.commutes.homeToWork.modeChoice.transit, 0);
+for (const [shape, trainTypes] of [
+  ['native dictionary', { fixture: { stats: { capacityPerCar: 50, carsPerCarSet: 1 } } }],
+  ['Map', new Map([['fixture', { stats: { capacityPerCar: 50, carsPerCarSet: 1 } }]])],
+]) test(`${shape} train catalogs preserve capacity and carried journeys without live trains`, () => {
+  const expected = evaluateOffTileNativeDemand(fixture({ cars: 3, count: 12 }));
+  const input = fixture({ cars: 3, count: 12, trainTypes });
+  assert.equal(input.networkProfile.routes[0].capacityPerTrain, 150);
+  const actual = evaluateOffTileNativeDemand(input);
+  assert.deepEqual(actual.profile.capacityReservations, expected.profile.capacityReservations);
+  assert.deepEqual(actual.assignments, expected.assignments);
+});
+
 test('capacity constrains carried riders and larger consists carry more', () => {
   const small = evaluateOffTileNativeDemand(fixture());
   const large = evaluateOffTileNativeDemand(fixture({ cars: 10 }));

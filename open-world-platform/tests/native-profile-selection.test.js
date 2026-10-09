@@ -30,3 +30,16 @@ test('disabled native finance profiles never traverse their inputs', () => {
     else globalThis.__subwayBuilder_storeCallbacks__ = previous;
   }
 });
+
+
+test('public native dictionary train catalog provides capacity without rendered trains', () => {
+  const catalog = { express: { stats: { capacityPerCar: 90, carsPerCarSet: 2 } } };
+  const game = new SubwayBuilderGameAdapter({ api: {
+    trains: { getTrainTypes: () => catalog },
+    gameState: { getStations: () => [], getTrains: () => [],
+      getRoutes: () => [{ id: 'R', trainType: 'express', carsPerTrain: 3, idealTrainCount: 1, stNodes: [] }] },
+  } });
+  const profile = game.captureCrossTileNetworkProfile('JP_TOKYO_MAINLAND');
+  assert.equal(profile.routes[0].capacityPerTrain, 270);
+  assert.equal(game.captureTrainTypes(), catalog, 'profile capture does not mutate the native catalog');
+});

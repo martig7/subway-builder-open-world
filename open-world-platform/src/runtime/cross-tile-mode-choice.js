@@ -124,8 +124,20 @@ function structuralNetworkSignature(profile) {
   });
 }
 
+// The native API returns an ID-keyed dictionary, while fixtures and other
+// hosts can supply an array. Keep dictionary keys: definitions need not have
+// their own id, and off-tile capacity must work without rendered trains.
+function indexTrainTypeDefinitions(trainTypes) {
+  const entries = Array.isArray(trainTypes)
+    ? trainTypes.map(type => [type?.id ?? type?.trainType ?? type?.type, type])
+    : trainTypes instanceof Map ? [...trainTypes] : Object.entries(trainTypes ?? {});
+  return new Map(entries.filter(([id, type]) => id != null && type && typeof type === 'object')
+    .map(([id, type]) => [String(id), type]));
+}
+
 /** Produce a small serializable graph snapshot for an active native tile. */
 export function createNetworkProfile({ tileId, stations = [], routes = [], trains = [], trainTypes = [], pathfindingRules = {} }) {
+  const trainTypeById = indexTrainTypeDefinitions(trainTypes);
   const parentByRoute = new Map(routes.map((route) => [route.id, route.tempParentId ?? route.id]));
   const liveTrainCounts = new Map();
   for (const train of trains) {
@@ -170,7 +182,7 @@ export function createNetworkProfile({ tileId, stations = [], routes = [], train
         ...Object.values(configuredTrainSchedule ?? {}).filter(Number.isFinite),
         finite(configuredIdealTrainCount, 0),
       );
-      const type = trainTypes.find(t => t.id === route.trainType);
+      const type = trainTypeById.get(String(route.trainType));
       const carsPerTrain = Math.max(1, finite(route.carsPerTrain, finite(type?.stats?.carsPerCarSet, 1)));
       const liveTrain = trains.find(t => (parentByRoute.get(t.routeId) ?? t.routeId) === route.id);
       const perCar = finite(type?.stats?.capacityPerCar, finite(liveTrain?.stats?.capacityPerCar, null));

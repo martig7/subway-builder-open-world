@@ -701,6 +701,7 @@ export function startOpenWorld({
   diagnostics.demandDayEvents = { version: demandRegistry.dayEventsVersion, latest: null };
   let startupModeSharePromise = null;
   let startupDemandSettlement = null;
+  const simulationControlListeners = new Set();
   let startPromise = null;
   let startupTail = Promise.resolve();
   let gameLoadObserved = false;
@@ -775,6 +776,7 @@ export function startOpenWorld({
         const failure = state.status === 'failed' && diagnostics.latestCrossModeShare?.reason === reason
           ? diagnostics.latestCrossModeShare.error : null;
         diagnostics.startupDemandSettlement = { ...state, ...(failure ? { error: failure } : {}), reason, epoch };
+        for (const listener of simulationControlListeners) listener(simulationControls.snapshot());
       },
       onError: error => console.warn(`${logLabel} deferred startup mode-share failed`, error),
       onReady: async () => {
@@ -881,23 +883,31 @@ export function startOpenWorld({
   diagnostics.retryTileSimulation = tileSimulationHandoff.retry;
   // Only the UI facade persists intent. Lifecycle teardown and temporary Tile
   // View holds continue to call the raw simulation without changing preferences.
+  diagnostics.ultraSpeedRestoreVersion = 'ultra-speed-startup-status-v2';
   const simulationControls = {
     snapshot() {
       const state = tileSimulationHandoff.mode.snapshot();
       const requested = modePreferences.snapshot().ultraHighSpeed;
+      const startup = diagnostics.startupDemandSettlement;
+      if (requested && !state.enabled && !tileSimulationHandoff.isPending() && startup?.status === 'failed') {
+        return { ...state, enabled: requested, status: 'error', error: startup.error };
+      }
       return { ...state, enabled: requested,
-        status: requested && !state.enabled ? 'restoring' : state.status };
+        status: requested && !state.enabled && !state.error && state.status !== 'error' ? 'restoring' : state.status };
     },
     subscribe(listener) {
       const notify = () => listener(simulationControls.snapshot());
+      simulationControlListeners.add(listener);
       const unsubscribeMode = tileSimulationHandoff.mode.subscribe(notify);
       const unsubscribePreference = modePreferences.subscribe(notify);
-      return () => { unsubscribeMode(); unsubscribePreference(); };
+      return () => { simulationControlListeners.delete(listener); unsubscribeMode(); unsubscribePreference(); };
     },
     async setEnabled(value) {
       modePreferences.setUltraHighSpeed(value);
       if (value && !ready) return simulationControls.snapshot();
-      await tileSimulationHandoff.mode.setEnabled(value);
+      if (value && startupDemandSettlement?.snapshot().status === 'failed' && !tileSimulationHandoff.isPending()) {
+        await trackSimulationPreparation(deferStartupModeShare('ultra-speed-retry', api.gameState.getCurrentDay?.() ?? null));
+      } else await tileSimulationHandoff.mode.setEnabled(value);
       return simulationControls.snapshot();
     },
   };
