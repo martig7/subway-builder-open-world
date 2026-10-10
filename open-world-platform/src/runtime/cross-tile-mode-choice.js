@@ -5,7 +5,7 @@ import { createBoundedTransitSearch } from './transit-search/index.js';
 import { demandDepartureSeconds } from './demand-departure-time.js';
 import { trainCountTimetable, serviceHeadway } from './scheduled-transit-service.js';
 import { createTransitCapacityLedger, TRANSIT_CAPACITY_VERSION } from './transit-capacity.js';
-export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v5-capacity';
+export const CROSS_ROUTING_CACHE_VERSION = 'cross-network-graph-cache-v6-continuous';
 const EARTH_RADIUS_M = 6_371_000;
 // Subway Builder's straight-line station catchment uses RULES.WALKING_SPEED
 // (1 m/s), not WALKING_SPEED_ACCURATE_PATH (1.5 m/s).
@@ -1044,10 +1044,9 @@ function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatew
   if (!pop) throw new RangeError(`Unknown cross-demand pop index: ${popIndex}`);
   const [popId, , homeIndex, workIndex, gatewayIndex] = pop;
   const home = points[homeIndex]; const work = points[workIndex]; const gatewayId = gateways[gatewayIndex];
-  const chained = driveAccessSpeedMps > 0 ? null : inspectGatewayChain({
-    popId, gatewayId, home, work, router: routers, tileCatalog, requestedDepartureSeconds,
-  });
-  if (chained?.available) return chained;
+  // Tile gateways divide simulation ownership, not the passenger journey.
+  // Search the connected rail network before any geographic gateway fallback:
+  // overlapping prefecture bounds can place that waypoint far from the trip.
   const continuousLeg = routeLegAcrossNetworks(routers, home.coords, work.coords, home.tileId, { requireNetworkConnection: true, requestedDepartureSeconds, driveAccessSpeedMps });
   if (continuousLeg.available) {
     return {
@@ -1059,6 +1058,10 @@ function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatew
       homeLeg: null, workLeg: null,
     };
   }
+  const chained = driveAccessSpeedMps > 0 ? null : inspectGatewayChain({
+    popId, gatewayId, home, work, router: routers, tileCatalog, requestedDepartureSeconds,
+  });
+  if (chained?.available) return chained;
   if (chained) return chained;
   const gateway = gatewayCatalog?.[gatewayId];
   const gatewayCoords = gatewayLocation(gateway);
@@ -1102,7 +1105,7 @@ function inspectPopTransitPath({ pop, popIndex, points, gateways, routers, gatew
   };
 }
 
-/** Explain the exact two-tile path inputs used by cross-city mode choice. */
+/** Explain the connected rail journey used by cross-city mode choice. */
 export function inspectCrossTileTransitPath({ crossDemand, popIndex, networkProfiles, gatewayCatalog, tileCatalog, requestedDepartureSeconds = 0 }) {
   if (crossDemand?.schemaVersion !== 1) throw new Error('Unsupported cross-demand data');
   const points = crossDemand.points.map(([id, longitude, latitude, tileId]) => ({ id, coords: [longitude, latitude], tileId }));

@@ -257,7 +257,7 @@ test('combines complementary saved profiles into one continuous transit graph', 
   assert.deepEqual(path.continuousLeg.stationRoutes.map(({ routeId }) => routeId), ['KCW-route', 'KCE-route']);
 });
 
-test('replays a cached gateway-to-gateway topology across populations', () => {
+test('reuses continuous journeys across populations and intermediate Tile Views', () => {
   const corridor = profile('A', [
     ['home-station', [-94.66, 39.10], 'home-node'],
     ['first-gateway-station', [-94.63, 39.10], 'first-node'],
@@ -289,19 +289,19 @@ test('replays a cached gateway-to-gateway topology across populations', () => {
     fare: 0,
   });
 
-  const expectedStats = {
-    driveAccessCandidates: 0,
-    gatewayPathHits: 1, gatewayPathMisses: 1,
-    endpointPathHits: 2, endpointPathMisses: 2,
-    catchmentHits: 8, catchmentMisses: 4,
-  };
-  for (const [key,value] of Object.entries(expectedStats)) assert.equal(calculated.routingStats[key],value,key);
-  assert.equal(calculated.routingStats.exactPathHits,3);
+  const continuous = calculateCrossTileModeShares({
+    crossDemand: demand, networkProfiles: { A: corridor }, fare: 0,
+  });
+  assert.equal(calculated.routingStats.gatewayPathMisses, 0);
+  assert.equal(calculated.routingStats.endpointPathMisses, 0);
+  assert.ok(calculated.routingStats.exactPathHits > 0, 'the second population reuses the continuous path');
+  assert.deepEqual(calculated.transitJourneys, continuous.transitJourneys);
+  assert.deepEqual(calculated.popModeChoices, continuous.popModeChoices);
   assert.ok(calculated.transitViablePops > 0);
   assert.deepEqual(demand, demandBefore);
 });
 
-test('reuses station-catchment endpoint paths for an adjacent tile crossing', () => {
+test('adjacent tile crossings agree with separately calculated continuous journeys', () => {
   const corridor = profile('A', [
     ['home-station', [-94.66, 39.10], 'home-node'],
     ['gateway-station', [-94.60, 39.10], 'gateway-node'],
@@ -334,8 +334,8 @@ test('reuses station-catchment endpoint paths for an adjacent tile crossing', ()
 
   assert.equal(calculated.routingStats.gatewayPathHits, 0);
   assert.equal(calculated.routingStats.gatewayPathMisses, 0);
-  assert.equal(calculated.routingStats.endpointPathHits, 2);
-  assert.equal(calculated.routingStats.endpointPathMisses, 2);
+  assert.equal(calculated.routingStats.endpointPathHits, 0);
+  assert.equal(calculated.routingStats.endpointPathMisses, 0);
   assert.ok(calculated.transitViablePops > 0);
   assert.deepEqual(calculated.popModeChoices.two, uncachedSecond.popModeChoices.two);
   const cachedJourney = [...calculated.transitJourneys.values()].flat().find(({ popId }) => popId === 'two');

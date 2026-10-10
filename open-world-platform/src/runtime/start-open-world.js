@@ -2,6 +2,7 @@ import { registerWorldUltraSpeedOwner } from './ultra-speed-ownership.js';
 import { registerSchematicContext } from './schematic-context.js';
 import { createDemandExtensionRuntime, demandContextRegistry } from './demand-context.js';
 import { LOAD_DIAGNOSTICS_VERSION, WorldTileRuntime } from './world-tile-runtime.js';
+import { CROSS_ROUTING_CACHE_VERSION } from './cross-tile-mode-choice.js';
 import {
   readLiveSubwayBuilderCityCode,
   SUBWAY_BUILDER_CITY_AUTHORITY_VERSION,
@@ -465,6 +466,7 @@ export function startOpenWorld({
   }
   const capability = game.probe();
   diagnostics.capability = capability;
+  diagnostics.crossRoutingVersion = CROSS_ROUTING_CACHE_VERSION;
   if (!capability.supported) {
     console.error(`${logLabel} Unsupported game/API seam; no mutations performed`, capability);
     api.ui?.showNotification?.(`${definition.identity.name} disabled: incompatible game seam`, 'error');
