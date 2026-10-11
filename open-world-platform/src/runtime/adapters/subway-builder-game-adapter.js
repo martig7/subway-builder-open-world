@@ -2202,6 +2202,29 @@ export class SubwayBuilderGameAdapter {
     return {
       stationIds: (initial.stations ?? []).filter(station => isBlankStationName(station.name)).map(station => station.id),
       isCurrent,
+      describe: id => {
+        if (!isCurrent()) return null;
+        const live = this.#state();
+        const station = live.stationsMap?.get(id) ?? live.stations.find(candidate => candidate.id === id);
+        const centerLine = groupById.get(station?.trackGroupId)?.centerLine;
+        const point = station?.coords;
+        const validPoint = coords => Array.isArray(coords) && coords.length >= 2 && coords.slice(0, 2).every(Number.isFinite);
+        if (!station || !isBlankStationName(station.name) || !validPoint(point) || !Array.isArray(centerLine)
+          || centerLine.length < 2 || centerLine.length > 256 || !centerLine.every(validPoint)) return null;
+        return { id, point: point.slice(0, 2), centerLine: centerLine.map(coords => coords.slice(0, 2)), excludeName: station.name ?? null };
+      },
+      applyManagerName: (id, name) => {
+        if (!isCurrent()) return 'skipped';
+        const live = this.#state();
+        const station = live.stationsMap?.get(id) ?? live.stations.find(candidate => candidate.id === id);
+        if (!station || !isBlankStationName(station.name)) return 'skipped';
+        if (typeof name !== 'string' || isBlankStationName(name) || name.length > 1024) return 'unresolved';
+        // Keep native group refresh, save tracking, and rename notifications authoritative.
+        live.updateStationName(id, { type: 'newName', newName: name });
+        const after = this.#state();
+        const renamed = after.stationsMap?.get(id) ?? after.stations.find(candidate => candidate.id === id);
+        return renamed && !isBlankStationName(renamed.name) ? 'renamed' : 'unresolved';
+      },
       refresh: id => {
         const live = this.#state();
         const station = live.stationsMap?.get(id) ?? live.stations.find(candidate => candidate.id === id);

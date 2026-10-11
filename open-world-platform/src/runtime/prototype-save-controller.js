@@ -21,12 +21,14 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
   isBusy = () => false, freezeUi = blockSaveEdits, yieldTask = nextFrame,
   writeSave = writePrototypeNativeSave, onActivity = () => {}, fetchFn = fetch,
   settleMs = 30000, initialEnabled = false, onEnabledChange = () => {},
+  managerProcessing = null,
   getSaveDirectory = () => globalThis.window?.electron?.getCurrentSaveFolder?.() } = {}) {
+  let managerEnabled = false;
   let configuration = null, enabled = initialEnabled === true, pending = null, automatic = null, abort = null, disposed = false;
   let reconnectOrigins = [], reconnectAt = 0;
   const listeners = new Set();
-  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v10', locationVersion: NATIVE_SAVE_LOCATION_VERSION, configured: false, enabled, status: 'off', last: null, error: null, transport: null };
-  const snapshot = () => ({ ...status, enabled, configured: Boolean(configuration) });
+  let status = { version: TILE_SAVE_PROTOTYPE_VERSION, controllerVersion: 'tile-save-controller-v11-manager', locationVersion: NATIVE_SAVE_LOCATION_VERSION, configured: false, enabled, status: 'off', last: null, error: null, transport: null };
+  const snapshot = () => ({ ...status, enabled: enabled || managerEnabled, experimentalEnabled: enabled, managerEnabled, configured: Boolean(configuration) });
   const notify = () => { for (const listener of listeners) { try { listener(snapshot()); } catch {} } };
   const activity = (stage, data = {}) => { try { onActivity(`tile-save.${stage}`, data); } catch {} };
 
@@ -70,6 +72,8 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
     const heartbeat = setInterval(() => progress(), 250);
     notify(); activity('start');
     try {
+      if (managerProcessing) managerEnabled = (await managerProcessing.settings({ fresh: true })).savesEnabled === true;
+      if (managerEnabled) configuration = { origin: managerProcessing.origin, token: null };
       if (disposed || !configuration || !isReady()) throw gateError('Tile save prototype is not ready');
       // A stopped writer must fail before freezing the game or generating a
       // large snapshot. Keep configuration so a restarted service can recover.
@@ -120,7 +124,8 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       // Prototype uploads omit native journey-history rows: the demand model,
       // topology and trains stream untouched, and the live game is never
       // modified. Native saves keep the full history.
-      const { save: slimmedSave, omittedJourneyRows } = slimExperimentalSaveDemand(save);
+      const { save: slimmedSave, omittedJourneyRows } = managerEnabled
+        ? { save, omittedJourneyRows: 0 } : slimExperimentalSaveDemand(save);
       save = slimmedSave;
       const settled = getState();
       const clock = settled.timeConfig.elapsedSeconds, money = settled.money;
@@ -232,8 +237,17 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
     configureAutomatic,
     run,
     invoke(native) {
+      if (!managerProcessing) return invokeSelected(native);
+      return managerProcessing.settings({ fresh: true }).then(value => {
+        managerEnabled = value.savesEnabled === true;
+        return invokeSelected(native);
+      });
+    },
+    dispose() { disposed = true; enabled = false; configuration = null; abort?.abort(); listeners.clear(); },
+  };
+  function invokeSelected(native) {
       if (disposed) return Promise.resolve({ status: 'cancelled', saved: false });
-      if (!enabled) {
+      if (!enabled && !managerEnabled) {
         status = { ...status, status: 'native', transport: 'native', error: null }; notify();
         activity('native', { reason: 'Experimental autosaves are disabled' });
         return native();
@@ -244,9 +258,7 @@ export function createPrototypeSaveController({ getState, isReady = () => true,
       automatic = run().catch(() => ({ status: status.status, saved: false, error: status.error }))
         .finally(() => { automatic = null; });
       return automatic;
-    },
-    dispose() { disposed = true; enabled = false; configuration = null; abort?.abort(); listeners.clear(); },
-  };
+  }
 }
 
 export function blockSaveEdits(cancel, { document = globalThis.document, window = globalThis.window } = {}) {

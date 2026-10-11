@@ -118,6 +118,8 @@ $buildRoot = Join-Path $resolvedOutput '.build'
 $serverPublish = Join-Path $buildRoot 'server'
 $setupPublish = Join-Path $buildRoot 'setup'
 New-Item -ItemType Directory -Force -Path $serverPublish, $setupPublish | Out-Null
+node (Join-Path $nativeRoot '..\scripts\build-manager-processing.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Manager processing helper packaging failed.' }
 $serverProject = Join-Path $nativeRoot 'src\OpenWorld.TileServer\OpenWorld.TileServer.csproj'
 dotnet publish $serverProject -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:PublishTrimmed=true -p:InvariantGlobalization=true `

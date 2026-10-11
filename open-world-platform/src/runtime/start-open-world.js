@@ -51,6 +51,9 @@ import { installNativeSavedReloadGuard } from './native-saved-reload-guard.js';
 import { findNativeAutosaveRef, installNativeAutosaveIdleGuard } from './native-autosave-idle-guard.js';
 import { findNativeZoomBinding, installNativeZoomRefreshGuard } from './native-zoom-refresh-guard.js';
 import { createPrototypeSaveController } from './prototype-save-controller.js';
+import { createManagerProcessing } from './manager-processing.js';
+import { createManagerStationNaming } from './manager-station-naming.js';
+import { sharedNativeDemandEvaluator } from './embedded-tile-package-adapter.js';
 import { PROTOTYPE_SAVE_READINESS_VERSION, prototypeSaveBusyReason } from './prototype-save-readiness.js';
 import { createOpenWorldRoutePaths } from './route-path-controller.js';
 import { storedRouteLoader } from './stored-route-paths.js';
@@ -137,7 +140,8 @@ export function startOpenWorld({
     initialChoices: previousRuntime?.modePreferences?.snapshot?.() ?? (previousRuntime ? {
       ultraHighSpeed: ['staging', 'queued', 'preparing', 'restoring', 'error'].includes(previousHandoff?.status)
         ? previousHandoff.requested : previousRuntime.cachedSimulation?.snapshot?.().enabled,
-      experimentalAutosaves: previousRuntime.diagnostics?.prototypeSaveWriter?.snapshot?.().enabled,
+      experimentalAutosaves: previousRuntime.diagnostics?.prototypeSaveWriter?.snapshot?.().experimentalEnabled
+        ?? previousRuntime.diagnostics?.prototypeSaveWriter?.snapshot?.().enabled,
     } : undefined),
   });
   previousRuntime?.dispose?.();
@@ -345,6 +349,7 @@ export function startOpenWorld({
   const routePathRuntimeKey = `__${globalStem}RoutePathRuntimeV1__`;
   globalThis[routePathRuntimeKey]?.dispose?.();
   delete globalThis[routePathRuntimeKey];
+  const managerProcessing = createManagerProcessing({ baseUrl: `http://127.0.0.1:${definition.runtime.tileServerPort}` });
   const tilePackages = new EmbeddedTilePackageAdapter(registration.tileIds, artifacts, {
     tileById,
     worldLabel: definition.identity.name,
@@ -352,10 +357,12 @@ export function startOpenWorld({
     fetchData: globalThis.fetch?.bind(globalThis),
     resolveDataUrl: (path) => resolveRendererDataUrl(path),
     nativeDemandWorkerSource: workerSources.nativeDemandEvaluator ?? null,
+    managerProcessing,
   });
   const derivedDemandCache = createDerivedDemandCache({ store: createDerivedDemandDiskStore({ namespace: definition.identity.manifestId }) });
   const activeDemandPreparation = workerSources.nativeDemandEvaluator ? createActiveDemandPreparation({ game,
     getState: () => game.callbacks.getState(), workerSource: workerSources.nativeDemandEvaluator,
+    evaluator: sharedNativeDemandEvaluator(workerSources.nativeDemandEvaluator, managerProcessing), managerProcessing,
     admit: () => demandExtensions.admit(),
     getDemandRevisionKey: tileId => demandExtensions.cacheKeyFor(tileId) }) : null;
   if (activeDemandPreparation) tilePackages.prepareActiveNativeDemand = activeDemandPreparation.prepare;
@@ -418,6 +425,7 @@ export function startOpenWorld({
   let tileSourceStyleHandler = null;
   let renderDistanceToolbarRegistered = false;
   const diagnostics = globalThis[`__${globalStem}Diagnostics__`] = {
+    managerProcessing: managerProcessing.snapshot,
     nativeExpenseLengthVersion: NATIVE_EXPENSE_LENGTH_VERSION,
     inducedCrossDemandVersion: INDUCED_CROSS_DEMAND_VERSION,
     activeDemandPreparation: activeDemandPreparation?.snapshot,
@@ -837,6 +845,7 @@ export function startOpenWorld({
     prepareActiveDemand: activeDemandPreparation?.prepare,
     admitDemand: () => demandExtensions.admit(),
     postingWorkerSource: workerSources.hourlyFinance,
+    managerProcessing,
     isReady: () => ready && isCurrent() && ownsCurrentCity(),
     onHour: () => settleCrossTileCommutes('cached-simulation'),
     onDay: async day => {
@@ -925,6 +934,7 @@ export function startOpenWorld({
       : activeDemandPreparation.prepare(args);
   };
   const prototypeSaveWriter = createPrototypeSaveController({
+    managerProcessing,
     initialEnabled: modePreferences.snapshot().experimentalAutosaves,
     onEnabledChange: modePreferences.setExperimentalAutosaves,
     getState: () => game.callbacks.getState(),
@@ -938,6 +948,7 @@ export function startOpenWorld({
   });
   diagnostics.prototypeSaveWriter = prototypeSaveWriter;
   const stationNames = createStationNameRepair({ game,
+    managerNaming: createManagerStationNaming({ processing: managerProcessing, tileCatalog }),
     isReady: () => ready && isCurrent() && ownsCurrentCity() && !tileSimulationHandoff.isPending()
       && prototypeSaveWriter.snapshot().status !== 'saving',
     getContextKey: () => loadEpoch,
@@ -979,7 +990,7 @@ export function startOpenWorld({
       refreshActiveTile: day => ownsSession(owner) ? cachedSimulation.refreshAtMidnight(day) : { status: 'disabled', day },
     });
     diagnostics.midnightCommuteRefresh = modeShareInvalidation.snapshot;
-    const crossModeShares = createCrossModeShareEvaluator({ workerSource: workerSources.crossModeShare ?? null });
+    const crossModeShares = createCrossModeShareEvaluator({ workerSource: workerSources.crossModeShare ?? null, managerProcessing });
     diagnostics.crossModeShareWorker = crossModeShares.diagnostics;
     const disposeObserver = game.observeSharedTransitChanges(({ reason }) => {
       if (reason === 'route-service-change') serviceChanged(reason);
@@ -2155,6 +2166,7 @@ export function startOpenWorld({
       demandContext.dispose();
       void cachedSimulation.dispose();
       prototypeSaveWriter.dispose();
+      managerProcessing.dispose();
       stationNames.dispose();
       for (const unsubscribe of hookDisposers.splice(0)) {
         try { unsubscribe(); } catch {}

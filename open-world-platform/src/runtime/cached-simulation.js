@@ -7,7 +7,7 @@ import { createHourlyPostingPreparation } from './hourly-posting-preparation.js'
 import { shareNativeSaveReferences, NATIVE_SAVE_REFERENCE_SHARING_VERSION } from './native-save-reference-sharing.js';
 import { DEMAND_DEFERRED_CODE } from './demand-context.js';
 
-export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v24-capacity';
+export const CACHED_SIMULATION_VERSION = 'open-world-cached-simulation-v25-manager';
 const OWNER = Symbol.for('open-world.cached-simulation');
 const NATIVE_ACTIONS = ['handleIncrementGameState', 'simulateCommutes', 'calculatePaths'];
 const modes = () => ({ walking: 0, driving: 0, transit: 0, unknown: 0 });
@@ -62,9 +62,9 @@ export function publishCachedDemand(state, assignments) {
 /** Own the native tick only while enabled. Caches are disposable session data. */
 export function createCachedSimulation({ game, api, getState, isReady = () => true,
   onHour = async () => {}, onDay = async () => {}, workerSource = null,
-  postingWorkerSource = null, evaluate = null, prepareActiveDemand = null, admitDemand = async () => {},
+  postingWorkerSource = null, managerProcessing = null, evaluate = null, prepareActiveDemand = null, admitDemand = async () => {},
   onSavePhase = null, beforeGenerateSave = null } = {}) {
-  const worker = createOffMainThreadNativeDemandEvaluator({ workerSource });
+  const worker = createOffMainThreadNativeDemandEvaluator({ workerSource, managerProcessing });
   const routingCache = createBoundedCrossTileRoutingCache();
   const listeners = new Set(), wrappers = new Map(), frozenTrains = new Map();
   // Track whole native actions, including async network preparation before a

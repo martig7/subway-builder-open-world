@@ -30,6 +30,8 @@ public partial class ManagerWindow : Window
     private bool allowClose;
     private bool refreshingRecorder;
     private bool updatingRecorderCheckBox;
+    private bool updatingProcessingCheckBoxes;
+    private ManagerProcessingDisplay processingStatus = new();
     private readonly System.Windows.Threading.DispatcherTimer recorderTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private RendererRecorderDisplay recorderStatus = new(false, false, "unavailable");
     private TileServerStatus currentStatus = new(TileServerCondition.Stopped, "Stopped");
@@ -157,9 +159,36 @@ public partial class ManagerWindow : Window
             NativeStatusText.Text = recorderStatus.NativeMessage;
             HeapStatusText.Text = recorderStatus.HeapMessage;
             SaveMemoryText.Text = recorderStatus.SaveMessage;
+            await RefreshProcessingAsync();
             UpdateButtonState();
         }
         finally { refreshingRecorder = false; }
+    }
+
+    private async Task RefreshProcessingAsync()
+    {
+        processingStatus = isPreview ? new(true, DemandAvailable: true) : await ManagerProcessingController.GetAsync(manifest.Product.TileServerPort);
+        updatingProcessingCheckBoxes = true;
+        try
+        {
+            DemandProcessingCheckBox.IsChecked = processingStatus.DemandEnabled;
+            SaveProcessingCheckBox.IsChecked = processingStatus.SavesEnabled;
+            StationNamingCheckBox.IsChecked = processingStatus.StationNamingEnabled;
+            ProcessingStatusText.Text = processingStatus.Message;
+        }
+        finally { updatingProcessingCheckBoxes = false; }
+    }
+
+    private async void Processing_Changed(object sender, RoutedEventArgs e)
+    {
+        if (updatingProcessingCheckBoxes || isPreview || busy || initializingStartup) return;
+        var demand = DemandProcessingCheckBox.IsChecked == true;
+        var saves = SaveProcessingCheckBox.IsChecked == true;
+        var naming = StationNamingCheckBox.IsChecked == true;
+        await ExecuteAsync("Updating manager processing", async token =>
+        {
+            await ManagerProcessingController.SetAsync(manifest.Product.TileServerPort, runtime.StateRoot, demand, saves, naming, token);
+        }, verifyAfter: false);
     }
 
     private async void Recorder_Changed(object sender, RoutedEventArgs e)
@@ -235,6 +264,9 @@ public partial class ManagerWindow : Window
         UninstallButton.IsEnabled = !busy && !isPreview;
         StartupCheckBox.IsEnabled = !busy && !isPreview;
         RecorderCheckBox.IsEnabled = !busy && !isPreview && (recorderStatus.Supported || currentStatus.Condition == TileServerCondition.Stopped);
+        DemandProcessingCheckBox.IsEnabled = !busy && !isPreview && processingStatus.Supported && (processingStatus.DemandAvailable || processingStatus.DemandEnabled);
+        SaveProcessingCheckBox.IsEnabled = !busy && !isPreview && processingStatus.Supported;
+        StationNamingCheckBox.IsEnabled = !busy && !isPreview && processingStatus.Supported;
         RecordingsButton.IsEnabled = !busy && !isPreview;
         NativeLogsButton.IsEnabled = !busy && !isPreview &&
             (recorderStatus.NativeSupported || currentStatus.Condition == TileServerCondition.Stopped) &&

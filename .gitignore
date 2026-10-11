@@ -11,6 +11,7 @@ recovery/**/game-bundle-*.js
 prototype/nec-corridor/generated/maps/depot/NE02/ne02-nobuildings.geojson
 
 # Dependencies and build products
+open-world-platform/native/processing/
 **/node_modules/
 **/dist/
 **/bin/

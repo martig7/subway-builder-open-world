@@ -349,3 +349,25 @@ test('the save overlay captures game shortcuts even when its cancel button has f
   handlers.get('click')({ type: 'click', target: focused, preventDefault() {}, stopImmediatePropagation() {} });
   assert.equal(cancels, 1); ui.dispose(); assert.equal(handlers.size, 0);
 });
+
+test('manager autosaves are optional, preserve journey history and use the current manager origin',async()=>{
+ let enabled=false,history,origin;
+ const f=fixture({writeSave:(save,options)=>{history=save.data.compressedDemandData.c;origin=options.origin;options.beforeCommit();return {bytes:123,path:'manager.metro'}}},
+ {managerProcessing:{origin:'http://127.0.0.1:8799',settings:async()=>({savesEnabled:enabled})}});
+ assert.equal(await f.controller.invoke(f.native),'native');
+ enabled=true;
+ await f.controller.invoke(f.native);
+ assert.equal(history.length,2);assert.equal(origin,'http://127.0.0.1:8799');
+ assert.equal(f.controller.snapshot().last.omittedJourneyRows,0);
+ assert.equal(f.controller.snapshot().experimentalEnabled,false, "Manager selection must not become a remembered experimental choice");
+ enabled=false;
+ assert.equal(await f.controller.invoke(f.native),'native');
+ assert.equal(f.counts().uploads,1);
+});
+test('selected manager save failure stays selected and never invokes native saving',async()=>{
+ const f=fixture({}, {managerProcessing:{origin:'http://127.0.0.1:8799',settings:async()=>({savesEnabled:true})},
+ fetchFn:async()=>{throw Error('manager offline')}});
+ const result=await f.controller.invoke(f.native);
+ assert.equal(result.saved,false);assert.equal(f.counts().nativeCalls,0);
+ assert.equal(f.counts().uploads,0);assert.equal(f.controller.snapshot().managerEnabled,true);
+});

@@ -33,7 +33,11 @@ File.Copy(sourceManifestPath, Path.Combine(options.Output, $"{options.AssetPrefi
 
 var supportName = $"{options.AssetPrefix}-open-world-support-v{options.Version}.zip";
 var supportPath = Path.Combine(options.Output, supportName);
-var supportInstalledBytes = CreateArchive(supportPath, [(options.ServerExecutable, "open-world-tile-server.exe")]);
+var processingRoot = Path.Combine(Path.GetDirectoryName(options.ServerExecutable)!, "processing");
+var supportFiles = new List<(string Source, string Entry)> { (options.ServerExecutable, "open-world-tile-server.exe") };
+foreach (var name in new[] { "node.exe", "manager-processing.cjs", "node-LICENSE.txt" })
+    supportFiles.Add((Path.Combine(processingRoot, name), "processing/" + name));
+var supportInstalledBytes = CreateArchive(supportPath, supportFiles);
 var supportAsset = Asset(supportName, ReleaseAssetKind.Support, supportPath, supportInstalledBytes, ".");
 
 var tileDirectories = Directory.EnumerateDirectories(options.TileRoot)

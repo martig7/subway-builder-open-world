@@ -68,12 +68,12 @@ test('shared evaluator replaces the previous generation rather than retaining it
   const previous = globalThis[key];
   let disposed = 0;
   const oldEvaluator = { dispose() { disposed++; } };
-  globalThis[key] = { version: 3, workerSource: 'fixture-source', evaluator: oldEvaluator };
+  globalThis[key] = { version: 4, workerSource: 'fixture-source', evaluator: oldEvaluator };
   try {
     const current = sharedNativeDemandEvaluator('fixture-source');
     assert.notEqual(current, oldEvaluator);
     assert.equal(disposed, 1);
-    assert.equal(globalThis[key].version, 4);
+    assert.equal(globalThis[key].version, 5);
     assert.equal(sharedNativeDemandEvaluator('fixture-source'), current, 'current generation remains shared');
   } finally {
     if (globalThis[key]?.evaluator !== oldEvaluator) globalThis[key]?.evaluator?.dispose();

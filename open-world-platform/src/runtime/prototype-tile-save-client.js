@@ -22,7 +22,7 @@ export function slimExperimentalSaveDemand(save) {
 }
 
 const jsonValue = (value, key) => value && typeof value.toJSON === 'function' ? value.toJSON(key) : value;
-function* jsonTextChunks(value, chunkCharacters) {
+function* jsonTextChunks(value, chunkCharacters, replacer) {
   const ancestors = new Set();
   let parts = [], length = 0;
   const append = text => {
@@ -41,7 +41,8 @@ function* jsonTextChunks(value, chunkCharacters) {
       // Buffer scalar tokens here instead of yielding each punctuation mark
       // through every ancestor generator. Only complete chunks cross the tree.
       for (const key of array ? Array.prototype.keys.call(value) : Object.keys(value)) {
-        const item = jsonValue(value[key], String(key));
+        const nativeItem = jsonValue(value[key], String(key));
+        const item = replacer ? replacer(String(key), nativeItem) : nativeItem;
         const omitted = item === undefined || typeof item === 'function' || typeof item === 'symbol';
         if (!array && omitted) continue;
         if (!first && append(',')) yield flush();
@@ -67,10 +68,11 @@ function* jsonTextChunks(value, chunkCharacters) {
 /** Bounded UTF-8 chunks; shared objects retain native JSON value semantics.
  * Yield between chunks so encoding cannot monopolize the renderer thread. */
 export async function* nativeSaveJsonChunks(save, { chunkCharacters = 128 * 1024,
-  yieldTask = () => globalThis.scheduler?.yield?.() ?? new Promise(resolve => setTimeout(resolve, 0)), onSlice = () => {} } = {}) {
+  yieldTask = () => globalThis.scheduler?.yield?.() ?? new Promise(resolve => setTimeout(resolve, 0)), onSlice = () => {}, replacer } = {}) {
   const encoder = new TextEncoder();
   let started = performance.now();
-  for (const text of jsonTextChunks(jsonValue(save, ''), chunkCharacters)) {
+  const root = jsonValue(save, '');
+  for (const text of jsonTextChunks(replacer ? replacer('', root) : root, chunkCharacters, replacer)) {
     const bytes = encoder.encode(text);
     onSlice(performance.now() - started);
     yield bytes; await yieldTask(); started = performance.now();

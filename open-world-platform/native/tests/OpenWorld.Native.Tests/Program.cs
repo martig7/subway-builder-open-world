@@ -20,6 +20,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("manager handles current, older, draft, prerelease and failed update responses", UpdateCheckerTests.ReleaseEligibility),
     ("manager test update source is restricted to explicit loopback URLs", UpdateCheckerTests.EndpointScope),
     ("Windows manager update button offers the unpublished candidate from v0.6.0", ManagerUpdateButton),
+    ("manager processing persists choices and executes streamed jobs in a separate process", () => ManagerProcessingTests.Run(MinimalPmTiles())),
+    ("manager station naming streams installed roads and preserves native naming rules", StationNamingTests.Run),
     ("prototype save writer preserves native bytes and never publishes interrupted uploads", PrototypeSaveWriterTests.Run),
     ("save writer trusts game origins and keeps browser tokens", SaveWriterAccessTests.GameOrigin),
     ("save writer resolves the configured game save folder", SaveWriterAccessTests.SaveLocation),

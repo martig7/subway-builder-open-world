@@ -65,6 +65,7 @@ if (allowedIds is { Count: 0 } || allowedIds?.Any(id => !ArchiveCatalog.IsSafeId
 Directory.CreateDirectory(stateRoot);
 var log = new RollingFileLog(Path.Combine(logRoot, "open-world-tile-server.log"));
 using var recorder = new RendererDebugRecorder(stateRoot, logRoot);
+var processingSettings = new ProcessingSettingsStore(stateRoot);
 var startedAtUtc = new DateTimeOffset(Process.GetCurrentProcess().StartTime.ToUniversalTime(), TimeSpan.Zero);
 var instanceId = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24));
 await using var catalog = await ArchiveCatalog.OpenAsync(root, allowedIds);
@@ -76,6 +77,11 @@ using var prototypeSaveWriter = new PrototypeSaveWriterService(options.Optional(
     onDirectory: directory => log.Write("INFO", $"Prototype save writer targeting {directory} ({PrototypeSaveWriterService.LocationVersion})."));
 // Discovery stays available even before settings exist or after a folder error.
 PrototypeSaveEndpoints.Map(app, prototypeSaveWriter, instanceId);
+using var demandProcessing = new DemandProcessingService(stateRoot, processingSettings, catalog: catalog);
+ProcessingAccess.MapSettings(app, processingSettings, instanceId, () => demandProcessing.Available);
+DemandProcessingEndpoints.Map(app, demandProcessing, instanceId);
+using var stationNaming = new StationNamingService(catalog.Root, catalog.Ids);
+StationNamingEndpoints.Map(app, stationNaming, () => processingSettings.Snapshot().StationNamingEnabled, instanceId);
 
 app.Use(async (context, next) =>
 {
@@ -91,6 +97,7 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-OpenWorld-Debug-Recorder"] = RendererDebugRecorder.Version;
     context.Response.Headers["X-OpenWorld-Native-Logs"] = NativeLogCapture.Version;
     context.Response.Headers["X-OpenWorld-Save-Writer"] = PrototypeSaveWriterService.LocationVersion;
+    context.Response.Headers["X-OpenWorld-Processing"] = ProcessingSettingsStore.Version;
     context.Response.Headers[instanceHeader] = instanceId;
     try
     {

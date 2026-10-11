@@ -43,13 +43,13 @@ export async function runNativeDemandWorkerJob({ bytes, gzip = false, input, cac
               .pipeThrough(new DecompressionStream('gzip'))).text());
             if (!Array.isArray(value.assignments) || value.profile?.hourly?.length !== 24) throw new Error('Invalid demand cache chunk');
             cachedProfile = merge(cachedProfile, value.profile);
-            if (cacheMode === 'assignments') emitAssignments(value.assignments);
+            if (cacheMode === 'assignments') await emitAssignments(value.assignments);
           }
           return { status: 'cached', profile: merge.finalize(cachedProfile), diskCache: 'hit', cacheBytes: manifest.bytes };
         }
         await store.clear();
       } catch (error) {
-        cacheError = String(error.message); disk = false; resetAssignments();
+        cacheError = String(error.message); disk = false; await resetAssignments();
         merge.dispose(); merge = createIncrementalNativeDemandProfileMerger();
       }
     }
@@ -69,7 +69,7 @@ export async function runNativeDemandWorkerJob({ bytes, gzip = false, input, cac
           await store.write(chunks, encoded);
         } catch (error) { disk = false; cacheError = String(error.message); }
       }
-      if (cacheMode === 'assignments') emitAssignments(batch.assignments);
+      if (cacheMode === 'assignments') await emitAssignments(batch.assignments);
       chunks++;
     }
     if (disk) {

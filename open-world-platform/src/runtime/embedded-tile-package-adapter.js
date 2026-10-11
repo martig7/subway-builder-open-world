@@ -4,9 +4,9 @@ import { runRoutingJob } from './routing-job-queue.js';
 
 const DEMAND_JSON_DECODER_VERSION = 1;
 const DEMAND_JSON_DECODER_STATE = '__openWorldDemandJsonDecoder';
-const NATIVE_DEMAND_EVALUATOR_VERSION = 4;
+const NATIVE_DEMAND_EVALUATOR_VERSION = 5;
 const NATIVE_DEMAND_EVALUATOR_STATE = '__openWorldNativeDemandEvaluator';
-const NATIVE_DEMAND_EVALUATOR_WORKER_NAME = 'open-world-native-demand-worker-evaluator-v4-bounded';
+const NATIVE_DEMAND_EVALUATOR_WORKER_NAME = 'open-world-native-demand-worker-evaluator-v5-manager';
 
 export function assertNativeDemandMemoryBudget(sample, { cacheMode = null, now = Date.now() } = {}) {
   // Observed crashes clustered around 4 GiB of combined allocated pages. This
@@ -182,6 +182,7 @@ export function createOffMainThreadNativeDemandEvaluator({
   createObjectURL = globalThis.URL?.createObjectURL?.bind(globalThis.URL),
   revokeObjectURL = globalThis.URL?.revokeObjectURL?.bind(globalThis.URL),
   workerSource = null,
+  managerProcessing = null,
   readMemory = () => globalThis.__openWorldRendererMemoryDiagnostics__?.sample?.('demand.admission'),
 } = {}) {
   let worker = null;
@@ -263,7 +264,11 @@ export function createOffMainThreadNativeDemandEvaluator({
     return worker;
   };
 
-  const run = async (bytes, input, { gzip = false, cacheMode = input.includeAssignments ? 'assignments' : null } = {}) => {
+  const run = async (bytes, input, { gzip = false, cacheMode = input.includeAssignments ? 'assignments' : null, packagedTileId = null } = {}) => {
+    if (managerProcessing && (await managerProcessing.settings({ fresh: true })).demandEnabled) {
+      releaseWorker();
+      return managerProcessing.evaluateNative(bytes?.managerChunks ?? bytes, input, { gzip, cacheMode, packagedTileId });
+    }
     try { assertNativeDemandMemoryBudget(readMemory(), { cacheMode }); }
     catch (error) { stats.deferred++; releaseWorker(); throw error; }
     if (workerFailure) throw workerFailure;
@@ -284,7 +289,7 @@ export function createOffMainThreadNativeDemandEvaluator({
       pending.set(id, { resolve, reject, assignments: [], includeAssignments: cacheMode === 'assignments' });
       try {
         activeWorker.postMessage(
-          { id, bytes: transferable.buffer, gzip, input: compactInput, cacheMode },
+          { id, bytes: transferable.buffer, gzip: packagedTileId ? transferable[0] === 0x1f && transferable[1] === 0x8b : gzip, input: compactInput, cacheMode },
           [transferable.buffer],
         );
       } catch (error) {
@@ -352,18 +357,20 @@ function sharedDemandJsonDecoder() {
   return decoder;
 }
 
-export function sharedNativeDemandEvaluator(workerSource = null) {
+export function sharedNativeDemandEvaluator(workerSource = null, managerProcessing = null) {
   const existing = globalThis[NATIVE_DEMAND_EVALUATOR_STATE];
   if (existing?.version === NATIVE_DEMAND_EVALUATOR_VERSION
     && existing?.workerSource === workerSource
+    && existing?.managerProcessing === managerProcessing
     && existing.evaluator) {
     return existing.evaluator;
   }
   existing?.evaluator?.dispose?.();
-  const evaluator = createOffMainThreadNativeDemandEvaluator({ workerSource });
+  const evaluator = createOffMainThreadNativeDemandEvaluator({ workerSource, managerProcessing });
   globalThis[NATIVE_DEMAND_EVALUATOR_STATE] = {
     version: NATIVE_DEMAND_EVALUATOR_VERSION,
     workerSource,
+    managerProcessing,
     evaluator,
   };
   return evaluator;
@@ -422,6 +429,7 @@ export class EmbeddedTilePackageAdapter {
     decodeJsonBytes = null,
     evaluateNativeDemandBytes = null,
     nativeDemandWorkerSource = null,
+    managerProcessing = null,
   } = {}) {
     if (!(tileById instanceof Map)) throw new Error('Embedded Tile Package Adapter requires a Tile View index');
     this.catalogTileIds = [...tileIds]; this.prepared = new Map();
@@ -434,7 +442,7 @@ export class EmbeddedTilePackageAdapter {
     this.resolveDataUrl = resolveDataUrl;
     this.decodeJsonBytes = decodeJsonBytes ?? sharedDemandJsonDecoder().decode;
     this.evaluateNativeDemandBytes = evaluateNativeDemandBytes
-      ?? sharedNativeDemandEvaluator(nativeDemandWorkerSource).evaluate;
+      ?? sharedNativeDemandEvaluator(nativeDemandWorkerSource, managerProcessing).evaluate;
     this.nativeDemand = new Map();
   }
   tileIds() { return [...this.catalogTileIds]; }
@@ -518,10 +526,8 @@ export class EmbeddedTilePackageAdapter {
     const tileId = input?.tileId;
     this.#assertTile(tileId);
     if (typeof this.fetchData !== 'function') return null;
-    const bytes = await this.#fetchNativeDemandBytes(`/data/${tileId}/demand_data.json.gz`);
-    return this.evaluateNativeDemandBytes(bytes, input, {
-      gzip: bytes[0] === 0x1f && bytes[1] === 0x8b,
-    });
+    const bytes = () => this.#fetchNativeDemandBytes(`/data/${tileId}/demand_data.json.gz`);
+    return this.evaluateNativeDemandBytes(bytes, input, { gzip: true, packagedTileId: tileId });
   }
   async loadRoadBytes(tileId) {
     this.#assertTile(tileId);

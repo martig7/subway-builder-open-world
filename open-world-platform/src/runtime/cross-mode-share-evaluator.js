@@ -6,6 +6,7 @@ import { assertNativeDemandMemoryBudget } from './embedded-tile-package-adapter.
 /** One allocation slot per calculation; crashed workers never retry in the main heap. */
 export function createCrossModeShareEvaluator({
   workerSource,
+  managerProcessing = null,
   WorkerClass = globalThis.Worker,
   BlobClass = globalThis.Blob,
   createObjectURL = globalThis.URL?.createObjectURL?.bind(globalThis.URL),
@@ -75,6 +76,14 @@ export function createCrossModeShareEvaluator({
   };
 
   const evaluate = async input => {
+      if (managerProcessing && (await managerProcessing.settings({ fresh: true })).demandEnabled) {
+        release();
+        try {
+          const value = await managerProcessing.evaluateCross(input);
+          stats.workerEvaluations++; stats.latestRoutingStats = value.routingStats;
+          return value;
+        } catch (error) { stats.latestError = error.message; throw error; }
+      }
       assertNativeDemandMemoryBudget(readMemory());
       if (disposed) throw new Error('Cross-mode share evaluator was disposed');
       if (workerFailure) throw workerFailure;

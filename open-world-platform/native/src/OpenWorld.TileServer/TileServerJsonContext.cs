@@ -16,6 +16,7 @@ internal sealed record HealthResponse(
 [JsonSerializable(typeof(HealthResponse))]
 [JsonSerializable(typeof(ServerState))]
 [JsonSerializable(typeof(RecorderSettings))]
+[JsonSerializable(typeof(ProcessingSettings))]
 [JsonSerializable(typeof(RecorderStatus))]
 [JsonSerializable(typeof(NativeCaptureStatus))]
 [JsonSerializable(typeof(NativeLogChunk))]

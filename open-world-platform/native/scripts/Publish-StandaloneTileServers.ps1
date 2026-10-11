@@ -25,6 +25,8 @@ $targets = @(
     [pscustomobject]@{ Rid = 'osx-x64'; Platform = 'macos-x64'; Executable = 'open-world-tile-server'; Sign = $false }
 )
 
+node (Join-Path $nativeRoot '..\scripts\build-manager-processing.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Manager processing helper packaging failed.' }
 $archives = [System.Collections.Generic.List[string]]::new()
 try {
     foreach ($target in $targets) {
@@ -49,6 +51,7 @@ try {
         }
 
         Copy-Item -LiteralPath $publishedExecutable -Destination (Join-Path $packageRoot $target.Executable)
+        if ($target.Sign) { Copy-Item -LiteralPath (Join-Path $publishRoot 'processing') -Destination $packageRoot -Recurse -Force }
         @(
             "Open World Tile Server $version",
             "Platform: $($target.Platform)",
