@@ -10,7 +10,9 @@ const prototypeRoot = path.resolve(modRoot, '..');
 const planScript = path.join(prototypeRoot, 'tools', 'build-unified-basemaps.ps1');
 const buildScript = path.join(prototypeRoot, 'build-nec.ps1');
 
-test('NEC PMTiles build preserves world geography at wide zooms', () => {
+test('NEC PMTiles build preserves world geography at wide zooms', {
+  skip: process.platform !== 'win32' && 'Legacy basemap planning runs on the Windows regression job',
+}, () => {
   const stdout = execFileSync(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', planScript, '-PlanOnly'],

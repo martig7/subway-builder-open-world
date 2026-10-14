@@ -18,6 +18,28 @@ on:
 permissions:
   contents: read
 jobs:
+  windows-regression:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Existing Windows installer and full NEC behavioral regression
+        shell: pwsh
+        run: |
+          npm ci --prefix open-world-platform
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm test --prefix prototype/nec-corridor/mod
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node open-world-platform/scripts/build-manager-processing.mjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet run --project open-world-platform/native/tests/OpenWorld.Native.Tests -c Release
+          exit $LASTEXITCODE
   test:
     strategy:
       fail-fast: false
