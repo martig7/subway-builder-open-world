@@ -44,6 +44,9 @@ jobs:
           dotnet run --project open-world-platform/native/tests/OpenWorld.Native.Tests -c Release
           exit $LASTEXITCODE
   test:
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -132,7 +135,7 @@ jobs:
           while IFS= read -r asset; do
             gh release download "$tag" --pattern "$asset" --dir "$OPEN_WORLD_RELEASE_ASSET_ROOT"
           done < artifacts/release-asset-names.txt
-          dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server --full-release | tee artifacts/real-release-tests.log
+          dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server --full-release 2>&1 | tee artifacts/real-release-tests.log
       - name: Remove packaged app (world data removal remains manager-scoped)
         run: sudo dpkg -r open-world-manager
       - name: Collect installable artifacts
