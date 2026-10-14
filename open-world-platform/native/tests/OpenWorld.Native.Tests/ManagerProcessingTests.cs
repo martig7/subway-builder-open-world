@@ -12,7 +12,7 @@ using OpenWorld.TileServer;
 
 public static class ManagerProcessingTests
 {
-    public static async Task Run(byte[] archive)
+    public static async Task Run(byte[] archive, string? serverPath = null)
     {
         var root = Path.Combine(Path.GetTempPath(), "open-world-processing-tests", Guid.NewGuid().ToString("N"));
         var state = Path.Combine(root, "state");
@@ -26,7 +26,7 @@ public static class ManagerProcessingTests
         settings.Set(new());
         using var reservation = new TcpListener(IPAddress.Loopback, 0);
         reservation.Start(); var port = ((IPEndPoint)reservation.LocalEndpoint).Port; reservation.Stop();
-        var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "open-world-tile-server.exe"))
+        var start = new ProcessStartInfo(serverPath ?? Path.Combine(AppContext.BaseDirectory, "open-world-tile-server.exe"))
         { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var value in new[] { "serve", "--root", Path.Combine(root, "tiles"), "--port", port.ToString(), "--state-root", state, "--log-root", Path.Combine(root,"logs") })
             start.ArgumentList.Add(value);

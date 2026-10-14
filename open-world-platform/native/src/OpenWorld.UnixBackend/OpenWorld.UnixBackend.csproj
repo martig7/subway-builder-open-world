@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../OpenWorld.Release/OpenWorld.Release.csproj" />
+    <EmbeddedResource Include="../OpenWorld.MacBackend/release-envelope.json" LogicalName="release-envelope.json" />
+  </ItemGroup>
+</Project>

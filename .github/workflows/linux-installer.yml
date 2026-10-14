@@ -1,0 +1,114 @@
+name: Linux installer and manager
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Matching signed catalog and world assets (empty uses vVERSION)'
+        required: false
+        type: string
+      full_payload:
+        description: 'Install and verify real NEC/Japan packages'
+        type: boolean
+        default: true
+  push:
+    branches: [codex/linux-installer-manager]
+    paths: ['open-world-platform/native/**', '.github/workflows/linux-installer.yml', 'VERSION']
+  pull_request:
+    paths: ['open-world-platform/native/**', '.github/workflows/linux-installer.yml', 'VERSION']
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            rid: linux-x64
+          - runner: ubuntu-24.04-arm
+            rid: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libx11-6 libice6 libsm6 libfontconfig1 libicu74 libssl3t64 xdg-utils desktop-file-utils dbus-x11
+          mkdir -p artifacts/screenshots
+          df -h "$RUNNER_TEMP"
+      - name: Restore shared JavaScript build dependencies
+        run: npm ci --prefix open-world-platform
+      - name: Source seam regression suite
+        run: npm test --prefix open-world-platform > artifacts/platform-tests.log 2>&1
+      - name: Build self-contained desktop app and installers
+        run: bash open-world-platform/native/linux/build-manager.sh '${{ matrix.rid }}' "$RUNNER_TEMP/manager-build" > artifacts/build.log 2>&1
+      - name: Install packaged application and validate launchers
+        run: |
+          mkdir -p "$RUNNER_TEMP/extracted"
+          tar -xzf "$RUNNER_TEMP/manager-build/"*.tar.gz -C "$RUNNER_TEMP/extracted"
+          bash "$RUNNER_TEMP/extracted/Open-World-Manager/install.sh" --no-launch
+          desktop-file-validate "$HOME/.local/share/applications/open-world-manager.desktop"
+          "$HOME/.local/share/open-world-manager/app/OpenWorldManager" --catalog | tee artifacts/catalog.json
+          sudo dpkg -i "$RUNNER_TEMP/manager-build/"*.deb
+          desktop-file-validate /usr/share/applications/open-world-manager.desktop
+          open-world-manager --catalog > artifacts/debian-catalog.json
+          cmp artifacts/catalog.json artifacts/debian-catalog.json
+      - name: Shared installer safety and native server lifecycle
+        run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server | tee artifacts/installer-tests.log
+      - name: Linux paths, processing helper and authenticated manager controls
+        run: dotnet run --project open-world-platform/native/tests/OpenWorld.Linux.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server | tee artifacts/linux-tests.log
+      - name: Actual desktop UI and update button
+        env:
+          UI_SNAPSHOT_ROOT: ${{ github.workspace }}/artifacts/screenshots
+          OPEN_WORLD_UPDATE_TEST_URL: http://127.0.0.1:8193/releases/latest
+        run: |
+          node tools/preview-release-update.mjs > artifacts/update-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" || true' EXIT
+          for i in $(seq 1 20); do
+            curl --fail --silent "$OPEN_WORLD_UPDATE_TEST_URL" > /dev/null && break
+            sleep 1
+          done
+          timeout 60s dbus-run-session -- xvfb-run -a open-world-manager --ui-smoke > artifacts/ui-smoke.log 2>&1
+          cat "$UI_SNAPSHOT_ROOT/ui-smoke-passed"
+      - name: Verify real signed NEC and Japan release installations
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_payload)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          OPEN_WORLD_RELEASE_ASSET_ROOT: ${{ runner.temp }}/release-assets
+        run: |
+          tag="${RELEASE_TAG:-v$(tr -d '\r\n' < VERSION)}"
+          mkdir -p "$OPEN_WORLD_RELEASE_ASSET_ROOT"
+          # Only download catalog-owned mod/data assets, excluding Windows support.
+          python3 - <<'PY' > artifacts/release-asset-names.txt
+          import base64, json
+          envelope = json.load(open('open-world-platform/native/src/OpenWorld.MacBackend/release-envelope.json'))
+          catalog = json.loads(base64.b64decode(envelope['catalog']))
+          for world in catalog['worlds']:
+              for asset in world['assets']:
+                  if asset['kind'] != 'support': print(asset['name'])
+          PY
+          while IFS= read -r asset; do
+            gh release download "$tag" --pattern "$asset" --dir "$OPEN_WORLD_RELEASE_ASSET_ROOT"
+          done < artifacts/release-asset-names.txt
+          dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server --full-release | tee artifacts/real-release-tests.log
+      - name: Remove packaged app (world data removal remains manager-scoped)
+        run: sudo dpkg -r open-world-manager
+      - name: Collect installable artifacts
+        if: always()
+        run: |
+          cp "$RUNNER_TEMP/manager-build/"*.deb "$RUNNER_TEMP/manager-build/"*.tar.gz "$RUNNER_TEMP/manager-build/SHA256SUMS" artifacts/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-installer-${{ matrix.rid }}
+          path: artifacts/
+          retention-days: 14

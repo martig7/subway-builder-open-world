@@ -4,6 +4,13 @@ This directory contains the native Windows release path shared by Open World
 consumers. Setup reads one signed release catalog and lets the user choose which
 World to install.
 
+Linux has a self-contained desktop installer/manager with `.deb` and portable
+`.tar.gz` packages for x64 and ARM64. See [Linux installation](linux/README.md).
+Linux and macOS share `OpenWorld.UnixBackend` for signed downloads, transactional
+installation, receipts, and server lifecycle; platform paths and native UI remain
+separate. GitHub Actions verifies the packaged Linux application, native service,
+processing helper, GUI, and real catalog-owned NEC/Japan packages.
+
 The tile server itself is cross-platform. `scripts/Publish-StandaloneTileServers.ps1`
 produces self-contained Windows x64, macOS Apple Silicon, and macOS Intel ZIPs.
 See `docs/manual-installation.md` for the temporary manual setup path.

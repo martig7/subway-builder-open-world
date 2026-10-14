@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using OpenWorld.MacBackend;
+using OpenWorld.UnixBackend;
 using OpenWorld.Release;
 
 var root = Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? Path.GetTempPath(), "open-world-mac-test-" + Guid.NewGuid().ToString("N"));
@@ -84,7 +85,7 @@ try
     Assert(!File.Exists(mod) && File.Exists(Path.Combine(saves, "keep.json")), "Uninstall changed save or left owned mod");
     await host.VerifyAsync("jp-test", CancellationToken.None);
     Console.WriteLine("PASS uninstall preserves other worlds and saves");
-    if (OperatingSystem.IsMacOS() && args.Length > 0)
+    if ((OperatingSystem.IsMacOS() || OperatingSystem.IsLinux()) && args.Length > 0)
     {
         try {
             await host.StartAsync(); Assert((await host.StatusAsync()).StartsWith("Running"), "Server not running");

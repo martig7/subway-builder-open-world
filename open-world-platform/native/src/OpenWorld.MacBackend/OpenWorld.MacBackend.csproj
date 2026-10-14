@@ -4,7 +4,6 @@
     <AssemblyName>open-world-manager-backend</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../OpenWorld.Release/OpenWorld.Release.csproj" />
-    <EmbeddedResource Include="release-envelope.json" LogicalName="release-envelope.json" />
+    <ProjectReference Include="../OpenWorld.UnixBackend/OpenWorld.UnixBackend.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/OpenWorld.Linux/OpenWorld.Linux.csproj" />
+    <ProjectReference Include="../../src/OpenWorld.TileServer/OpenWorld.TileServer.csproj" />
+    <Compile Include="../OpenWorld.Native.Tests/ManagerProcessingTests.cs" Link="ManagerProcessingTests.cs" />
+  </ItemGroup>
+</Project>
