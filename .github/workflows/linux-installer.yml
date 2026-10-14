@@ -45,8 +45,12 @@ jobs:
           df -h "$RUNNER_TEMP"
       - name: Restore shared JavaScript build dependencies
         run: npm ci --prefix open-world-platform
-      - name: Source seam regression suite
-        run: npm test --prefix open-world-platform > artifacts/platform-tests.log 2>&1
+      - name: Source seam and release-consumer regression suites
+        run: |
+          npm test --prefix open-world-platform > artifacts/platform-tests.log 2>&1
+          npm ci --prefix prototype/nec-corridor/mod
+          npm test --prefix prototype/nec-corridor/mod > artifacts/nec-tests.log 2>&1
+          npm test --prefix prototype/japan/mod > artifacts/japan-tests.log 2>&1
       - name: Build self-contained desktop app and installers
         run: bash open-world-platform/native/linux/build-manager.sh '${{ matrix.rid }}' "$RUNNER_TEMP/manager-build" > artifacts/build.log 2>&1
       - name: Install packaged application and validate launchers
