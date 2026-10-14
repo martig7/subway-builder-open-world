@@ -64,9 +64,14 @@ public sealed class ManagerWindow : Window
         settings.Children.Add(recorder);
         Button("Open recordings", () => OpenDirectory(Path.Combine(paths.Manager, "logs", "renderer-debug")), settings);
         body.Children.Add(Section("Optional processing & diagnostics", settings));
-        body.Children.Add(progress); body.Children.Add(message); body.Children.Add(cancel);
-        body.Children.Add(Text("Game folder: " + paths.Game));
-        Content = new ScrollViewer { Content = body };
+        var footer = new StackPanel { Margin = new Thickness(28, 12), Spacing = 8 };
+        footer.Children.Add(progress); footer.Children.Add(message); footer.Children.Add(cancel);
+        footer.Children.Add(Text("Game folder: " + paths.Game));
+        var layout = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        layout.Children.Add(new ScrollViewer { Content = body });
+        var footerBorder = new Border { Child = footer, BorderBrush = Brushes.DimGray, BorderThickness = new Thickness(0, 1, 0, 0) };
+        Grid.SetRow(footerBorder, 1); layout.Children.Add(footerBorder);
+        Content = layout;
         cancel.Click += async (_, _) => { if (await Confirm("Cancel installation?", "The existing installation will be preserved until the new files are committed.")) operation?.Cancel(); };
         login.IsCheckedChanged += (_, _) => { if (!refreshing) _ = Run(() => { paths.SetAutostart(Environment.ProcessPath!, login.IsChecked == true); return Task.CompletedTask; }); };
         foreach (var flag in new[] { demand, saves, naming }) flag.IsCheckedChanged += (_, _) => { if (!refreshing) _ = Run(() => ManagerControls.SetProcessingAsync(installation!, demand.IsChecked == true, saves.IsChecked == true, naming.IsChecked == true)); };
@@ -257,12 +262,12 @@ public sealed class ManagerWindow : Window
         Console.WriteLine("PASS Linux desktop UI integration");
         quitting = true; desktop.Shutdown();
     }
-    private void Snapshot(string path) { using var image = new RenderTargetBitmap(new PixelSize((int)ClientSize.Width, (int)ClientSize.Height)); image.Render(this); image.Save(path); }
+    private void Snapshot(string path) { UpdateLayout(); using var image = new RenderTargetBitmap(new PixelSize((int)ClientSize.Width, (int)ClientSize.Height)); image.Render(this); image.Save(path); }
     private static TextBlock Text(string value) => new() { Text = value, TextWrapping = TextWrapping.Wrap, FontSize = 13 };
     private static Border Section(string title, Control content)
     {
         var panel = new StackPanel { Spacing = 12 }; panel.Children.Add(new TextBlock { Text = title, FontSize = 17, FontWeight = FontWeight.SemiBold }); panel.Children.Add(content);
         return new Border { Padding = new Thickness(18), CornerRadius = new CornerRadius(8), Background = new SolidColorBrush(Color.Parse("#222A2A")), Child = panel };
     }
-    private static void Button(string label, Func<Task> action, Panel panel) { var button = new Button { Content = label }; button.Click += async (_, _) => { try { await action(); } catch (Exception error) { Console.Error.WriteLine(error.Message); } }; panel.Children.Add(button); }
+    private void Button(string label, Func<Task> action, Panel panel) { var button = new Button { Content = label }; button.Click += async (_, _) => { try { await action(); } catch (Exception error) { message.Text = error.Message; } }; panel.Children.Add(button); }
 }
