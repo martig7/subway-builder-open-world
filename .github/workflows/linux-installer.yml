@@ -17,6 +17,9 @@ on:
     paths: ['open-world-platform/native/**', '.github/workflows/linux-installer.yml', 'VERSION']
 permissions:
   contents: read
+concurrency:
+  group: linux-installer-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   windows-regression:
     runs-on: windows-latest
@@ -82,6 +85,10 @@ jobs:
           bash "$RUNNER_TEMP/extracted/Open-World-Manager/install.sh" --no-launch
           desktop-file-validate "$HOME/.local/share/applications/open-world-manager.desktop"
           "$HOME/.local/share/open-world-manager/app/OpenWorldManager" --catalog | tee artifacts/catalog.json
+          bash "$RUNNER_TEMP/extracted/Open-World-Manager/install.sh" --no-launch
+          test -x "$HOME/.local/share/open-world-manager/app.previous/OpenWorldManager"
+          "$HOME/.local/share/open-world-manager/app/OpenWorldManager" --catalog > artifacts/upgraded-catalog.json
+          cmp artifacts/catalog.json artifacts/upgraded-catalog.json
           sudo dpkg -i "$RUNNER_TEMP/manager-build/"*.deb
           desktop-file-validate /usr/share/applications/open-world-manager.desktop
           open-world-manager --catalog > artifacts/debian-catalog.json
@@ -89,7 +96,7 @@ jobs:
       - name: Shared installer safety and native server lifecycle
         run: dotnet run --project open-world-platform/native/tests/OpenWorld.Mac.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server | tee artifacts/installer-tests.log
       - name: Linux paths, processing helper and authenticated manager controls
-        run: dotnet run --project open-world-platform/native/tests/OpenWorld.Linux.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server | tee artifacts/linux-tests.log
+        run: dotnet run --project open-world-platform/native/tests/OpenWorld.Linux.Tests -c Release -- /usr/lib/open-world-manager/open-world-tile-server "$RUNNER_TEMP/extracted/Open-World-Manager/install.sh" | tee artifacts/linux-tests.log
       - name: Actual desktop UI and update button
         env:
           UI_SNAPSHOT_ROOT: ${{ github.workspace }}/artifacts/screenshots

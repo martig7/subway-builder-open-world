@@ -10,12 +10,15 @@ On Debian/Ubuntu, install the `.deb` with your graphical package installer or
 `sudo apt install ./Open-World-Manager-vVERSION_ARCH.deb`. Open **Open World
 Manager** from the application menu. To remove the app use `sudo apt remove
 open-world-manager`; uninstall worlds through the manager first if desired.
+Before a `.deb` upgrade, stop the tile server and quit the manager so the running
+service's executable remains verifiable throughout replacement.
 
 For other distributions, extract the `.tar.gz` and run `bash install.sh` as your
 desktop user. This installs into `$XDG_DATA_HOME/open-world-manager/app` (default
 `~/.local/share/open-world-manager/app`) and creates an application-menu shortcut.
 `--no-launch` registers the app without opening its window. Quit the existing
-manager before upgrading. An upgrade keeps one `app.previous` backup; move or
+manager before upgrading; the portable installer stops the verified tile service
+before replacing its executable. An upgrade keeps one `app.previous` backup; move or
 remove that backup before the next upgrade. Neither app packaging method changes
 saved games or installs world packages automatically.
 

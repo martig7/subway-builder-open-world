@@ -17,6 +17,7 @@ test -x "$source_dir/app/OpenWorldManager"
 "$source_dir/app/OpenWorldManager" --catalog > /dev/null
 mkdir -p "$data/open-world-manager"
 # Refuse replacement of a running manager; the .NET lock is enforced on Linux.
+test ! -L "$data/open-world-manager/manager.lock" || { echo 'The manager lock is a symbolic link.' >&2; exit 1; }
 exec 9> "$data/open-world-manager/manager.lock"
 flock -n 9 || { echo 'Quit the existing manager before installing an update.' >&2; exit 1; }
 stage="$(mktemp -d "$data/open-world-manager/.app-install.XXXXXXXX")"
@@ -24,6 +25,9 @@ trap 'rm -rf -- "$stage"' EXIT
 cp -a "$source_dir/app/." "$stage/"
 if [ -e "$destination" ]; then
   test -d "$destination" && test ! -e "$destination.previous" && test ! -L "$destination.previous" || { echo 'Resolve the previous application backup before updating.' >&2; exit 1; }
+  # Stop the authenticated old service before its executable is renamed.
+  # Linux /proc reports renamed/deleted executables differently after replacement.
+  "$source_dir/app/open-world-tile-server" stop --state-root "$data/metro-maker4/open-world-pmtiles"
   mv -- "$destination" "$destination.previous"
 fi
 mv -- "$stage" "$destination"

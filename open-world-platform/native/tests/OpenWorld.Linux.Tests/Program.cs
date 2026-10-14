@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Text.Json;
 using OpenWorld.Linux;
 using OpenWorld.UnixBackend;
@@ -55,6 +56,44 @@ try
         var link = Path.Combine(root, "linked"); Directory.CreateSymbolicLink(link, paths.Config);
         try { UnixInstallation.CheckLinks(Path.Combine(link, "metro-maker4")); throw new Exception("Symlink accepted"); } catch (IOException) { }
         Console.WriteLine("PASS symlink installation paths rejected");
+        if (args.Length > 1)
+        {
+            var portable = LinuxPaths.Resolve(root, key => Path.Combine(root, key == "XDG_CONFIG_HOME" ? "upgrade config space" : "upgrade data space"));
+            async Task<(int Code, string Output)> InstallApplication()
+            {
+                var start = new ProcessStartInfo("/bin/bash") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+                start.ArgumentList.Add(args[1]); start.ArgumentList.Add("--no-launch");
+                start.Environment["XDG_CONFIG_HOME"] = portable.Config; start.Environment["XDG_DATA_HOME"] = portable.Data;
+                using var process = Process.Start(start)!;
+                var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(45));
+                return (process.ExitCode, (await output) + (await error));
+            }
+            var first = await InstallApplication(); Check(first.Code == 0, first.Output);
+            var app = Path.Combine(portable.Manager, "app");
+            var upgrading = portable.Installation(Path.Combine(app, "open-world-tile-server"));
+            var upgradeTile = Path.Combine(portable.Game, "cities", "data", "TEST_A"); Directory.CreateDirectory(upgradeTile);
+            await File.WriteAllBytesAsync(Path.Combine(upgradeTile, "tiles.pmtiles"), bytes);
+            await upgrading.StartAsync();
+            try
+            {
+                var second = await InstallApplication(); Check(second.Code == 0, second.Output);
+                Check(await upgrading.StatusAsync() == "Stopped", "Upgrade replaced a running service executable");
+                Check(File.Exists(Path.Combine(app + ".previous", "OpenWorldManager")), "Upgrade did not preserve app backup");
+                Check(File.Exists(Path.Combine(upgradeTile, "tiles.pmtiles")), "Application upgrade changed world data");
+            }
+            finally { await upgrading.StopAsync(); }
+            var lockFile = Path.Combine(portable.Manager, "manager.lock");
+            using (var activeManager = new FileStream(lockFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                var busy = await InstallApplication(); Check(busy.Code != 0 && busy.Output.Contains("Quit the existing manager"), "Shell installer ignored .NET manager lock");
+            }
+            File.Delete(lockFile);
+            var outside = Path.Combine(root, "untouched.txt"); await File.WriteAllTextAsync(outside, "keep");
+            File.CreateSymbolicLink(lockFile, outside);
+            var linked = await InstallApplication(); Check(linked.Code != 0 && await File.ReadAllTextAsync(outside) == "keep", "Shell installer followed a linked lock file");
+            Console.WriteLine("PASS portable application upgrade stops verified service, preserves maps, respects manager lock and rejects linked lock files");
+        }
     }
 }
 finally { Directory.Delete(root, true); }
